@@ -1,0 +1,14 @@
+Bu dizindeki yazı tipleri Google Fonts'tan alınmıştır ve SIL Open Font
+License 1.1 ile dağıtılır. Lisans, yazı tipinin gömülmesine ve yeniden
+dağıtılmasına izin verir; telif bildirimi korunmalıdır.
+
+  Inter            — Copyright (c) The Inter Project Authors
+                     https://github.com/rsms/inter
+  Playfair Display — Copyright (c) The Playfair Project Authors
+                     https://github.com/clauseggers/Playfair-Display
+
+Lisans metni: https://openfontlicense.org
+
+Dosyalar Google Fonts'un latin ve latin-ext altkümeleridir (Türkçe
+ğ ş ı İ için latin-ext gerekli). Sayfa dış kaynağa bağlanmadığı için
+(CSP: default-src 'self') yazı tipleri burada barındırılır.

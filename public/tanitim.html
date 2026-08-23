@@ -15,24 +15,104 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none';"
     />
-    <link rel="icon" href="/logo.png" />
+    <link rel="icon" href="/marka.png" />
     <style>
       /* ── SIFIR BAĞIMLILIK ──
-         Bu sayfa React yüklemez, dış kütüphane çekmez. Ziyaretçi yalnız
-         sistemin ne olduğunu öğrenmek için uygulamanın tamamını (~570 kB)
-         indirmemeli; "Sisteme Giriş"e basınca indirir.
-         Sekmeler ve 3B slider saf CSS + birkaç yüz bayt JS ile çalışır. */
+         Bu sayfa React yüklemez, dış kütüphane çekmez, dış yazı tipi ÇEKMEZ.
+         Ziyaretçi yalnız sistemin ne olduğunu öğrenmek için uygulamanın
+         tamamını (~570 kB) indirmemeli; "Sisteme Giriş"e basınca indirir.
+         Sekmeler ve 3B kitap saf CSS + birkaç yüz bayt JS ile çalışır.
+
+         Yazı tipleri Google Fonts'tan DEĞİL, kendi sunucusundan gelir
+         (public/yazitipi/). Sayfanın kendi güvenlik politikası
+         `default-src 'self'` diyor; dış bir yazı tipi zaten engellenirdi.
+         Playfair Display ve Inter, SIL Open Font License 1.1 ile dağıtılır. */
+
+      /* Latin-ext altkümesi Türkçe ğ ş ı İ için gerekli; ö ü ç latin'de. */
+      @font-face {
+        font-family: 'Inter var';
+        font-style: normal;
+        font-weight: 100 900;
+        font-display: swap;
+        src: url('/yazitipi/inter-latin-ext.woff2') format('woff2');
+        unicode-range:
+          U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+          U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+          U+2C60-2C7F, U+A720-A7FF;
+      }
+      @font-face {
+        font-family: 'Inter var';
+        font-style: normal;
+        font-weight: 100 900;
+        font-display: swap;
+        src: url('/yazitipi/inter-latin.woff2') format('woff2');
+        unicode-range:
+          U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+          U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: 'Playfair Display var';
+        font-style: normal;
+        font-weight: 400 900;
+        font-display: swap;
+        src: url('/yazitipi/playfair-latin-ext.woff2') format('woff2');
+        unicode-range:
+          U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+          U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+          U+2C60-2C7F, U+A720-A7FF;
+      }
+      @font-face {
+        font-family: 'Playfair Display var';
+        font-style: normal;
+        font-weight: 400 900;
+        font-display: swap;
+        src: url('/yazitipi/playfair-latin.woff2') format('woff2');
+        unicode-range:
+          U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+          U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: 'Playfair Display var';
+        font-style: italic;
+        font-weight: 400 700;
+        font-display: swap;
+        src: url('/yazitipi/playfair-italic-latin-ext.woff2') format('woff2');
+        unicode-range:
+          U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+          U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+          U+2C60-2C7F, U+A720-A7FF;
+      }
+      @font-face {
+        font-family: 'Playfair Display var';
+        font-style: italic;
+        font-weight: 400 700;
+        font-display: swap;
+        src: url('/yazitipi/playfair-italic-latin.woff2') format('woff2');
+        unicode-range:
+          U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+          U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+
+      /* ── TEMA ──
+         Sıcak kırık beyaz zemin, adaçayı yeşili vurgu, koyu yeşil metin.
+         Eski lacivert/teal/altın üçlüsünün yerini alır. Renkler tek yerde:
+         aşağıdaki her kural bu değişkenleri kullanır. */
       :root {
-        --lacivert: #0e1526;
-        --lacivert-2: #1b2a4a;
-        --teal: #0d9b8e;
-        --teal-koyu: #0a7d72;
-        --altin: #c4973b;
-        --metin: #0f172a;
-        --metin-soluk: #64748b;
-        --kenar: #e2e8f0;
-        --zemin: #f7f9fb;
-        --kagit: #fffdf8;
+        --zemin: #fbfaf8; /* sayfa zemini */
+        --yuzey: #ffffff; /* kart, kağıt */
+        --bej: #f4f1ea; /* kahraman ve alt bilgi zemini */
+        --adacayi: #5a7d65; /* vurgu (ikincil) */
+        --orman: #3a4a40; /* ana renk: başlık, düğme */
+        --adacayi-acik: #dceae0; /* yumuşak vurgu zemini */
+        --metin: #2c312d;
+        --metin-soluk: #6b7269;
+        --kenar: #e3e0d8;
+        --kagit: #ffffff;
+        /* Köşeler bilinçli olarak çok yumuşak: tasarımın en ayırt edici yanı. */
+        --yay-kucuk: 0.75rem;
+        --yay-orta: 1.5rem;
+        --yay-buyuk: 2rem;
+        --yay-dev: 3rem;
       }
       * {
         box-sizing: border-box;
@@ -44,7 +124,7 @@
       }
       body {
         font-family:
-          'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+          'Inter var', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
           sans-serif;
         color: var(--metin);
         background: var(--zemin);
@@ -63,14 +143,14 @@
         position: sticky;
         top: 0;
         z-index: 20;
-        background: rgba(14, 21, 38, 0.92);
-        backdrop-filter: blur(10px);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--kenar);
       }
       .ust-ic {
-        max-width: 1140px;
+        max-width: 1240px;
         margin: 0 auto;
-        padding: 12px 20px;
+        padding: 14px 20px;
         display: flex;
         align-items: center;
         gap: 12px;
@@ -78,25 +158,32 @@
       .marka {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 12px;
         min-width: 0;
       }
+      /* Marka işareti yumuşak köşeli bir kutuda durur; logonun kendi zemini
+         beyazsa da kutu onu sayfaya bağlar. */
       .marka img {
-        width: 34px;
-        height: 34px;
+        width: 46px;
+        height: 46px;
         object-fit: contain;
         flex-shrink: 0;
+        background: var(--bej);
+        border-radius: var(--yay-kucuk);
+        padding: 3px;
       }
       .marka-ad {
-        color: #fff;
-        font-weight: 800;
-        font-size: 16px;
+        font-family: 'Playfair Display var', Georgia, 'Times New Roman', serif;
+        color: var(--orman);
+        font-weight: 600;
+        font-size: 21px;
         letter-spacing: -0.01em;
         white-space: nowrap;
+        line-height: 1.2;
       }
       .marka-alt {
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 11.5px;
+        color: var(--metin-soluk);
+        font-size: 12.5px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -105,69 +192,147 @@
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        background: var(--teal);
+        background: var(--orman);
         color: #fff;
         text-decoration: none;
-        font-weight: 700;
-        font-size: 14px;
-        padding: 10px 18px;
-        border-radius: 10px;
+        font-weight: 600;
+        font-size: 13.5px;
+        letter-spacing: 0.02em;
+        padding: 12px 26px;
+        border-radius: 999px;
         white-space: nowrap;
         transition:
-          background 0.15s,
-          transform 0.15s,
-          box-shadow 0.15s;
-        box-shadow: 0 4px 14px rgba(13, 155, 142, 0.3);
+          background 0.3s,
+          transform 0.3s,
+          box-shadow 0.3s;
       }
       .giris-btn:hover {
-        background: var(--teal-koyu);
-        box-shadow: 0 6px 20px rgba(13, 155, 142, 0.42);
+        background: var(--adacayi);
+        box-shadow: 0 10px 24px rgba(90, 125, 101, 0.28);
+        transform: translateY(-2px);
       }
       .giris-btn:active {
-        transform: translateY(1px);
+        transform: translateY(0);
       }
 
-      /* ── Kahraman ── */
+      /* ── Kahraman ──
+         Fotoğrafın üstüne yazı yazmak yerine: beje oturan yazı, altında
+         çerçeveli fotoğraf. Metin her zaman okunur, fotoğraf her zaman
+         görünür — koyu bindirme gerekmez. */
       .kahraman {
         position: relative;
-        background:
-          linear-gradient(rgba(8, 12, 24, 0.74), rgba(8, 12, 24, 0.9)), url('/login-bg.jpg');
-        background-size: cover;
-        background-position: center;
-        color: #fff;
-        padding: 74px 20px 70px;
+        background: var(--bej);
+        padding: 64px 20px 72px;
         text-align: center;
         overflow: hidden;
+        border-bottom-left-radius: 4rem;
+        border-bottom-right-radius: 4rem;
+      }
+      /* Zeminde dağılan yeşil ışık — düz bejin tekdüzeliğini kırar. */
+      .kahraman::before {
+        content: '';
+        position: absolute;
+        top: -25%;
+        left: 50%;
+        width: 800px;
+        height: 800px;
+        max-width: 130vw;
+        transform: translateX(-50%);
+        background: rgba(90, 125, 101, 0.13);
+        border-radius: 50%;
+        filter: blur(100px);
+        pointer-events: none;
+      }
+      .kahraman-ic {
+        position: relative;
+        z-index: 1;
+        max-width: 1240px;
+        margin: 0 auto;
+      }
+      .rozet {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        padding: 9px 20px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(90, 125, 101, 0.22);
+        backdrop-filter: blur(8px);
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--orman);
+        margin-bottom: 26px;
+      }
+      .rozet .benek {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--adacayi);
+        flex-shrink: 0;
       }
       .kahraman h1 {
-        margin: 0 auto 14px;
-        max-width: 800px;
-        font-size: 42px;
-        line-height: 1.16;
-        font-weight: 800;
-        letter-spacing: -0.028em;
+        font-family: 'Playfair Display var', Georgia, 'Times New Roman', serif;
+        margin: 0 auto 18px;
+        max-width: 860px;
+        font-size: 48px;
+        line-height: 1.14;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--orman);
       }
       .kahraman h1 .vurgu {
-        color: var(--altin);
+        display: block;
+        color: var(--adacayi);
+        font-style: italic;
+        font-weight: 400;
       }
       .kahraman p {
-        margin: 0 auto 30px;
-        max-width: 630px;
-        font-size: 16.5px;
-        color: rgba(255, 255, 255, 0.84);
-      }
-      /* ── Bölüm ── */
-      .bolum {
-        max-width: 1140px;
         margin: 0 auto;
-        padding: 64px 20px;
+        max-width: 640px;
+        font-size: 18px;
+        line-height: 1.65;
+        color: var(--metin-soluk);
+      }
+      /* Fotoğraf çerçevesi: geniş, çok yuvarlak, içeride ince bir kenar. */
+      .kahraman-gorsel {
+        position: relative;
+        width: 100%;
+        max-width: 1000px;
+        margin: 46px auto 0;
+        aspect-ratio: 21 / 9;
+        border-radius: var(--yay-dev);
+        background: rgba(255, 255, 255, 0.5);
+        border: 1px solid rgba(90, 125, 101, 0.14);
+        padding: 14px;
+        box-shadow: 0 30px 60px rgba(44, 49, 45, 0.14);
+      }
+      .kahraman-gorsel img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 2.25rem;
+        display: block;
+      }
+
+      .bolum-ustbaslik {
+        text-align: center;
+        margin: 0 0 10px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--adacayi);
       }
       .bolum-baslik {
+        font-family: 'Playfair Display var', Georgia, 'Times New Roman', serif;
         text-align: center;
-        margin: 0 0 34px;
-        font-size: 27px;
-        font-weight: 800;
+        margin: 0 0 38px;
+        font-size: 34px;
+        font-weight: 600;
         letter-spacing: -0.02em;
+        color: var(--orman);
       }
 
       /* ══ SEKMELER ══
@@ -176,32 +341,34 @@
       .sekme-serit {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 10px;
         justify-content: center;
-        margin-bottom: 26px;
+        margin-bottom: 34px;
       }
       .sekme {
-        border: 1px solid var(--kenar);
-        background: #fff;
-        color: var(--metin-soluk);
+        border: 1px solid rgba(90, 125, 101, 0.24);
+        background: var(--yuzey);
+        color: var(--orman);
         font-family: inherit;
-        font-size: 13px;
+        font-size: 12.5px;
         font-weight: 600;
-        padding: 9px 15px;
+        letter-spacing: 0.04em;
+        padding: 12px 22px;
         border-radius: 999px;
         cursor: pointer;
-        transition: all 0.16s;
+        transition: all 0.28s;
         white-space: nowrap;
       }
       .sekme:hover {
-        border-color: #94a3b8;
-        color: var(--metin);
+        background: var(--adacayi-acik);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 18px rgba(44, 49, 45, 0.09);
       }
       .sekme[aria-selected='true'] {
-        background: var(--lacivert-2);
-        border-color: var(--lacivert-2);
+        background: var(--adacayi);
+        border-color: var(--adacayi);
         color: #fff;
-        box-shadow: 0 4px 14px rgba(27, 42, 74, 0.24);
+        box-shadow: 0 10px 22px rgba(90, 125, 101, 0.26);
       }
 
       /* ══════ GERÇEK KİTAP ══════
@@ -217,12 +384,15 @@
          `backface-visibility: hidden` şart: olmasaydı yaprak dönerken
          ön yüzü ayna görüntüsü hâlinde okunurdu. */
       .kitap-alan {
-        background: linear-gradient(180deg, #0e1526 0%, #16203a 100%);
-        padding: 62px 20px 70px;
-        color: #fff;
-      }
-      .kitap-alan .bolum-baslik {
-        color: #fff;
+        background: var(--bej);
+        padding: 72px 20px 80px;
+        color: var(--metin);
+        border-radius: 4rem;
+        max-width: 1360px;
+        /* Yanlardan boşluk kalsın: köşe yuvarlaması ekran kenarına
+           dayanınca kesilmiş görünüyor. */
+        width: calc(100% - 40px);
+        margin: 0 auto 72px;
       }
       .kitap-sahne {
         max-width: 1240px;
@@ -233,8 +403,8 @@
         position: relative;
         height: 620px;
         transform-style: preserve-3d;
-        /* Kapak: kitabın altından taşan koyu kenar */
-        filter: drop-shadow(0 30px 50px rgba(0, 0, 0, 0.55));
+        /* Kapak: kitabın altından taşan yumuşak gölge */
+        filter: drop-shadow(0 30px 55px rgba(44, 49, 45, 0.22));
       }
       /* Kitabın iki yarısı */
       .yari {
@@ -247,11 +417,11 @@
       }
       .yari.sol {
         left: 0;
-        border-radius: 10px 0 0 10px;
+        border-radius: var(--yay-orta) 0 0 var(--yay-orta);
       }
       .yari.sag {
         right: 0;
-        border-radius: 0 10px 10px 0;
+        border-radius: 0 var(--yay-orta) var(--yay-orta) 0;
       }
       /* Cilt: ortadaki dikiş gölgesi. Kitabı iki ayrı karttan bir bütün
          hâline getiren şey bu. */
@@ -266,11 +436,11 @@
         pointer-events: none;
         background: linear-gradient(
           90deg,
-          rgba(0, 0, 0, 0) 0%,
-          rgba(0, 0, 0, 0.1) 28%,
-          rgba(0, 0, 0, 0.28) 50%,
-          rgba(0, 0, 0, 0.1) 72%,
-          rgba(0, 0, 0, 0) 100%
+          rgba(58, 74, 64, 0) 0%,
+          rgba(58, 74, 64, 0.08) 28%,
+          rgba(58, 74, 64, 0.22) 50%,
+          rgba(58, 74, 64, 0.08) 72%,
+          rgba(58, 74, 64, 0) 100%
         );
       }
 
@@ -298,12 +468,12 @@
         overflow: hidden;
       }
       .yuz.on {
-        border-radius: 0 10px 10px 0;
+        border-radius: 0 var(--yay-orta) var(--yay-orta) 0;
       }
       /* Arka yüz baştan çevrilmiş durur; yaprak dönünce düz görünür. */
       .yuz.arka {
         transform: rotateY(180deg);
-        border-radius: 10px 0 0 10px;
+        border-radius: var(--yay-orta) 0 0 var(--yay-orta);
       }
       /* Kağıt dokusu: cilde yakın taraf hafif koyulaşır. */
       .yuz.on::after,
@@ -314,7 +484,7 @@
         top: 0;
         bottom: 0;
         width: 40px;
-        background: linear-gradient(90deg, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0));
+        background: linear-gradient(90deg, rgba(58, 74, 64, 0.1), rgba(58, 74, 64, 0));
         pointer-events: none;
       }
       .yuz.arka::after,
@@ -325,14 +495,14 @@
         top: 0;
         bottom: 0;
         width: 40px;
-        background: linear-gradient(270deg, rgba(0, 0, 0, 0.13), rgba(0, 0, 0, 0));
+        background: linear-gradient(270deg, rgba(58, 74, 64, 0.1), rgba(58, 74, 64, 0));
         pointer-events: none;
       }
 
       /* ── Sayfa içerikleri ── */
       .metin-sayfa {
         height: 100%;
-        padding: 46px 42px 46px 48px;
+        padding: 52px 46px 52px 54px;
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -341,33 +511,34 @@
       .metin-sayfa .no {
         font-size: 11px;
         font-weight: 700;
-        letter-spacing: 0.14em;
-        color: var(--altin);
+        letter-spacing: 0.16em;
+        color: var(--adacayi);
         text-transform: uppercase;
-        margin-bottom: 12px;
+        margin-bottom: 16px;
       }
       .metin-sayfa h3 {
-        margin: 0 0 14px;
-        font-size: 25px;
-        line-height: 1.24;
-        font-weight: 800;
-        letter-spacing: -0.022em;
-        color: var(--lacivert-2);
+        font-family: 'Playfair Display var', Georgia, 'Times New Roman', serif;
+        margin: 0 0 18px;
+        font-size: 30px;
+        line-height: 1.2;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: var(--orman);
       }
       .metin-sayfa p {
         margin: 0;
-        font-size: 14.5px;
-        line-height: 1.75;
-        color: #47556b;
+        font-size: 15.5px;
+        line-height: 1.8;
+        color: var(--metin-soluk);
         white-space: pre-line;
       }
 
       /* Görsel sayfası: bir, iki ya da daha çok görsel için ızgara. */
       .gorsel-sayfa {
         height: 100%;
-        padding: 22px;
+        padding: 24px;
         display: grid;
-        gap: 10px;
+        gap: 12px;
       }
       .gorsel-sayfa[data-adet='1'] {
         grid-template-columns: 1fr;
@@ -388,8 +559,8 @@
         grid-template-rows: 1fr 1fr;
       }
       .kare {
-        background: #dfe6ef center/cover no-repeat;
-        border-radius: 8px;
+        background: var(--adacayi-acik) center/cover no-repeat;
+        border-radius: var(--yay-orta);
         min-height: 0;
       }
       /* Görseli olmayan slaytta sağ sayfa boş kalmasın: kurum işareti. */
@@ -398,11 +569,11 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        opacity: 0.14;
+        opacity: 0.16;
       }
       .gorsel-yok img {
-        width: 140px;
-        height: 140px;
+        width: 150px;
+        height: 150px;
         object-fit: contain;
       }
 
@@ -423,8 +594,8 @@
         content: '';
         position: absolute;
         inset: 0;
-        border-radius: 8px;
-        background-color: rgba(15, 23, 42, 0);
+        border-radius: var(--yay-orta);
+        background-color: rgba(44, 49, 45, 0);
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.35-4.35M11 8v6M8 11h6'/%3E%3C/svg%3E");
         background-repeat: no-repeat;
         background-position: center;
@@ -436,14 +607,14 @@
       .kare:hover::after,
       .kare:focus-visible::after {
         opacity: 1;
-        background-color: rgba(15, 23, 42, 0.42);
+        background-color: rgba(44, 49, 45, 0.45);
       }
 
       .buyutec {
         position: fixed;
         inset: 0;
         z-index: 200;
-        background: rgba(6, 10, 20, 0.94);
+        background: rgba(30, 35, 31, 0.94);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -454,8 +625,8 @@
         max-width: 100%;
         max-height: 100%;
         object-fit: contain;
-        border-radius: 10px;
-        box-shadow: 0 30px 70px rgba(0, 0, 0, 0.6);
+        border-radius: var(--yay-orta);
+        box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
       }
       .buyutec-btn {
         position: absolute;
@@ -502,31 +673,34 @@
 
       .kitap-kontrol {
         max-width: 1240px;
-        margin: 26px auto 0;
+        margin: 30px auto 0;
         display: flex;
         align-items: center;
         gap: 14px;
       }
       .kitap-btn {
-        width: 44px;
-        height: 44px;
+        width: 48px;
+        height: 48px;
         border-radius: 50%;
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        background: rgba(255, 255, 255, 0.08);
-        color: #fff;
+        border: 1px solid rgba(90, 125, 101, 0.28);
+        background: var(--yuzey);
+        color: var(--orman);
         font-family: inherit;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: all 0.16s;
+        transition: all 0.28s;
       }
       .kitap-btn:hover:not(:disabled) {
-        background: rgba(255, 255, 255, 0.18);
-        border-color: rgba(255, 255, 255, 0.4);
+        background: var(--adacayi);
+        border-color: var(--adacayi);
+        color: #fff;
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(90, 125, 101, 0.24);
       }
       .kitap-btn:disabled {
-        opacity: 0.28;
+        opacity: 0.32;
         cursor: default;
       }
       .kitap-noktalar {
@@ -541,58 +715,124 @@
         border-radius: 50%;
         border: none;
         padding: 0;
-        background: rgba(255, 255, 255, 0.28);
+        background: rgba(90, 125, 101, 0.3);
         cursor: pointer;
         transition: all 0.2s;
       }
       .nokta[aria-current='true'] {
-        background: var(--altin);
-        width: 26px;
+        background: var(--adacayi);
+        width: 28px;
         border-radius: 999px;
+      }
+
+      /* Modül tanımlı değilken görünen not — kitap gizlenir, bu kalır. */
+      .modul-yok {
+        display: none;
+        max-width: 620px;
+        margin: 0 auto;
+        padding: 34px;
+        text-align: center;
+        border: 1px dashed rgba(90, 125, 101, 0.34);
+        border-radius: var(--yay-buyuk);
+        color: var(--metin-soluk);
+        font-size: 14px;
+        background: rgba(255, 255, 255, 0.55);
       }
 
       /* ── Alt bilgi ── */
       .alt {
-        background: var(--lacivert);
-        color: rgba(255, 255, 255, 0.7);
-        padding: 34px 20px;
+        background: var(--bej);
+        color: var(--metin-soluk);
+        padding: 44px 20px;
+        border-top: 1px solid rgba(90, 125, 101, 0.14);
       }
       .alt-ic {
-        max-width: 1140px;
+        max-width: 1240px;
         margin: 0 auto;
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 14px;
-        font-size: 13px;
+        font-size: 13.5px;
+      }
+      .alt-marka {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .alt-marka img {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        background: var(--yuzey);
+        border-radius: var(--yay-kucuk);
+        padding: 3px;
       }
       .alt-ic strong {
-        color: #fff;
+        color: var(--orman);
+        font-weight: 700;
       }
 
       @media (max-width: 760px) {
         .kahraman {
-          padding: 54px 18px 60px;
+          padding: 48px 18px 56px;
+          border-bottom-left-radius: var(--yay-dev);
+          border-bottom-right-radius: var(--yay-dev);
         }
         .kahraman h1 {
-          font-size: 29px;
+          font-size: 32px;
+          line-height: 1.2;
         }
         .kahraman p {
-          font-size: 15px;
+          font-size: 16px;
+        }
+        .kahraman-gorsel {
+          margin-top: 32px;
+          padding: 8px;
+          border-radius: var(--yay-buyuk);
+        }
+        .kahraman-gorsel img {
+          border-radius: var(--yay-orta);
         }
         .marka-alt {
           display: none;
         }
-        .bolum {
-          padding: 48px 18px;
+        .marka-ad {
+          font-size: 18px;
+        }
+        .giris-btn {
+          padding: 10px 18px;
+        }
+        .bolum-baslik {
+          font-size: 26px;
+        }
+        .kitap-alan {
+          padding: 52px 16px 58px;
+          border-radius: var(--yay-dev);
+          margin-bottom: 48px;
         }
         /* ── DAR EKRANDA KİTAP AÇILMAZ ──
            İki sayfayı yan yana sığdırmaya çalışmak her ikisini de okunmaz
            kılıyor. Telefonda yaprak çevirme kapanır; sayfalar alt alta,
-           tek sütun akar. Hikâye aynı, taşıyıcı değişir. */
+           tek sütun akar. Hikâye aynı, taşıyıcı değişir.
+
+           ── SIRA NASIL DOĞRU ÇIKIYOR ──
+           Kitap DOM'u masaüstü için dizilmiş: sabit sol yarı (1. metin),
+           sabit sağ yarı (SON görsel), sonra yapraklar. Yaprak[i] = ön yüz
+           görsel[i], arka yüz metin[i+1]. Bu sırayı olduğu gibi akıtınca
+           metin1, görsel1, metin2, görsel2… çıkar — istenen tam olarak bu.
+           Tek fazlalık sabit sağ yarı: son görseli ikinci kez basıyor,
+           gizlenir. Son yaprağın arka yüzü boştur, o da gizlenir.
+
+           Önceden burada `.yari.sol` ve `.yuz.arka` gizleniyordu; sonuç
+           telefonda BÜTÜN metinlerin kaybolmasıydı, ziyaretçi yalnız
+           görselleri görüyordu. */
         .kitap {
           height: auto;
           filter: none;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
         }
         .cilt {
           display: none;
@@ -604,24 +844,56 @@
           transform: none !important;
           transition: none;
         }
-        .yari.sol,
-        .yari.sag {
-          display: none;
-        }
         .yaprak {
           transform-style: flat;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .yari.sol {
+          border-radius: var(--yay-orta);
+        }
+        /* Son görselin ikinci kopyası. */
+        .yari.sag {
+          display: none;
         }
         .yuz {
           position: static;
           backface-visibility: visible;
           -webkit-backface-visibility: visible;
-          border-radius: 10px;
+          border-radius: var(--yay-orta);
         }
+        /* Arka yüz masaüstünde baştan çevrilmiş durur; burada yaprak
+           dönmediği için o çevirme geri alınmazsa metin AYNA görüntüsü
+           hâlinde basılıyor. */
         .yuz.arka {
+          transform: none;
+        }
+        /* Son yaprağın arkasında sayfa yok. */
+        .yuz.arka:empty {
+          display: none;
+        }
+        /* Cilt gölgesi tek sütunda anlamsız. */
+        .yuz.on::after,
+        .yuz.arka::after,
+        .yari.sol::after,
+        .yari.sag::after {
+          display: none;
+        }
+        .yari,
+        .yuz {
+          box-shadow: 0 10px 24px rgba(44, 49, 45, 0.08);
+        }
+        /* Bütün sayfalar zaten alt alta görünüyor; sayfa çevirme
+           düğmeleri burada yanıltıcı olurdu. */
+        .kitap-kontrol {
           display: none;
         }
         .metin-sayfa {
-          padding: 26px 22px;
+          padding: 30px 24px;
+        }
+        .metin-sayfa h3 {
+          font-size: 24px;
         }
         .gorsel-sayfa {
           min-height: 220px;
@@ -629,11 +901,12 @@
       }
       /* Hareketi azaltılmış tercihine saygı: sayfa çevirme animasyonu kapanır. */
       @media (prefers-reduced-motion: reduce) {
-        .sayfa {
-          transition: opacity 0.2s;
+        .yaprak {
+          transition: none;
         }
-        .sayfa[data-durum='cevrildi'],
-        .sayfa[data-durum='bekleyen'] {
+        .sekme:hover,
+        .kitap-btn:hover:not(:disabled),
+        .giris-btn:hover {
           transform: none;
         }
       }
@@ -657,7 +930,9 @@
     <header class="ust">
       <div class="ust-ic">
         <div class="marka">
-          <img src="/logo.png" alt="" />
+          <!-- Marka işareti tek dosyadan gelir: /marka.png. Dosya henüz
+               konmadıysa kurum arması gösterilir, kırık görsel çıkmaz. -->
+          <img src="/marka.png" alt="" onerror="this.src='/logo.png'" />
           <div style="min-width: 0">
             <div class="marka-ad">Offline Asistan</div>
             <div class="marka-alt">Çankırı Karatekin Üniversitesi</div>
@@ -684,43 +959,40 @@
     </header>
 
     <section class="kahraman">
-      <h1>Fakültenin işleyişi <span class="vurgu">tek sistemde</span></h1>
-      <p>
-        Erasmus hareketliliğinden ders programına, staj dosyalarından muafiyet başvurularına kadar
-        fakültenin yürüttüğü süreçler; belgeleriyle, onay akışlarıyla ve çakışma denetimleriyle
-        birlikte.
-      </p>
       <!-- Kahramandaki ikinci "Sisteme Giriş" düğmesi ve altındaki yönerge
            kaldırıldı: üst çubuktaki düğme her kaydırma konumunda görünür
            duruyor, nereye tıklanacağını ayrıca anlatmaya gerek yok. -->
+      <div class="kahraman-ic">
+        <div class="rozet"><span class="benek"></span>Fakülte Yönetim Sistemi</div>
+        <h1>
+          Fakültenin işleyişi
+          <span class="vurgu">tek sistemde</span>
+        </h1>
+        <p>
+          Erasmus hareketliliğinden ders programına, staj dosyalarından muafiyet başvurularına
+          kadar fakültenin yürüttüğü süreçler; belgeleriyle, onay akışlarıyla ve çakışma
+          denetimleriyle birlikte.
+        </p>
+        <!-- Fotoğraf artık yazının ARKASINDA değil ALTINDA: koyu bindirme
+             gerekmiyor, hem metin hem fotoğraf tam görünüyor. -->
+        <div class="kahraman-gorsel">
+          <img src="/login-bg.jpg" alt="Çankırı Karatekin Üniversitesi yerleşkesi" />
+        </div>
+      </div>
     </section>
 
     <!-- ══ MODÜLLER — SEKMEYE BAĞLI KİTAP ══
          Sekme seçilir, kitap o modülün içeriğini gösterir. Modül başına
          sabit bir açıklama paneli yok: içeriği yetkili giriyor. -->
     <section class="kitap-alan">
-      <h2 class="bolum-baslik">Modüller</h2>
+      <div class="bolum-ustbaslik">Özellikler</div>
+      <h2 class="bolum-baslik">Her şey tek bir yerde</h2>
 
       <div class="sekme-serit" role="tablist" id="sekmeler"></div>
 
       <!-- Hiç modül tanımlanmamışken görünür. Uydurma bir varsayılan liste
            göstermek, yetkilinin sildiği sekmeyi geri getirirdi. -->
-      <div
-        id="modulYok"
-        style="
-          display: none;
-          max-width: 620px;
-          margin: 0 auto;
-          padding: 30px;
-          text-align: center;
-          border: 1px dashed rgba(255, 255, 255, 0.22);
-          border-radius: 14px;
-          color: rgba(255, 255, 255, 0.62);
-          font-size: 14px;
-        "
-      >
-        Modül sekmeleri henüz tanımlanmadı.
-      </div>
+      <div id="modulYok" class="modul-yok">Modül sekmeleri henüz tanımlanmadı.</div>
 
       <div class="kitap-sahne">
         <div class="kitap" id="kitap" aria-live="polite">
@@ -743,9 +1015,12 @@
 
     <footer class="alt">
       <div class="alt-ic">
-        <div><strong>Offline Asistan</strong> — Çankırı Karatekin Üniversitesi</div>
+        <div class="alt-marka">
+          <img src="/marka.png" alt="" onerror="this.src='/logo.png'" />
+          <div><strong>Offline Asistan</strong> · Çankırı Karatekin Üniversitesi</div>
+        </div>
         <div class="bosluk"></div>
-        <div>Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.</div>
+        <div>Geliştirici: Arş. Gör. A. Tunahan KORKMAZ</div>
       </div>
     </footer>
 
@@ -829,7 +1104,11 @@
           if (!g.length) {
             var bos = el('div', 'gorsel-yok');
             var logo = document.createElement('img');
-            logo.src = '/logo.png';
+            logo.src = '/marka.png';
+            logo.onerror = function () {
+              logo.onerror = null;
+              logo.src = '/logo.png';
+            };
             logo.alt = '';
             bos.appendChild(logo);
             return bos;

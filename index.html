@@ -1,532 +1,711 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.quilljs.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://pagead2.googlesyndication.com https://adservice.google.com https://*.googlesyndication.com https://*.doubleclick.net https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://*.adtrafficquality.google; style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://websitem.karatekin.edu.tr https://cakuavis.karatekin.edu.tr https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net; connect-src 'self' https://cdnjs.cloudflare.com https://unpkg.com https://cdn.quilljs.com https://cdn.jsdelivr.net https://*.googleapis.com https://firebasestorage.googleapis.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://csi.gstatic.com https://api.adtrafficquality.google https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://*.adtrafficquality.google; frame-src 'self' blob: https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://www.google.com https://docs.google.com https://*.googleapis.com https://firebasestorage.googleapis.com https://view.officeapps.live.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://*.adtrafficquality.google; object-src 'none'; base-uri 'self';">
-  <link rel="icon" type="image/png" href="/logo.png">
-  <title>Offline Asistan</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.quilljs.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://pagead2.googlesyndication.com https://adservice.google.com https://*.googlesyndication.com https://*.doubleclick.net https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://*.adtrafficquality.google; style-src 'self' 'unsafe-inline' https://cdn.quilljs.com https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.googleapis.com https://websitem.karatekin.edu.tr https://cakuavis.karatekin.edu.tr https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net; connect-src 'self' https://cdnjs.cloudflare.com https://unpkg.com https://cdn.quilljs.com https://cdn.jsdelivr.net https://*.googleapis.com https://firebasestorage.googleapis.com https://pagead2.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://csi.gstatic.com https://api.adtrafficquality.google https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://*.adtrafficquality.google; frame-src 'self' blob: https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://www.google.com https://docs.google.com https://*.googleapis.com https://firebasestorage.googleapis.com https://view.officeapps.live.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://*.googlesyndication.com https://*.doubleclick.net https://ep1.adtrafficquality.google https://ep2.adtrafficquality.google https://*.adtrafficquality.google; object-src 'none'; base-uri 'self';"
+    />
+    <link rel="icon" type="image/png" href="/marka.png" />
+    <title>Offline Asistan</title>
 
-  <!-- Google AdSense -->
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7694350832593138" crossorigin="anonymous"></script>
+    <!-- Google AdSense -->
+    <script
+      async
+      src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7694350832593138"
+      crossorigin="anonymous"
+    ></script>
 
-  <!-- Quill.js Rich Text Editor -->
-  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
-  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+    <!-- Quill.js Rich Text Editor -->
+    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" />
+    <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 
-  <!-- DOMPurify for HTML sanitization -->
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <!-- DOMPurify for HTML sanitization -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
 
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
 
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
+      body {
+        font-family:
+          'Inter',
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
 
-    #root {
-      min-height: 100vh;
-    }
+      #root {
+        min-height: 100vh;
+      }
 
-    /* Loading screen */
-    .loading-screen {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      background: linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 50%, #1B2A4A 100%);
-      color: white;
-      flex-direction: column;
-      gap: 16px;
-      padding: 24px;
-    }
+      /* Loading screen */
+      .loading-screen {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #1b2a4a 0%, #2d4a7a 50%, #1b2a4a 100%);
+        color: white;
+        flex-direction: column;
+        gap: 16px;
+        padding: 24px;
+      }
 
-    .loading-logo {
-      width: 72px;
-      height: 72px;
-      border-radius: 16px;
-      object-fit: cover;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-      animation: loadingPulse 2s ease-in-out infinite;
-    }
+      .loading-logo {
+        width: 72px;
+        height: 72px;
+        border-radius: 16px;
+        object-fit: cover;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        animation: loadingPulse 2s ease-in-out infinite;
+      }
 
-    @keyframes loadingPulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.05); opacity: 0.85; }
-    }
+      @keyframes loadingPulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.05);
+          opacity: 0.85;
+        }
+      }
 
-    .loading-title {
-      font-size: 20px;
-      font-weight: 700;
-      font-family: 'Inter', sans-serif;
-      letter-spacing: 0.02em;
-      margin-top: 8px;
-    }
+      .loading-title {
+        font-size: 20px;
+        font-weight: 700;
+        font-family: 'Inter', sans-serif;
+        letter-spacing: 0.02em;
+        margin-top: 8px;
+      }
 
-    .loading-subtitle {
-      font-size: 13px;
-      opacity: 0.6;
-      margin-top: -8px;
-    }
+      .loading-subtitle {
+        font-size: 13px;
+        opacity: 0.6;
+        margin-top: -8px;
+      }
 
-    .loading-bar-track {
-      width: min(220px, 60vw);
-      height: 4px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 4px;
-      overflow: hidden;
-      margin-top: 8px;
-    }
+      .loading-bar-track {
+        width: min(220px, 60vw);
+        height: 4px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 8px;
+      }
 
-    .loading-bar-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #C4973B, #E8D5A8);
-      border-radius: 4px;
-      transition: width 0.3s ease;
-    }
+      .loading-bar-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #c4973b, #e8d5a8);
+        border-radius: 4px;
+        transition: width 0.3s ease;
+      }
 
-    .loading-text {
-      font-size: 13px;
-      font-weight: 400;
-      opacity: 0.5;
-      min-height: 20px;
-    }
+      .loading-text {
+        font-size: 13px;
+        font-weight: 400;
+        opacity: 0.5;
+        min-height: 20px;
+      }
 
-    .loading-progress {
-      font-size: 12px;
-      opacity: 0.4;
-    }
+      .loading-progress {
+        font-size: 12px;
+        opacity: 0.4;
+      }
 
-    .error-screen {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      background: linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%);
-      color: white;
-      flex-direction: column;
-      gap: 20px;
-      padding: 40px;
-      text-align: center;
-    }
+      .error-screen {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #1b2a4a 0%, #2d4a7a 100%);
+        color: white;
+        flex-direction: column;
+        gap: 20px;
+        padding: 40px;
+        text-align: center;
+      }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
 
-    /* ── Oylama Widget Stilleri ── */
-    .vote-widget {
-      transition: opacity 0.2s;
-    }
-    .vote-btn {
-      position: relative;
-    }
-    .vote-btn:active {
-      transform: scale(0.9);
-    }
-    .vote-active-up {
-      animation: votePopUp 0.3s ease-out;
-    }
-    .vote-active-down {
-      animation: votePopDown 0.3s ease-out;
-    }
-    @keyframes votePopUp {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.3) translateY(-2px); }
-      100% { transform: scale(1); }
-    }
-    @keyframes votePopDown {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.3) translateY(2px); }
-      100% { transform: scale(1); }
-    }
-    .vote-score {
-      transition: all 0.3s ease;
-    }
+      /* ── Oylama Widget Stilleri ── */
+      .vote-widget {
+        transition: opacity 0.2s;
+      }
+      .vote-btn {
+        position: relative;
+      }
+      .vote-btn:active {
+        transform: scale(0.9);
+      }
+      .vote-active-up {
+        animation: votePopUp 0.3s ease-out;
+      }
+      .vote-active-down {
+        animation: votePopDown 0.3s ease-out;
+      }
+      @keyframes votePopUp {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.3) translateY(-2px);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      @keyframes votePopDown {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.3) translateY(2px);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      .vote-score {
+        transition: all 0.3s ease;
+      }
 
-    /* ── Tepki (Reaction) Stilleri ── */
-    .reaction-trigger-btn:active {
-      transform: scale(0.95);
-    }
-    .emoji-picker-popup {
-      animation: fadeInUp 0.15s ease-out;
-    }
-    .emoji-picker-item:active {
-      transform: scale(0.9) !important;
-    }
-    .reaction-chip {
-      transition: all 0.2s ease;
-    }
-    .reaction-chip:active {
-      transform: scale(0.95) !important;
-    }
-    .reaction-chip-active {
-      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
-    }
+      /* ── Tepki (Reaction) Stilleri ── */
+      .reaction-trigger-btn:active {
+        transform: scale(0.95);
+      }
+      .emoji-picker-popup {
+        animation: fadeInUp 0.15s ease-out;
+      }
+      .emoji-picker-item:active {
+        transform: scale(0.9) !important;
+      }
+      .reaction-chip {
+        transition: all 0.2s ease;
+      }
+      .reaction-chip:active {
+        transform: scale(0.95) !important;
+      }
+      .reaction-chip-active {
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
+      }
 
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
 
-    /* ── Mention (Bahsetme) Stilleri ── */
-    .mention-tag {
-      background: linear-gradient(135deg, #DBEAFE, #EFF6FF);
-      color: #2563EB;
-      padding: 1px 6px;
-      border-radius: 4px;
-      font-weight: 600;
-      font-size: 0.95em;
-      cursor: pointer;
-      transition: all 0.15s;
-      border: 1px solid rgba(37, 99, 235, 0.15);
-    }
-    .mention-tag:hover {
-      background: #BFDBFE;
-      border-color: rgba(37, 99, 235, 0.3);
-    }
-    .mention-autocomplete {
-      animation: fadeInUp 0.12s ease-out;
-    }
+      /* ── Mention (Bahsetme) Stilleri ── */
+      .mention-tag {
+        background: linear-gradient(135deg, #dbeafe, #eff6ff);
+        color: #2563eb;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 0.95em;
+        cursor: pointer;
+        transition: all 0.15s;
+        border: 1px solid rgba(37, 99, 235, 0.15);
+      }
+      .mention-tag:hover {
+        background: #bfdbfe;
+        border-color: rgba(37, 99, 235, 0.3);
+      }
+      .mention-autocomplete {
+        animation: fadeInUp 0.12s ease-out;
+      }
 
-    /* ── Takip Butonu Stilleri ── */
-    .follow-btn-inline {
-      transition: all 0.2s ease;
-    }
-    .follow-btn-inline:hover {
-      transform: scale(1.05);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
-    .follow-btn-inline:active {
-      transform: scale(0.95);
-    }
+      /* ── Takip Butonu Stilleri ── */
+      .follow-btn-inline {
+        transition: all 0.2s ease;
+      }
+      .follow-btn-inline:hover {
+        transform: scale(1.05);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      }
+      .follow-btn-inline:active {
+        transform: scale(0.95);
+      }
 
-    /* ── Profil Sayfası Stilleri ── */
-    .profile-overlay {
-      animation: profileFadeIn 0.25s ease-out;
-    }
-    @keyframes profileFadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    .profile-card-enter {
-      animation: profileSlideUp 0.3s ease-out;
-    }
-    @keyframes profileSlideUp {
-      from { opacity: 0; transform: translateY(30px) scale(0.97); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    .profile-edit-field:focus {
-      outline: none;
-      border-color: #F59E0B !important;
-      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
-    }
-    .profile-tab-btn {
-      transition: all 0.2s ease;
-    }
-    .profile-tab-btn:hover {
-      background: rgba(245, 158, 11, 0.08);
-    }
+      /* ── Profil Sayfası Stilleri ── */
+      .profile-overlay {
+        animation: profileFadeIn 0.25s ease-out;
+      }
+      @keyframes profileFadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      .profile-card-enter {
+        animation: profileSlideUp 0.3s ease-out;
+      }
+      @keyframes profileSlideUp {
+        from {
+          opacity: 0;
+          transform: translateY(30px) scale(0.97);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      .profile-edit-field:focus {
+        outline: none;
+        border-color: #f59e0b !important;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+      }
+      .profile-tab-btn {
+        transition: all 0.2s ease;
+      }
+      .profile-tab-btn:hover {
+        background: rgba(245, 158, 11, 0.08);
+      }
 
-    /* ── Seviye Çubuğu Stilleri ── */
-    .level-bar-container {
-      position: relative;
-      overflow: hidden;
-    }
-    .level-bar-fill {
-      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .level-bar-fill::after {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
-      animation: levelShimmer 2s infinite;
-    }
-    @keyframes levelShimmer {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(100%); }
-    }
-    .level-badge {
-      transition: all 0.2s ease;
-    }
-    .level-badge:hover {
-      transform: scale(1.08);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-    }
+      /* ── Seviye Çubuğu Stilleri ── */
+      .level-bar-container {
+        position: relative;
+        overflow: hidden;
+      }
+      .level-bar-fill {
+        transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .level-bar-fill::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.3) 50%,
+          transparent 100%
+        );
+        animation: levelShimmer 2s infinite;
+      }
+      @keyframes levelShimmer {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(100%);
+        }
+      }
+      .level-badge {
+        transition: all 0.2s ease;
+      }
+      .level-badge:hover {
+        transform: scale(1.08);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+      }
 
-    /* ── Rozet Stilleri ── */
-    .badge-item {
-      transition: all 0.2s ease;
-      cursor: default;
-    }
-    .badge-item:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-    .badge-item-locked {
-      opacity: 0.45;
-      filter: grayscale(0.5);
-    }
-    .badge-item-locked:hover {
-      opacity: 0.65;
-      filter: grayscale(0.2);
-    }
-    @keyframes badgeUnlock {
-      0% { transform: scale(0.5) rotate(-10deg); opacity: 0; }
-      60% { transform: scale(1.15) rotate(3deg); opacity: 1; }
-      100% { transform: scale(1) rotate(0); opacity: 1; }
-    }
-    .badge-new {
-      animation: badgeUnlock 0.5s ease-out;
-    }
+      /* ── Rozet Stilleri ── */
+      .badge-item {
+        transition: all 0.2s ease;
+        cursor: default;
+      }
+      .badge-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+      .badge-item-locked {
+        opacity: 0.45;
+        filter: grayscale(0.5);
+      }
+      .badge-item-locked:hover {
+        opacity: 0.65;
+        filter: grayscale(0.2);
+      }
+      @keyframes badgeUnlock {
+        0% {
+          transform: scale(0.5) rotate(-10deg);
+          opacity: 0;
+        }
+        60% {
+          transform: scale(1.15) rotate(3deg);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(1) rotate(0);
+          opacity: 1;
+        }
+      }
+      .badge-new {
+        animation: badgeUnlock 0.5s ease-out;
+      }
 
-    /* ── Liderlik Tablosu Stilleri ── */
-    .leaderboard-row {
-      transition: all 0.2s ease;
-    }
-    .leaderboard-row:hover {
-      background: rgba(245, 158, 11, 0.06) !important;
-      transform: translateX(2px);
-    }
-    .leaderboard-medal {
-      animation: medalBounce 0.4s ease-out;
-    }
-    @keyframes medalBounce {
-      0% { transform: scale(0); }
-      70% { transform: scale(1.2); }
-      100% { transform: scale(1); }
-    }
-    .leaderboard-filter-btn {
-      transition: all 0.15s ease;
-    }
-    .leaderboard-filter-btn:hover {
-      opacity: 0.85;
-    }
+      /* ── Liderlik Tablosu Stilleri ── */
+      .leaderboard-row {
+        transition: all 0.2s ease;
+      }
+      .leaderboard-row:hover {
+        background: rgba(245, 158, 11, 0.06) !important;
+        transform: translateX(2px);
+      }
+      .leaderboard-medal {
+        animation: medalBounce 0.4s ease-out;
+      }
+      @keyframes medalBounce {
+        0% {
+          transform: scale(0);
+        }
+        70% {
+          transform: scale(1.2);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      .leaderboard-filter-btn {
+        transition: all 0.15s ease;
+      }
+      .leaderboard-filter-btn:hover {
+        opacity: 0.85;
+      }
 
-    /* ── Seviye Atlama Bildirimi ── */
-    .level-up-notification {
-      animation: levelUpSlide 0.5s ease-out, levelUpFade 0.5s ease-in 3.5s forwards;
-    }
-    @keyframes levelUpSlide {
-      from { opacity: 0; transform: translateY(-20px) scale(0.9); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    @keyframes levelUpFade {
-      from { opacity: 1; }
-      to { opacity: 0; pointer-events: none; }
-    }
+      /* ── Seviye Atlama Bildirimi ── */
+      .level-up-notification {
+        animation:
+          levelUpSlide 0.5s ease-out,
+          levelUpFade 0.5s ease-in 3.5s forwards;
+      }
+      @keyframes levelUpSlide {
+        from {
+          opacity: 0;
+          transform: translateY(-20px) scale(0.9);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      @keyframes levelUpFade {
+        from {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+          pointer-events: none;
+        }
+      }
 
-    /* ══════════════════════════════════════════════════ */
-    /* ── Responsive Design - Tablet (max-width: 1024px) ── */
-    /* ══════════════════════════════════════════════════ */
-    @media (max-width: 1024px) {
-      .nav-tabs-desktop { display: none !important; }
-      .nav-mobile-toggle { display: flex !important; }
-      .nav-user-desktop { display: none !important; }
-      .app-content-wrap { padding: 16px !important; }
+      /* ══════════════════════════════════════════════════ */
+      /* ── Responsive Design - Tablet (max-width: 1024px) ── */
+      /* ══════════════════════════════════════════════════ */
+      @media (max-width: 1024px) {
+        .nav-tabs-desktop {
+          display: none !important;
+        }
+        .nav-mobile-toggle {
+          display: flex !important;
+        }
+        .nav-user-desktop {
+          display: none !important;
+        }
+        .app-content-wrap {
+          padding: 16px !important;
+        }
 
-      /* Grid düzenleri tablet için */
-      .responsive-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
-      .responsive-grid-2 { grid-template-columns: 1fr !important; }
+        /* Grid düzenleri tablet için */
+        .responsive-grid-4 {
+          grid-template-columns: repeat(2, 1fr) !important;
+        }
+        .responsive-grid-2 {
+          grid-template-columns: 1fr !important;
+        }
 
-      .portal-wrap { padding: 0 12px 40px !important; }
-    }
+        .portal-wrap {
+          padding: 0 12px 40px !important;
+        }
+      }
 
-    /* ══════════════════════════════════════════════════ */
-    /* ── Responsive Design - Mobile (max-width: 768px) ── */
-    /* ══════════════════════════════════════════════════ */
-    @media (max-width: 768px) {
-      .nav-tabs-desktop { display: none !important; }
-      .nav-mobile-toggle { display: flex !important; }
-      .nav-user-desktop { display: none !important; }
-      .app-content-wrap { padding: 12px !important; }
+      /* ══════════════════════════════════════════════════ */
+      /* ── Responsive Design - Mobile (max-width: 768px) ── */
+      /* ══════════════════════════════════════════════════ */
+      @media (max-width: 768px) {
+        .nav-tabs-desktop {
+          display: none !important;
+        }
+        .nav-mobile-toggle {
+          display: flex !important;
+        }
+        .nav-user-desktop {
+          display: none !important;
+        }
+        .app-content-wrap {
+          padding: 12px !important;
+        }
 
-      .responsive-grid-4 { grid-template-columns: 1fr 1fr !important; }
-      .responsive-grid-2 { grid-template-columns: 1fr !important; }
+        .responsive-grid-4 {
+          grid-template-columns: 1fr 1fr !important;
+        }
+        .responsive-grid-2 {
+          grid-template-columns: 1fr !important;
+        }
 
-      /* Portal kartları */
-      .portal-wrap { padding: 0 8px 32px !important; }
-      .daisy-card { margin-bottom: 16px; border-radius: 10px; }
+        /* Portal kartları */
+        .portal-wrap {
+          padding: 0 8px 32px !important;
+        }
+        .daisy-card {
+          margin-bottom: 16px;
+          border-radius: 10px;
+        }
 
-      /* Quill editör */
-      .ql-toolbar { padding: 4px !important; }
-      .ql-toolbar .ql-formats { margin-right: 8px !important; }
+        /* Quill editör */
+        .ql-toolbar {
+          padding: 4px !important;
+        }
+        .ql-toolbar .ql-formats {
+          margin-right: 8px !important;
+        }
 
-      /* Tablo responsive */
-      .responsive-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-      .responsive-table-wrap table { min-width: 600px; }
-    }
+        /* Tablo responsive */
+        .responsive-table-wrap {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .responsive-table-wrap table {
+          min-width: 600px;
+        }
+      }
 
-    /* ══════════════════════════════════════════════════ */
-    /* ── Responsive Design - Small (max-width: 480px) ── */
-    /* ══════════════════════════════════════════════════ */
-    @media (max-width: 480px) {
-      .app-content-wrap { padding: 6px !important; }
-      .responsive-grid-4 { grid-template-columns: 1fr !important; gap: 8px !important; }
+      /* ══════════════════════════════════════════════════ */
+      /* ── Responsive Design - Small (max-width: 480px) ── */
+      /* ══════════════════════════════════════════════════ */
+      @media (max-width: 480px) {
+        .app-content-wrap {
+          padding: 6px !important;
+        }
+        .responsive-grid-4 {
+          grid-template-columns: 1fr !important;
+          gap: 8px !important;
+        }
 
-      .daisy-btn { padding: 8px 14px; font-size: 13px; }
+        .daisy-btn {
+          padding: 8px 14px;
+          font-size: 13px;
+        }
 
-      /* Modal responsive */
-      .responsive-modal { width: calc(100vw - 16px) !important; max-width: 100% !important; max-height: 90vh !important; margin: 8px !important; }
-      .responsive-modal-body { padding: 12px !important; }
+        /* Modal responsive */
+        .responsive-modal {
+          width: calc(100vw - 16px) !important;
+          max-width: 100% !important;
+          max-height: 90vh !important;
+          margin: 8px !important;
+        }
+        .responsive-modal-body {
+          padding: 12px !important;
+        }
 
-      /* Tablo scroll */
-      .responsive-table-wrap table { min-width: 500px; }
+        /* Tablo scroll */
+        .responsive-table-wrap table {
+          min-width: 500px;
+        }
 
-      /* Genel font küçültme */
-      h1 { font-size: 20px !important; }
-      h2 { font-size: 17px !important; }
-    }
+        /* Genel font küçültme */
+        h1 {
+          font-size: 20px !important;
+        }
+        h2 {
+          font-size: 17px !important;
+        }
+      }
 
-    /* ══════════════════════════════════════════════════ */
-    /* ── Global Responsive Utilities ── */
-    /* ══════════════════════════════════════════════════ */
-    .responsive-modal {
-      width: min(95vw, 900px);
-      max-height: 85vh;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    .responsive-container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 16px;
-      width: 100%;
-      box-sizing: border-box;
-    }
-    .responsive-flex-wrap {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-    .responsive-table-wrap {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      width: 100%;
-    }
-    @media (max-width: 768px) {
-      .responsive-modal { width: calc(100vw - 24px) !important; max-height: 88vh !important; }
-      .responsive-container { padding: 0 10px; }
-      .hide-mobile { display: none !important; }
-    }
-    @media (min-width: 769px) {
-      .hide-desktop { display: none !important; }
-    }
+      /* ══════════════════════════════════════════════════ */
+      /* ── Global Responsive Utilities ── */
+      /* ══════════════════════════════════════════════════ */
+      .responsive-modal {
+        width: min(95vw, 900px);
+        max-height: 85vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .responsive-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 16px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .responsive-flex-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .responsive-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        width: 100%;
+      }
+      @media (max-width: 768px) {
+        .responsive-modal {
+          width: calc(100vw - 24px) !important;
+          max-height: 88vh !important;
+        }
+        .responsive-container {
+          padding: 0 10px;
+        }
+        .hide-mobile {
+          display: none !important;
+        }
+      }
+      @media (min-width: 769px) {
+        .hide-desktop {
+          display: none !important;
+        }
+      }
 
-    /* ── Mobile Menu Overlay ── */
-    .mobile-menu-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.5);
-      z-index: 950;
-      animation: fadeInUp 0.15s ease-out;
-    }
-    .mobile-menu-panel {
-      position: fixed;
-      top: 0; right: 0;
-      width: 280px;
-      max-width: 85vw;
-      height: 100vh;
-      background: linear-gradient(180deg, #1B2A4A 0%, #1a2744 100%);
-      z-index: 951;
-      overflow-y: auto;
-      box-shadow: -4px 0 20px rgba(0,0,0,0.3);
-      animation: mobileMenuSlideIn 0.25s ease-out;
-    }
-    @keyframes mobileMenuSlideIn {
-      from { transform: translateX(100%); }
-      to { transform: translateX(0); }
-    }
-    .mobile-menu-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 20px;
-      border: none;
-      background: transparent;
-      color: rgba(255,255,255,0.75);
-      font-size: 15px;
-      font-weight: 500;
-      cursor: pointer;
-      width: 100%;
-      text-align: left;
-      transition: all 0.15s;
-      font-family: 'Inter', sans-serif;
-    }
-    .mobile-menu-item:hover,
-    .mobile-menu-item-active {
-      background: rgba(255,255,255,0.1);
-      color: white;
-    }
-    .mobile-menu-item-active {
-      border-left: 3px solid #C4973B;
-    }
-  </style>
-</head>
-<body>
-  <div id="root">
-    <div class="loading-screen">
-      <img src="/logo.png" alt="Logo" class="loading-logo" />
-      <div class="loading-title">Offline Asistan</div>
-      <div class="loading-subtitle">Çankırı Karatekin Üniversitesi</div>
-      <div class="loading-bar-track">
-        <div class="loading-bar-fill" id="loading-bar"></div>
+      /* ── Mobile Menu Overlay ── */
+      .mobile-menu-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 950;
+        animation: fadeInUp 0.15s ease-out;
+      }
+      .mobile-menu-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 280px;
+        max-width: 85vw;
+        height: 100vh;
+        background: linear-gradient(180deg, #1b2a4a 0%, #1a2744 100%);
+        z-index: 951;
+        overflow-y: auto;
+        box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+        animation: mobileMenuSlideIn 0.25s ease-out;
+      }
+      @keyframes mobileMenuSlideIn {
+        from {
+          transform: translateX(100%);
+        }
+        to {
+          transform: translateX(0);
+        }
+      }
+      .mobile-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px;
+        border: none;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.75);
+        font-size: 15px;
+        font-weight: 500;
+        cursor: pointer;
+        width: 100%;
+        text-align: left;
+        transition: all 0.15s;
+        font-family: 'Inter', sans-serif;
+      }
+      .mobile-menu-item:hover,
+      .mobile-menu-item-active {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+      }
+      .mobile-menu-item-active {
+        border-left: 3px solid #c4973b;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="loading-screen">
+        <img
+          src="/marka.png"
+          alt="Offline Asistan"
+          class="loading-logo"
+          onerror="
+            this.onerror = null;
+            this.src = '/logo.png';
+          "
+        />
+        <div class="loading-title">Offline Asistan</div>
+        <div class="loading-subtitle">Çankırı Karatekin Üniversitesi</div>
+        <div class="loading-bar-track">
+          <div class="loading-bar-fill" id="loading-bar"></div>
+        </div>
+        <div class="loading-text" id="loading-text"></div>
+        <div class="loading-progress" id="loading-progress"></div>
       </div>
-      <div class="loading-text" id="loading-text"></div>
-      <div class="loading-progress" id="loading-progress"></div>
     </div>
-  </div>
 
-  <script>
-    // API sunucu bağlantı kontrolü
-    fetch('/api/health')
-      .then(function(r) { return r.json(); })
-      .then(function() {
-        window.apiReady = true;
-        console.log('API sunucusu bağlantısı doğrulandı');
-      })
-      .catch(function(err) {
-        console.warn('API sunucusu bağlantı hatası:', err.message);
-        window.apiError = err.message;
-        var t = document.getElementById('loading-text');
-        if (t) t.textContent = 'Sunucu bağlantısı kurulamıyor — yeniden deneniyor…';
-      });
+    <script>
+      // API sunucu bağlantı kontrolü
+      fetch('/api/health')
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function () {
+          window.apiReady = true;
+          console.log('API sunucusu bağlantısı doğrulandı');
+        })
+        .catch(function (err) {
+          console.warn('API sunucusu bağlantı hatası:', err.message);
+          window.apiError = err.message;
+          var t = document.getElementById('loading-text');
+          if (t) t.textContent = 'Sunucu bağlantısı kurulamıyor — yeniden deneniyor…';
+        });
 
-    // Yükleme ekranı bekçisi: uygulama 15 sn içinde açılmazsa kullanıcıya
-    // sonsuz spinner yerine anlaşılır bir hata + yenile butonu göster.
-    setTimeout(function () {
-      var bar = document.getElementById('loading-bar');
-      if (!bar) return; // uygulama açıldı, splash React tarafından kaldırıldı
-      var screen = document.querySelector('.loading-screen');
-      if (!screen) return;
-      var reason = window.apiError
-        ? 'API sunucusuna ulaşılamıyor (' + window.apiError + ').'
-        : 'Uygulama beklenenden uzun sürede yüklendi.';
-      screen.innerHTML =
-        '<img src="/logo.png" alt="Logo" class="loading-logo" />' +
-        '<div class="loading-title">Bağlantı Sorunu</div>' +
-        '<div class="loading-subtitle" style="max-width:340px;line-height:1.5">' + reason +
-        ' Sunucu çalışıyorsa sayfayı yenileyin; sorun sürerse sistem yöneticisine bildirin.</div>' +
-        '<button onclick="location.reload()" style="margin-top:18px;padding:10px 26px;border:none;' +
-        'border-radius:8px;background:#1B2A4A;color:#fff;font-size:14px;font-weight:600;cursor:pointer">' +
-        'Yeniden Dene</button>';
-    }, 15000);
-  </script>
+      // Yükleme ekranı bekçisi: uygulama 15 sn içinde açılmazsa kullanıcıya
+      // sonsuz spinner yerine anlaşılır bir hata + yenile butonu göster.
+      setTimeout(function () {
+        var bar = document.getElementById('loading-bar');
+        if (!bar) return; // uygulama açıldı, splash React tarafından kaldırıldı
+        var screen = document.querySelector('.loading-screen');
+        if (!screen) return;
+        var reason = window.apiError
+          ? 'API sunucusuna ulaşılamıyor (' + window.apiError + ').'
+          : 'Uygulama beklenenden uzun sürede yüklendi.';
+        screen.innerHTML =
+          '<img src="/marka.png" alt="Offline Asistan" class="loading-logo" ' +
+          'onerror="this.onerror=null;this.src=\'/logo.png\'" />' +
+          '<div class="loading-title">Bağlantı Sorunu</div>' +
+          '<div class="loading-subtitle" style="max-width:340px;line-height:1.5">' +
+          reason +
+          ' Sunucu çalışıyorsa sayfayı yenileyin; sorun sürerse sistem yöneticisine bildirin.</div>' +
+          '<button onclick="location.reload()" style="margin-top:18px;padding:10px 26px;border:none;' +
+          'border-radius:8px;background:#1B2A4A;color:#fff;font-size:14px;font-weight:600;cursor:pointer">' +
+          'Yeniden Dene</button>';
+      }, 15000);
+    </script>
 
-  <!-- Vite Entry Point: pre-build edilmiş, lazy-loading destekli -->
-  <script type="module" src="/main.jsx"></script>
-</body>
+    <!-- Vite Entry Point: pre-build edilmiş, lazy-loading destekli -->
+    <script type="module" src="/main.jsx"></script>
+  </body>
 </html>
