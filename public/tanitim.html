@@ -150,7 +150,7 @@
       .ust-ic {
         max-width: 1240px;
         margin: 0 auto;
-        padding: 14px 20px;
+        padding: 24px 20px;
         display: flex;
         align-items: center;
         gap: 12px;
@@ -164,8 +164,8 @@
       /* Marka işareti yumuşak köşeli bir kutuda durur; logonun kendi zemini
          beyazsa da kutu onu sayfaya bağlar. */
       .marka img {
-        width: 46px;
-        height: 46px;
+        width: 60px;
+        height: 60px;
         object-fit: contain;
         flex-shrink: 0;
         background: var(--bej);
@@ -176,14 +176,17 @@
         font-family: 'Playfair Display var', Georgia, 'Times New Roman', serif;
         color: var(--orman);
         font-weight: 600;
-        font-size: 21px;
+        font-size: 24px;
         letter-spacing: -0.01em;
         white-space: nowrap;
         line-height: 1.2;
+        /* Dar ekranda ad kısalır; taşarsa giriş düğmesinin altına kayıyordu. */
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .marka-alt {
         color: var(--metin-soluk);
-        font-size: 12.5px;
+        font-size: 13.5px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -222,7 +225,9 @@
       .kahraman {
         position: relative;
         background: var(--bej);
-        padding: 64px 20px 72px;
+        /* Fotoğraf kaldırıldı; bölümü ayakta tutan tek şey yazı, boşluğu
+           da o taşıyor. */
+        padding: 104px 20px 116px;
         text-align: center;
         overflow: hidden;
         border-bottom-left-radius: 4rem;
@@ -295,27 +300,6 @@
         line-height: 1.65;
         color: var(--metin-soluk);
       }
-      /* Fotoğraf çerçevesi: geniş, çok yuvarlak, içeride ince bir kenar. */
-      .kahraman-gorsel {
-        position: relative;
-        width: 100%;
-        max-width: 1000px;
-        margin: 46px auto 0;
-        aspect-ratio: 21 / 9;
-        border-radius: var(--yay-dev);
-        background: rgba(255, 255, 255, 0.5);
-        border: 1px solid rgba(90, 125, 101, 0.14);
-        padding: 14px;
-        box-shadow: 0 30px 60px rgba(44, 49, 45, 0.14);
-      }
-      .kahraman-gorsel img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        border-radius: 2.25rem;
-        display: block;
-      }
-
       .bolum-ustbaslik {
         text-align: center;
         margin: 0 0 10px;
@@ -743,7 +727,7 @@
       .alt {
         background: var(--bej);
         color: var(--metin-soluk);
-        padding: 44px 20px;
+        padding: 72px 20px;
         border-top: 1px solid rgba(90, 125, 101, 0.14);
       }
       .alt-ic {
@@ -761,8 +745,8 @@
         gap: 12px;
       }
       .alt-marka img {
-        width: 40px;
-        height: 40px;
+        width: 54px;
+        height: 54px;
         object-fit: contain;
         background: var(--yuzey);
         border-radius: var(--yay-kucuk);
@@ -775,7 +759,7 @@
 
       @media (max-width: 760px) {
         .kahraman {
-          padding: 48px 18px 56px;
+          padding: 68px 18px 76px;
           border-bottom-left-radius: var(--yay-dev);
           border-bottom-right-radius: var(--yay-dev);
         }
@@ -786,22 +770,34 @@
         .kahraman p {
           font-size: 16px;
         }
-        .kahraman-gorsel {
-          margin-top: 32px;
-          padding: 8px;
-          border-radius: var(--yay-buyuk);
-        }
-        .kahraman-gorsel img {
-          border-radius: var(--yay-orta);
-        }
         .marka-alt {
           display: none;
         }
         .marka-ad {
-          font-size: 18px;
+          font-size: 17px;
+        }
+        /* Üst çubuk masaüstünde uzadı; telefonda o boy taşmaya yol açıyor. */
+        .ust-ic {
+          padding: 14px 16px;
+          gap: 10px;
+        }
+        .marka {
+          gap: 10px;
+        }
+        .marka img {
+          width: 44px;
+          height: 44px;
         }
         .giris-btn {
-          padding: 10px 18px;
+          padding: 10px 16px;
+          font-size: 12.5px;
+        }
+        .alt {
+          padding: 48px 18px;
+        }
+        .alt-marka img {
+          width: 44px;
+          height: 44px;
         }
         .bolum-baslik {
           font-size: 26px;
@@ -973,11 +969,6 @@
           kadar fakültenin yürüttüğü süreçler; belgeleriyle, onay akışlarıyla ve çakışma
           denetimleriyle birlikte.
         </p>
-        <!-- Fotoğraf artık yazının ARKASINDA değil ALTINDA: koyu bindirme
-             gerekmiyor, hem metin hem fotoğraf tam görünüyor. -->
-        <div class="kahraman-gorsel">
-          <img src="/login-bg.jpg" alt="Çankırı Karatekin Üniversitesi yerleşkesi" />
-        </div>
       </div>
     </section>
 
