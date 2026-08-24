@@ -126,3 +126,47 @@ describe('zenginKacisCoz', () => {
     expect(zenginKacisCoz('&nbsp;')).toBe(' ');
   });
 });
+
+// ══════════════════════════════════════════════════════════════
+// HİZALAMA VE GİRİNTİ
+//
+// Editör (Quill) bunları SINIF ADIYLA veriyor. Sınıf adları olduğu gibi
+// geçirilseydi, sayfanın kendi stil sayfasındaki herhangi bir kurala
+// bağlanabilirdi; bu yüzden tanınan değer okunup ağaca yazılıyor.
+// ══════════════════════════════════════════════════════════════
+describe('hizalama ve girinti', () => {
+  const ilk = (html) => zenginAyristir(html)[0];
+
+  it('tanınan hizalamayı okur', () => {
+    expect(ilk('<p class="ql-align-center">x</p>').ozellikler.hiza).toBe('center');
+    expect(ilk('<p class="ql-align-right">x</p>').ozellikler.hiza).toBe('right');
+    expect(ilk('<h3 class="ql-align-justify">x</h3>').ozellikler.hiza).toBe('justify');
+  });
+
+  it('tanınmayan hizalamayı yok sayar', () => {
+    expect(ilk('<p class="ql-align-uydurma">x</p>').ozellikler.hiza).toBeUndefined();
+    expect(ilk('<p class="baska-sinif">x</p>').ozellikler.hiza).toBeUndefined();
+  });
+
+  it('girinti düzeyini okur ve TAVANDA keser', () => {
+    expect(ilk('<p class="ql-indent-2">x</p>').ozellikler.girinti).toBe(2);
+    // Serbest bırakılsaydı ql-indent-999 içeriği ekrandan taşırırdı.
+    expect(ilk('<p class="ql-indent-999">x</p>').ozellikler.girinti).toBe(4);
+    expect(ilk('<p class="ql-indent-0">x</p>').ozellikler.girinti).toBeUndefined();
+  });
+
+  it('sınıf adı ağaca SIZMAZ', () => {
+    const o = ilk('<p class="ql-align-center gizli-sinif">x</p>').ozellikler;
+    expect(o.class).toBeUndefined();
+    expect(o.className).toBeUndefined();
+    expect(Object.keys(o)).toEqual(['hiza']);
+  });
+
+  it('hizalanamayan etikette okunmaz', () => {
+    expect(ilk('<span class="ql-align-center">x</span>').ozellikler.hiza).toBeUndefined();
+  });
+
+  it('metin yine korunur', () => {
+    expect(zenginDuzMetin('<p class="ql-align-center">Ortalı satır</p>')).toBe('Ortalı satır');
+  });
+});
