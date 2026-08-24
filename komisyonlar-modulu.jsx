@@ -41,6 +41,10 @@ const KomIcon = ({ path, size = 18, color = 'currentColor' }) => (
   </svg>
 );
 
+// Seçilebilir modüller uygulamanın KENDİ menü listesinden gelir; burada
+// ikinci bir liste tutmak, modül eklendiğinde ikisinin ayrışması demekti.
+const MODUL_SECENEKLERI = (window.DEPARTMENT_MODULES || []).filter((m) => m.id !== 'benim');
+
 function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const responsive = window.useResponsive();
   const isMobile = responsive.val(true, true, false);
@@ -57,6 +61,9 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formMembers, setFormMembers] = useState([]);
+  // Komisyonun açtığı modüller — artık komisyon adından tahmin edilmiyor,
+  // burada AÇIKÇA seçiliyor.
+  const [formModules, setFormModules] = useState([]);
   const [memberSearch, setMemberSearch] = useState('');
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
 
@@ -127,6 +134,11 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
         name: formName.trim(),
         description: formDesc.trim(),
         members: formMembers,
+        // Menüde karşılığı olmayan id yazılmaz: kimsenin göremeyeceği bir
+        // erişim kaydı bırakırdı.
+        modules: window.komisyonModulleriTemizle
+          ? window.komisyonModulleriTemizle(formModules, MODUL_SECENEKLERI)
+          : formModules,
         departmentId: activeDepartment || '',
         updatedAt: new Date().toISOString(),
       };
@@ -187,15 +199,28 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
     setFormName(comm.name || '');
     setFormDesc(comm.description || '');
     setFormMembers(comm.members || []);
+    // Eski kayıtta `modules` yoksa addan tahmin edilen liste açılır: yetkili
+    // neyin açık olduğunu görür ve isterse değiştirir.
+    setFormModules(window.komisyonModulleri ? window.komisyonModulleri(comm) : comm.modules || []);
     setEditingId(comm.id);
     setShowForm(true);
     setSelectedCommission(null);
+  };
+
+  // Komisyonun açtığı modüllerin ekran adları.
+  const modulEtiketleri = (comm) => {
+    const idler = window.komisyonModulleri ? window.komisyonModulleri(comm) : comm.modules || [];
+    return idler.map((id) => {
+      const m = MODUL_SECENEKLERI.find((x) => x.id === id);
+      return m ? m.label : id;
+    });
   };
 
   const resetForm = () => {
     setFormName('');
     setFormDesc('');
     setFormMembers([]);
+    setFormModules([]);
     setEditingId(null);
     setShowForm(false);
     setMemberSearch('');
@@ -431,6 +456,71 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
                 placeholder="Komisyon hakkında kısa açıklama"
                 style={inputStyle}
               />
+            </div>
+          </div>
+
+          {/* ── MODÜL ERİŞİMİ ──
+              Bu komisyonun üyeleri seçilen modülleri menülerinde görür.
+              Eskiden modül komisyonun ADINDAN tahmin ediliyordu; yedi kelime
+              tanınıyor, gerisi sessizce hiçbir şey açmıyordu. */}
+          <div style={{ marginBottom: 20 }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 12,
+                fontWeight: 600,
+                color: KOM.textMuted,
+                marginBottom: 5,
+              }}
+            >
+              Erişilecek Modüller
+            </label>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(190px, 1fr))',
+                gap: 8,
+                border: '1px solid ' + KOM.border,
+                borderRadius: 10,
+                padding: 12,
+                maxHeight: 210,
+                overflowY: 'auto',
+                background: '#FCFCFD',
+              }}
+            >
+              {MODUL_SECENEKLERI.map((m) => {
+                const secili = formModules.includes(m.id);
+                return (
+                  <label
+                    key={m.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 13,
+                      color: secili ? KOM.navy : KOM.text,
+                      fontWeight: secili ? 600 : 400,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={secili}
+                      onChange={() =>
+                        setFormModules((prev) =>
+                          prev.includes(m.id) ? prev.filter((x) => x !== m.id) : prev.concat(m.id)
+                        )
+                      }
+                    />
+                    {m.label}
+                  </label>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 11.5, color: KOM.textMuted, marginTop: 6, lineHeight: 1.55 }}>
+              Üyeler seçtiğiniz modülleri menülerinde görür. Hiçbiri seçilmezse komisyon yalnız
+              kayıt olarak durur, kimseye modül açmaz. Değişiklik üyenin bir sonraki girişinde (ya
+              da sayfayı yenilemesinde) geçerli olur.
             </div>
           </div>
 
@@ -689,6 +779,31 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
                         <span style={{ fontSize: 11, color: KOM.textMuted }}>
                           {new Date(comm.createdAt).toLocaleDateString('tr-TR')}
                         </span>
+                      )}
+                    </div>
+                    {/* Hangi modülleri açtığı kartta görünür: formu açmadan
+                        "bu komisyon kime ne veriyor" sorusu yanıtlanmalı. */}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                      {modulEtiketleri(comm).length === 0 ? (
+                        <span style={{ fontSize: 10.5, color: KOM.textMuted }}>
+                          Modül erişimi yok
+                        </span>
+                      ) : (
+                        modulEtiketleri(comm).map((etiket) => (
+                          <span
+                            key={etiket}
+                            style={{
+                              fontSize: 10.5,
+                              fontWeight: 600,
+                              padding: '2px 9px',
+                              borderRadius: 10,
+                              background: KOM.primaryPale,
+                              color: KOM.primary,
+                            }}
+                          >
+                            {etiket}
+                          </span>
+                        ))
                       )}
                     </div>
                   </div>

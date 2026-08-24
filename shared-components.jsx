@@ -104,6 +104,12 @@ import {
   onayBekleyenler,
 } from './lib/erasmus-onay.js';
 import { basvuruBolumId, basvuruBolumdeMi, sahipsizBasvurular } from './lib/yatay-kapsam.js';
+import {
+  komisyonModulleri,
+  uyeMi as komisyonUyesiMi,
+  erisilebilirModuller as komisyonErisimModulleri,
+  modulleriTemizle as komisyonModulleriTemizle,
+} from './lib/komisyon-modul.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
   adAnahtari,
@@ -13373,6 +13379,13 @@ window.belgeOkunanlarOzeti = belgeOkunanlarOzeti;
 // Not kaynağı: yüzlük puan mı, harf mi, hiçbiri mi. Karşı kurumun harfi ÇAKÜ
 // harfine DOĞRUDAN çevrilmez — kural ve gerekçesi lib dosyasında.
 window.belgeNotKaynagi = belgeNotKaynagi;
+// Komisyon üyeliği → modül erişimi. Modüller komisyon kaydında AÇIKÇA
+// seçilir; ad tahmini yalnız eski kayıtlar için yedek. Üye eşleşmesi
+// unvanı soyan, Türkçe-duyarlı ad anahtarıyla yapılır.
+window.komisyonModulleri = komisyonModulleri;
+window.komisyonUyesiMi = komisyonUyesiMi;
+window.komisyonErisimModulleri = komisyonErisimModulleri;
+window.komisyonModulleriTemizle = komisyonModulleriTemizle;
 // Karşı kurumun harfi ÇAKÜ harfine KATSAYI üzerinden çevrilir: harf kuruma
 // özeldir (ÇAKÜ'de "BB" yok), katsayı iki kurumun ortak dilidir.
 window.olcekHarfAnahtari = olcekHarfAnahtari;
