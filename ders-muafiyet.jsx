@@ -4928,6 +4928,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       const anahtar = String(m.id != null ? m.id : i);
       ilk[anahtar] = {
         kaynakNot: (mevcut[anahtar] && mevcut[anahtar].kaynakNot) || '',
+        kaynakHarf: (mevcut[anahtar] && mevcut[anahtar].kaynakHarf) || '',
         cakuNot: (mevcut[anahtar] && mevcut[anahtar].cakuNot) || '',
       };
     });
@@ -5049,11 +5050,6 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
     });
   }, [isStudent, olcekVar, olcekKural, notluDersler]);
 
-  const eksikNotVar = notluDersler.some((m, i) => {
-    const n = notlar[notAnahtari(m, i)] || {};
-    return !String(n.kaynakNot || '').trim() || !String(n.cakuNot || '').trim();
-  });
-
   const act = async (newStage, extra) => {
     setBusy(true);
     try {
@@ -5072,6 +5068,8 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       const n = notlar[a] || {};
       cikti[a] = {
         kaynakNot: String(n.kaynakNot || '').trim(),
+        // Belgede yalnız harf varsa akademisyenin göreceği tek kanıt budur.
+        kaynakHarf: String(n.kaynakHarf || '').trim(),
         cakuNot: String(n.cakuNot || '').trim(),
         // Çevrilemediyse SEBEBİ de taşınır — akademisyen "neden boş" diye
         // tahmin yürütmesin.
@@ -5120,9 +5118,16 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
           {
             id: 'not',
             label: 'Başarı Puanı (100’lük)',
-            // Çeviri yüzlük puan üzerinden yapılıyor; harf sütununu okumak
-            // işe yaramaz. Model neyi arayacağını açıkça bilmeli.
-            hint: 'dersin 100 üzerinden başarı puanı (ör. 87). Harf notunu değil, SAYIYI al.',
+            // Çeviri yüzlük puan üzerinden yapılır; asıl aranan bu sütun.
+            hint: 'dersin 100 üzerinden başarı puanı (ör. 87). YALNIZ sayıyı yaz; harf notunu buraya yazma. Belgede yüzlük puan yoksa boş bırak.',
+          },
+          {
+            // Bazı transkriptler yalnız harf notu gösteriyor. Harf tek başına
+            // ÇAKÜ karşılığını VERMEZ (aşağıya bak), ama okunması gerekiyor:
+            // yoksa öğrenci "puan okunamadı" duvarına çarpıp duruyordu.
+            id: 'harf',
+            label: 'Harf Notu',
+            hint: 'dersin harf notu (ör. AA, BA, BB, CC, DD, FF ya da A, B, C). Yoksa boş bırak.',
           },
         ],
         satirTanimi: 'belgede yer alan her ders satırı',
@@ -5152,14 +5157,37 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
           bulunamayanlar.push(etiket);
           return;
         }
-        if (!String(bulunan.not || '').trim()) {
+        const kaynak = window.belgeNotKaynagi ? window.belgeNotKaynagi(bulunan) : 'yok';
+        const kaynakNot = String(bulunan.not || '').trim();
+        const kaynakHarf = window.belgeHarfNormalize
+          ? window.belgeHarfNormalize(bulunan.harf)
+          : String(bulunan.harf || '').trim();
+        if (kaynak === 'yok') {
           notsuzlar.push(etiket);
           return;
         }
         eslesen += 1;
-        const kaynakNot = String(bulunan.not).trim();
-        const cevrim = puandanHarf(kaynakNot);
-        yeni[a] = { kaynakNot, cakuNot: cevrim.harf || '', sebep: cevrim.sebep || '' };
+        if (kaynak === 'puan') {
+          const cevrim = puandanHarf(kaynakNot);
+          yeni[a] = {
+            kaynakNot,
+            kaynakHarf,
+            cakuNot: cevrim.harf || '',
+            sebep: cevrim.sebep || '',
+          };
+          return;
+        }
+        // ── YALNIZ HARF OKUNDUYSA ÇAKÜ KARŞILIĞI BOŞ KALIR ──
+        // Karşı kurumun harfi doğrudan taşınamaz: iki kurumun harf ölçeği
+        // aynı şeyi ifade etmiyor (bkz. lib/mezuniyet.js → mezPuandanHarf).
+        // Çeviriyi bölüm yapar; sistem uydurmaz. Ama satır artık EKSİK
+        // sayılmıyor, öğrenci başvuruyu ilerletebiliyor.
+        yeni[a] = {
+          kaynakNot: '',
+          kaynakHarf,
+          cakuNot: '',
+          sebep: 'Belgede yüzlük puan yok; ÇAKÜ karşılığını bölüm belirleyecek.',
+        };
       });
       setNotlar(yeni);
       setBelgeUrl(url);
@@ -5167,7 +5195,9 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       // Uyarı, gönderim şartıyla AYNI ölçüte dayanmalı: burada "olur" deyip
       // gönderirken engellemek kullanıcıyı şaşırtırdı.
       const cevrilemeyen = Object.values(yeni).filter((n) => n.kaynakNot && !n.cakuNot).length;
-      const eksikVar = eslesen < notluDersler.length || cevrilemeyen > 0;
+      // Yalnız harf okunan dersler: eksik DEĞİL, ama bölümün çevirmesi gerekiyor.
+      const yalnizHarf = Object.values(yeni).filter((n) => !n.kaynakNot && n.kaynakHarf).length;
+      const eksikVar = eslesen < notluDersler.length || notsuzlar.length > 0 || cevrilemeyen > 0;
       // "0/1 bulundu" tek başına çıkmaz sokaktı: belgede ne yazdığını
       // göremeyen kullanıcı neyi düzelteceğini de bilemiyordu.
       const okunanlar = window.belgeOkunanlarOzeti ? window.belgeOkunanlarOzeti(satirlar) : '';
@@ -5187,9 +5217,16 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
               ' kurumda farklı yazılıyorsa bölümünüzle iletişime geçin.'
             : '') +
           (notsuzlar.length
-            ? ' Şu derste satır bulundu ama başarı puanı okunamadı: ' +
+            ? ' Şu derste satır bulundu ama ne puan ne harf notu okunabildi: ' +
               notsuzlar.join(', ') +
-              '. Yüzlük puanı gösteren belgeyi yükleyin.'
+              '. Notları gösteren belgeyi yükleyin.'
+            : '') +
+          (yalnizHarf > 0
+            ? ' ' +
+              yalnizHarf +
+              ' derste yalnız HARF notu var. Başvuru gönderilebilir; harfin ÇAKÜ' +
+              ' karşılığını bölüm belirleyecek — karşı kurumun harf ölçeği' +
+              ' ÇAKÜ ölçeğiyle aynı anlama gelmediği için sistem bunu kendisi çevirmez.'
             : '') +
           (cevrilemeyen > 0
             ? ' ' +
@@ -5212,19 +5249,27 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       alert('Önce başarı belgenizi yükleyip okutun.');
       return;
     }
-    // ── Gönderim ŞARTI: her ders için YÜZLÜK PUAN okunmuş olmalı ──
+    // ── Gönderim ŞARTI: her ders için PUAN YA DA HARF okunmuş olmalı ──
     //
-    // Çeviri yüzlük puan üzerinden yapılıyor; puan yoksa ÇAKÜ karşılığı da
-    // yok demektir. Böyle bir başvuruyu onaya göndermek, akademisyenin önüne
-    // eksik bir dosya koyup işi ona geri yıkmak olurdu. Öğrenci doğru belgeyi
-    // (yüzlük notu gösteren çıktıyı) yüklesin diye burada duruyoruz.
+    // Çeviri yüzlük puan üzerinden yapılır; puan varsa ÇAKÜ karşılığı burada
+    // çıkar. Bazı kurumların transkripti ise yalnız harf gösteriyor — o belge
+    // eskiden reddediliyordu ve öğrencinin elinde başka belge olmadığı için
+    // başvuru orada kilitleniyordu. Artık harf de kabul ediliyor; ÇAKÜ
+    // karşılığını bölüm belirliyor (karşı kurumun harfi doğrudan taşınamaz).
+    //
+    // Hiçbiri okunamadıysa durum değişmedi: eksik dosyayı akademisyenin önüne
+    // koymak işi ona geri yıkmak olurdu.
     const eksikler = notluDersler
       .map((m, i) => {
         const src = m.sourceCourse || m.source || {};
         const n = notlar[notAnahtari(m, i)] || {};
         const ad = [src.code, src.name].filter(Boolean).join(' ') || 'Ders';
-        if (!String(n.kaynakNot || '').trim()) return ad + ': belgede not bulunamadı';
-        if (!n.cakuNot) return ad + ': ' + (n.sebep || 'yüzlük puan okunamadı');
+        const puan = String(n.kaynakNot || '').trim();
+        const harf = String(n.kaynakHarf || '').trim();
+        if (!puan && !harf) return ad + ': belgede not bulunamadı';
+        // Puan var ama ölçeğe oturmuyorsa yine durulur — okunan sayı yanlış
+        // olabilir ve yanlış sayıdan çıkan harf öğrencinin transkriptine gider.
+        if (puan && !n.cakuNot && !harf) return ad + ': ' + (n.sebep || 'yüzlük puan okunamadı');
         return '';
       })
       .filter(Boolean);
@@ -5232,11 +5277,10 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       alert(
         'Belge onaya gönderilemez — ' +
           eksikler.length +
-          ' derste yüzlük puan okunamadı:\n\n' +
+          ' derste not okunamadı:\n\n' +
           eksikler.slice(0, 8).join('\n') +
-          '\n\nYaz okulundan aldığınız notu YÜZLÜK SİSTEMDE gösteren belgeyi ' +
-          '(not döküm çıktısı / transkript) yükleyin. Yalnız harf notu gösteren ' +
-          'bir belge yeterli değildir; çeviri yüzlük puan üzerinden yapılır.'
+          '\n\nYaz okulundan aldığınız notu gösteren belgeyi (not döküm çıktısı / ' +
+          'transkript) tam olarak yükleyin.'
       );
       return;
     }
@@ -5531,7 +5575,14 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                       <div style={{ fontSize: 10.5, color: DS.textMuted, marginBottom: 3 }}>
                         Belgedeki not
                       </div>
-                      {kutu(n.kaynakNot)}
+                      {/* Puan yoksa harf gösterilir: belgeden bir şey okunduğunu
+                          görmek, boş kutuya bakmaktan iyi. */}
+                      {kutu(n.kaynakNot || n.kaynakHarf)}
+                      {n.kaynakNot && n.kaynakHarf && (
+                        <div style={{ fontSize: 10, color: DS.textMuted, marginTop: 2 }}>
+                          harf: {n.kaynakHarf}
+                        </div>
+                      )}
                     </div>
                     <div style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: 10.5, color: DS.textMuted, marginBottom: 3 }}>
@@ -5738,6 +5789,14 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                             onChange={(e) => setNot(a, 'kaynakNot', e.target.value)}
                             style={inp}
                           />
+                          {/* Belgede yüzlük puan yoksa elde yalnız bu var;
+                              ÇAKÜ karşılığına karar veren kişi görmeli. */}
+                          {n.kaynakHarf && (
+                            <div style={{ fontSize: 10.5, color: DS.textMuted, marginTop: 3 }}>
+                              Belgedeki harf: <b>{n.kaynakHarf}</b>
+                              {!n.kaynakNot ? ' (yüzlük puan yok)' : ''}
+                            </div>
+                          )}
                         </label>
                         <label style={{ fontSize: 11.5, color: DS.textSecondary }}>
                           ÇAKÜ notu
