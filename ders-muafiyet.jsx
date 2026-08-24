@@ -5893,18 +5893,43 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                         <label style={{ fontSize: 11.5, color: DS.textSecondary }}>
                           Karşı notu
                           <br />
+                          {/* ── KUTU BOŞ KALMASIN ──
+                              Belgede yüzlük puan yoksa elde yalnız harf var; kutu
+                              `kaynakNot`a bağlı olduğu için boş görünüyordu ve
+                              akademisyen belgeden ne okunduğunu göremiyordu.
+                              Puan varsa puan, yoksa harf gösterilir.
+
+                              Yazılan değer TÜRÜNE göre ayrılır: sayı `kaynakNot`a,
+                              harf `kaynakHarf`e gider. İkisini tek alana yığmak,
+                              yüzlük puandan çeviri yapan kuralı bozardı. */}
                           <input
-                            value={n.kaynakNot || ''}
-                            onChange={(e) => setNot(a, 'kaynakNot', e.target.value)}
+                            value={n.kaynakNot || n.kaynakHarf || ''}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              const sayisal =
+                                v.trim() !== '' && Number.isFinite(Number(v.replace(',', '.')));
+                              if (sayisal) {
+                                setNot(a, 'kaynakHarf', '');
+                                setNot(a, 'kaynakNot', v);
+                              } else {
+                                setNot(a, 'kaynakNot', '');
+                                setNot(a, 'kaynakHarf', v.toLocaleUpperCase('tr-TR'));
+                              }
+                            }}
                             style={inp}
                           />
-                          {/* Belgede yüzlük puan yoksa elde yalnız bu var;
-                              ÇAKÜ karşılığına karar veren kişi görmeli. */}
+                          {/* Çevirinin dayanağı: karar veren kişi görmeli.
+                              Harf artık kutuda; burada tekrar edilmez. */}
                           {n.kaynakHarf && (
                             <div style={{ fontSize: 10.5, color: DS.textMuted, marginTop: 3 }}>
-                              Belgedeki harf: <b>{n.kaynakHarf}</b>
+                              {n.kaynakNot ? (
+                                <>
+                                  Belgedeki harf: <b>{n.kaynakHarf}</b>
+                                </>
+                              ) : (
+                                'Harf notu — belgede yüzlük puan yok'
+                              )}
                               {n.kaynakKatsayi ? ' · katsayı ' + n.kaynakKatsayi : ''}
-                              {!n.kaynakNot ? ' (yüzlük puan yok)' : ''}
                             </div>
                           )}
                         </label>
