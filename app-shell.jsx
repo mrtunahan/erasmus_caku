@@ -137,20 +137,6 @@ const isErgunCinarUser = (currentUser) => {
   );
 };
 
-// Komisyon adından erişilebilecek modül id'sini çıkarır. Komisyon üyeleri
-// (akademisyenler dahil) üyesi oldukları komisyonun ilgili modülüne erişir.
-const commissionToModuleId = (name) => {
-  const n = (name || '').toLowerCase();
-  if (n.includes('erasmus')) return 'erasmus';
-  if (n.includes('staj')) return 'staj';
-  if (n.includes('muafiyet')) return 'muafiyet';
-  if (n.includes('proje')) return 'projeler';
-  if (n.includes('sınav') || n.includes('sinav')) return 'sinav';
-  if (n.includes('ders program')) return 'dersprogrami';
-  if (n.includes('performans')) return 'performans';
-  return null;
-};
-
 // ── Responsive Hook ──
 function useWindowWidth() {
   const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
@@ -2197,23 +2183,20 @@ function AppShell() {
   useEffect(() => {
     let cancelled = false;
     const loadCommissionAccess = async () => {
-      const uname = (currentUser?.name || currentUser?.identifier || '').toLowerCase().trim();
+      const uname = (currentUser?.name || currentUser?.identifier || '').trim();
       if (!currentUser || !uname) {
         setCommissionModules([]);
         return;
       }
       try {
+        // Kural lib/komisyon-modul.js'te ve testli: modüller komisyon kaydında
+        // açıkça seçilir (eski kayıtlarda ad tahminine düşer) ve üye
+        // eşleşmesi unvan/büyük-küçük harf farkına takılmaz.
         const comms = await window.apiRead('commissions');
-        const ids = new Set();
-        (comms || []).forEach((c) => {
-          const isMember = (c.members || []).some(
-            (m) => m && m.name && m.name.toLowerCase().trim() === uname
-          );
-          if (!isMember) return;
-          const mid = commissionToModuleId(c.name);
-          if (mid) ids.add(mid);
-        });
-        if (!cancelled) setCommissionModules(Array.from(ids));
+        const ids = window.komisyonErisimModulleri
+          ? window.komisyonErisimModulleri(comms, currentUser?.name || currentUser?.identifier)
+          : [];
+        if (!cancelled) setCommissionModules(ids);
       } catch (e) {
         if (!cancelled) setCommissionModules([]);
       }
