@@ -5131,25 +5131,31 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       const satirlar = (sonuc && sonuc.satirlar) || [];
       if (satirlar.length === 0) throw new Error('Belgeden ders satırı okunamadı.');
 
-      // Okunan satırları kayıttaki derslerle eşle: önce koda, tutmazsa ada
-      // göre. Eşleşmeyen satır sessizce atılmaz — sayısı kullanıcıya söylenir.
-      const norm = (s) =>
-        String(s || '')
-          .replace(/İ/g, 'i')
-          .replace(/I/g, 'ı')
-          .toLocaleLowerCase('tr-TR')
-          .replace(/[^a-z0-9ğüşöç]/g, '');
+      // Okunan satırları kayıttaki derslerle eşle. Kural lib/belge-ders-eslesme.js'te:
+      // kod → kod çekirdeği → ad → (tek aday varsa) ad içerme. Eşleşmeyen satır
+      // sessizce atılmaz; sayısı ve belgeden ne okunduğu kullanıcıya söylenir.
+      const esle = window.belgeDersEslestir;
       const yeni = { ...notlar };
       let eslesen = 0;
+      const bulunamayanlar = [];
+      // Satırı bulunan ama PUANI okunamayan ders ayrı tutulur: ikisi farklı
+      // sorunlar ve çözümleri de farklı. Birinde belge eksik, ötekinde belge
+      // yalnız harf notu gösteriyor.
+      const notsuzlar = [];
       notluDersler.forEach((m, i) => {
         const src = m.sourceCourse || m.source || {};
         const a = notAnahtari(m, i);
-        const bulunan = satirlar.find(
-          (s) =>
-            (norm(s.kod) && norm(s.kod) === norm(src.code)) ||
-            (norm(s.ad) && norm(s.ad) === norm(src.name))
-        );
-        if (!bulunan || !String(bulunan.not || '').trim()) return;
+        const etiket = src.code || src.name || 'Ders ' + (i + 1);
+        const sonucEsleme = esle ? esle(satirlar, src) : { satir: null };
+        const bulunan = sonucEsleme.satir;
+        if (!bulunan) {
+          bulunamayanlar.push(etiket);
+          return;
+        }
+        if (!String(bulunan.not || '').trim()) {
+          notsuzlar.push(etiket);
+          return;
+        }
         eslesen += 1;
         const kaynakNot = String(bulunan.not).trim();
         const cevrim = puandanHarf(kaynakNot);
@@ -5162,13 +5168,28 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       // gönderirken engellemek kullanıcıyı şaşırtırdı.
       const cevrilemeyen = Object.values(yeni).filter((n) => n.kaynakNot && !n.cakuNot).length;
       const eksikVar = eslesen < notluDersler.length || cevrilemeyen > 0;
+      // "0/1 bulundu" tek başına çıkmaz sokaktı: belgede ne yazdığını
+      // göremeyen kullanıcı neyi düzelteceğini de bilemiyordu.
+      const okunanlar = window.belgeOkunanlarOzeti ? window.belgeOkunanlarOzeti(satirlar) : '';
       setOkumaNotu(
         eslesen +
           ' / ' +
           notluDersler.length +
           ' ders belgede bulundu.' +
-          (eslesen < notluDersler.length
-            ? ' Bulunamayan dersler için belgenin tamamını yüklediğinizden emin olun.'
+          // Öğrenci notu ELLE GİREMEZ (girebilseydi kendi notunu yazardı);
+          // bu yüzden yönlendirme hep belgeye ve bölüme yapılır.
+          (bulunamayanlar.length
+            ? ' Belgede bulunamayan ders: ' +
+              bulunamayanlar.join(', ') +
+              '.' +
+              (okunanlar ? ' Belgeden okunanlar: ' + okunanlar + '.' : '') +
+              ' Belgenin tamamını yüklediğinizden emin olun; ders kodu karşı' +
+              ' kurumda farklı yazılıyorsa bölümünüzle iletişime geçin.'
+            : '') +
+          (notsuzlar.length
+            ? ' Şu derste satır bulundu ama başarı puanı okunamadı: ' +
+              notsuzlar.join(', ') +
+              '. Yüzlük puanı gösteren belgeyi yükleyin.'
             : '') +
           (cevrilemeyen > 0
             ? ' ' +

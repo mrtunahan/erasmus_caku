@@ -56,6 +56,10 @@ import {
 } from './lib/tanitim-slayt.js';
 import { programGirdileri, akademisyenCakismalari, cakismaMetni } from './lib/seviye-cakisma.js';
 import {
+  dersEslestir as belgeDersEslestir,
+  okunanlarOzeti as belgeOkunanlarOzeti,
+} from './lib/belge-ders-eslesme.js';
+import {
   medyaTuru as kulupMedyaTuru,
   medyaEkleri as kulupMedyaEkleri,
   belgeEkleri as kulupBelgeEkleri,
@@ -13348,6 +13352,12 @@ window.tanitimModulNormalize = tanitimModulNormalize;
 window.tanitimYayindakiModuller = tanitimYayindakiModuller;
 window.tanitimModulGecerliMi = tanitimModulGecerliMi;
 window.tanitimModulSlaytlari = tanitimModulSlaytlari;
+
+// Belgeden okunan ders satırlarını kayıttaki derslerle eşler. Türkçe büyük I
+// eski normalizede sessizce siliniyordu ("BIL101" → "bl101"); kod eşleşmesi
+// hiç tutmuyordu. Kural artık tek yerde ve testli.
+window.belgeDersEslestir = belgeDersEslestir;
+window.belgeOkunanlarOzeti = belgeOkunanlarOzeti;
 
 // Topluluk akışı ekleri: görsel/video yerinde önizlenir, gerisi bağlantı.
 // Karar UZANTIYA dayanır — eski kayıtlarda mime alanı yok, ad hep var.
