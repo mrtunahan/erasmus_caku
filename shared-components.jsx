@@ -105,6 +105,12 @@ import {
 } from './lib/erasmus-onay.js';
 import { basvuruBolumId, basvuruBolumdeMi, sahipsizBasvurular } from './lib/yatay-kapsam.js';
 import {
+  sahiplikDamgasi as duyuruSahiplikDamgasi,
+  duyuruDuzenlenebilirMi,
+  duzenlemeEngeli as duyuruDuzenlemeEngeli,
+  sahibiMi as duyuruSahibiMi,
+} from './lib/duyuru-sahiplik.js';
+import {
   komisyonModulleri,
   uyeMi as komisyonUyesiMi,
   erisilebilirModuller as komisyonErisimModulleri,
@@ -12550,7 +12556,17 @@ function zenginDugumler(dugumler, anahtarOnek) {
         cocuklar
       );
     }
-    return React.createElement(d.ad, { key: anahtar, style: stil }, cocuklar);
+    // Hizalama ve girinti ağaçtan gelir (sınıf adı değil, tanınmış değer).
+    const o = d.ozellikler || {};
+    const blokStil =
+      o.hiza || o.girinti
+        ? {
+            ...(stil || {}),
+            ...(o.hiza ? { textAlign: o.hiza } : {}),
+            ...(o.girinti ? { paddingInlineStart: o.girinti * 24 } : {}),
+          }
+        : stil;
+    return React.createElement(d.ad, { key: anahtar, style: blokStil }, cocuklar);
   });
 }
 
@@ -12589,6 +12605,145 @@ const ZENGIN_ARACLAR = [
     stil: { textDecoration: 'line-through' },
   },
 ];
+
+// ── QUILL EDİTÖRÜ ──
+//
+// Duyuru yazma alanı. Quill kendi paketinden (npm) yükleniyor — CDN yok,
+// sayfa dış kaynağa bağlanmıyor.
+//
+// ── ARAÇ ÇUBUĞU, AYRIŞTIRICININ İZİN VERDİĞİ KADAR ──
+// Yazılan HTML gösterilmeden önce lib/zengin-metin.js'ten geçiyor ve
+// tanınmayan her şey düşüyor. Quill'in tüm yeteneklerini açsaydık yetkili
+// biçim verir, kaydeder, sonra duyuruda o biçimi göremezdi — sessizce
+// kaybolan bir özellik, hiç olmayandan kötüdür. Bu yüzden araç çubuğunda
+// YALNIZ ayrıştırıcının render edebildiği biçimler var:
+//   kalın · italik · altı çizili · üstü çizili · H3/H4 · liste · girinti ·
+//   hizalama · alıntı · kod · renk (sabit palet) · bağlantı · temizle
+//
+// Renk paleti ZENGIN_RENKLER ile birebir aynı: serbest renk seçici açsaydık
+// seçilen rengin yarısı gösterimde düşerdi.
+//
+// Quill yüklenemezse (paket eksik, ağ yok) eski contentEditable editöre
+// düşülür — duyuru yazmak hiçbir durumda imkânsız hâle gelmemeli.
+const QUILL_RENKLERI = ZENGIN_RENKLER.map((r) => r.deger).filter(Boolean);
+
+const QUILL_ARAC_CUBUGU = [
+  [{ header: [3, 4, false] }],
+  ['bold', 'italic', 'underline', 'strike'],
+  [{ color: QUILL_RENKLERI }],
+  [{ list: 'ordered' }, { list: 'bullet' }],
+  [{ indent: '-1' }, { indent: '+1' }],
+  [{ align: '' }, { align: 'center' }, { align: 'right' }, { align: 'justify' }],
+  ['blockquote', 'code'],
+  ['link'],
+  ['clean'],
+];
+
+// Quill modülü bir kez yüklenir ve paylaşılır.
+let _quillYukleme = null;
+function quillYukle() {
+  if (!_quillYukleme) {
+    _quillYukleme = Promise.all([import('quill'), import('quill/dist/quill.snow.css')])
+      .then(([mod]) => mod.default || mod)
+      .catch((e) => {
+        _quillYukleme = null;
+        throw e;
+      });
+  }
+  return _quillYukleme;
+}
+
+const QuillEditoru = ({ deger, onChange, yukseklik, yerTutucu }) => {
+  const kutuRef = React.useRef(null);
+  const quillRef = React.useRef(null);
+  const onChangeRef = React.useRef(onChange);
+  const sonDisDeger = React.useRef(null);
+  const [durum, setDurum] = React.useState('yukleniyor'); // yukleniyor | hazir | hata
+
+  // onChange her render'da değişebilir; editörü yeniden kurmamak için
+  // referans üzerinden okunur.
+  React.useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  React.useEffect(() => {
+    let iptal = false;
+    quillYukle()
+      .then((Quill) => {
+        if (iptal || !kutuRef.current || quillRef.current) return;
+        const q = new Quill(kutuRef.current, {
+          theme: 'snow',
+          placeholder: yerTutucu || 'Duyuru metnini yazın…',
+          modules: {
+            toolbar: QUILL_ARAC_CUBUGU,
+            // Yapıştırılan içerik Quill'in kendi temizleyicisinden geçer;
+            // asıl güvenlik yine gösterimdeki ayrıştırıcıdadır.
+            clipboard: { matchVisual: false },
+          },
+        });
+        const gelen = String(deger || '');
+        if (gelen) {
+          q.clipboard.dangerouslyPasteHTML(gelen, 'silent');
+        }
+        sonDisDeger.current = q.root.innerHTML;
+        q.on('text-change', () => {
+          const html = q.root.innerHTML;
+          sonDisDeger.current = html;
+          // Quill boş içerikte '<p><br></p>' üretir; boş duyuru denetimi
+          // (zenginBosMu) bunu zaten boş sayıyor, olduğu gibi bırakılır.
+          if (onChangeRef.current) onChangeRef.current(html);
+        });
+        quillRef.current = q;
+        setDurum('hazir');
+      })
+      .catch(() => !iptal && setDurum('hata'));
+    return () => {
+      iptal = true;
+    };
+    // Editör BİR KEZ kurulur: bağımlılık listesine `deger` konsaydı her
+    // tuşta yeniden kurulur, imleç başa atardı.
+  }, []);
+
+  // Dışarıdan gelen değer gerçekten değiştiyse (ör. başka bir kaydı
+  // düzenlemeye geçildi) editöre bas.
+  React.useEffect(() => {
+    const q = quillRef.current;
+    if (!q) return;
+    const gelen = String(deger || '');
+    if (sonDisDeger.current === gelen) return;
+    sonDisDeger.current = gelen;
+    q.clipboard.dangerouslyPasteHTML(gelen, 'silent');
+  }, [deger]);
+
+  if (durum === 'hata') {
+    return (
+      <ZenginMetinEditoru
+        deger={deger}
+        onChange={onChange}
+        yukseklik={yukseklik}
+        yerTutucu={yerTutucu}
+      />
+    );
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <style>{`
+        .caku-quill .ql-toolbar { border-radius: 10px 10px 0 0; border-color: #D1D5DB; background: #F9FAFB; }
+        .caku-quill .ql-container { border-radius: 0 0 10px 10px; border-color: #D1D5DB; font-family: inherit; font-size: 14px; }
+        .caku-quill .ql-editor { min-height: ${Math.max(120, yukseklik || 200)}px; line-height: 1.65; }
+        .caku-quill .ql-editor.ql-blank::before { color: #9CA3AF; font-style: normal; }
+        .caku-quill .ql-snow .ql-picker { font-family: inherit; }
+      `}</style>
+      <div className="caku-quill">
+        <div ref={kutuRef} />
+      </div>
+      {durum === 'yukleniyor' && (
+        <div style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>Editör yükleniyor…</div>
+      )}
+    </div>
+  );
+};
 
 const ZenginMetinEditoru = ({ deger, onChange, yukseklik, yerTutucu }) => {
   const ref = React.useRef(null);
@@ -12842,6 +12997,18 @@ const DuyuruPopup = ({ currentUser }) => {
   }, [currentUser]);
 
   const duyuru = sira[aktif];
+
+  // Esc kapatır, sağ/sol ok sırayı gezer. Klavyeyle kapatılamayan bir
+  // pop-up, ekranı kaplayıp yolu tıkayan bir engeldir.
+  React.useEffect(() => {
+    if (!duyuru) return undefined;
+    const tus = (e) => {
+      if (e.key === 'Escape' || e.key === 'ArrowRight') kapat();
+    };
+    document.addEventListener('keydown', tus);
+    return () => document.removeEventListener('keydown', tus);
+  }, [duyuru, aktif]);
+
   if (!duyuru) return null;
 
   const kapat = () => {
@@ -12849,12 +13016,33 @@ const DuyuruPopup = ({ currentUser }) => {
     setAktif((v) => v + 1);
   };
 
+  const tur = duyuru.tur || 'metin';
+  const turEtiketi = (DUYURU_TURLERI.find((t) => t.id === tur) || {}).label || 'Duyuru';
+  // Duyurunun nereden geldiği: "kim bana bunu gönderdi" sorusu, içeriğin
+  // kendisi kadar önemli. Eskiden yalnız yazanın adı vardı.
+  const kapsamEtiketi =
+    duyuru.kapsamTuru === 'universite'
+      ? 'Üniversite geneli'
+      : duyuru.kapsamTuru === 'fakulte'
+        ? 'Fakülte duyurusu'
+        : 'Bölüm duyurusu';
+  const tarih = duyuru.createdAt
+    ? new Date(duyuru.createdAt).toLocaleDateString('tr-TR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : '';
+  const yazan = duyuru.olusturanAd || duyuru.olusturan || '';
+  const bas = (yazan || 'D').trim().charAt(0).toLocaleUpperCase('tr');
+
   return (
     <div
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(15,23,42,0.55)',
+        background: 'rgba(15,23,42,0.62)',
+        backdropFilter: 'blur(3px)',
         zIndex: 9000,
         display: 'flex',
         alignItems: 'center',
@@ -12862,87 +13050,184 @@ const DuyuruPopup = ({ currentUser }) => {
         padding: 20,
       }}
       onClick={kapat}
+      role="dialog"
+      aria-modal="true"
+      aria-label={duyuru.baslik || 'Duyuru'}
     >
+      <style>{`@keyframes cakuDuyuruAc { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }`}</style>
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           background: 'white',
-          borderRadius: 14,
+          borderRadius: 18,
           maxWidth: 720,
           width: '100%',
           maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: '0 24px 60px rgba(0,0,0,0.3)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          boxShadow: '0 30px 70px rgba(15,23,42,0.34)',
+          animation: 'cakuDuyuruAc .22s ease',
         }}
       >
+        {/* Başlık — kim, ne zaman, hangi kapsam */}
         <div
           style={{
-            padding: '16px 20px',
-            borderBottom: '1px solid #E5E7EB',
+            padding: '18px 22px 16px',
+            borderBottom: '1px solid #EEF0F4',
             display: 'flex',
             alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 12,
+            gap: 14,
           }}
         >
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: '#1B2A4A' }}>
+          <div
+            aria-hidden="true"
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 12,
+              flexShrink: 0,
+              background: '#1B2A4A',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 17,
+              fontWeight: 700,
+            }}
+          >
+            {bas}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 5 }}>
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  letterSpacing: 0.4,
+                  textTransform: 'uppercase',
+                  padding: '3px 9px',
+                  borderRadius: 999,
+                  background: '#EEF2FF',
+                  color: '#4338CA',
+                }}
+              >
+                {kapsamEtiketi}
+              </span>
+              {tur !== 'metin' && (
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    letterSpacing: 0.4,
+                    textTransform: 'uppercase',
+                    padding: '3px 9px',
+                    borderRadius: 999,
+                    background: '#F1F5F9',
+                    color: '#475569',
+                  }}
+                >
+                  {turEtiketi}
+                </span>
+              )}
+            </div>
+            <div
+              style={{
+                fontSize: 19,
+                fontWeight: 750,
+                color: '#0F172A',
+                lineHeight: 1.3,
+                letterSpacing: '-0.01em',
+              }}
+            >
               {duyuru.baslik || 'Duyuru'}
             </div>
-            {duyuru.olusturan && (
-              <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 3 }}>
-                {duyuru.olusturan}
-                {duyuru.createdAt
-                  ? ' · ' + new Date(duyuru.createdAt).toLocaleDateString('tr-TR')
-                  : ''}
+            {(yazan || tarih) && (
+              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                {yazan}
+                {yazan && tarih ? ' · ' : ''}
+                {tarih}
               </div>
             )}
           </div>
           <button
             onClick={kapat}
             aria-label="Duyuruyu kapat"
+            title="Kapat (Esc)"
             style={{
               border: 'none',
-              background: 'none',
-              fontSize: 22,
+              background: '#F3F4F6',
+              width: 32,
+              height: 32,
+              borderRadius: 9,
+              fontSize: 18,
               lineHeight: 1,
-              color: '#9CA3AF',
+              color: '#4B5563',
               cursor: 'pointer',
+              flexShrink: 0,
               padding: 0,
             }}
           >
             ×
           </button>
         </div>
-        <div style={{ padding: 20 }}>
+
+        {/* İçerik — uzun duyuruda YALNIZ burası kayar, başlık ve düğme
+            görünürde kalır. Eskiden tüm kutu kayıyor, uzun bir duyuruda
+            "Anladım" düğmesi ekrandan çıkıyordu. */}
+        <div style={{ padding: '20px 22px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
           <DuyuruIcerik duyuru={duyuru} />
         </div>
+
         <div
           style={{
-            padding: '12px 20px 18px',
+            padding: '14px 22px 18px',
+            borderTop: '1px solid #EEF0F4',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 12,
+            background: '#FCFCFD',
           }}
         >
-          <span style={{ fontSize: 11.5, color: '#9CA3AF' }}>
-            {sira.length > 1 ? aktif + 1 + ' / ' + sira.length + ' duyuru' : ''}
-          </span>
+          {/* Kaç duyuru kaldığı nokta olarak: sayı okumadan görülür. */}
+          {sira.length > 1 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <div style={{ display: 'flex', gap: 5 }}>
+                {sira.map((_, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      width: i === aktif ? 20 : 7,
+                      height: 7,
+                      borderRadius: 999,
+                      background: i === aktif ? '#1B2A4A' : i < aktif ? '#CBD5E1' : '#E2E8F0',
+                      transition: 'all .2s',
+                    }}
+                  />
+                ))}
+              </div>
+              <span style={{ fontSize: 11.5, color: '#94A3B8' }}>
+                {aktif + 1} / {sira.length}
+              </span>
+            </div>
+          ) : (
+            <span />
+          )}
           <button
             onClick={kapat}
             style={{
-              padding: '9px 22px',
-              borderRadius: 8,
+              padding: '10px 26px',
+              borderRadius: 999,
               border: 'none',
               background: '#1B2A4A',
               color: 'white',
-              fontSize: 13,
-              fontWeight: 600,
+              fontSize: 13.5,
+              fontWeight: 700,
               cursor: 'pointer',
             }}
           >
-            {aktif + 1 < sira.length ? 'Sonraki' : 'Anladım'}
+            {aktif + 1 < sira.length ? 'Sonraki duyuru' : 'Anladım'}
           </button>
         </div>
       </div>
@@ -13382,6 +13667,14 @@ window.belgeNotKaynagi = belgeNotKaynagi;
 // Komisyon üyeliği → modül erişimi. Modüller komisyon kaydında AÇIKÇA
 // seçilir; ad tahmini yalnız eski kayıtlar için yedek. Üye eşleşmesi
 // unvanı soyan, Türkçe-duyarlı ad anahtarıyla yapılır.
+// Duyuru sahipliği: düzenleme ve silme yalnız yayınlayanda. Sunucu da aynı
+// kuralı uyguluyor (server/lib/duyuru-sahip.js) — istemcideki denetim
+// düğmeyi gizler, isteği engellemez.
+window.duyuruSahiplikDamgasi = duyuruSahiplikDamgasi;
+window.duyuruDuzenlenebilirMi = duyuruDuzenlenebilirMi;
+window.duyuruDuzenlemeEngeli = duyuruDuzenlemeEngeli;
+window.duyuruSahibiMi = duyuruSahibiMi;
+
 window.komisyonModulleri = komisyonModulleri;
 window.komisyonUyesiMi = komisyonUyesiMi;
 window.komisyonErisimModulleri = komisyonErisimModulleri;
@@ -13589,6 +13882,10 @@ window.DuyuruIcerik = DuyuruIcerik;
 window.DuyuruPopup = DuyuruPopup;
 window.ZenginMetin = ZenginMetin;
 window.ZenginMetinEditoru = ZenginMetinEditoru;
+// Duyuru yazma alanı Quill kullanır; araç çubuğu ayrıştırıcının render
+// edebildiği biçimlerle sınırlıdır (yoksa verilen biçim sessizce düşerdi).
+// Quill yüklenemezse eski contentEditable editöre düşer.
+window.QuillEditoru = QuillEditoru;
 window.zenginDuzMetin = zenginDuzMetin;
 window.zenginBosMu = zenginBosMu;
 window.duyuruKapsamCoz = duyuruKapsamCoz;

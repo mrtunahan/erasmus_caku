@@ -6,6 +6,7 @@ const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
 const { mukerrerAtlanabilirMi } = require('../lib/yazma-mukerrer');
+const { duyuruyaDokunabilir } = require('../lib/duyuru-sahip');
 const { auditWrites } = require('../middleware/auditLog');
 const { softAuth } = require('../middleware/softAuth');
 const { JWT_SECRET } = require('../middleware/auth');
@@ -616,6 +617,46 @@ async function enforceWritePolicies(db, op, user) {
           'Tanıtım sayfası içeriğini yalnız üniversite yetkilisi düzenleyebilir. ' +
           'Sayfa kurumun giriş öncesi vitrinidir.',
       };
+    }
+  }
+
+  // a2b) DUYURU SAHİPLİĞİ: düzenleme ve silme yalnız YAZANDA.
+  //
+  // Kapsam yetkisi (bkz. lib/yayin-kapsami.js) kime duyuru yapılabileceğini
+  // belirler; başkasının kaydına dokunmayı vermez. Eskiden yönetim
+  // listesindeki her duyuru düzenlenebiliyordu — tek koşul kapsamınıza
+  // değmesiydi — yani bir fakülte yetkilisi kendi fakültesindeki herkesin
+  // duyurusunu sessizce değiştirebiliyordu.
+  //
+  // İstemci de aynı kuralı uyguluyor ama orada denetim düğmeyi gizlemekten
+  // ibaret; /api/db/write doğrudan çağrılabildiği için asıl kapı burası.
+  if (
+    op.collection === 'duyurular' &&
+    (op.type === 'set' || op.type === 'update' || op.type === 'delete' || op.type === 'remove')
+  ) {
+    const docId = op.docId || op.id;
+    if (docId) {
+      let mevcut = null;
+      try {
+        // Yazma yolunun kimlik çözümüyle AYNI sıra (_id → ObjectId → _docId);
+        // başka bir arama, kaydı bulamayıp denetimi sessizce atlardı.
+        mevcut = await findDocByAnyId(db, 'duyurular', docId);
+      } catch (_) {
+        mevcut = null;
+      }
+      if (mevcut) {
+        const flags = await getActorFlags(db, user);
+        if (!duyuruyaDokunabilir(mevcut, user, flags)) {
+          return {
+            allow: false,
+            status: 403,
+            error:
+              'Bu duyuruyu ' +
+              (mevcut.olusturanAd ? mevcut.olusturanAd + ' ' : 'başka bir yetkili ') +
+              'yayınladı; düzenleme ve silme yalnız yayınlayandadır.',
+          };
+        }
+      }
     }
   }
 

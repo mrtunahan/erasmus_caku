@@ -2160,6 +2160,12 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
         bitis: form.bitis,
         aktif: form.aktif !== false,
         olusturan: currentUser?.name || currentUser?.identifier || '',
+        // Sahiplik damgası: düzenleme ve silme YALNIZ yayınlayanda. Kapsam
+        // yetkisi görmeyi ve yeni duyuru yazmayı verir, başkasının kaydına
+        // dokunmayı değil. Sunucu da aynı kuralı uyguluyor.
+        ...(window.duyuruSahiplikDamgasi
+          ? window.duyuruSahiplikDamgasi(currentUser)
+          : { olusturanId: currentUser?.identifier || currentUser?.name || '' }),
         facultyId: currentUser?.facultyId || '',
         departmentId: currentUser?.departmentId || '',
         updatedAt: new Date().toISOString(),
@@ -2178,7 +2184,17 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
     }
   };
 
+  // Bu duyuruya dokunabilir miyim? Kural lib/duyuru-sahiplik.js'te ve testli.
+  const dokunabilirim = (d) =>
+    window.duyuruDuzenlenebilirMi ? window.duyuruDuzenlenebilirMi(d, currentUser) : true;
+  const engelSebebi = (d) =>
+    window.duyuruDuzenlemeEngeli ? window.duyuruDuzenlemeEngeli(d, currentUser) : '';
+
   const sil = async (d) => {
+    if (!dokunabilirim(d)) {
+      alert(engelSebebi(d));
+      return;
+    }
     if (!confirm('"' + (d.baslik || 'Duyuru') + '" silinsin mi?')) return;
     try {
       await DBWrite.remove('duyurular', String(d.id));
@@ -2189,6 +2205,10 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
   };
 
   const aktifDegistir = async (d) => {
+    if (!dokunabilirim(d)) {
+      alert(engelSebebi(d));
+      return;
+    }
     try {
       await DBWrite.set(
         'duyurular',
@@ -2389,12 +2409,16 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
             <label style={etiket}>
               {form.tur === 'metin' ? 'Duyuru metni *' : 'Açıklama (isteğe bağlı)'}
             </label>
-            {window.ZenginMetinEditoru ? (
-              <window.ZenginMetinEditoru
-                deger={form.metin}
-                onChange={(html) => setForm((f) => ({ ...f, metin: html }))}
-                yukseklik={form.tur === 'metin' ? 200 : 110}
-              />
+            {window.QuillEditoru || window.ZenginMetinEditoru ? (
+              React.createElement(window.QuillEditoru || window.ZenginMetinEditoru, {
+                deger: form.metin,
+                onChange: (html) => setForm((f) => ({ ...f, metin: html })),
+                yukseklik: form.tur === 'metin' ? 240 : 140,
+                yerTutucu:
+                  form.tur === 'metin'
+                    ? 'Duyuru metnini yazın…'
+                    : 'Görsel/videoya kısa bir açıklama (isteğe bağlı)',
+              })
             ) : (
               <textarea
                 value={form.metin}
@@ -2404,9 +2428,10 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
               />
             )}
             <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 6, lineHeight: 1.5 }}>
-              Kalın/italik, başlık, liste, alıntı, renk ve bağlantı kullanabilirsiniz. Başka bir
-              sayfadan yapıştırdığınız içerik <b>düz metin</b> olarak girer — biçimi buradaki araç
-              çubuğundan verin. Aşağıdaki önizleme, duyurunun kullanıcıda göründüğü hâlidir.
+              Araç çubuğundaki her biçim duyuruda da görünür: başlık, kalın/italik, liste, girinti,
+              hizalama, alıntı, kod, renk ve bağlantı. Renkler sabit palettendir — serbest renk
+              seçilseydi bir kısmı gösterimde düşerdi. Aşağıdaki önizleme, duyurunun kullanıcıda
+              göründüğü hâlidir.
             </div>
           </div>
 
@@ -2601,30 +2626,59 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
                       {d.olusturan && ' · ' + d.olusturan}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <Btn variant="secondary" small onClick={() => aktifDegistir(d)}>
-                      {pasif ? 'Yayına al' : 'Durdur'}
-                    </Btn>
-                    <Btn
-                      variant="secondary"
-                      small
-                      onClick={() =>
-                        setForm({
-                          ...DUYURU_BOS,
-                          ...d,
-                          hedefDepartmentIds: hedefler,
-                          hedefRoller: Array.isArray(d.hedefRoller)
-                            ? d.hedefRoller
-                            : ['student', 'staff'],
-                        })
-                      }
+                  {/* Düzenleme ve silme YALNIZ yayınlayanda. Başkasının
+                      duyurusunda düğmeler hiç çıkmaz; yerine kimin
+                      yayınladığı yazar — "neden yapamıyorum" sorusu
+                      ekranda yanıtlanmalı. */}
+                  {dokunabilirim(d) ? (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <Btn variant="secondary" small onClick={() => aktifDegistir(d)}>
+                        {pasif ? 'Yayına al' : 'Durdur'}
+                      </Btn>
+                      <Btn
+                        variant="secondary"
+                        small
+                        onClick={() =>
+                          setForm({
+                            ...DUYURU_BOS,
+                            ...d,
+                            hedefDepartmentIds: hedefler,
+                            hedefRoller: Array.isArray(d.hedefRoller)
+                              ? d.hedefRoller
+                              : ['student', 'staff'],
+                          })
+                        }
+                      >
+                        Düzenle
+                      </Btn>
+                      <Btn onClick={() => sil(d)} variant="danger" small>
+                        Sil
+                      </Btn>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: '#6B7280',
+                        background: '#F3F4F6',
+                        border: '1px solid #E5E7EB',
+                        borderRadius: 8,
+                        padding: '6px 12px',
+                        maxWidth: 230,
+                        lineHeight: 1.5,
+                        flexShrink: 0,
+                      }}
                     >
-                      Düzenle
-                    </Btn>
-                    <Btn onClick={() => sil(d)} variant="danger" small>
-                      Sil
-                    </Btn>
-                  </div>
+                      {d.olusturanAd || d.olusturan ? (
+                        <>
+                          <b>{d.olusturanAd || d.olusturan}</b> yayınladı
+                        </>
+                      ) : (
+                        'Başka bir yetkili yayınladı'
+                      )}
+                      <div style={{ marginTop: 2 }}>düzenleme yayınlayanda</div>
+                    </div>
+                  )}
                 </div>
               </div>
             );

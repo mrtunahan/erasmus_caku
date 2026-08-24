@@ -66,6 +66,14 @@ export default defineConfig(async () => ({
           if (id.includes('/react/')) return 'vendor-react';
           if (id.includes('socket.io-client')) return 'vendor-socket';
           if (id.includes('lucide-react')) return 'vendor-icons';
+          // Quill YALNIZ duyuru yazma ekranında kullanılıyor ve ~230 kB.
+          // Ortak `vendor` yığınına düşerse index.html'den doğrudan
+          // yükleniyor, yani duyuru yazmayan herkes (öğrenciler dahil) her
+          // açılışta indiriyordu. Kendi yığınında kalsın ki dinamik import
+          // gerçekten geciktirsin.
+          if (id.includes('/quill') || id.includes('parchment') || id.includes('quill-delta')) {
+            return 'vendor-quill';
+          }
           return 'vendor';
         },
       },
