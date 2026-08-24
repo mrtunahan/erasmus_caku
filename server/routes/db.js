@@ -167,8 +167,14 @@ const ALLOWED_COLLECTIONS = [
   'duyurular',
   // Mezuniyet kuralları — bölüm başına (doc id = departmentId): toplam AKTS,
   // asgari AGNO, müfredat tipi (normal / 7+1), staj şartı, geçer notlar.
-  // Yalnız bölüm yetkilisi yazar.
+  // ÇAKÜ'nün KENDİ not ölçeği de burada (notOlcegi). Yalnız bölüm yetkilisi yazar.
   'mezuniyet_kurallari',
+  // Karşı kurumların not ölçekleri — muafiyet ve yaz okulu intibakında
+  // gelen harf notunu ÇAKÜ harfine çevirmek için. Çeviri KATSAYI üzerinden
+  // yapılır: harf kuruma özeldir, katsayı iki kurumun ortak dilidir.
+  // Öğrenci de görür (kendi notunun neden o harfe çevrildiğini anlamalı),
+  // yalnız bölüm yetkilisi ve komisyon yazar.
+  'karsi_not_olcekleri',
   // Öğrencinin transkriptinden türetilen akademik kayıt (doc id = öğrenci no):
   // aldığı dersler, notlar, AGNO. Öğrenci kendi kaydını yazar.
   'ogrenci_akademik_kayit',
@@ -366,6 +372,9 @@ const DEPT_MANAGER_WRITE = new Set([
   // Mezuniyet kuralları öğrencinin "mezun olabilir miyim" hesabının tabanıdır;
   // öğrencinin ya da sade akademisyenin değiştirmesi anlamsız olurdu.
   'mezuniyet_kurallari',
+  // Not ölçeği, öğrencinin transkriptine yazılacak harfi belirliyor.
+  // Öğrencinin kendi ölçeğini yüklemesi, kendi notunu belirlemesi demekti.
+  'karsi_not_olcekleri',
   // Taban puanlar başvuru değerlendirmesinin eşiğidir; kaydı yalnız bölüm
   // yetkilisi ve üstü tazeleyebilir.
   'taban_puanlar',
