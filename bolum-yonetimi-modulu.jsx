@@ -2019,8 +2019,58 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
   const [kaydediliyor, setKaydediliyor] = useState(false);
   const [yukleniyor, setYukleniyor] = useState(false);
   const [mesaj, setMesaj] = useState('');
+  // Hedef seçici: 60+ bölüm tek şerit hâlinde diziliyordu ve aranan bölümü
+  // bulmak gözle taramaya kalıyordu. Fakülteye göre gruplu + aranabilir.
+  const [bolumArama, setBolumArama] = useState('');
+  const [acikFakulteler, setAcikFakulteler] = useState({});
+  const [fakulteAdlari, setFakulteAdlari] = useState({});
+
+  useEffect(() => {
+    let iptal = false;
+    window
+      .apiRead('faculties')
+      .then((f) => {
+        if (iptal) return;
+        const harita = {};
+        (f || []).forEach((x) => {
+          const ad = String((x && x.name) || '').trim();
+          if (!ad) return;
+          [x.id, x._id, x._docId].forEach((k) => {
+            if (k) harita[String(k)] = ad;
+          });
+        });
+        setFakulteAdlari(harita);
+      })
+      .catch(() => {});
+    return () => {
+      iptal = true;
+    };
+  }, []);
 
   const kapsamIdleri = useMemo(() => kapsam.map((d) => d.id), [kapsam]);
+
+  // Hedeflenebilir bölümler, fakültesine göre öbeklenir. Fakültesi
+  // çözülemeyen bölümler tek bir "Diğer" öbeğinde toplanır — kaybolmasınlar.
+  const fakulteObekleri = useMemo(() => {
+    const q = bolumArama.toLocaleLowerCase('tr').replace(/ı/g, 'i').trim();
+    const uyar = (ad) =>
+      !q ||
+      String(ad || '')
+        .toLocaleLowerCase('tr')
+        .replace(/ı/g, 'i')
+        .includes(q);
+    const obek = new Map();
+    kapsam.forEach((d) => {
+      if (!uyar(d.name)) return;
+      const fid = String(d.facultyId || '');
+      const ad = fakulteAdlari[fid] || (fid ? 'Fakülte' : 'Diğer');
+      if (!obek.has(ad)) obek.set(ad, []);
+      obek.get(ad).push(d);
+    });
+    return Array.from(obek.entries())
+      .map(([ad, bolumler]) => ({ ad, bolumler }))
+      .sort((x, y) => x.ad.localeCompare(y.ad, 'tr'));
+  }, [kapsam, bolumArama, fakulteAdlari]);
   // Yazanın yetki alanı — kayda GÖMÜLÜR ve gösterimde uygulanır. Duyuru bu
   // alanın dışına çıkamaz; hedef listesi yalnız daraltabilir.
   const yetkiKapsami = useMemo(
@@ -2458,21 +2508,169 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
 
           <div style={{ marginBottom: 12 }}>
             <label style={etiket}>Hedef bölümler</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {kapsam.map((d) => (
+
+            {/* ── FAKÜLTEYE GÖRE GRUPLU SEÇİCİ ──
+                60+ bölüm tek şerit hâlinde diziliyordu: aranan bölümü bulmak
+                gözle taramaya kalıyor, seçilenler kalabalıkta kayboluyordu.
+                Artık önce SEÇİLENLER, sonra fakülte fakülte açılır liste. */}
+
+            {/* Seçilenler her zaman üstte ve görünür. */}
+            {form.hedefDepartmentIds.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                  marginBottom: 10,
+                  padding: 10,
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: 10,
+                }}
+              >
+                {form.hedefDepartmentIds.map((id) => {
+                  const b2 = kapsam.find((x) => x.id === id);
+                  return (
+                    <button
+                      key={id}
+                      title="Seçimden çıkar"
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          hedefDepartmentIds: cevir(form.hedefDepartmentIds, id),
+                        })
+                      }
+                      style={{ ...cip(true), display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    >
+                      {(b2 && b2.name) || id}
+                      <span style={{ fontSize: 14, lineHeight: 1, opacity: 0.7 }}>×</span>
+                    </button>
+                  );
+                })}
                 <button
-                  key={d.id}
-                  onClick={() =>
-                    setForm({
-                      ...form,
-                      hedefDepartmentIds: cevir(form.hedefDepartmentIds, d.id),
-                    })
-                  }
-                  style={cip(form.hedefDepartmentIds.includes(d.id))}
+                  onClick={() => setForm({ ...form, hedefDepartmentIds: [] })}
+                  style={{
+                    ...cip(false),
+                    borderStyle: 'dashed',
+                    color: '#B45309',
+                    borderColor: '#FCD34D',
+                  }}
                 >
-                  {d.name}
+                  Tümünü kaldır
                 </button>
-              ))}
+              </div>
+            )}
+
+            <input
+              value={bolumArama}
+              onChange={(e) => setBolumArama(e.target.value)}
+              placeholder="Bölüm ara…"
+              style={{ ...girdi, marginBottom: 8 }}
+            />
+
+            <div
+              style={{
+                border: '1px solid #E5E7EB',
+                borderRadius: 10,
+                maxHeight: 300,
+                overflowY: 'auto',
+                background: 'white',
+              }}
+            >
+              {fakulteObekleri.length === 0 && (
+                <div style={{ padding: 14, fontSize: 12.5, color: '#6B7280' }}>
+                  Aramaya uyan bölüm yok.
+                </div>
+              )}
+              {fakulteObekleri.map((f) => {
+                // Arama varken öbekler kendiliğinden açılır: kullanıcı
+                // aradığını bulup bir de açmak zorunda kalmasın.
+                const acik = bolumArama.trim() ? true : acikFakulteler[f.ad] !== false;
+                const idler = f.bolumler.map((x) => x.id);
+                const seciliSayi = idler.filter((x) => form.hedefDepartmentIds.includes(x)).length;
+                const hepsiSecili = seciliSayi === idler.length && idler.length > 0;
+                return (
+                  <div key={f.ad} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '9px 12px',
+                        background: '#FBFCFE',
+                      }}
+                    >
+                      <button
+                        onClick={() => setAcikFakulteler((p) => ({ ...p, [f.ad]: !acik }))}
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          flex: 1,
+                          textAlign: 'left',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        <span style={{ fontSize: 11, color: '#94A3B8', width: 10 }}>
+                          {acik ? '▾' : '▸'}
+                        </span>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#334155' }}>
+                          {f.ad}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#94A3B8' }}>
+                          {seciliSayi ? seciliSayi + '/' + idler.length : idler.length}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            hedefDepartmentIds: hepsiSecili
+                              ? form.hedefDepartmentIds.filter((x) => !idler.includes(x))
+                              : Array.from(new Set(form.hedefDepartmentIds.concat(idler))),
+                          })
+                        }
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          fontSize: 11.5,
+                          fontWeight: 600,
+                          color: C.blue,
+                          fontFamily: 'inherit',
+                          padding: '2px 4px',
+                        }}
+                      >
+                        {hepsiSecili ? 'Kaldır' : 'Tümü'}
+                      </button>
+                    </div>
+                    {acik && (
+                      <div
+                        style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '10px 12px' }}
+                      >
+                        {f.bolumler.map((d) => (
+                          <button
+                            key={d.id}
+                            onClick={() =>
+                              setForm({
+                                ...form,
+                                hedefDepartmentIds: cevir(form.hedefDepartmentIds, d.id),
+                              })
+                            }
+                            style={cip(form.hedefDepartmentIds.includes(d.id))}
+                          >
+                            {d.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             {/* Kapsam açıkça yazılıyor: "hiç bölüm seçilmedi" ifadesi eskiden
                 "tüm kullanıcılara" diye anlaşılıyordu ve gerçekten de öyle

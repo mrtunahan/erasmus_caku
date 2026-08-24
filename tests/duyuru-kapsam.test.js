@@ -6,6 +6,7 @@
 // üzerinde yazanın yetki alanı hiç durmuyordu.
 import { describe, it, expect } from 'vitest';
 import {
+  duyuruErisimEtiketi,
   duyuruKapsamCoz,
   duyuruKapsamdaMi,
   duyuruKullaniciBolumleri,
@@ -126,5 +127,53 @@ describe('duyuruKullaniciBolumleri', () => {
     ).toEqual(['a', 'b']);
     expect(duyuruKullaniciBolumleri({})).toEqual([]);
     expect(duyuruKullaniciBolumleri(null)).toEqual([]);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// ERİŞİM ETİKETİ
+//
+// Rozet `kapsamTuru`yu okuyordu; o alan YAZANIN yetki alanı. Üniversite
+// yetkilisi tek bölüme duyuru yazdığında o bölümün öğrencisi duyuruyu
+// "Üniversite geneli" diye görüyordu.
+// ══════════════════════════════════════════════════════════════
+describe('duyuruErisimEtiketi', () => {
+  const bolumler = [
+    { id: 'bilgisayar', name: 'Bilgisayar Mühendisliği' },
+    { id: 'makine', name: 'Makine Mühendisliği' },
+  ];
+
+  it('tek bölüme yazılan duyuru, YAZAN üniversite yetkilisi olsa bile bölüm duyurusudur', () => {
+    const d = { kapsamTuru: 'universite', hedefDepartmentIds: ['bilgisayar'] };
+    expect(duyuruErisimEtiketi(d, bolumler)).toEqual({
+      etiket: 'Bilgisayar Mühendisliği',
+      hedefli: true,
+    });
+  });
+
+  it('birden çok hedefte sayı yazar', () => {
+    const d = { kapsamTuru: 'universite', hedefDepartmentIds: ['bilgisayar', 'makine'] };
+    expect(duyuruErisimEtiketi(d, bolumler).etiket).toBe('2 bölüme özel');
+  });
+
+  it('hedef boşsa yazanın kapsamını söyler', () => {
+    expect(
+      duyuruErisimEtiketi({ kapsamTuru: 'universite', hedefDepartmentIds: [] }, bolumler)
+    ).toEqual({ etiket: 'Üniversite geneli', hedefli: false });
+    expect(duyuruErisimEtiketi({ kapsamTuru: 'fakulte' }, bolumler).etiket).toBe('Fakülte geneli');
+    expect(duyuruErisimEtiketi({ kapsamTuru: 'bolum' }, bolumler).etiket).toBe('Bölüm duyurusu');
+  });
+
+  it('bilinmeyen bölüm kimliğinde genel bir etikete düşer', () => {
+    expect(duyuruErisimEtiketi({ hedefDepartmentIds: ['yokboyle'] }, bolumler).etiket).toBe(
+      'Bölüm duyurusu'
+    );
+  });
+
+  it('kapsamsız eski kayıtta en DAR etikete düşer', () => {
+    // Eski kayıtları "üniversite geneli" saymak, duyurunun gerçekte
+    // ulaştığından geniş bir izlenim verirdi.
+    expect(duyuruErisimEtiketi({}, bolumler).etiket).toBe('Bölüm duyurusu');
+    expect(duyuruErisimEtiketi(null, bolumler).etiket).toBe('Bölüm duyurusu');
   });
 });
