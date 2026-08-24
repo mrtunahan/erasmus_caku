@@ -6,7 +6,7 @@
 // DEĞİLDİR: çağıran taraf "hangi alanlar doldurulacak" listesini verir, bu
 // katman belgeleri okur ve alanları doldurup katı JSON döner.
 //
-// Model tektir ve sabittir: claude-haiku-4-5-20251001 (200K bağlam).
+// Model tektir ve sabittir: claude-haiku-4-5 (200K bağlam).
 // Anahtar .env → ANTHROPIC_API_KEY. temperature: 0.
 //
 // ── Prompt önbelleği hakkında kritik not ──────────────────────
@@ -26,7 +26,9 @@ const { getDbSafe } = require('../config/database');
 const { istekGruplari } = require('./doc-text');
 const { kullanimKaydet, maliyetHesapla } = require('./ai-usage');
 
-const MODEL = 'claude-haiku-4-5-20251001';
+// Kimlik tarihsiz biçimde yazılır. Tarih ekli sürüm ('…-20251001') bir
+// anlık görüntüye çakılıyordu; tarihsiz kimlik modelin kendisini gösterir.
+const MODEL = 'claude-haiku-4-5';
 const TEMPERATURE = 0;
 // Bu modelde önbelleğe alınabilen en küçük önek. Altında sessizce önbellek yok.
 const CACHE_MIN_TOKENS = 4096;

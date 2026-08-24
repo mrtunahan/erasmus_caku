@@ -14,8 +14,11 @@
 
 const TIMEOUT_MS = 45000;
 
+// Bu katmanın Anthropic varsayılanı, belge işleme katmanıyla (claude-extract)
+// AYNI model olmalı: iki yerde iki ayrı model, aynı işin iki farklı maliyet ve
+// davranışla çalışması demekti. Buradaki eski değer Haiku 3.5'te kalmıştı.
 const DEFAULT_MODELS = {
-  anthropic: 'claude-3-5-haiku-latest',
+  anthropic: 'claude-haiku-4-5',
   openai: 'gpt-4o-mini',
   gemini: 'gemini-1.5-flash',
 };

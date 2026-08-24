@@ -14,8 +14,10 @@ const { getDbSafe } = require('../config/database');
 const COLLECTION = 'ai_usage_logs';
 
 const FIYAT = {
-  'claude-haiku-4-5-20251001': { girdi: 1.0, cikti: 5.0 },
   'claude-haiku-4-5': { girdi: 1.0, cikti: 5.0 },
+  // Tarih ekli kimlik, önceden yazılmış kayıtlar için tabloda kalır; onların
+  // maliyeti varsayılana düşüp yanlış raporlanmasın.
+  'claude-haiku-4-5-20251001': { girdi: 1.0, cikti: 5.0 },
   // Haiku dışı modeller: sistem şu an hepsini kullanmıyor ama fiyatları
   // tabloda duruyor. Eksik bir model kimliği varsayılana (Haiku) düşer ve
   // maliyet raporu o çağrıyı OLDUĞUNDAN UCUZ gösterirdi.
@@ -25,7 +27,7 @@ const FIYAT = {
   'claude-opus-5': { girdi: 5.0, cikti: 25.0 },
 };
 // Model kimliği tabloda yoksa Haiku fiyatı varsayılır (tek modelli kurulum).
-const VARSAYILAN_FIYAT = FIYAT['claude-haiku-4-5-20251001'];
+const VARSAYILAN_FIYAT = FIYAT['claude-haiku-4-5'];
 
 const CACHE_WRITE_CARPAN = 1.25;
 const CACHE_READ_CARPAN = 0.1;

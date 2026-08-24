@@ -5,6 +5,8 @@ import {
   adAnahtari,
   dersEslestir,
   okunanlarOzeti,
+  notKaynagi,
+  harfNormalize,
 } from '../lib/belge-ders-eslesme.js';
 
 describe('metinAnahtari', () => {
@@ -143,5 +145,40 @@ describe('okunanlarOzeti', () => {
     expect(okunanlarOzeti([])).toBe('');
     expect(okunanlarOzeti(null)).toBe('');
     expect(okunanlarOzeti([{ kod: '', ad: '' }])).toBe('');
+  });
+});
+
+describe('notKaynagi', () => {
+  it('yüzlük puan varsa puan kazanır', () => {
+    expect(notKaynagi({ not: '87', harf: 'BA' })).toBe('puan');
+    expect(notKaynagi({ not: '87' })).toBe('puan');
+  });
+
+  it('puan yoksa harfe düşer — belge tümden reddedilmez', () => {
+    expect(notKaynagi({ not: '', harf: 'BB' })).toBe('harf');
+    expect(notKaynagi({ harf: 'AA' })).toBe('harf');
+  });
+
+  it('ikisi de yoksa yok döner', () => {
+    expect(notKaynagi({ not: '   ', harf: '' })).toBe('yok');
+    expect(notKaynagi({})).toBe('yok');
+    expect(notKaynagi(null)).toBe('yok');
+  });
+});
+
+describe('harfNormalize', () => {
+  it('büyük harfe çevirir ve boşluğu atar', () => {
+    expect(harfNormalize(' ba ')).toBe('BA');
+    expect(harfNormalize('c c')).toBe('CC');
+  });
+
+  it('Türkçe büyük harf kuralına uyar', () => {
+    // 'i' Türkçe'de 'İ' olur; harf notlarında geçmese de kural tek biçim olmalı.
+    expect(harfNormalize('i')).toBe('İ');
+  });
+
+  it('boş girdide boş döner', () => {
+    expect(harfNormalize(null)).toBe('');
+    expect(harfNormalize('')).toBe('');
   });
 });

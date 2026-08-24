@@ -58,6 +58,8 @@ import { programGirdileri, akademisyenCakismalari, cakismaMetni } from './lib/se
 import {
   dersEslestir as belgeDersEslestir,
   okunanlarOzeti as belgeOkunanlarOzeti,
+  notKaynagi as belgeNotKaynagi,
+  harfNormalize as belgeHarfNormalize,
 } from './lib/belge-ders-eslesme.js';
 import {
   medyaTuru as kulupMedyaTuru,
@@ -13358,6 +13360,10 @@ window.tanitimModulSlaytlari = tanitimModulSlaytlari;
 // hiç tutmuyordu. Kural artık tek yerde ve testli.
 window.belgeDersEslestir = belgeDersEslestir;
 window.belgeOkunanlarOzeti = belgeOkunanlarOzeti;
+// Not kaynağı: yüzlük puan mı, harf mi, hiçbiri mi. Karşı kurumun harfi ÇAKÜ
+// harfine DOĞRUDAN çevrilmez — kural ve gerekçesi lib dosyasında.
+window.belgeNotKaynagi = belgeNotKaynagi;
+window.belgeHarfNormalize = belgeHarfNormalize;
 
 // Topluluk akışı ekleri: görsel/video yerinde önizlenir, gerisi bağlantı.
 // Karar UZANTIYA dayanır — eski kayıtlarda mime alanı yok, ad hep var.
