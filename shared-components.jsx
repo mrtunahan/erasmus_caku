@@ -56,6 +56,16 @@ import {
 } from './lib/tanitim-slayt.js';
 import { programGirdileri, akademisyenCakismalari, cakismaMetni } from './lib/seviye-cakisma.js';
 import {
+  harfAnahtari as olcekHarfAnahtari,
+  olcekNormalize,
+  harfKatsayisi as olcekHarfKatsayisi,
+  katsayidanHarf as olcekKatsayidanHarf,
+  karsiHarfiCevir,
+  olcekSorunlari,
+  kurumAnahtari as olcekKurumAnahtari,
+  kurumOlcegiBul,
+} from './lib/karsi-olcek.js';
+import {
   dersEslestir as belgeDersEslestir,
   okunanlarOzeti as belgeOkunanlarOzeti,
   notKaynagi as belgeNotKaynagi,
@@ -13363,6 +13373,16 @@ window.belgeOkunanlarOzeti = belgeOkunanlarOzeti;
 // Not kaynağı: yüzlük puan mı, harf mi, hiçbiri mi. Karşı kurumun harfi ÇAKÜ
 // harfine DOĞRUDAN çevrilmez — kural ve gerekçesi lib dosyasında.
 window.belgeNotKaynagi = belgeNotKaynagi;
+// Karşı kurumun harfi ÇAKÜ harfine KATSAYI üzerinden çevrilir: harf kuruma
+// özeldir (ÇAKÜ'de "BB" yok), katsayı iki kurumun ortak dilidir.
+window.olcekHarfAnahtari = olcekHarfAnahtari;
+window.olcekNormalize = olcekNormalize;
+window.olcekHarfKatsayisi = olcekHarfKatsayisi;
+window.olcekKatsayidanHarf = olcekKatsayidanHarf;
+window.karsiHarfiCevir = karsiHarfiCevir;
+window.olcekSorunlari = olcekSorunlari;
+window.olcekKurumAnahtari = olcekKurumAnahtari;
+window.kurumOlcegiBul = kurumOlcegiBul;
 window.belgeHarfNormalize = belgeHarfNormalize;
 
 // Topluluk akışı ekleri: görsel/video yerinde önizlenir, gerisi bağlantı.
