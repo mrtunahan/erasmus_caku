@@ -56,6 +56,14 @@ import {
 } from './lib/tanitim-slayt.js';
 import { programGirdileri, akademisyenCakismalari, cakismaMetni } from './lib/seviye-cakisma.js';
 import {
+  medyaTuru as kulupMedyaTuru,
+  medyaEkleri as kulupMedyaEkleri,
+  belgeEkleri as kulupBelgeEkleri,
+  FEED_KABUL as KULUP_FEED_KABUL,
+  EN_BUYUK_MB as KULUP_EN_BUYUK_MB,
+  boyutMetni as kulupBoyutMetni,
+} from './lib/kulup-medya.js';
+import {
   BU_DONEM as DERS_SECIM_BU_DONEM,
   TUM_DONEMLER as DERS_SECIM_TUM_DONEMLER,
   DONEMSIZ as DERS_SECIM_DONEMSIZ,
@@ -13340,6 +13348,15 @@ window.tanitimModulNormalize = tanitimModulNormalize;
 window.tanitimYayindakiModuller = tanitimYayindakiModuller;
 window.tanitimModulGecerliMi = tanitimModulGecerliMi;
 window.tanitimModulSlaytlari = tanitimModulSlaytlari;
+
+// Topluluk akışı ekleri: görsel/video yerinde önizlenir, gerisi bağlantı.
+// Karar UZANTIYA dayanır — eski kayıtlarda mime alanı yok, ad hep var.
+window.kulupMedyaTuru = kulupMedyaTuru;
+window.kulupMedyaEkleri = kulupMedyaEkleri;
+window.kulupBelgeEkleri = kulupBelgeEkleri;
+window.KULUP_FEED_KABUL = KULUP_FEED_KABUL;
+window.KULUP_EN_BUYUK_MB = KULUP_EN_BUYUK_MB;
+window.kulupBoyutMetni = kulupBoyutMetni;
 
 // Öğrenci ders seçimi dönem süzgeci — görünmez yarıyıl süzgeci başka
 // dönemin derslerini sessizce eliyordu; kural artık tek yerde ve testli.
