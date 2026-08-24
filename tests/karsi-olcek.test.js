@@ -7,6 +7,7 @@ import {
   karsiHarfiCevir,
   olcekSorunlari,
   kurumAnahtari,
+  kurumCekirdegi,
   kurumOlcegiBul,
 } from '../lib/karsi-olcek.js';
 
@@ -197,14 +198,58 @@ describe('kurum eşleme', () => {
     { kurum: 'Düzce Üniversitesi', satirlar: KARSI },
     { kurum: 'Hacettepe Üniversitesi', satirlar: [] },
   ];
+  const bul = (ad) => {
+    const r = kurumOlcegiBul(ad, kayitlar);
+    return r ? r.kurum : null;
+  };
 
   it('yazım farkına takılmaz', () => {
     expect(kurumAnahtari('Düzce Üniversitesi')).toBe(kurumAnahtari('DÜZCE ÜNIVERSITESI'));
-    expect(kurumOlcegiBul('düzce üniversitesi', kayitlar).kurum).toBe('Düzce Üniversitesi');
+    expect(bul('düzce üniversitesi')).toBe('Düzce Üniversitesi');
   });
 
-  it('kayıtlı olmayan kurumda null döner', () => {
-    expect(kurumOlcegiBul('Boğaziçi', kayitlar)).toBe(null);
-    expect(kurumOlcegiBul('', kayitlar)).toBe(null);
+  it('genel sözcükler çekirdeği değiştirmez', () => {
+    expect(kurumCekirdegi('T.C. Düzce Üniversitesi Rektörlüğü')).toBe('duzce');
+    expect(kurumCekirdegi('DÜZCE ÜNİV.')).toBe('duzce');
+  });
+
+  it('ek sözcük taşıyan adları eşler', () => {
+    // Kurum adı başvuruya elle ya da transkriptten geliyor; her seferinde
+    // aynı biçimde yazılmıyor.
+    expect(bul('T.C. Düzce Üniversitesi')).toBe('Düzce Üniversitesi');
+    expect(bul('Düzce Üniversitesi Rektörlüğü')).toBe('Düzce Üniversitesi');
+    expect(bul('Düzce Üniv.')).toBe('Düzce Üniversitesi');
+  });
+
+  it('tek harflik yazım hatasını affeder — bildirilen durum', () => {
+    // Başvuruda "Düce Üniversitesi" yazıyordu; tablo yüklü olmasına rağmen
+    // "yüklenmemiş" deniyordu.
+    expect(bul('Düce Üniversitesi')).toBe('Düzce Üniversitesi');
+  });
+
+  it('benzeşen ama başka kurumları eşlemez', () => {
+    expect(bul('Dicle Üniversitesi')).toBe(null);
+    expect(bul('Ege Üniversitesi')).toBe(null);
+    expect(bul('Boğaziçi')).toBe(null);
+    expect(bul('')).toBe(null);
+  });
+
+  it('iki aday varsa TAHMİN ETMEZ', () => {
+    // Yanlış ölçekle çevirmek öğrencinin transkriptine yanlış harf yazar.
+    const ikiz = [{ kurum: 'Aydın Üniversitesi' }, { kurum: 'Aydin Üniversitesi' }];
+    expect(kurumOlcegiBul('Aydın Üniv.', ikiz)).toBe(null);
+  });
+
+  it('benzer adlı iki kurumu ayırır', () => {
+    const ist = [{ kurum: 'İstanbul Üniversitesi' }, { kurum: 'İstanbul Teknik Üniversitesi' }];
+    expect(kurumOlcegiBul('İstanbul Teknik Üniversitesi', ist).kurum).toBe(
+      'İstanbul Teknik Üniversitesi'
+    );
+    expect(kurumOlcegiBul('İstanbul Üniversitesi', ist).kurum).toBe('İstanbul Üniversitesi');
+  });
+
+  it('boş listede null döner', () => {
+    expect(kurumOlcegiBul('Düzce Üniversitesi', [])).toBe(null);
+    expect(kurumOlcegiBul('Düzce Üniversitesi', null)).toBe(null);
   });
 });

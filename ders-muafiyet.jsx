@@ -49,9 +49,6 @@ const STUDENT_TABS = [
   { id: 'yeni', label: 'Yeni Talep', icon: 'plus' },
   { id: 'gecmis', label: 'Taleplerim', icon: 'history' },
   { id: 'esgecmis', label: 'Eşleştirme Geçmişi', icon: 'history' },
-  // Notunun hangi tabloya göre çevrildiğini öğrenci de görebilmeli; çeviriyi
-  // sorgulayamayan öğrenci yanlışı da fark edemez. SALT OKUNUR.
-  { id: 'olcek', label: 'Not Ölçekleri', icon: 'settings' },
 ];
 const STAFF_TABS = [
   { id: 'onay', label: 'Onay Bekleyenler', icon: 'plus' },
@@ -4912,7 +4909,6 @@ const INTIBAK_STAGES = [
 ];
 const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) => {
   const [busy, setBusy] = useState(false);
-  const [link, setLink] = useState(record.notDonusumLink || '');
   const stage = record.stage || 'on_inceleme';
   const curIdx = INTIBAK_STAGES.findIndex((s) => s.id === stage);
 
@@ -5010,8 +5006,10 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   useEffect(() => {
     let iptal = false;
     if (!kaynakKurum) return undefined;
-    window
-      .apiRead('karsi_not_olcekleri')
+    // .fresh: yetkili tabloyu az önce eklemiş olabilir. Önbellekten gelen eski
+    // liste "tablo yüklenmemiş" dedirtirdi.
+    window.apiRead
+      .fresh('karsi_not_olcekleri')
       .then((liste) => {
         if (iptal) return;
         const bulunan = window.kurumOlcegiBul ? window.kurumOlcegiBul(kaynakKurum, liste) : null;
@@ -5070,6 +5068,53 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
     });
     return out;
   }, [isStudent, notluDersler, record.ogrenciNotlari, olcekKural, karsiOlcek]);
+
+  // ── Karşı kurum tablosu SONRADAN yüklenmişse çeviriyi tamamla ──
+  //
+  // Öğrenci belgeyi okuttuğunda tablo henüz yüklü değilse ÇAKÜ karşılığı boş
+  // kalıyordu; yetkili tabloyu ekledikten sonra da boş kalmaya devam ediyordu,
+  // çünkü çeviri yalnız "Belgeyi Oku" anında yapılıyordu. Kimse belgeyi
+  // yeniden okutmayı akıl etmek zorunda kalmasın.
+  useEffect(() => {
+    if (!karsiOlcek || !olcekVar) return;
+    // Hesap, setNotlar güncelleyicisinin DIŞINDA yapılır: güncelleyici saf
+    // olmalı (React onu iki kez çağırabilir), içinden başka setter çağırmak
+    // render sırasında yan etki demek olurdu.
+    const eklenecek = {};
+    notluDersler.forEach((m, i) => {
+      const a = notAnahtari(m, i);
+      const n = notlar[a] || {};
+      if (n.elle || n.cakuNot || n.kaynakNot || !n.kaynakHarf) return;
+      const c = harftenCevir(n.kaynakHarf);
+      if (!c.harf) return;
+      eklenecek[a] = {
+        ...n,
+        cakuNot: c.harf,
+        kaynakKatsayi: c.karsiKatsayi != null ? String(c.karsiKatsayi) : '',
+        sebep:
+          c.sebep ||
+          'Katsayı ' +
+            c.karsiKatsayi +
+            ' üzerinden çevrildi (' +
+            n.kaynakHarf +
+            ' → ' +
+            c.harf +
+            ').',
+      };
+    });
+    const sayac = Object.keys(eklenecek).length;
+    if (!sayac) return;
+    setNotlar((p) => ({ ...p, ...eklenecek }));
+    // Okuma notu "tablo yüklenmemiş" diyordu; artık yüklü. Satırlar dolarken
+    // metnin eskisini söylemesi kullanıcıyı ikiye bölerdi.
+    setOkumaNotu(
+      sayac +
+        ' derste harf notu, ' +
+        (karsiOlcek.kurum || 'karşı kurum') +
+        ' tablosundaki katsayı üzerinden ÇAKÜ harfine çevrildi.'
+    );
+    setOkumaHatali(false);
+  }, [karsiOlcek, olcekVar, olcekKural, notluDersler, notlar]);
 
   // ── Akademisyen: ÇAKÜ karşılığını OTOMATİK doldur ──
   // Akademisyen açtığında alan boş durmasın; ölçekten çıkan karşılık doğrudan
@@ -5356,7 +5401,6 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
     setBusy(true);
     try {
       await onStageChange(record.id, 'belge_teslim', {
-        notDonusumLink: (link || '').trim(),
         basariBelgesiUrl: belgeUrl,
         basariBelgesiAdi: belgeAdi,
         // Kullanılan tablo BURADA YAZILMAZ. Öğrencinin yazdığı bir "dayanak"
@@ -5494,23 +5538,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
               }}
             >
               {olcekVar ? (
-                <>
-                  Belgenizdeki <b>yüzlük puan</b>, ÇAKÜ ders geçme ölçeğiyle harf notuna çevrilir.
-                  Belgede yüzlük puan yoksa <b>harf notu</b> okunur ve{' '}
-                  {karsiOlcek ? (
-                    <>
-                      {kaynakKurum} tablosundaki <b>katsayı</b> üzerinden ÇAKÜ harfine çevrilir —
-                      karşı kurumun harfi doğrudan taşınmaz, çünkü iki kurumun harf ölçeği aynı şeyi
-                      ifade etmez.
-                    </>
-                  ) : (
-                    <>
-                      ÇAKÜ karşılığını bölüm belirler:{' '}
-                      {kaynakKurum ? <b>{kaynakKurum}</b> : 'karşı kurumun'} not tablosu sisteme
-                      henüz yüklenmemiş. Tablo “Not Ölçekleri” sekmesinde görünür.
-                    </>
-                  )}
-                </>
+                <>Notlarınız belgeden okunur; ÇAKÜ karşılığı ders geçme ölçeğiyle belirlenir.</>
               ) : (
                 <>
                   Bölümünüzün ders geçme ölçeği henüz tanımlı değil; belgeniz yine okunur, harf
@@ -5690,19 +5718,6 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
             </div>
           )}
 
-          {/* Karşı kurumun not sistemi linki — isteğe bağlı doğrulama kolaylığı */}
-          <input
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-            placeholder="Karşı üniversite not/döküm sistemi linki (isteğe bağlı)"
-            style={{
-              padding: '9px 12px',
-              borderRadius: 8,
-              border: '1px solid ' + DS.border,
-              fontSize: 13,
-              outline: 'none',
-            }}
-          />
           <div>
             {/* Eksik varken düğme KİLİTLİ: tıklayıp uyarı almak yerine
                 neden gönderilemediğini yukarıdaki kırmızı kutu söylüyor. */}
@@ -7060,7 +7075,7 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
         bolum
           ? window.apiReadDoc('mezuniyet_kurallari', String(bolum)).catch(() => null)
           : Promise.resolve(null),
-        window.apiRead(OLCEK_KOLEKSIYON).catch(() => []),
+        window.apiRead.fresh(OLCEK_KOLEKSIYON).catch(() => []),
       ]);
       const d = (kural && kural.exists && kural.data) || {};
       setCakuOlcek(Array.isArray(d.notOlcegi) ? d.notOlcegi : []);
@@ -8641,9 +8656,6 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
 
         {/* Tab İçeriği */}
         {/* Ayarlar: yalnızca eşik kalibrasyonu (katalog/not tablosu yükleme kaldırıldı) */}
-        {activeTab === 'olcek' && isStudent && (
-          <NotOlcekleriPanel currentUser={currentUser} isStudent />
-        )}
         {activeTab === 'ayarlar' && !isStudent && (
           <>
             {/* Not ölçekleri hem Ders Muafiyet hem Yaz Okulu altında görünür:
