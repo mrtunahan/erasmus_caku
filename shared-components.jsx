@@ -191,6 +191,7 @@ import {
   otomatikYazimlar,
 } from './lib/yatay-otomatik.js';
 import {
+  duyuruErisimEtiketi,
   duyuruKapsamCoz,
   duyuruKapsamdaMi,
   duyuruKullaniciBolumleri,
@@ -13019,13 +13020,14 @@ const DuyuruPopup = ({ currentUser }) => {
   const tur = duyuru.tur || 'metin';
   const turEtiketi = (DUYURU_TURLERI.find((t) => t.id === tur) || {}).label || 'Duyuru';
   // Duyurunun nereden geldiği: "kim bana bunu gönderdi" sorusu, içeriğin
-  // kendisi kadar önemli. Eskiden yalnız yazanın adı vardı.
-  const kapsamEtiketi =
-    duyuru.kapsamTuru === 'universite'
-      ? 'Üniversite geneli'
-      : duyuru.kapsamTuru === 'fakulte'
-        ? 'Fakülte duyurusu'
-        : 'Bölüm duyurusu';
+  // kendisi kadar önemli.
+  //
+  // ⚠ Etiket `kapsamTuru`dan OKUNAMAZ: o alan yazanın YETKİ ALANI, duyurunun
+  // eriştiği yer değil. Üniversite yetkilisi tek bir bölüme duyuru yazınca o
+  // bölümün öğrencisi duyuruyu "Üniversite geneli" diye görüyordu. Kural
+  // lib/duyuru-kapsam.js'te ve testli.
+  const erisim = duyuruErisimEtiketi(duyuru, window.DEPARTMENTS || []);
+  const kapsamEtiketi = erisim.etiket;
   const tarih = duyuru.createdAt
     ? new Date(duyuru.createdAt).toLocaleDateString('tr-TR', {
         day: 'numeric',
@@ -13100,16 +13102,18 @@ const DuyuruPopup = ({ currentUser }) => {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 5 }}>
+              {/* Rozet artık bölüm adı da taşıyabiliyor; CSS `uppercase`
+                  Türkçe'de bozuyor ("Bilgisayar" → "BILGISAYAR"), o yüzden
+                  büyük harfe çevrilmiyor. */}
               <span
                 style={{
-                  fontSize: 10.5,
+                  fontSize: 11,
                   fontWeight: 700,
-                  letterSpacing: 0.4,
-                  textTransform: 'uppercase',
-                  padding: '3px 9px',
+                  letterSpacing: 0.2,
+                  padding: '3px 10px',
                   borderRadius: 999,
-                  background: '#EEF2FF',
-                  color: '#4338CA',
+                  background: erisim.hedefli ? '#ECFDF5' : '#EEF2FF',
+                  color: erisim.hedefli ? '#047857' : '#4338CA',
                 }}
               >
                 {kapsamEtiketi}
