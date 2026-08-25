@@ -6984,11 +6984,15 @@ const ExemptionHistory = ({
               )}
 
               {/* ── ÖĞRENCİ: bölüm sekreterliğine götüreceği evraklar ──
-                  Yaz intibakında öğrenci dilekçeyi ve onaylı ders içeriklerini
-                  ELDEN teslim ediyor. İkisini de burada, başvurusunu yaptığı
-                  anda indirebilmeli — süreç bitene kadar beklemesi gerekmiyor,
-                  çünkü dilekçe "bu dersleri almak istiyorum" belgesi. */}
-              {isStudent && (rec.basvuruTuru || 'muafiyet') === 'intibak' && (
+                  Öğrenci dilekçeyi ve ders içeriklerini ELDEN teslim ediyor.
+                  İkisini de burada, başvurusunu yaptığı anda indirebilmeli —
+                  süreç bitene kadar beklemesi gerekmiyor, çünkü dilekçe not
+                  içermez, "bu dersleri almak/bu derslerden muaf olmak
+                  istiyorum" talebidir.
+                  Kutu HER İKİ başvuru türünde de görünür: muafiyette de
+                  imzalı dilekçe isteniyor, yalnızca yaz okuluna özel değil.
+                  Şablonları ayrıdır (bkz. DILEKCE_TURU). */}
+              {isStudent && (
                 <div
                   style={{
                     margin: '0 20px 12px',
@@ -7005,8 +7009,18 @@ const ExemptionHistory = ({
                     Bölüm sekreterliğine teslim edeceğiniz evraklar
                   </div>
                   <div style={{ fontSize: 11.5, color: DS.textSecondary, lineHeight: 1.55 }}>
-                    Dilekçeyi indirip <b>imzalayın</b>, ders içeriklerini de ekleyerek bölüm
-                    sekreterliğine teslim edin. Dilekçedeki bilgiler başvurunuzdan gelir.
+                    {(rec.basvuruTuru || 'muafiyet') === 'intibak' ? (
+                      <>
+                        Dilekçeyi indirip <b>imzalayın</b>, ders içeriklerini de ekleyerek bölüm
+                        sekreterliğine teslim edin.
+                      </>
+                    ) : (
+                      <>
+                        Muafiyet dilekçesini indirip <b>imzalayın</b>, ders içerikleriyle birlikte
+                        bölüm sekreterliğine teslim edin.
+                      </>
+                    )}{' '}
+                    Dilekçedeki bilgiler başvurunuzdan gelir.
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button
@@ -7028,7 +7042,11 @@ const ExemptionHistory = ({
                       Dilekçeyi İndir
                     </button>
                   </div>
-                  <BirlesikIcerikPdf record={rec} />
+                  {/* Muafiyette birleşik içerik PDF'i yukarıda ayrı kutuda
+                      zaten var; burada tekrarlanmasın. */}
+                  {(rec.basvuruTuru || 'muafiyet') === 'intibak' && (
+                    <BirlesikIcerikPdf record={rec} />
+                  )}
                 </div>
               )}
 
@@ -8149,6 +8167,26 @@ const MuafiyetGecmisi = ({ activeDepartment, basvuruTuru, turMeta, canDelete }) 
   );
 };
 
+// ── ÖĞRENCİ DİLEKÇESİ: başvuru türü → belge türü ──
+// Dilekçe, akademisyenin ürettiği nihai belgeyle AYNI ŞABLONU KULLANMAZ.
+// Nihai belge başarı notlarını taşır ve süreç bittiğinde üretilir; dilekçe
+// ise öğrencinin süreç başında bölüm sekreterliğine verdiği taleptir.
+// Metinleri de birbirinden farklıdır ("bu dersleri almak istiyorum" ↔ "bu
+// derslerden muaf olmak istiyorum"), bu yüzden her başvuru türünün dilekçesi
+// ayrı bir belge türüdür ve Şablonlar modülünde ayrı .docx eşlenir.
+const DILEKCE_TURU = {
+  muafiyet: 'muafiyet_dilekce',
+  intibak: 'intibak_dilekce',
+};
+const DILEKCE_ETIKET = {
+  muafiyet_dilekce: 'Ders Muafiyet Dilekçesi (öğrenci)',
+  intibak_dilekce: 'Yaz Okulu Ders Alma Dilekçesi (öğrenci)',
+};
+const DILEKCE_DOSYA = {
+  muafiyet_dilekce: 'Muafiyet_Dilekcesi',
+  intibak_dilekce: 'Yaz_Okulu_Dilekcesi',
+};
+
 // Başvuru türleri — modül iki bağımsız alana bölünür (ayrı geçmiş, ayrı çıktı)
 const BASVURU_TURLERI = [
   {
@@ -8329,12 +8367,12 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
     try {
       const dilekceModu = amac === 'dilekce';
       // Belge türü: kaydın başvuru türü (muafiyet | intibak); şablon buna göre
-      // çözülür. Öğrencinin BAŞVURU DİLEKÇESİ ayrı bir belge türüdür
-      // ('intibak_dilekce'): akademisyenin ürettiği nihai 'intibak' belgesiyle
+      // çözülür. Öğrencinin BAŞVURU DİLEKÇESİ her tür için AYRI bir belge
+      // türüdür (bkz. DILEKCE_TURU): akademisyenin ürettiği nihai belgeyle
       // aynı şablonu paylaşmaz — yetkili ikisini Şablonlar modülünden ayrı
       // ayrı eşler.
       const kayitTuru = rec.basvuruTuru || 'muafiyet';
-      const docType = dilekceModu ? 'intibak_dilekce' : kayitTuru;
+      const docType = dilekceModu ? DILEKCE_TURU[kayitTuru] || DILEKCE_TURU.muafiyet : kayitTuru;
       // Yaz intibakı çok aşamalıdır ve başarı notları ancak 2. adımda girilir.
       // NİHAİ belge süreç bitmeden üretilirse {{karşı_başarı_notu}} /
       // {{çakü_başarı_notu}} boş çıkar. Dilekçe için bu geçerli değil: o belge
@@ -8457,7 +8495,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         staticData,
         rows,
         filename:
-          (dilekceModu ? 'Yaz_Okulu_Dilekcesi' : turAd.replace(/\s+/g, '_')) +
+          (dilekceModu ? DILEKCE_DOSYA[docType] || 'Dilekce' : turAd.replace(/\s+/g, '_')) +
           '_' +
           (rec.studentNo || 'kayit') +
           '.docx',
@@ -8478,7 +8516,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
               (res.message || res.reason || 'şablon bulunamadı') +
               (eslemeSorunu
                 ? '\n\nBölüm yetkiliniz Şablonlar modülünde, Ders Muafiyet modülü altına ' +
-                  '"Yaz Okulu Ders Alma Dilekçesi (öğrenci)" belge türüyle bir .docx ' +
+                  '"' +
+                  (DILEKCE_ETIKET[docType] || 'dilekçe') +
+                  '" belge türüyle bir .docx ' +
                   'yükleyip alanlarını eşlemiş olmalı.'
                 : '\n\nSorun sürerse bölüm sekreterliğine bildirin.')
           );

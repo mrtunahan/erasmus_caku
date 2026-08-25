@@ -161,9 +161,12 @@ describe('canViewTemplate — öğrenci', () => {
     ).toBe(true);
   });
 
-  it('öğrenciye açık belge listesi yalnız dilekçeyi içerir', () => {
+  it('öğrenciye açık belge listesi yalnız dilekçeleri içerir', () => {
     expect(STUDENT_TEMPLATE_DOCTYPES.muafiyet.has('intibak_dilekce')).toBe(true);
+    expect(STUDENT_TEMPLATE_DOCTYPES.muafiyet.has('muafiyet_dilekce')).toBe(true);
+    // Akademisyenin nihai belgeleri (başarı notlarını taşır) kapalı kalır.
     expect(STUDENT_TEMPLATE_DOCTYPES.muafiyet.has('intibak')).toBe(false);
+    expect(STUDENT_TEMPLATE_DOCTYPES.muafiyet.has('muafiyet')).toBe(false);
   });
 });
 
