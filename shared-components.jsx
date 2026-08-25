@@ -2866,11 +2866,17 @@ window.TEMPLATE_VARS = {
       // Ayrı belge türü olmalı ki yetkili Şablonlar modülünden ayrı bir
       // .docx eşleyebilsin.
       { id: 'intibak_dilekce', label: 'Yaz Okulu Ders Alma Dilekçesi (öğrenci)' },
+      // Muafiyetin dilekçesi de ayrıdır: yaz okulu dilekçesi "şu dersleri
+      // ALMAK istiyorum" der, muafiyet dilekçesi "şu derslerden MUAF olmak
+      // istiyorum" der. Metinleri farklı olduğundan tek şablon ikisine
+      // yetmez; yetkili her biri için ayrı .docx eşler.
+      { id: 'muafiyet_dilekce', label: 'Ders Muafiyet Dilekçesi (öğrenci)' },
       { id: 'dikey', label: 'Dikey Geçiş İsteği' },
     ],
     muafiyet: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
     intibak: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
     intibak_dilekce: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
+    muafiyet_dilekce: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },
     // Dikey geçiş ayrı modülde yürür ama şablon tarafında muafiyet altyapısını
     // kullanmaya devam eder (mevcut şablonlar bozulmasın).
     dikey: { static: MUAFIYET_STATIC, row: DERS_ESLESME_ROWS },

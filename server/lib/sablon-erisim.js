@@ -24,11 +24,13 @@ function ayniFakulte(a, b, fakulteHaritasi) {
 // Öğrencinin kendi doldurup teslim edeceği belgeler — modül + BELGE TÜRÜ
 // düzeyinde. Şablon dosyası boş bir formdur (içinde başka öğrencinin verisi
 // yoktur), ama yine de yalnız öğrenci akışında çıktısı alınan belge açılır:
-//   muafiyet/intibak_dilekce → yaz okulu ders alma dilekçesi (öğrenci, bölüm
-//   sekreterliğine teslim eder). Aynı modüldeki 'intibak' AKADEMİSYENİN nihai
-//   belgesidir ve öğrenciye açılmaz.
+//   muafiyet/intibak_dilekce  → yaz okulu ders alma dilekçesi
+//   muafiyet/muafiyet_dilekce → ders muafiyet dilekçesi
+// İkisini de öğrenci doldurup bölüm sekreterliğine teslim eder. Aynı
+// modüldeki 'intibak' ve 'muafiyet' türleri ise AKADEMİSYENİN ürettiği nihai
+// belgelerdir (başarı notlarını taşırlar) ve öğrenciye açılmaz.
 const STUDENT_TEMPLATE_DOCTYPES = {
-  muafiyet: new Set(['intibak_dilekce']),
+  muafiyet: new Set(['intibak_dilekce', 'muafiyet_dilekce']),
 };
 
 function ogrenciBelgesiMi(tpl) {
