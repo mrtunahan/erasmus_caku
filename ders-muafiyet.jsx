@@ -6424,6 +6424,76 @@ const BirlesikPdfGrubu = ({ record, taraf, etiket, dosyaOnEki }) => {
   );
 };
 
+// ══════════════════════════════════════════════════════════════
+// BÖLÜMÜN OLUŞTURDUĞU BELGE — ÖĞRENCİ GÖRÜNÜMÜ
+//
+// Akademisyen "Belge Oluştur" dediğinde üretilen nihai belgenin snapshot'ı
+// kayda yazılıyor (`dilekceUrl`). Bu belge başvurunun sonucunu taşır; onu
+// yalnız memur listesinde tutmak, öğrenciyi kendi başvurusunun çıktısı için
+// sekreterliğe yürütüyordu.
+//
+// Öğrenci yalnız OKUR: alan `STUDENT_SELF_PROTECTED` içinde olduğu için
+// öğrencinin yazması sunucuda zaten engelli.
+// ══════════════════════════════════════════════════════════════
+const OlusanBelge = ({ record }) => {
+  const url = record.dilekceUrl || '';
+  if (!url) return null;
+  // Dosya yolu her iki uçta da aynı; yalnız ön ek değişiyor.
+  const yol = String(url).replace('/api/files/download/', '');
+  const gorHref = '/api/files/view/' + yol;
+  const indirHref = '/api/files/download/' + yol + '?download=true';
+  const tarih = record.dilekceUploadedAt
+    ? new Date(record.dilekceUploadedAt).toLocaleDateString('tr-TR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : '';
+  const dugme = (bg, renk, kenar) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '7px 15px',
+    borderRadius: 8,
+    border: kenar ? '1px solid ' + kenar : 'none',
+    background: bg,
+    color: renk,
+    fontSize: 12.5,
+    fontWeight: 600,
+    textDecoration: 'none',
+  });
+  return (
+    <div
+      style={{
+        padding: '12px 14px',
+        borderRadius: DS.radiusSm,
+        border: '1px solid ' + DS.border,
+        background: DS.bg,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        flexWrap: 'wrap',
+      }}
+    >
+      <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: DS.navy }}>
+          Bölümünüzün oluşturduğu belge
+        </div>
+        <div style={{ fontSize: 11.5, color: DS.textSecondary, marginTop: 2 }}>
+          {record.dilekceBy ? record.dilekceBy : 'Bölüm'}
+          {tarih ? ' · ' + tarih : ''}
+        </div>
+      </div>
+      <a href={gorHref} target="_blank" rel="noreferrer" style={dugme(DS.navy, '#fff')}>
+        Görüntüle
+      </a>
+      <a href={indirHref} style={dugme('#fff', DS.navy, DS.border)}>
+        İndir
+      </a>
+    </div>
+  );
+};
+
 const BirlesikIcerikPdf = ({ record }) => {
   const karsiAd = record.otherUni || record.otherUniversity || 'Karşı kurum';
   const varMi =
@@ -6885,18 +6955,33 @@ const ExemptionHistory = ({
               )}
 
               {/* Öğrencinin yüklediği ders içerikleri — tek PDF olarak.
-                  Akademisyen 20 ayrı sekme açmak zorunda kalmasın diye. */}
-              {!isStudent && (
+                  Akademisyen 20 ayrı sekme açmak zorunda kalmasın diye;
+                  öğrenci de kendi yüklediklerini tek dosyada görebilmeli
+                  (yükledikten sonra "ne göndermiştim" sorusunun cevabı).
+                  Yaz intibakında aşağıdaki evrak kutusunun içinde zaten var,
+                  burada tekrarlanmaz. */}
+              {(!isStudent || (rec.basvuruTuru || 'muafiyet') !== 'intibak') && (
                 <div style={{ padding: '0 20px 12px' }}>
                   <BirlesikIcerikPdf record={rec} />
                 </div>
               )}
 
-              {/* `rec.dilekceUrl` (akademisyenin "Belge Oluştur" ile ürettiği
-                  nihai belgenin snapshot'ı) BURADA GÖSTERİLMEZ. O belge
-                  dekanlık/memur çıktısıdır — app-shell'deki memur belge
-                  listesine besleniyor; öğrencinin onunla işi yok. Öğrencinin
-                  indireceği tek belge aşağıdaki BAŞVURU dilekçesidir. */}
+              {/* ── BÖLÜMÜN OLUŞTURDUĞU BELGE ──
+                  `rec.dilekceUrl`, akademisyenin "Belge Oluştur" ile ürettiği
+                  nihai belgenin snapshot'ı. Önceden öğrenciye KAPALIYDI ve
+                  gerekçesi "bu dekanlık/memur çıktısıdır" idi. Karar
+                  değiştirildi: başvurunun sonucunu taşıyan belge başvuruyu
+                  yapanın da elinde olmalı — öğrenci belgeyi görmek için
+                  sekreterliğe gitmek zorunda kalmasın.
+                  Belge yalnız ÜRETİLDİYSE görünür ve öğrenci onu SALT OKUR:
+                  `dilekceUrl` sunucuda STUDENT_SELF_PROTECTED'a alındı (bu
+                  değişiklikle birlikte — önceden korunduğu sanılıyordu ama
+                  korunmuyordu). */}
+              {isStudent && rec.dilekceUrl && (
+                <div style={{ padding: '0 20px 12px' }}>
+                  <OlusanBelge record={rec} />
+                </div>
+              )}
 
               {/* ── ÖĞRENCİ: bölüm sekreterliğine götüreceği evraklar ──
                   Yaz intibakında öğrenci dilekçeyi ve onaylı ders içeriklerini
@@ -8361,9 +8446,10 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
       // Öğrencinin dilekçesi DOĞRUDAN İNER: önizleme + "Gönder" akışı
       // akademisyenin belgeyi memura yönlendirmesi içindir. Öğrenci belgeyi
       // yazıcıdan çıkarıp imzalayacak; araya adım koymanın faydası yok.
-      // Ayrıca snapshot da yazılmaz: `dilekceUrl` öğrenci yazımına kapalı
-      // (sunucu beyaz listesi) ve zaten akademisyenin ürettiği nihai belgenin
-      // kaydıdır — başvuru dilekçesiyle karıştırılmamalı.
+      // Ayrıca snapshot da yazılmaz: `dilekceUrl` akademisyenin ürettiği
+      // NİHAİ belgenin kaydıdır, başvuru dilekçesiyle karıştırılmamalı.
+      // (Alan sunucuda STUDENT_SELF_PROTECTED içinde; öğrenci isteği onu
+      // taşısa bile düşürülür.)
       const res = await window.TemplateEngine.produceFromTemplate({
         module: 'muafiyet',
         docType,
