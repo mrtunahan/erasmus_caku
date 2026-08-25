@@ -424,6 +424,18 @@ const STUDENT_SELF_PROTECTED = new Set([
   'erasmusNotOnaylayan',
   'erasmusNotOnayTarihi',
   'erasmusNotSistemi',
+  // ── AKADEMİSYENİN ÜRETTİĞİ NİHAİ BELGE ──
+  // `dilekceUrl`, "Belge Oluştur" ile üretilen belgenin snapshot'ıdır ve
+  // memur belge listesini besler. Öğrenci kendi muafiyet kaydının SAHİBİ
+  // olduğu için bu alanı yazabiliyordu: başka bir dosyayı işaret ederek
+  // memurun resmî çıktı sanacağı belgeyi değiştirebilirdi.
+  //
+  // İstemcideki bir yorum bu alanın "sunucu beyaz listesiyle" korunduğunu
+  // söylüyordu; koruma aslında YOKTU. Belge öğrenciye görüntüleme/indirme
+  // için açılırken bu kapı da kapatıldı.
+  'dilekceUrl',
+  'dilekceUploadedAt',
+  'dilekceBy',
 ]);
 
 // Öğrenci sahiplik alanları — mevcut dokümanda bunlardan biri doluysa
