@@ -219,6 +219,17 @@ import {
   sonrakiSube,
   yilSlotlariniGuncelle,
 } from './lib/ders-slot.js';
+import {
+  ayniEgitmen,
+  cokEgitmenli,
+  dersEgitmeniMi,
+  dersEgitmenleri,
+  egitmenAlanlari,
+  egitmenMetni,
+  egitmenleriCoz,
+  egitmensizMi,
+  slotEgitmeniSec,
+} from './lib/ders-egitmenleri.js';
 import { XLSX_STIL, calismaKitabiParcalari, xlsxDosyaAdi } from './lib/xlsx-yaz.js';
 import {
   DERS_DK,
@@ -13740,6 +13751,18 @@ window.slotDersGuncelle = slotDersGuncelle;
 window.dersKodEtiketi = dersKodEtiketi;
 window.slotKodVarMi = slotKodVarMi;
 window.slotSonrakiSube = sonrakiSube;
+// Çok hocalı ders (Bitirme Projesi, Uzmanlık Alanı Dersi …) — bkz.
+// lib/ders-egitmenleri.js. Ders kaydında `professors` dizisi kaynaktır;
+// eski `professor` metni birinci hocayla dolu kalır.
+window.dersEgitmenleri = dersEgitmenleri;
+window.dersEgitmenMetni = egitmenMetni;
+window.dersCokEgitmenli = cokEgitmenli;
+window.dersEgitmensizMi = egitmensizMi;
+window.dersEgitmeniMi = dersEgitmeniMi;
+window.ayniEgitmen = ayniEgitmen;
+window.dersEgitmenAlanlari = egitmenAlanlari;
+window.dersEgitmenleriCoz = egitmenleriCoz;
+window.slotEgitmeniSec = slotEgitmeniSec;
 // Ders programı şablon verisi — ızgara ↔ satır çevrimi (lib/ders-programi-sablon.js).
 window.dpCiktiIzgarasi = ciktiIzgarasi;
 window.dpSablonSatirlari = sablonSatirlari;
