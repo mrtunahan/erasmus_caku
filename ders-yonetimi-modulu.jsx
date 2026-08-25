@@ -154,10 +154,20 @@ function DersListesiIceAktarModal({
           donem: r.donem,
           seviye: r.seviye,
           bolognaLink: r.bolognaLink.trim(),
-          professor: r.professor || '',
           departmentId: departmentId || 'bilgisayar',
           updatedAt: simdi,
         };
+        // ── ÇOK HOCALI DERS İÇE AKTARMAYLA EZİLMEZ ──
+        // Belge tablosunda öğretim elemanı TEK sütundur. Bitirme Projesi gibi
+        // elle birkaç hoca atanmış bir dersi güncellerken o tek adı yazmak
+        // diğerlerini sessizce silerdi. Ders zaten çok hocalıysa alan hiç
+        // ellenmez; yetkili değişikliği ders kartından yapar.
+        const mevcut = r.mevcutId
+          ? (mevcutDersler || []).find((c) => String(c.id) === String(r.mevcutId))
+          : null;
+        if (!(mevcut && window.dersCokEgitmenli(mevcut))) {
+          Object.assign(data, window.dersEgitmenAlanlari(r.professor ? [r.professor] : []));
+        }
         if (r.mevcutId) {
           return { collection: 'sinav_dersler', type: 'set', docId: r.mevcutId, data, merge: true };
         }
@@ -525,17 +535,146 @@ function DersListesiIceAktarModal({
   );
 }
 
+// ══════════════════════════════════════════════════════════════
+// ÇOK HOCALI DERS — ÖĞRETİM ELEMANI SEÇİCİ
+//
+// Tek bir metin kutusu yerine EKLENEN ADLARIN LİSTESİ. Sayı sınırsız; aynı
+// kişi (unvanı farklı yazılsa bile) iki kez eklenmez. Listede olmayan bir ad
+// da yazılabilir: akademisyen kaydı henüz açılmamış olabilir.
+// ══════════════════════════════════════════════════════════════
+function EgitmenSecici({ secilenler, akademisyenler, onDegis }) {
+  const liste = Array.isArray(secilenler) ? secilenler : [];
+  const [girdi, setGirdi] = useState('');
+
+  const ekle = (ham) => {
+    const ad = String(ham == null ? '' : ham).trim();
+    if (!ad) return;
+    // Tekrar denetimi ada göre değil ANAHTARA göre: "Dr. Ayşe YILMAZ" ile
+    // "Ayşe Yılmaz" aynı kişidir.
+    if (liste.some((x) => window.ayniEgitmen(x, ad))) {
+      setGirdi('');
+      return;
+    }
+    onDegis(liste.concat([ad]));
+    setGirdi('');
+  };
+  const cikar = (i) => onDegis(liste.filter((_, j) => j !== i));
+
+  // Zaten eklenmiş olanlar öneri listesinde görünmesin
+  const oneriler = (akademisyenler || []).filter(
+    (p) => p && p.name && !liste.some((x) => window.ayniEgitmen(x, p.name))
+  );
+
+  return (
+    <div>
+      {liste.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {liste.map((ad, i) => (
+            <span
+              key={ad + i}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 6px 4px 10px',
+                borderRadius: 999,
+                background: '#EEF2FF',
+                border: '1px solid #C7D2FE',
+                color: '#3730A3',
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              {/* Sıra numarası: birinci hoca eski `professor` alanına yazılan
+                  kişidir (sınav otomasyonu onu okuyor) — görünür olsun. */}
+              <span style={{ color: '#6366F1', fontWeight: 700 }}>{i + 1}.</span>
+              {ad}
+              <button
+                type="button"
+                onClick={() => cikar(i)}
+                title="Listeden çıkar"
+                aria-label={ad + ' — listeden çıkar'}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#6366F1',
+                  cursor: 'pointer',
+                  fontSize: 15,
+                  lineHeight: 1,
+                  padding: '0 4px',
+                }}
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ flex: 1 }}>
+          <Input
+            value={girdi}
+            onChange={(e) => setGirdi(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                // Formu göndermesin: Enter burada "hocayı ekle" demek.
+                e.preventDefault();
+                ekle(girdi);
+              }
+            }}
+            placeholder="İsim yazın veya seçin, sonra Ekle'ye basın..."
+            list="course-prof-lookup"
+          />
+          <datalist id="course-prof-lookup">
+            {oneriler.map((p, i) => (
+              <option key={i} value={p.name} />
+            ))}
+          </datalist>
+        </div>
+        <button
+          type="button"
+          onClick={() => ekle(girdi)}
+          disabled={!girdi.trim()}
+          style={{
+            padding: '0 14px',
+            borderRadius: 8,
+            border: '1px solid #6366F1',
+            background: girdi.trim() ? '#6366F1' : '#E5E7EB',
+            color: girdi.trim() ? 'white' : '#9CA3AF',
+            fontWeight: 600,
+            fontSize: 13,
+            cursor: girdi.trim() ? 'pointer' : 'default',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Ekle
+        </button>
+      </div>
+      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 6, lineHeight: 1.5 }}>
+        {liste.length > 1
+          ? liste.length +
+            ' hoca atandı. Ders programında bu ders bir saate konurken hangi hoca için ' +
+            'konulduğu ayrıca sorulur.'
+          : 'Bitirme Projesi, Uzmanlık Alanı Dersi gibi derslere sınırsız hoca ekleyebilirsiniz.'}
+      </div>
+    </div>
+  );
+}
+
 function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
   const [courses, setCourses] = useState([]);
   const [professors, setProfessors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingCourse, setEditingCourse] = useState(null);
+  // `professors` bir DİZİDİR: bir derse sınırsız hoca atanabilir (Bitirme
+  // Projesi, lisansüstü Uzmanlık Alanı Dersi …). Eski tek alanlı `professor`
+  // kayda yazılmaya devam eder — bkz. lib/ders-egitmenleri.js.
   const [form, setForm] = useState({
     code: '',
     name: '',
     sinif: 1,
     duration: 30,
-    professor: '',
+    professors: [],
     donem: 'guz',
     akts: 6,
     bolognaLink: '',
@@ -595,7 +734,11 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
       name: c.name,
       sinif: c.sinif,
       duration: c.duration,
-      professor: c.professor || '',
+      professors: window.dersEgitmenleri
+        ? window.dersEgitmenleri(c)
+        : c.professor
+          ? [c.professor]
+          : [],
       donem: c.donem || 'guz',
       akts: c.akts || 6,
       bolognaLink: c.bolognaLink || '',
@@ -611,7 +754,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
       name: '',
       sinif: 1,
       duration: 30,
-      professor: '',
+      professors: [],
       donem: 'guz',
       akts: 6,
       bolognaLink: '',
@@ -634,7 +777,9 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
         sinif: parseInt(form.sinif) || 1,
         duration: parseInt(form.duration) || 30,
         akts: parseInt(form.akts) || 6,
-        professor: form.professor || '',
+        // Hem `professors` dizisi hem eski `professor` alanı yazılır: sınav
+        // otomasyonu ve eski kayıtlar tek alandan okuyor.
+        ...window.dersEgitmenAlanlari(form.professors),
         donem: form.donem,
         bolognaLink: bolognaLink,
         statu: form.statu,
@@ -1031,7 +1176,9 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>{c.duration} dk</td>
                     <td style={{ padding: '12px 16px', fontSize: 12 }}>
-                      {c.professor || <span style={{ color: '#9CA3AF' }}>Bilinmiyor</span>}
+                      {window.dersEgitmenMetni(c) || (
+                        <span style={{ color: '#9CA3AF' }}>Bilinmiyor</span>
+                      )}
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
@@ -1181,18 +1328,18 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                   ))}
                 </Select>
               </FormField>
-              <FormField label="İlgili Akademisyen">
-                <Input
-                  value={form.professor}
-                  onChange={(e) => setForm({ ...form, professor: e.target.value })}
-                  placeholder="İsim yazın veya seçin..."
-                  list="course-prof-lookup"
+              {/* ── İlgili akademisyen(ler) ──
+                  Bazı dersler tek hocayla yürümez: "Bitirme Projesi" her
+                  öğrencide ayrı danışmanla, lisansüstü "Uzmanlık Alanı Dersi"
+                  her danışmanın kendi grubuyla okutulur. Bu yüzden hoca sayısı
+                  SINIRSIZDIR. Ders programında slota koyarken hangi hoca için
+                  yerleştirildiği ayrıca sorulur. */}
+              <FormField label="İlgili Akademisyen(ler)">
+                <EgitmenSecici
+                  secilenler={form.professors}
+                  akademisyenler={professors}
+                  onDegis={(liste) => setForm({ ...form, professors: liste })}
                 />
-                <datalist id="course-prof-lookup">
-                  {professors.map((p, i) => (
-                    <option key={i} value={p.name} />
-                  ))}
-                </datalist>
               </FormField>
               <FormField label="Ders Bologna Linki *">
                 <Input

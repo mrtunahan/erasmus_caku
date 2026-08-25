@@ -256,6 +256,40 @@ describe('şube — aynı ders kodunun birden çok kaydı', () => {
     expect(slotDersVarMi(s, 'KML312', '2')).toBe(false);
   });
 
+  it('aynı kod + aynı şube, FARKLI HOCA ayrı kayıttır', () => {
+    // "Bitirme Projesi" / "Uzmanlık Alanı Dersi": tek kod, aynı saat, her
+    // danışmanın kendi grubu. Hoca verilince ikinci grup "zaten var" sayılmaz.
+    const s = slotDersEkle(
+      { courseCode: 'BIL499', instructor: 'Prof. Dr. Ayşe YILMAZ' },
+      { courseCode: 'BIL499', instructor: 'Dr. Öğr. Üyesi Taha ETEM' }
+    );
+    expect(slotDersVarMi(s, 'BIL499', '', 'Ayşe Yılmaz')).toBe(true);
+    expect(slotDersVarMi(s, 'BIL499', '', 'Taha Etem')).toBe(true);
+    expect(slotDersVarMi(s, 'BIL499', '', 'Mehmet Demir')).toBe(false);
+    // Hoca verilmezse eski davranış: yalnız koda + şubeye bakılır
+    expect(slotDersVarMi(s, 'BIL499')).toBe(true);
+  });
+
+  it('slotKodVarMi hoca verilirse yalnız o hocanın kaydını sayar', () => {
+    const s = slotDersEkle(
+      { courseCode: 'BIL499', instructor: 'Ayşe Yılmaz' },
+      { courseCode: 'BIL499', instructor: 'Taha Etem' }
+    );
+    expect(slotKodVarMi(s, 'BIL499', 'Mehmet Demir')).toBe(false);
+    expect(slotKodVarMi(s, 'BIL499', 'Prof. Dr. Ayşe YILMAZ')).toBe(true);
+    expect(slotKodVarMi(s, 'BIL499')).toBe(true);
+  });
+
+  it('sonrakiSube farklı hocanın kaydını saymaz — gereksiz şube istenmez', () => {
+    const s = slotDersEkle(
+      { courseCode: 'BIL499', instructor: 'Ayşe Yılmaz' },
+      { courseCode: 'BIL499', instructor: 'Taha Etem' }
+    );
+    expect(sonrakiSube(s, 'BIL499', 'Mehmet Demir')).toBe('1');
+    expect(sonrakiSube(s, 'BIL499', 'Ayşe Yılmaz')).toBe('2');
+    expect(sonrakiSube(s, 'BIL499')).toBe('3');
+  });
+
   it('slotKodVarMi şubeye bakmadan tarar', () => {
     const s = slotDersEkle(null, subeli('FZK181', '1'));
     expect(slotKodVarMi(s, 'FZK181')).toBe(true);

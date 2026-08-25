@@ -663,7 +663,10 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       if (search) {
         const q = search.toLowerCase();
         const dep = (deptNameMap[String(c.departmentId)] || '').toLowerCase();
-        const hay = `${c.code || ''} ${c.name || ''} ${c.professor || ''} ${dep}`.toLowerCase();
+        // Ders çok hocalı olabilir (Bitirme Projesi, Uzmanlık Alanı Dersi):
+        // arama hocaların HEPSİNİ kapsamalı, yalnız birincisini değil.
+        const hay =
+          `${c.code || ''} ${c.name || ''} ${window.dersEgitmenMetni(c)} ${dep}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -1231,7 +1234,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                     {c.name}
                   </div>
                   <div style={{ fontSize: 12, color: '#6B7280' }}>
-                    {c.professor || 'Akademisyen belirtilmemiş'}
+                    {window.dersEgitmenMetni(c) || 'Akademisyen belirtilmemiş'}
                   </div>
                   <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
                     {(deptNameMap[String(c.departmentId)] || '—') +
@@ -2237,7 +2240,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                         <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" />
                       </svg>
                       <span style={{ fontSize: 12.5 }}>
-                        {c.professor || 'Öğretim üyesi belirtilmemiş'}
+                        {window.dersEgitmenMetni(c) || 'Öğretim üyesi belirtilmemiş'}
                       </span>
                     </div>
                     <div

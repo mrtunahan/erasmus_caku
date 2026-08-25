@@ -1654,6 +1654,9 @@ const CourseChip = ({ course, color }) => {
         code: course.code,
         name: course.name,
         professor: course.professor || '',
+        // Çok hocalı ders: hoca listesi de taşınır. Yerleştirme yine kaydın
+        // kendisinden okur, bu yalnız yedektir.
+        professors: window.dersEgitmenleri(course),
         sinif: course.sinif || 0,
       })
     );
@@ -1669,7 +1672,9 @@ const CourseChip = ({ course, color }) => {
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      title={`${course.code} - ${course.name}${course.professor ? ' (' + course.professor + ')' : ''}`}
+      title={`${course.code} - ${course.name}${
+        window.dersEgitmenMetni(course) ? ' (' + window.dersEgitmenMetni(course) + ')' : ''
+      }`}
       style={{
         padding: '7px 9px',
         borderRadius: 7,
@@ -1686,8 +1691,29 @@ const CourseChip = ({ course, color }) => {
       <div style={{ fontSize: 10, color: '#374151', lineHeight: 1.3, marginTop: 1 }}>
         {course.name}
       </div>
-      {course.professor && (
-        <div style={{ fontSize: 9, color: '#9CA3AF', marginTop: 2 }}>{course.professor}</div>
+      {window.dersEgitmenMetni(course) && (
+        <div style={{ fontSize: 9, color: '#9CA3AF', marginTop: 2 }}>
+          {window.dersEgitmenMetni(course)}
+        </div>
+      )}
+      {/* Çok hocalı ders sürüklendiğinde doğrudan yerleşmez: hangi hoca için
+          konulduğu sorulur. Kart bunu önceden söylesin. */}
+      {window.dersCokEgitmenli(course) && (
+        <div
+          style={{
+            fontSize: 9,
+            fontWeight: 700,
+            color: '#7C3AED',
+            background: '#F5F3FF',
+            border: '1px solid #DDD6FE',
+            borderRadius: 6,
+            padding: '1px 5px',
+            marginTop: 3,
+            display: 'inline-block',
+          }}
+        >
+          {window.dersEgitmenleri(course).length} hoca — bırakınca sorulur
+        </div>
       )}
     </div>
   );
@@ -1750,6 +1776,13 @@ function DersProgramiApp({
   // müfredatta olabiliyor ve her müfredatın iki şubesi olabiliyor, o zaman tek
   // saatte aynı kodun dört kaydı durur. Kayıtları ayıran alan budur.
   const [modalSube, setModalSube] = useState('');
+  // ── HANGİ HOCA İÇİN? ──
+  // Bir ders birden çok hocayla yürüyebilir ("Bitirme Projesi", lisansüstü
+  // "Uzmanlık Alanı Dersi"): ders kaydında hocaların HEPSİ durur, ama slota
+  // yazılan TEK BİR hocadır. Hangi hoca için yerleştirildiği sorulmadan slot
+  // yazılamaz — yanlış hocanın haftalık programında görünür ve çakışma
+  // taraması yanlış kişiyi denetlerdi. Tek hocalı derste sorulmaz.
+  const [modalInstructor, setModalInstructor] = useState('');
 
   // Fakülte birleşik görünüm & çakışma state
   const [showFacultyView, setShowFacultyView] = useState(false);
@@ -2035,17 +2068,29 @@ function DersProgramiApp({
 
   // Sürükle-bırak / modal ortak yerleştirme mantığı
   const placeCourse = useCallback(
-    ({ course, day, hi, classroom = '', forceAdd = false }) => {
+    ({ course, day, hi, classroom = '', forceAdd = false, instructor }) => {
       if (!course) return false;
       if (
         isProfessor &&
         currentUser?.name &&
-        course.professor &&
-        course.professor !== currentUser.name
+        !window.dersEgitmensizMi(course) &&
+        !window.dersEgitmeniMi(course, currentUser.name)
       ) {
         alert('Sadece kendi derslerinizi programa ekleyebilirsiniz.');
         return false;
       }
+      // Slota yazılacak hoca. Çok hocalı derste seçim ZORUNLUDUR; bu yol
+      // (sürükle-bırak) seçim taşımıyorsa çağıran önce sormalıdır.
+      const secim = window.slotEgitmeniSec(course, instructor);
+      if (!secim.ok) {
+        alert(
+          secim.sebep === 'listede-yok'
+            ? 'Seçilen öğretim elemanı bu dersin hocaları arasında değil.'
+            : 'Bu ders birden çok hocayla yürüyor. Hangi hoca için ekleneceğini seçin.'
+        );
+        return false;
+      }
+      const dersEgitmeni = secim.egitmen;
       const key = `${day}_${hi}`;
       const existing = scheduleData[key];
       // Hücre BÖLME: dolu hücreye FARKLI bir ders bırakılırsa hücreye EKLENİR
@@ -2061,12 +2106,16 @@ function DersProgramiApp({
       // Bu karar çakışma taramasından ÖNCE ve forceAdd'den BAĞIMSIZ verilir:
       // "geçersiz kıl" yolu şubesiz bir kopya yaratsaydı hücrede birbirinden
       // ayırt edilemeyen iki aynı kod dururdu.
+      //
+      // Şube denetimi HOCA BAŞINADIR: aynı kodun BAŞKA bir hocaya ait kaydı
+      // zaten ayrı bir derstir (X hocanın Bitirme grubu ile Y hocanınki),
+      // şube numarası istemez.
       let sube = '';
-      if (window.slotKodVarMi(existing, course.code)) {
-        const oneri = window.slotSonrakiSube(existing, course.code);
+      if (window.slotKodVarMi(existing, course.code, dersEgitmeni)) {
+        const oneri = window.slotSonrakiSube(existing, course.code, dersEgitmeni);
         if (
           !window.confirm(
-            `${course.code} bu saatte zaten var.\n\n` +
+            `${course.code} bu saatte ${dersEgitmeni || 'aynı hoca'} için zaten var.\n\n` +
               `Aynı dersin başka bir şubesi ise ${oneri}. şube olarak eklenebilir. Eklensin mi?`
           )
         )
@@ -2083,7 +2132,7 @@ function DersProgramiApp({
           // dersliğini devralmak, sürükle-bırakta derslik seçilmediği hâlde
           // "derslik çakışması" uyarısı üretiyordu.
           classroom || '',
-          course.professor || '',
+          dersEgitmeni,
           otherYearsSlots,
           allFacultySlots,
           fakulteSaatIndeksi(hi),
@@ -2122,7 +2171,7 @@ function DersProgramiApp({
         s[key] = window.slotDersEkle(s[key], {
           courseCode: course.code || '',
           courseName: course.name || '',
-          instructor: course.professor || '',
+          instructor: dersEgitmeni,
           classroom: classroom || '',
           sube,
           courseId: course.id,
@@ -2147,10 +2196,28 @@ function DersProgramiApp({
 
   // Tablodaki boş hücreye ders bırakıldığında
   const handleDropCourse = useCallback(
-    (course, day, hi) => {
+    (payload, day, hi) => {
+      // Sürükleme yükü küçük bir kopyadır; hoca listesi gibi alanlar için
+      // KAYDIN kendisi kaynaktır (yük eskiyse yanlış hoca yazılırdı).
+      const course = courses.find((c) => String(c.id) === String(payload?.id)) || payload;
+      if (!course) return;
+      // ── ÇOK HOCALI DERS: SÜRÜKLE-BIRAK DOĞRUDAN YERLEŞTİRMEZ ──
+      // Hangi hoca için konulduğu sorulmadan slota yazılamaz. Soru bir
+      // confirm'e sığmaz (N seçenek), o yüzden ekleme penceresi gün/saat ve
+      // ders seçili olarak açılır; yetkili yalnız hocayı seçer.
+      if (window.dersCokEgitmenli(course)) {
+        setSelectedSlot({ day, hourIndex: hi, hour: visibleHours[hi] });
+        setModalCourseId(course.id);
+        setModalInstructor('');
+        setModalClassroom('');
+        setModalSube('');
+        setAddSlotWarnings([]);
+        setShowAddModal(true);
+        return;
+      }
       placeCourse({ course, day, hi, classroom: '' });
     },
-    [placeCourse]
+    [placeCourse, courses, visibleHours]
   );
 
   // Hücredeki BİR dersin dersliğini satır içi değiştir (indeks: 0 = birinci).
@@ -2161,7 +2228,12 @@ function DersProgramiApp({
       const dersler = window.slotDersleri(scheduleData[key]);
       const ders = dersler[indeks];
       // Akademisyen yalnız kendi dersinin dersliğini değiştirebilir
-      if (isProfessor && currentUser?.name && ders && ders.instructor !== currentUser.name) {
+      if (
+        isProfessor &&
+        currentUser?.name &&
+        ders &&
+        !window.ayniEgitmen(ders.instructor, currentUser.name)
+      ) {
         alert('Sadece kendi derslerinizin dersliğini değiştirebilirsiniz.');
         return;
       }
@@ -2180,8 +2252,20 @@ function DersProgramiApp({
       if (!course) return;
 
       // Akademisyen kontrolü: sadece kendi derslerini ekleyebilir
-      if (isProfessor && currentUser?.name && course.professor !== currentUser.name) {
+      if (isProfessor && currentUser?.name && !window.dersEgitmeniMi(course, currentUser.name)) {
         alert('Sadece kendi derslerinizi programa ekleyebilirsiniz.');
+        return;
+      }
+
+      // Çok hocalı derste hangi hoca için eklendiği seçilmiş olmalı.
+      const secim = window.slotEgitmeniSec(course, modalInstructor);
+      if (!secim.ok) {
+        alert(
+          secim.sebep === 'listede-yok'
+            ? 'Seçilen öğretim elemanı bu dersin hocaları arasında değil.'
+            : 'Bu ders birden çok hocayla yürüyor. "Öğretim Elemanı" alanından ' +
+                'hangi hoca için eklendiğini seçin.'
+        );
         return;
       }
 
@@ -2189,7 +2273,7 @@ function DersProgramiApp({
       const hi = selectedSlot.hourIndex;
       const key = `${day}_${hi}`;
       const existing = scheduleData[key];
-      const instructor = course.professor || '';
+      const instructor = secim.egitmen;
       // Derslik EKLENEN derse aittir; bölünen hücrede ikinci ders birincinin
       // dersliğini devralmaz (iki ders iki ayrı derslikte olabilir).
       const classroom = modalClassroom || '';
@@ -2198,11 +2282,14 @@ function DersProgramiApp({
       // Hücre kapasitesi SINIRSIZ. Engellenen tek şey AYNI dersin AYNI şubesini
       // ikinci kez eklemek; aynı kodun farklı şubesi ayrı derstir ve girer
       // (bir ders iki müfredatta olabiliyor, her müfredatın iki şubesi olabiliyor).
-      if (window.slotDersVarMi(existing, course.code, sube)) {
+      // Denetim HOCA BAŞINADIR: aynı kodun başka hocaya ait kaydı ayrı bir
+      // derstir (X hocanın Uzmanlık Alanı grubu ile Y hocanınki) ve engellenmez.
+      if (window.slotDersVarMi(existing, course.code, sube, instructor)) {
+        const kim = instructor ? ` (${instructor})` : '';
         alert(
           sube
-            ? `${course.code} dersinin ${sube}. şubesi bu saatte zaten var.`
-            : `${course.code} bu saatte zaten var. Aynı dersin başka bir şubesini ekliyorsanız Şube alanını doldurun.`
+            ? `${course.code} dersinin ${sube}. şubesi${kim} bu saatte zaten var.`
+            : `${course.code}${kim} bu saatte zaten var. Aynı dersin başka bir şubesini ekliyorsanız Şube alanını doldurun.`
         );
         return;
       }
@@ -2234,7 +2321,7 @@ function DersProgramiApp({
         s[key] = window.slotDersEkle(s[key], {
           courseCode: course.code || '',
           courseName: course.name || '',
-          instructor: course.professor || '',
+          instructor,
           classroom,
           sube,
           courseId: course.id,
@@ -2247,6 +2334,7 @@ function DersProgramiApp({
       setModalCourseId('');
       setModalClassroom('');
       setModalSube('');
+      setModalInstructor('');
       setAddSlotWarnings([]);
     },
     [
@@ -2254,6 +2342,7 @@ function DersProgramiApp({
       modalCourseId,
       modalClassroom,
       modalSube,
+      modalInstructor,
       scheduleData,
       courses,
       commitSlots,
@@ -2271,7 +2360,9 @@ function DersProgramiApp({
     (instructor) => {
       if (!isProfessor) return true; // admin / bölüm yetkilisi kısıtsız
       if (!currentUser?.name) return true;
-      return instructor === currentUser.name;
+      // Unvan yazımı kayıttan kayda değişebiliyor ("Dr. Öğr. Üyesi X" ↔ "X");
+      // düz eşitlik kişiyi kendi dersinden kilitliyordu.
+      return window.ayniEgitmen(instructor, currentUser.name);
     },
     [isProfessor, currentUser]
   );
@@ -2588,7 +2679,7 @@ function DersProgramiApp({
   const yearCourses = useMemo(() => {
     let filtered = courses.filter((c) => c.donem === semester);
     if (isProfessor && currentUser?.name) {
-      filtered = filtered.filter((c) => c.professor === currentUser.name);
+      filtered = filtered.filter((c) => window.dersEgitmeniMi(c, currentUser.name));
     }
     // Sınıfa göre sırala, sonra ders koduna göre
     filtered.sort((a, b) => {
@@ -2597,6 +2688,17 @@ function DersProgramiApp({
     });
     return filtered;
   }, [courses, semester, isProfessor, currentUser]);
+
+  // Ekleme penceresinde seçili ders ve onun hoca listesi.
+  const modalCourse = useMemo(
+    () => courses.find((c) => String(c.id) === String(modalCourseId)) || null,
+    [courses, modalCourseId]
+  );
+  const modalEgitmenler = useMemo(() => window.dersEgitmenleri(modalCourse || {}), [modalCourse]);
+  // Çok hocalı derste hoca seçilmeden "Programa Ekle" açılmaz: slota yazılacak
+  // hoca belirsiz kalırdı.
+  const modalEgitmenGerekli = modalEgitmenler.length > 1 && !modalInstructor;
+  const modalHazir = !!modalCourseId && !modalEgitmenGerekli;
 
   // Renk ataması
   const courseColors = useMemo(() => {
@@ -3383,6 +3485,7 @@ function DersProgramiApp({
                           setSelectedSlot({ day, hourIndex: 0, hour: visibleHours[0] });
                           setAddSlotWarnings([]);
                           setModalSube('');
+                          setModalInstructor('');
                           setShowAddModal(true);
                         }}
                         style={{
@@ -3968,7 +4071,15 @@ function DersProgramiApp({
                 {yearCourses.length > 0 ? (
                   <select
                     value={modalCourseId}
-                    onChange={(e) => setModalCourseId(e.target.value)}
+                    onChange={(e) => {
+                      setModalCourseId(e.target.value);
+                      // Hoca seçimi derse aittir: ders değişince sıfırlanır,
+                      // yoksa önceki dersin hocası taşınırdı. Tek hocalı derste
+                      // alan zaten sorulmaz.
+                      const yeni = courses.find((x) => String(x.id) === String(e.target.value));
+                      const liste = window.dersEgitmenleri(yeni || {});
+                      setModalInstructor(liste.length === 1 ? liste[0] : '');
+                    }}
                     style={{
                       width: '100%',
                       padding: '11px 14px',
@@ -4007,7 +4118,8 @@ function DersProgramiApp({
                         }
                         options.push(
                           <option key={c.id} value={c.id}>
-                            {c.code} - {c.name} {c.professor ? `(${c.professor})` : ''}
+                            {c.code} - {c.name}{' '}
+                            {window.dersEgitmenMetni(c) ? `(${window.dersEgitmenMetni(c)})` : ''}
                           </option>
                         );
                       });
@@ -4037,6 +4149,92 @@ function DersProgramiApp({
                   </div>
                 )}
               </div>
+
+              {/* ── Öğretim elemanı ──
+                  Bir ders birden çok hocayla yürüyebilir ("Bitirme Projesi",
+                  lisansüstü "Uzmanlık Alanı Dersi"). Slota yazılan TEK bir
+                  hocadır: haftalık program, çakışma taraması ve çıktılar bu
+                  ada bakar. Bu yüzden çok hocalı derste hangi hoca için
+                  konulduğu her yerleştirmede AYRICA sorulur; tek hocalı derste
+                  alan bilgi olarak görünür, seçim gerekmez. */}
+              {modalCourseId && modalEgitmenler.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <label
+                    htmlFor="dp-egitmen"
+                    style={{
+                      display: 'block',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: DP.text,
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      <DPIcon
+                        path="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                        size={14}
+                        color={DP.primary}
+                      />
+                      Öğretim Elemanı
+                    </span>
+                    {modalEgitmenler.length > 1 && (
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          color: '#B45309',
+                          fontSize: 11,
+                          marginLeft: 6,
+                        }}
+                      >
+                        (bu ders {modalEgitmenler.length} hocayla yürüyor — hangisi için?)
+                      </span>
+                    )}
+                  </label>
+                  {modalEgitmenler.length > 1 ? (
+                    <select
+                      id="dp-egitmen"
+                      value={modalInstructor}
+                      onChange={(e) => setModalInstructor(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '11px 14px',
+                        borderRadius: 10,
+                        border: `1.5px solid ${modalInstructor ? DP.primary : '#F59E0B'}`,
+                        fontSize: 13,
+                        outline: 'none',
+                        background: modalInstructor ? 'white' : '#FFFBEB',
+                        transition: 'border-color 0.2s',
+                      }}
+                    >
+                      <option value="">Hoca seçin...</option>
+                      {modalEgitmenler.map((ad, i) => (
+                        <option key={ad + i} value={ad}>
+                          {ad}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div
+                      style={{
+                        padding: '11px 14px',
+                        borderRadius: 10,
+                        border: `1px solid ${DP.border}`,
+                        background: '#F9FAFB',
+                        fontSize: 13,
+                        color: DP.textMuted,
+                      }}
+                    >
+                      {modalEgitmenler[0]}
+                    </div>
+                  )}
+                  {modalEgitmenler.length > 1 && (
+                    <div style={{ fontSize: 11, color: '#6B7280', marginTop: 6, lineHeight: 1.5 }}>
+                      Aynı ders, aynı saate diğer hocalar için de ayrı ayrı eklenebilir; şube
+                      numarası gerekmez.
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Derslik seçimi */}
               <div style={{ marginBottom: 16 }}>
@@ -4155,8 +4353,10 @@ function DersProgramiApp({
                   if (!selectedSlot || !modalCourseId) return null;
                   const c = courses.find((x) => x.id === modalCourseId);
                   const mevcut = scheduleData[`${selectedSlot.day}_${selectedSlot.hourIndex}`];
-                  if (!c || !window.slotKodVarMi(mevcut, c.code)) return null;
-                  const oneri = window.slotSonrakiSube(mevcut, c.code);
+                  // Öneri HOCA BAŞINA: başka hocanın aynı dersi şube istemez.
+                  const hoca = window.slotEgitmeniSec(c || {}, modalInstructor).egitmen;
+                  if (!c || !window.slotKodVarMi(mevcut, c.code, hoca)) return null;
+                  const oneri = window.slotSonrakiSube(mevcut, c.code, hoca);
                   if (String(modalSube).trim() === oneri) return null;
                   return (
                     <button
@@ -4224,14 +4424,14 @@ function DersProgramiApp({
                           color: DP.textMuted,
                         }}
                       >
-                        {c.professor && (
+                        {window.dersEgitmenMetni(c) && (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                             <DPIcon
                               path="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                               size={12}
                               color={DP.textMuted}
                             />
-                            {c.professor}
+                            {window.dersEgitmenMetni(c)}
                           </span>
                         )}
                         {c.sinif && (
@@ -4376,28 +4576,29 @@ function DersProgramiApp({
               ) : (
                 <button
                   onClick={() => handleAddSlot(false)}
-                  disabled={!modalCourseId}
+                  disabled={!modalCourseId || modalEgitmenGerekli}
+                  title={
+                    modalEgitmenGerekli ? 'Önce hangi hoca için ekleneceğini seçin' : undefined
+                  }
                   style={{
                     padding: '10px 22px',
                     borderRadius: 10,
                     border: 'none',
-                    background: modalCourseId
+                    background: modalHazir
                       ? `linear-gradient(135deg, ${DP.primary}, #6D28D9)`
                       : '#D1D5DB',
                     color: 'white',
                     fontSize: 13,
                     fontWeight: 600,
-                    cursor: modalCourseId ? 'pointer' : 'default',
+                    cursor: modalHazir ? 'pointer' : 'default',
                     transition: 'all 0.15s',
-                    boxShadow: modalCourseId ? `0 2px 8px ${DP.primary}40` : 'none',
+                    boxShadow: modalHazir ? `0 2px 8px ${DP.primary}40` : 'none',
                   }}
                   onMouseEnter={(e) => {
-                    if (modalCourseId)
-                      e.currentTarget.style.boxShadow = `0 4px 14px ${DP.primary}50`;
+                    if (modalHazir) e.currentTarget.style.boxShadow = `0 4px 14px ${DP.primary}50`;
                   }}
                   onMouseLeave={(e) => {
-                    if (modalCourseId)
-                      e.currentTarget.style.boxShadow = `0 2px 8px ${DP.primary}40`;
+                    if (modalHazir) e.currentTarget.style.boxShadow = `0 2px 8px ${DP.primary}40`;
                   }}
                 >
                   Programa Ekle
