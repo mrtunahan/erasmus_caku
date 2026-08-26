@@ -64,7 +64,10 @@ import {
   olcekSorunlari,
   kurumAnahtari as olcekKurumAnahtari,
   kurumOlcegiBul,
+  olcekAdlari,
+  olcekKapsami,
 } from './lib/karsi-olcek.js';
+import { hazirOlcekBul, hazirOlcekSatirlari, hazirOlcekSecenekleri } from './lib/hazir-olcekler.js';
 import {
   dersEslestir as belgeDersEslestir,
   okunanlarOzeti as belgeOkunanlarOzeti,
@@ -13710,6 +13713,15 @@ window.karsiHarfiCevir = karsiHarfiCevir;
 window.olcekSorunlari = olcekSorunlari;
 window.olcekKurumAnahtari = olcekKurumAnahtari;
 window.kurumOlcegiBul = kurumOlcegiBul;
+// Ölçek havuzu ÜNİVERSİTE GENELİDİR: bir bölümün eklediği tablodan hepsi
+// yararlanır, bölümün kendi tablosu varsa o kazanır (bkz. lib/karsi-olcek.js).
+window.olcekAdlari = olcekAdlari;
+window.olcekKapsami = olcekKapsami;
+// Hazır ölçek şablonları: kurumların çoğu YÖK standardını kullanıyor, tabloyu
+// elle yazmaya gerek yok (bkz. lib/hazir-olcekler.js).
+window.hazirOlcekSecenekleri = hazirOlcekSecenekleri;
+window.hazirOlcekSatirlari = hazirOlcekSatirlari;
+window.hazirOlcekBul = hazirOlcekBul;
 window.belgeHarfNormalize = belgeHarfNormalize;
 
 // Topluluk akışı ekleri: görsel/video yerinde önizlenir, gerisi bağlantı.

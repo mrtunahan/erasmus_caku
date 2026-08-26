@@ -9,6 +9,8 @@ import {
   kurumAnahtari,
   kurumCekirdegi,
   kurumOlcegiBul,
+  olcekAdlari,
+  olcekKapsami,
 } from '../lib/karsi-olcek.js';
 
 // ÇAKÜ'nün resmî tablosu (ÇAKÜ Ders Notu Tablosu).
@@ -251,5 +253,118 @@ describe('kurum eşleme', () => {
   it('boş listede null döner', () => {
     expect(kurumOlcegiBul('Düzce Üniversitesi', [])).toBe(null);
     expect(kurumOlcegiBul('Düzce Üniversitesi', null)).toBe(null);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// ORTAK HAVUZ · TAKMA AD · BÖLÜM TERCİHİ
+//
+// Ölçek havuzu üniversite genelidir: bir bölümün eklediği tablodan hepsi
+// yararlanır. Bölümün aynı kurum için KENDİ tablosu varsa o kazanır.
+// ══════════════════════════════════════════════════════════════
+describe('olcekAdlari / olcekKapsami', () => {
+  it('kurum adı ve takma adların tamamını verir', () => {
+    expect(
+      olcekAdlari({ kurum: 'Bursa Uludağ Üniversitesi', takmaAdlar: ['Uludağ Üniversitesi', ''] })
+    ).toEqual(['Bursa Uludağ Üniversitesi', 'Uludağ Üniversitesi']);
+  });
+
+  it('takma ad yoksa yalnız kurum adı', () => {
+    expect(olcekAdlari({ kurum: 'Düzce Üniversitesi' })).toEqual(['Düzce Üniversitesi']);
+    expect(olcekAdlari(null)).toEqual([]);
+  });
+
+  it('departmentId dolu ise bölüme özel, boşsa ortak', () => {
+    expect(olcekKapsami({ departmentId: 'bilgisayar' })).toBe('bolum');
+    expect(olcekKapsami({ departmentId: '' })).toBe('ortak');
+    expect(olcekKapsami({})).toBe('ortak');
+  });
+});
+
+describe('kurumOlcegiBul — takma adlar', () => {
+  const kayitlar = [
+    { id: 'a', kurum: 'Bursa Uludağ Üniversitesi', takmaAdlar: ['Uludağ Üniversitesi', 'B.U.Ü.'] },
+    { id: 'b', kurum: 'Dicle Üniversitesi' },
+  ];
+
+  it('takma adla da bulunur', () => {
+    expect(kurumOlcegiBul('Uludağ Üniversitesi', kayitlar).id).toBe('a');
+    expect(kurumOlcegiBul('B.U.Ü.', kayitlar).id).toBe('a');
+  });
+
+  it('asıl ad hâlâ çalışır', () => {
+    expect(kurumOlcegiBul('BURSA ULUDAĞ ÜNİVERSİTESİ', kayitlar).id).toBe('a');
+  });
+
+  it('ilgisiz kurum yine bulunmaz', () => {
+    expect(kurumOlcegiBul('Boğaziçi Üniversitesi', kayitlar)).toBe(null);
+  });
+});
+
+describe('kurumOlcegiBul — bölüm tercihi', () => {
+  const ortak = { id: 'ortak', kurum: 'Düzce Üniversitesi', departmentId: '' };
+  const bilgisayar = { id: 'bil', kurum: 'Düzce Üniversitesi', departmentId: 'bilgisayar' };
+  const makine = { id: 'mak', kurum: 'Düzce Üniversitesi', departmentId: 'makine' };
+
+  it('bölümün kendi tablosu ortak tablodan üstündür', () => {
+    expect(
+      kurumOlcegiBul('Düzce Üniversitesi', [ortak, bilgisayar], {
+        departmentId: 'bilgisayar',
+      }).id
+    ).toBe('bil');
+  });
+
+  it('bölümün kendi tablosu yoksa ortak tablo kullanılır', () => {
+    expect(
+      kurumOlcegiBul('Düzce Üniversitesi', [ortak, makine], { departmentId: 'bilgisayar' }).id
+    ).toBe('ortak');
+  });
+
+  it('bölüm verilmezse ortak tablo seçilir', () => {
+    expect(kurumOlcegiBul('Düzce Üniversitesi', [ortak, bilgisayar]).id).toBe('ortak');
+  });
+
+  it('tek aday başka bölümün tablosu olsa da kullanılır — havuz ortaktır', () => {
+    // Havuzun amacı bu: Makine bir kez ekler, Bilgisayar da yararlanır.
+    // Kendi tablosu olmayan bölüme "tablo yüklenmemiş" demek, tabloyu ikinci
+    // kez yazdırmaktan başka işe yaramazdı.
+    expect(kurumOlcegiBul('Düzce Üniversitesi', [makine], { departmentId: 'bilgisayar' }).id).toBe(
+      'mak'
+    );
+  });
+
+  it('BAŞKA iki bölümün farklı tablosu varsa seçim yapılmaz', () => {
+    // İki bölüm aynı kurum için farklı ölçek girmişse hangisinin geçerli
+    // olduğu bilinmiyor; yanlış ölçekle çevirmektense çevirmemek gerekir.
+    const fizik = { id: 'fiz', kurum: 'Düzce Üniversitesi', departmentId: 'fizik' };
+    expect(
+      kurumOlcegiBul('Düzce Üniversitesi', [makine, fizik], { departmentId: 'bilgisayar' })
+    ).toBe(null);
+  });
+
+  it('aynı bölümde aynı kurum için iki kayıt varsa eşleşme yapılmaz', () => {
+    const ikiz = { id: 'bil2', kurum: 'Düzce Üniversitesi', departmentId: 'bilgisayar' };
+    expect(
+      kurumOlcegiBul('Düzce Üniversitesi', [bilgisayar, ikiz], { departmentId: 'bilgisayar' })
+    ).toBe(null);
+  });
+
+  it('iki ortak kayıt da belirsizdir', () => {
+    const ortak2 = { id: 'ortak2', kurum: 'Düzce Üniversitesi', departmentId: '' };
+    expect(kurumOlcegiBul('Düzce Üniversitesi', [ortak, ortak2])).toBe(null);
+  });
+
+  it('bölüm tercihi bulanık katmanlarda da geçerli', () => {
+    // "T.C. Düzce Üniversitesi Rektörlüğü" iki kayda da içerme ile uyar;
+    // karar yine bölümün kendi tablosudur.
+    expect(
+      kurumOlcegiBul('T.C. Düzce Üniversitesi Rektörlüğü', [ortak, bilgisayar], {
+        departmentId: 'bilgisayar',
+      }).id
+    ).toBe('bil');
+  });
+
+  it('kurumsuz kayıt listeyi bozmaz', () => {
+    expect(kurumOlcegiBul('Düzce Üniversitesi', [{ id: 'x' }, ortak]).id).toBe('ortak');
   });
 });
