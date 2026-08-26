@@ -1624,7 +1624,12 @@ var MuafiyetDB = {
         sourceUniversity: data.otherUni || '',
         sourceFaculty: data.otherFaculty || '',
         sourceDept: data.otherDept || '',
-        sourceCourse: { code: src.code || '', name: src.name || '', akts: src.akts || '' },
+        sourceCourse: {
+          code: src.code || '',
+          name: src.name || '',
+          akts: src.akts || '',
+          grade: src.grade || '',
+        },
         cakuCourse: { code: cak.code || '', name: cak.name || '', akts: cak.akts || '' },
         score: typeof m.score === 'number' ? m.score : m.contentScore || 0,
         aktsPass: m.aktsPass !== false,
@@ -6178,6 +6183,18 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
                 <div style={{ fontSize: 12, color: DS.textSecondary, marginTop: 2 }}>
                   AKTS {src.akts || '—'}
                   {src.statu ? ' · ' + (src.statu === 'S' ? 'Seçmeli' : 'Zorunlu') : ''}
+                  {/* Transkriptten okunan başarı notu. Belgeye de bu yazılır;
+                      akademisyen ekli transkriptle karşılaştırabilsin diye
+                      kararın verildiği yerde görünüyor. */}
+                  {src.grade ? (
+                    <>
+                      {' · '}
+                      <b style={{ color: DS.navy }}>Not {src.grade}</b>
+                      {src.gradeHarf && src.gradePuan ? ' (' + src.gradePuan + ')' : ''}
+                    </>
+                  ) : (
+                    ''
+                  )}
                 </div>
               </div>
               <div
@@ -9731,6 +9748,21 @@ const AI_TRANSKRIPT_SUTUNLARI = [
   { id: 'dersAdi', label: 'Ders Adı' },
   { id: 'akts', label: 'AKTS', hint: 'yalnız sayı; kredi sütunuyla karıştırma' },
   { id: 'statu', label: 'Zorunlu/Seçmeli', hint: 'Z veya S; belgede yoksa boş bırak' },
+  // ── BAŞARI NOTU ──
+  // Muafiyet dilekçesi memura NOTLARIYLA BİRLİKTE veriliyor; not transkriptte
+  // zaten yazılı, öğrenciye elle yazdırmanın anlamı yok (zaten yazdırılamaz:
+  // kendi notunu beyan etmiş olurdu). İki sütun ayrı okunur çünkü kurumlar
+  // ikisini de basıyor ve harf ile puan birbirinin yerine geçmiyor.
+  {
+    id: 'harf',
+    label: 'Harf Notu',
+    hint: 'dersin harf notu (AA, BA, BB, CC … ya da A, B, C). Yoksa boş bırak.',
+  },
+  {
+    id: 'puan',
+    label: 'Başarı Puanı (100’lük)',
+    hint: 'dersin 100 üzerinden puanı (ör. 87). YALNIZ sayıyı yaz; harf notunu buraya yazma. Yoksa boş bırak.',
+  },
 ];
 
 // Transkriptin BAŞLIK bilgisi — karşı kurumun kimliği. Her ders satırında
@@ -9787,6 +9819,12 @@ const emptyManualRow = function () {
       code: '',
       akts: '',
       statu: 'Z',
+      // Karşı kurumdaki başarı notu — TRANSKRİPTTEN okunur, öğrenci yazamaz.
+      // `grade` belgeye giden değerdir (harf varsa harf, yoksa puan);
+      // ikisi de ayrıca saklanır ki akademisyen not dönüşümünde kullanabilsin.
+      grade: '',
+      gradeHarf: '',
+      gradePuan: '',
       file: null,
       fileName: '',
       content: '',
@@ -10183,6 +10221,17 @@ const ManualExemptionForm = ({
       r.src.akts = String(s.akts || '').replace(/[^\d]/g, '');
       const st = normalizeStatu(s.statu);
       if (st) r.src.statu = st;
+      // ── Başarı notu transkriptten gelir ──
+      // Belgeye HARF yazılır: karşı kurumun resmî notu odur, puan çoğu
+      // transkriptte yardımcı sütundur. Harf okunamadıysa puana düşülür —
+      // boş bir "başarı notu" ile dilekçe vermek işe yaramaz.
+      const harf = window.belgeHarfNormalize
+        ? window.belgeHarfNormalize(s.harf)
+        : String(s.harf || '').trim();
+      const puan = String(s.puan || '').replace(/[^\d.,]/g, '');
+      r.src.gradeHarf = harf;
+      r.src.gradePuan = puan;
+      r.src.grade = harf || puan;
       if (kurumVar) r.src = kurumUygula(r.src);
       return r;
     });
@@ -10198,10 +10247,22 @@ const ManualExemptionForm = ({
     const parcalar = [];
     if (yeniler.length > 0) parcalar.push(yeniler.length + ' ders');
     if (kurumVar) parcalar.push('karşı kurum bilgileri');
+    const notluSayisi = yeniler.filter((r) => r.src.grade).length;
     setMsg({
       text:
         parcalar.join(' ve ') +
-        ' aktarıldı. Her ders için ÇAKÜ karşılığını ve Bologna linkini siz seçmelisiniz.',
+        ' aktarıldı. Her ders için ÇAKÜ karşılığını ve Bologna linkini siz seçmelisiniz.' +
+        (yeniler.length > 0
+          ? notluSayisi === yeniler.length
+            ? ' Başarı notları da transkriptten okundu; dilekçeniz notlarla birlikte üretilir.'
+            : notluSayisi > 0
+              ? ' ' +
+                notluSayisi +
+                ' dersin başarı notu okundu; ' +
+                (yeniler.length - notluSayisi) +
+                ' derste not okunamadı — o satırlar dilekçede notsuz çıkar.'
+              : ' Başarı notu okunamadı; dilekçeniz notsuz çıkar. Notları gösteren transkripti yüklediğinizden emin olun.'
+          : ''),
       kind: 'ok',
     });
   };
@@ -10436,7 +10497,12 @@ const ManualExemptionForm = ({
             weeklyContent: r.src.content,
             bolognaLink: r.src.bolognaLink || '',
             fileUrl: fileUrls[i]?.src || '',
-            grade: '',
+            // Transkriptten okunan not. Belgedeki {{karşı_başarı_notu}} bunu
+            // yazar; boş kalırsa dilekçe notsuz çıkar ve memur tabloyu elle
+            // doldurmak zorunda kalırdı.
+            grade: r.src.grade || '',
+            gradeHarf: r.src.gradeHarf || '',
+            gradePuan: r.src.gradePuan || '',
           },
           score: finalScore,
           contentScore: finalScore,
@@ -10732,6 +10798,37 @@ const ManualExemptionForm = ({
               <option value="S">S (Seçmeli)</option>
             </select>
           </div>
+          {/* ── BAŞARI NOTU (yalnız karşı kurum tarafı) ──
+              Transkriptten okunur ve SALT OKUNURDUR: öğrencinin kendi notunu
+              yazabilmesi, beyanı kanıt saymak olurdu. Muafiyet dilekçesi
+              memura bu notlarla birlikte veriliyor. */}
+          {side === 'src' && (
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={labelStyle}>Başarı Notu (transkriptten)</label>
+              <div
+                style={{
+                  ...inputStyle,
+                  background: '#F3F4F6',
+                  color: v.grade ? DS.navy : DS.textMuted,
+                  fontWeight: v.grade ? 700 : 400,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                {v.grade || 'Transkript okununca dolar'}
+                {v.gradeHarf && v.gradePuan && (
+                  <span style={{ fontSize: 11, fontWeight: 500, color: DS.textMuted }}>
+                    (100’lük: {v.gradePuan})
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: DS.textMuted, marginTop: 4, lineHeight: 1.5 }}>
+                Not transkriptinizden okunur, elle değiştirilemez. Boş kaldıysa “Transkriptten
+                Dersleri Oku” adımını tekrarlayın; dilekçeniz bu notla birlikte üretilir.
+              </div>
+            </div>
+          )}
           {side === 'src' ? (
             <div style={{ gridColumn: 'span 2' }}>
               <label style={labelStyle}>Bologna Linki *</label>
