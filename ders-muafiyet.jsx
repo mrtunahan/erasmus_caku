@@ -4984,7 +4984,10 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   const [tabloAcik, setTabloAcik] = useState(false);
   const [okumaNotu, setOkumaNotu] = useState('');
   const [okumaHatali, setOkumaHatali] = useState(false);
-  const kaynakKurum = record.otherUni || '';
+  // Kurum adı iki alandan gelebiliyor: güncel form `otherUni` yazıyor, eski
+  // kayıtlarda `otherUniversity` var. Yedek olmayınca eski kayıtta kurum
+  // BULUNAMIYOR ve hiçbir not ölçeği eşleşmiyordu — çeviri sessizce durdu.
+  const kaynakKurum = record.otherUni || record.otherUniversity || '';
   const olcekBolumu = record.departmentId || currentUser?.departmentId || '';
 
   // ÇAKÜ'nün ölçeği bölümün mezuniyet kurallarında duruyor — tek kaynak.
@@ -10682,9 +10685,47 @@ const ManualExemptionForm = ({
       });
       return false;
     }
+    // ── TEK BAŞVURU = TEK KARŞI KURUM ──
+    // Kayda yalnız BİRİNCİ satırın üniversitesi yazılıyor (`otherUni`) ve not
+    // dönüşümü, dilekçe künyesi ve memur yazısı hep o kurumu esas alıyor.
+    // Satırlar farklı kurumları gösterirse ikinci kurumun dersleri YANLIŞ
+    // ölçekle çevrilir ve belgede yanlış kurum adıyla görünür. Sessiz yanlış
+    // yerine burada durulur; öğrenci her kurum için ayrı başvuru açar.
+    const kurumAnahtar = (v) =>
+      window.olcekKurumAnahtari ? window.olcekKurumAnahtari(v) : String(v || '').trim();
+    const kurumlar = [...new Set(rows.map((r) => kurumAnahtar(r.src.uni)).filter(Boolean))];
+    if (kurumlar.length > 1) {
+      const adlar = [...new Set(rows.map((r) => r.src.uni.trim()).filter(Boolean))];
+      setMsg({
+        text:
+          'Bir başvuruda tek karşı kurum olabilir; şu an ' +
+          adlar.length +
+          ' farklı üniversite yazılmış: ' +
+          adlar.join(' / ') +
+          '. Not dönüşüm tablosu ve dilekçe künyesi tek kuruma göre çözülüyor — ' +
+          'her kurum için ayrı talep oluşturun.',
+        kind: 'error',
+      });
+      return false;
+    }
     for (const r of rows) {
       if (!r.src.name.trim() || !r.cak.name.trim()) {
         setMsg({ text: 'Her ders için iki yan da ders adı zorunlu.', kind: 'error' });
+        return false;
+      }
+      // ── KARŞI KURUM ADI ZORUNLU ──
+      // Not dönüşümünün tamamı bu ada bağlı: karşı kurumun harf-katsayı
+      // tablosu kurum adıyla eşleştiriliyor (Ayarlar → Not Ölçekleri).
+      // Alan boş bırakılınca eşleşme olmuyor, ÇAKÜ karşılığı hiç
+      // hesaplanmıyor ve kimse nedenini anlamıyordu. Ayrıca ad belgeye de
+      // basılıyor.
+      if (!r.src.uni.trim()) {
+        setMsg({
+          text:
+            'Karşı kurumun üniversite adı zorunlu — not dönüşüm tablosu bu adla eşleştirilir ' +
+            've ad dilekçenize yazılır.',
+          kind: 'error',
+        });
         return false;
       }
       if (!r.src.akts || !r.cak.akts) {
