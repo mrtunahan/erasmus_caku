@@ -1159,26 +1159,64 @@ window.pdfMetniCikar = async function (kaynak) {
 };
 
 // A4 sayfası kapsayıcıdan genişse zoom ile sığdır (yatay kaydırma olmasın).
+// ── docx ÖNİZLEMESİNİ KAPA SIĞDIR ──
+//
+// Ölçek KUTU genişliğine bakıyordu ve bu yetmiyor: docx-preview tabloya
+// `width:100%` verip hücrelere sabit genişlik yazıyor, hücreler toplamı
+// sayfayı aşınca tablo KUTUSU büyümüyor — hücreler sayfanın dışına BOYANIYOR.
+// `offsetWidth`/`scrollWidth` bu taşmayı görmez (taşma `overflow: visible`
+// olduğu için kaydırma alanı da oluşmaz), ölçek 1'de kalıyor ve son sütun
+// kırpılıyordu. Önizlemede "kayma" diye görünen buydu.
+//
+// Bu yüzden ölçüm BOYANAN alandan yapılır: her hücrenin ekrandaki sağ kenarı
+// sayfanın sol kenarına göre alınır, en sağdaki kazanır.
 function fitDocxPreview(container) {
   if (!container) return;
   const wrap = container.querySelector('.docx-wrapper');
-  const page = wrap && wrap.querySelector('section');
-  if (!wrap || !page) return;
+  if (!wrap) return;
+  const sayfalar = Array.from(wrap.querySelectorAll('section'));
+  if (!sayfalar.length) return;
+  // Ölçüm ÖLÇEKSİZ hâlde yapılmalı: zoom uygulanmışken alınan kenarlar zaten
+  // küçültülmüş olur ve her çağrıda biraz daha küçülürdü.
   wrap.style.zoom = '';
   wrap.style.padding = '0';
-  // ── ÖLÇEK SAYFAYA DEĞİL, İÇERİĞE GÖRE ──
-  // Ölçek yalnız sayfa genişliğine bakıyordu. Şablondaki tablo sayfanın yazım
-  // alanından genişse (muafiyet belgelerindeki iki yanlı ders tablosu çoğu
-  // zaman öyle) tablo sayfanın dışına taşıyor ve kaptaki `overflow-x: hidden`
-  // son sütunu kırpıyordu — önizlemede "kayma" görünen şey buydu. Taşan
-  // içeriğin gerçek genişliği ölçülür.
-  const icerikW = Math.max(
-    page.offsetWidth,
-    page.scrollWidth,
-    ...Array.from(page.querySelectorAll('table')).map((t) => t.scrollWidth || 0)
-  );
-  const availW = container.clientWidth;
-  if (icerikW && availW && icerikW > availW) wrap.style.zoom = (availW / icerikW).toFixed(3);
+  sayfalar.forEach((sy) => {
+    sy.style.marginLeft = '';
+    sy.style.marginRight = '';
+  });
+
+  // BOYANAN alanın genişliği: her hücrenin sağ kenarı SAYFANIN sol kenarına
+  // göre alınır, en sağdaki kazanır. Kutu genişliği yetmiyor çünkü taşan
+  // hücrelerde tablo kutusu büyümüyor, hücreler sayfanın dışına boyanıyor.
+  let icerikW = 0;
+  sayfalar.forEach((sayfa) => {
+    const r = sayfa.getBoundingClientRect();
+    let sag = r.right;
+    sayfa.querySelectorAll('table, tr, td, th, img').forEach((el) => {
+      const k = el.getBoundingClientRect();
+      if (k.width > 0 && k.right > sag) sag = k.right;
+    });
+    icerikW = Math.max(icerikW, sag - r.left);
+  });
+
+  // clientWidth dolguyu İÇERİR; sığdırma dolgusuz alana göre yapılmalı,
+  // yoksa belge kabın dolgusunun altına taşar.
+  const bicim = window.getComputedStyle(container);
+  const availW =
+    container.clientWidth -
+    (parseFloat(bicim.paddingLeft) || 0) -
+    (parseFloat(bicim.paddingRight) || 0);
+  if (!(icerikW > 0 && availW > 0 && icerikW > availW)) return;
+
+  // Sayfa normalde ORTALANIR (margin: auto). Ortalama payı da ölçeklenen
+  // kutunun içinde durduğu için, yalnız içerik genişliğine göre küçültmek
+  // yetmiyordu: sol boşluk kadar taşma kalıyordu. Sığdırma gerektiğinde
+  // ortalama bırakılır, sayfa sola yaslanır ve ölçek birebir tutar.
+  sayfalar.forEach((sy) => {
+    sy.style.marginLeft = '0';
+    sy.style.marginRight = 'auto';
+  });
+  wrap.style.zoom = (availW / icerikW).toFixed(4);
 }
 window.fitDocxPreview = fitDocxPreview;
 
@@ -1237,6 +1275,13 @@ function BelgeOnizlemeModal({
         ref.current.innerHTML = '';
         await docx.renderAsync(b, ref.current, null, { inWrapper: true });
         if (!iptal) fitDocxPreview(ref.current);
+        // Yazı tipleri ve görseller render'dan SONRA yerine oturuyor; o an
+        // ölçülen genişlik bazen küçük çıkıyor ve tablo yine taşıyordu. Kısa
+        // bir gecikmeyle bir kez daha sığdırılır (ölçüm zoom'u sıfırlayarak
+        // başladığı için tekrar çağrılması güvenli).
+        setTimeout(() => {
+          if (!iptal && ref.current) fitDocxPreview(ref.current);
+        }, 250);
       } catch (e) {
         if (!iptal) setHata(e.message || 'Önizleme oluşturulamadı.');
       }
@@ -1245,6 +1290,14 @@ function BelgeOnizlemeModal({
       iptal = true;
     };
   }, [blob, url]);
+
+  // Pencere/modal genişliği değişince yeniden sığdır — sabit ölçek, dar
+  // ekranda belgeyi yine kırpardı.
+  React.useEffect(() => {
+    const yeniden = () => fitDocxPreview(ref.current);
+    window.addEventListener('resize', yeniden);
+    return () => window.removeEventListener('resize', yeniden);
+  }, []);
 
   const btn = {
     padding: '9px 18px',
