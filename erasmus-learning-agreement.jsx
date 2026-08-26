@@ -3696,8 +3696,14 @@ const StudentDetailModal = ({
             }
           : m
       );
-    // Yalnız dönüş tarafı: toplu onay gidiş eşleştirmelerine dokunmaz.
-    setEditedStudent((prev) => ({ ...prev, returnMatches: apply(prev.returnMatches) }));
+    // İki taraf da: kuyruk (onayBekleyenler) ikisini birden saydığı için
+    // toplu karar yalnız dönüşe uygulansaydı sayaç sıfırlanmaz, akademisyen
+    // "hepsini onayladım ama hâlâ bekleyen var" derdi.
+    setEditedStudent((prev) => ({
+      ...prev,
+      outgoingMatches: apply(prev.outgoingMatches),
+      returnMatches: apply(prev.returnMatches),
+    }));
   };
   // Red sebebi modalı: { scope:'single'|'all', matchType, matchId }
   const [rejectCtx, setRejectCtx] = useState(null);
@@ -4406,7 +4412,13 @@ const StudentDetailModal = ({
                 showGrade={false}
                 type="outgoing"
                 readOnly={readOnly}
-                onayaTabi={false}
+                // Gidiş eşleştirmesini öğrenci kurar; anlaşma imzalanmadan
+                // önce akademisyen ders ders onaylar, reddettiğinde sebep
+                // yazar (bkz. lib/erasmus-onay.js).
+                onayaTabi={true}
+                canApprove={canApprove}
+                onApprove={(id) => reviewMatch('outgoing', id, 'approved')}
+                onReject={(id) => openReject('single', 'outgoing', id)}
               />
             ))}
             {!readOnly && (
@@ -5526,8 +5538,8 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
       // Damga artık yalnız bu kayıtta GERÇEKTEN YENİ olan eşleştirmelere
       // vurulur: kural ve testleri lib/erasmus-onay.js'te.
       const oncekiIdler = window.mevcutEslesmeIdleri(originalStudent);
-      // Gidiş tarafı onaya GİRMEZ: öğrenim anlaşması gitmeden önce
-      // imzalanmıştır (bkz. lib/erasmus-onay.js).
+      // İki taraf da onaya girer; damga yalnız bu kayıtta İLK KEZ görülen
+      // eşleştirmeye vurulur (bkz. lib/erasmus-onay.js).
       const stamp = (arr, tur) =>
         window.onayDamgasi(arr, oncekiIdler, savingAsStudent, window.onayaTabiMi(tur));
       // Elle girilen metinleri normalize et: ad → Title, soyad → BÜYÜK,
@@ -5904,16 +5916,43 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                       <div style={{ fontSize: 14, fontWeight: 500 }}>{student.hostInstitution}</div>
                       <div style={{ fontSize: 12, color: C.textMuted }}>{student.hostCountry}</div>
                     </td>
-                    <td style={{ padding: '16px 24px', textAlign: 'center' }}>
-                      <Badge color={C.green} bg={C.greenLight}>
-                        {(student.outgoingMatches || []).length} eşleştirme
-                      </Badge>
-                    </td>
-                    <td style={{ padding: '16px 24px', textAlign: 'center' }}>
-                      <Badge color={C.gold} bg={C.goldPale}>
-                        {(student.returnMatches || []).length} eşleştirme
-                      </Badge>
-                    </td>
+                    {/* ── ONAY KUYRUĞU LİSTEDEN GÖRÜNSÜN ──
+                        Bekleyen eşleştirme yalnız kaydın içinde görünüyordu;
+                        akademisyen hangi öğrenciyi açacağını bilemiyor,
+                        onaya düşen ders fark edilmeden bekliyordu. */}
+                    {[
+                      { alan: 'outgoingMatches', renk: C.green, zemin: C.greenLight },
+                      { alan: 'returnMatches', renk: C.gold, zemin: C.goldPale },
+                    ].map((s) => {
+                      const liste = student[s.alan] || [];
+                      const bekleyen = liste.filter(
+                        (m) => m && (m.status || 'approved') === 'pending'
+                      ).length;
+                      return (
+                        <td key={s.alan} style={{ padding: '16px 24px', textAlign: 'center' }}>
+                          <Badge color={s.renk} bg={s.zemin}>
+                            {liste.length} eşleştirme
+                          </Badge>
+                          {bekleyen > 0 && (
+                            <div
+                              style={{
+                                marginTop: 4,
+                                display: 'inline-block',
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                color: '#92400E',
+                                background: '#FEF3C7',
+                                border: '1px solid #FCD34D',
+                                borderRadius: 20,
+                                padding: '2px 8px',
+                              }}
+                            >
+                              {bekleyen} onay bekliyor
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
                     <td style={{ padding: '14px 20px', verticalAlign: 'middle' }}>
                       {/* Sabit üç sütunlu ızgara: buton sayısı satırdan satıra
                           değişse de kutular aynı boyutta ve hizalı kalır. */}

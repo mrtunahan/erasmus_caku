@@ -800,21 +800,52 @@ async function enforceWritePolicies(db, op, user) {
     // buraya ulaşmaz; dizinin içi ayrıca temizlenir. Aksi halde arayüz kilidi
     // tek başına kalır ve isteği elle kuran bir öğrenci kendi notunu yazar.
     const NOT_ALANLARI = ['hostGrade', 'homeGrade', 'hostGrades', 'homeGrades'];
-    if (op.data && Array.isArray(op.data.returnMatches)) {
-      const oncekiler = Array.isArray(mevcut.returnMatches) ? mevcut.returnMatches : [];
-      op.data.returnMatches = op.data.returnMatches.map((m) => {
+    // ── ONAY KARARI DA ÖĞRENCİYE KAPALI ──
+    // Eşleştirmeler ders ders akademisyen onayından geçiyor; karar
+    // eşleştirmenin İÇİNDEKİ `status` alanında duruyor ve diziyi öğrenci
+    // yazabiliyor. Alan korunmazsa isteği elle kuran bir öğrenci kendi
+    // eşleştirmesini 'approved' damgalayıp onayı atlar — arayüzdeki kilit
+    // tek başına kalırdı. Reddin sebebi ve kararı verenin kimliği de aynı
+    // sebeple kapalıdır.
+    const KARAR_ALANLARI = ['status', 'rejectReason', 'reviewedBy', 'reviewedAt'];
+    const eslesmeTemizle = (dizi, oncekiDizi, alanlar) => {
+      const oncekiler = Array.isArray(oncekiDizi) ? oncekiDizi : [];
+      return dizi.map((m) => {
         if (!m || typeof m !== 'object') return m;
         const temiz = { ...m };
-        NOT_ALANLARI.forEach((alan) => delete temiz[alan]);
-        // Onaylanmış notlar KAYBOLMASIN: kayıttaki mevcut değerler korunur.
+        alanlar.forEach((alan) => delete temiz[alan]);
+        // Verilmiş karar ve onaylanmış notlar KAYBOLMASIN: kayıttaki mevcut
+        // değerler korunur.
         const eski = oncekiler.find((x) => x && x.id === m.id);
         if (eski) {
-          NOT_ALANLARI.forEach((alan) => {
+          alanlar.forEach((alan) => {
             if (eski[alan] !== undefined) temiz[alan] = eski[alan];
           });
+          return temiz;
         }
+        // ── YENİ EŞLEŞTİRME ONAYA DÜŞER ──
+        // Kayıtta olmayan eşleştirmeyi öğrenci yeni ekliyor demektir.
+        // Durumu SİLİP bırakmak yetmez: okuma tarafı boş durumu "onaylı"
+        // sayıyor (eski kayıtlar kuyruğa dolmasın diye), o zaman öğrencinin
+        // eklediği ders onayı hiç görmeden geçerdi. Damgayı sunucu vurur —
+        // istemcinin damgası kanıt değildir.
+        temiz.status = 'pending';
         return temiz;
       });
+    };
+    if (op.data && Array.isArray(op.data.returnMatches)) {
+      op.data.returnMatches = eslesmeTemizle(
+        op.data.returnMatches,
+        mevcut.returnMatches,
+        NOT_ALANLARI.concat(KARAR_ALANLARI)
+      );
+    }
+    if (op.data && Array.isArray(op.data.outgoingMatches)) {
+      op.data.outgoingMatches = eslesmeTemizle(
+        op.data.outgoingMatches,
+        mevcut.outgoingMatches,
+        KARAR_ALANLARI
+      );
     }
 
     // Yetki/kimlik alanları istemci gönderse bile düşürülür.

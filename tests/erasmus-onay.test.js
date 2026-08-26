@@ -74,27 +74,44 @@ describe('mevcutEslesmeIdleri', () => {
   });
 });
 
-// ── GİDİŞ ONAYA GİRMEZ ──
-// Öğrenim anlaşması gitmeden önce imzalanır; dönüşte yeniden onaya
-// düşürmek akademisyene çoktan bitmiş işi geri getiriyordu.
+// ── İKİ TARAF DA ONAYA GİRER ──
+// Gidiş eşleştirmesini öğrenci kurar: hangi ÇAKÜ dersinin karşılığında hangi
+// dersi alacağını öneren odur. Bu öneri ders ders akademisyen onayından
+// geçer; reddedilende sebep yazılır.
 describe('onayaTabiMi', () => {
-  it('yalnız dönüş tarafı onaydan geçer', () => {
+  it('gidiş ve dönüş tarafı onaydan geçer', () => {
     expect(onayaTabiMi('return')).toBe(true);
-    expect(onayaTabiMi('outgoing')).toBe(false);
+    expect(onayaTabiMi('outgoing')).toBe(true);
+  });
+
+  it('tanımsız tür onaya girmez', () => {
     expect(onayaTabiMi('')).toBe(false);
     expect(onayaTabiMi(undefined)).toBe(false);
+    expect(onayaTabiMi('baska')).toBe(false);
   });
 });
 
 describe('onayDamgasi — onaySart', () => {
-  it('öğrencinin eklediği YENİ gidiş eşleştirmesi onaya düşmez', () => {
+  it('öğrencinin eklediği YENİ gidiş eşleştirmesi onaya düşer', () => {
     const [m] = onayDamgasi([{ id: 'g9' }], new Set(), true, onayaTabiMi('outgoing'));
-    expect(m.status).toBe('approved');
+    expect(m.status).toBe('pending');
   });
 
   it('öğrencinin eklediği YENİ dönüş eşleştirmesi onaya düşer', () => {
     const [m] = onayDamgasi([{ id: 'd9' }], new Set(), true, onayaTabiMi('return'));
     expect(m.status).toBe('pending');
+  });
+
+  it('KAYITTA ZATEN VAR OLAN eşleştirme onaya DÜŞMEZ — eski işler geri gelmesin', () => {
+    // Gidiş tarafını onaya açmanın eski hatayı geri getirmediğinin kanıtı:
+    // durumu hiç yazılmamış ama kayıtta var olan eşleştirme onaylı sayılır.
+    const [m] = onayDamgasi([{ id: 'g1' }], new Set(['g1']), true, onayaTabiMi('outgoing'));
+    expect(m.status).toBe('approved');
+  });
+
+  it('akademisyenin eklediği eşleştirme doğrudan onaylıdır', () => {
+    const [m] = onayDamgasi([{ id: 'g9' }], new Set(), false, onayaTabiMi('outgoing'));
+    expect(m.status).toBe('approved');
   });
 
   it('akademisyenin verdiği karar her iki türde de korunur', () => {
@@ -104,7 +121,7 @@ describe('onayDamgasi — onaySart', () => {
 });
 
 describe('onayBekleyenler', () => {
-  it('kuyruğa yalnız bekleyen DÖNÜŞ eşleştirmeleri girer', () => {
+  it('kuyruğa iki taraftan da bekleyenler girer', () => {
     const kayit = {
       outgoingMatches: [{ id: 'g1', status: 'pending' }, { id: 'g2' }],
       returnMatches: [
@@ -113,8 +130,8 @@ describe('onayBekleyenler', () => {
         { id: 'd3' },
       ],
     };
-    // g1 eski hatalı damgayı taşıyor olsa bile kuyruğa girmez.
-    expect(onayBekleyenler(kayit).map((m) => m.id)).toEqual(['d1']);
+    // Durumu yazılmamışlar (g2, d3) onaylı sayılır — kuyruğa girmez.
+    expect(onayBekleyenler(kayit).map((m) => m.id)).toEqual(['g1', 'd1']);
   });
 
   it('boş kayıtta çökmez', () => {
