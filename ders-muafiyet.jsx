@@ -7726,8 +7726,11 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
         style={{
           background: '#fff',
           borderRadius: 14,
-          width: 'min(960px, 100%)',
-          maxHeight: '92vh',
+          // Ekran DAR geliyordu: ders adları iki yana sığmıyor, gerekçe metni
+          // satırlara bölünüyordu. Eşleme kontrolü göz taramasıdır — geniş
+          // olmalı. Kapsayıcının 16px dolgusu için 100% yerine vw kullanılır.
+          width: 'min(1440px, 96vw)',
+          maxHeight: '96vh',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',

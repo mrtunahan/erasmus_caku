@@ -1170,53 +1170,108 @@ window.pdfMetniCikar = async function (kaynak) {
 //
 // Bu yüzden ölçüm BOYANAN alandan yapılır: her hücrenin ekrandaki sağ kenarı
 // sayfanın sol kenarına göre alınır, en sağdaki kazanır.
+// ── docx ÖNİZLEMESİNİ KAPA SIĞDIR ──
+//
+// Sorun: docx-preview tabloya `width:100%` verip hücrelere sabit genişlik
+// yazıyor. Hücreler toplamı sayfayı aşınca tablo KUTUSU büyümüyor, hücreler
+// sayfanın dışına BOYANIYOR. `offsetWidth`/`scrollWidth` bu taşmayı görmez
+// (`overflow: visible` olduğu için kaydırma alanı da oluşmaz), ölçek 1'de
+// kalıyor ve son sütunlar kırpılıyordu.
+//
+// Çözüm ÖLÇÜP DÜZELTMEK: taşmanın hangi etiketten geldiğini VARSAYMIYORUZ
+// (bir şablonda tablo, ötekinde hücre içindeki paragraf ya da resim olabilir).
+// Sayfanın tüm torunları taranıp boyanan en sağ kenar bulunur, kabın iç
+// kenarıyla karşılaştırılır ve ölçek buna göre daraltılır. Ölçek uygulanınca
+// yerleşim yeniden akabildiği için ölçüm TEKRARLANIR: birkaç turda taşma
+// sıfıra iner. Böylece sebep ne olursa olsun belge kaba sığar.
 function fitDocxPreview(container) {
-  if (!container) return;
+  if (!container) return false;
   const wrap = container.querySelector('.docx-wrapper');
-  if (!wrap) return;
+  if (!wrap) return false;
   const sayfalar = Array.from(wrap.querySelectorAll('section'));
-  if (!sayfalar.length) return;
-  // Ölçüm ÖLÇEKSİZ hâlde yapılmalı: zoom uygulanmışken alınan kenarlar zaten
+  if (!sayfalar.length) return false;
+
+  // Ölçüm ÖLÇEKSİZ hâlde başlar: zoom uygulanmışken alınan kenarlar zaten
   // küçültülmüş olur ve her çağrıda biraz daha küçülürdü.
   wrap.style.zoom = '';
   wrap.style.padding = '0';
   sayfalar.forEach((sy) => {
     sy.style.marginLeft = '';
     sy.style.marginRight = '';
+    sy.style.overflow = '';
   });
 
-  // BOYANAN alanın genişliği: her hücrenin sağ kenarı SAYFANIN sol kenarına
-  // göre alınır, en sağdaki kazanır. Kutu genişliği yetmiyor çünkü taşan
-  // hücrelerde tablo kutusu büyümüyor, hücreler sayfanın dışına boyanıyor.
-  let icerikW = 0;
-  sayfalar.forEach((sayfa) => {
-    const r = sayfa.getBoundingClientRect();
-    let sag = r.right;
-    sayfa.querySelectorAll('table, tr, td, th, img').forEach((el) => {
-      const k = el.getBoundingClientRect();
-      if (k.width > 0 && k.right > sag) sag = k.right;
-    });
-    icerikW = Math.max(icerikW, sag - r.left);
-  });
-
-  // clientWidth dolguyu İÇERİR; sığdırma dolgusuz alana göre yapılmalı,
-  // yoksa belge kabın dolgusunun altına taşar.
   const bicim = window.getComputedStyle(container);
-  const availW =
-    container.clientWidth -
-    (parseFloat(bicim.paddingLeft) || 0) -
-    (parseFloat(bicim.paddingRight) || 0);
-  if (!(icerikW > 0 && availW > 0 && icerikW > availW)) return;
+  const solDolgu = parseFloat(bicim.paddingLeft) || 0;
+  const sagDolgu = parseFloat(bicim.paddingRight) || 0;
+  const kutu = () => {
+    const r = container.getBoundingClientRect();
+    return { sol: r.left + solDolgu, sag: r.right - sagDolgu };
+  };
 
-  // Sayfa normalde ORTALANIR (margin: auto). Ortalama payı da ölçeklenen
-  // kutunun içinde durduğu için, yalnız içerik genişliğine göre küçültmek
-  // yetmiyordu: sol boşluk kadar taşma kalıyordu. Sığdırma gerektiğinde
-  // ortalama bırakılır, sayfa sola yaslanır ve ölçek birebir tutar.
+  // Çok sayfalı uzun belgede her turda binlerce düğüm ölçmek pahalı; o zaman
+  // yalnız taşmaya en çok sebep olan etiketlere bakılır.
+  const dugumSayisi = sayfalar.reduce((t, sy) => t + sy.getElementsByTagName('*').length, 0);
+  const secici = dugumSayisi > 3000 ? 'table, tr, td, th, img' : '*';
+  const enSag = () => {
+    let s = -Infinity;
+    sayfalar.forEach((sayfa) => {
+      const r = sayfa.getBoundingClientRect();
+      if (r.width > 0) s = Math.max(s, r.right);
+      sayfa.querySelectorAll(secici).forEach((el) => {
+        const k = el.getBoundingClientRect();
+        if (k.width > 0 && k.right > s) s = k.right;
+      });
+    });
+    return s;
+  };
+
+  // İçeriğin KÂĞIDIN kendi sınırını aşıp aşmadığı (kaptan bağımsız): şablonun
+  // tablosu sayfa genişliğinden geniş demektir.
+  const sayfaTasmasi = () => {
+    let en = 0;
+    sayfalar.forEach((sayfa) => {
+      const r = sayfa.getBoundingClientRect();
+      sayfa.querySelectorAll(secici).forEach((el) => {
+        const k = el.getBoundingClientRect();
+        if (k.width > 0 && k.right - r.right > en) en = k.right - r.right;
+      });
+    });
+    return en;
+  };
+
+  // Sığıyorsa hiç dokunma: sayfa ORTALI kalsın (belgelerin çoğu böyle).
+  if (enSag() <= kutu().sag && sayfaTasmasi() <= 0.5) return false;
+
+  // ── SAYFANIN KENDİ KIRPMASI ──
+  // docx-preview sayfaya `overflow: hidden` veriyor (kâğıt sınırını taklit
+  // ediyor). Tablo sayfanın yazım alanından genişse KAP'a sığdırmak yetmez:
+  // fazlalığı SAYFA kırpıyor ve son sütunlar yine görünmüyordu — asıl "kayma"
+  // buydu. Sığdırma gerektiğinde kırpma kaldırılır: tablo kâğıdın kenarından
+  // taşmış görünür, ki zaten gerçek durum odur (belge Word'de de taşar), ama
+  // hiçbir sütun gizlenmez.
+  //
+  // Sayfa ayrıca `margin: auto` ile ortalanıyor ve bu pay da ölçeklenen
+  // kutunun içinde duruyor; sola yaslanmazsa ölçek sol boşluk kadar eksik
+  // kalır ve taşma sürerdi.
   sayfalar.forEach((sy) => {
     sy.style.marginLeft = '0';
     sy.style.marginRight = 'auto';
+    sy.style.overflow = 'visible';
   });
-  wrap.style.zoom = (availW / icerikW).toFixed(4);
+
+  let olcek = 1;
+  for (let tur = 0; tur < 5; tur++) {
+    const k = kutu();
+    const genislik = k.sag - k.sol;
+    const tasma = enSag() - k.sag;
+    if (!(genislik > 0) || tasma <= 0.5) break;
+    olcek *= genislik / (genislik + tasma);
+    wrap.style.zoom = olcek.toFixed(4);
+  }
+  // Kâğıdın kendi sınırını aşan içerik VAR MI — çağıran bunu kullanıcıya
+  // söyleyebilsin: önizleme artık kırpmıyor ama belge Word'de de taşar.
+  return sayfaTasmasi() > 0.5;
 }
 window.fitDocxPreview = fitDocxPreview;
 
@@ -1252,6 +1307,9 @@ function BelgeOnizlemeModal({
   const [gonderiliyor, setGonderiliyor] = React.useState(false);
   const [gonderildi, setGonderildi] = React.useState(false);
   const [veri, setVeri] = React.useState(blob || null);
+  // Şablondaki tablo sayfa genişliğini aşıyor mu? Önizleme artık kırpmıyor
+  // ama belge Word'de/yazıcıda da taşar — söylenmeli.
+  const [sayfaTasti, setSayfaTasti] = React.useState(false);
 
   React.useEffect(() => {
     let iptal = false;
@@ -1274,13 +1332,13 @@ function BelgeOnizlemeModal({
         if (iptal || !ref.current) return;
         ref.current.innerHTML = '';
         await docx.renderAsync(b, ref.current, null, { inWrapper: true });
-        if (!iptal) fitDocxPreview(ref.current);
+        if (!iptal) setSayfaTasti(!!fitDocxPreview(ref.current));
         // Yazı tipleri ve görseller render'dan SONRA yerine oturuyor; o an
         // ölçülen genişlik bazen küçük çıkıyor ve tablo yine taşıyordu. Kısa
         // bir gecikmeyle bir kez daha sığdırılır (ölçüm zoom'u sıfırlayarak
         // başladığı için tekrar çağrılması güvenli).
         setTimeout(() => {
-          if (!iptal && ref.current) fitDocxPreview(ref.current);
+          if (!iptal && ref.current) setSayfaTasti(!!fitDocxPreview(ref.current));
         }, 250);
       } catch (e) {
         if (!iptal) setHata(e.message || 'Önizleme oluşturulamadı.');
@@ -1294,7 +1352,7 @@ function BelgeOnizlemeModal({
   // Pencere/modal genişliği değişince yeniden sığdır — sabit ölçek, dar
   // ekranda belgeyi yine kırpardı.
   React.useEffect(() => {
-    const yeniden = () => fitDocxPreview(ref.current);
+    const yeniden = () => setSayfaTasti(!!fitDocxPreview(ref.current));
     window.addEventListener('resize', yeniden);
     return () => window.removeEventListener('resize', yeniden);
   }, []);
@@ -1353,6 +1411,13 @@ function BelgeOnizlemeModal({
             <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
               {filename || 'belge.docx'}
             </div>
+            {sayfaTasti && (
+              <div style={{ fontSize: 11.5, color: '#92400E', marginTop: 4, lineHeight: 1.45 }}>
+                ⚠ Şablondaki tablo <b>sayfa genişliğini aşıyor</b>. Önizlemede tamamı görünsün diye
+                kâğıdın dışına taşırıldı; Word’de ve yazıcıda da taşar. Şablonu açıp tabloyu
+                daraltın (Tablo → Otomatik Sığdır → Pencereye Sığdır) ya da sayfayı yatay yapın.
+              </div>
+            )}
           </div>
           <button onClick={onClose} style={{ ...btn, padding: '6px 12px' }}>
             Kapat
