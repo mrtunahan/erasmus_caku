@@ -4973,6 +4973,9 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   // Karşı kurumun harf-katsayı tablosu (Ayarlar → Not Ölçekleri).
   const [karsiOlcek, setKarsiOlcek] = useState(null);
   const [tabloArandi, setTabloArandi] = useState(false);
+  // Kayıt üzerinden tablo eklendiğinde listeyi yeniden okutur; çeviri de
+  // kendiliğinden tazelenir (yoksa akademisyen sayfayı yenilemek zorundaydı).
+  const [olcekSurumu, setOlcekSurumu] = useState(0);
   const [tabloAcik, setTabloAcik] = useState(false);
   const [okumaNotu, setOkumaNotu] = useState('');
   const [okumaHatali, setOkumaHatali] = useState(false);
@@ -5003,6 +5006,11 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   // Karşı kurumun ölçeği: harf notunu katsayı üzerinden ÇAKÜ harfine çevirmek
   // için. Yüklenmemişse çeviri yapılmaz — uydurulmuş eşleme, öğrencinin
   // transkriptine yanlış harf yazardı.
+  //
+  // Havuz ÜNİVERSİTE GENELİDİR: hangi bölüm eklediyse eklesin tablo herkese
+  // açıktır; bölümün aynı kurum için kendi tablosu varsa o kazanır
+  // (bkz. lib/karsi-olcek.js → kurumOlcegiBul).
+  const [olcekListesi, setOlcekListesi] = useState([]);
   useEffect(() => {
     let iptal = false;
     if (!kaynakKurum) return undefined;
@@ -5012,17 +5020,35 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       .fresh('karsi_not_olcekleri')
       .then((liste) => {
         if (iptal) return;
-        const bulunan = window.kurumOlcegiBul ? window.kurumOlcegiBul(kaynakKurum, liste) : null;
+        const hepsi = Array.isArray(liste) ? liste : [];
+        setOlcekListesi(hepsi);
+        const bulunan = window.kurumOlcegiBul
+          ? window.kurumOlcegiBul(kaynakKurum, hepsi, { departmentId: olcekBolumu })
+          : null;
         setKarsiOlcek(bulunan);
       })
-      .catch(() => !iptal && setKarsiOlcek(null));
+      .catch(() => {
+        if (iptal) return;
+        setOlcekListesi([]);
+        setKarsiOlcek(null);
+      });
     return () => {
       iptal = true;
     };
-  }, [kaynakKurum]);
+  }, [kaynakKurum, olcekBolumu, olcekSurumu]);
 
   const olcekSatirSayisi = ((olcekKural && olcekKural.notOlcegi) || []).length;
   const olcekVar = olcekSatirSayisi > 0;
+
+  // Yalnız HARF notu olan ve ÇAKÜ karşılığı çıkmayan ders sayısı. Karşı
+  // kurumun tablosu eksikse tam olarak bunlar boşta kalır; "tabloyu şimdi
+  // ekle" çağrısı da yalnız bu durumda anlamlıdır.
+  const harfliCevrilemeyen = useMemo(
+    () =>
+      Object.values(notlar || {}).filter((n) => n && !n.kaynakNot && n.kaynakHarf && !n.cakuNot)
+        .length,
+    [notlar]
+  );
 
   // Karşı kurumun harfini ÇAKÜ harfine çevirir (katsayı üzerinden).
   const harftenCevir = (harf) =>
@@ -5804,6 +5830,21 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
               </span>
             )}
           </div>
+          {/* ── Tablo eksikse çözüm BURADA ──
+              Akademisyen Ayarlar'a gidip kurumun not tablosunu aramak zorunda
+              kalmasın: belgeden okuma, hazır şablon ve kayıtlı tabloya bağlama
+              seçenekleri kaydın yanında. Yalnız gerçekten gerektiğinde çıkar:
+              tablo yoksa VE çevrilememiş harf notu varsa. */}
+          {!isStudent && kaynakKurum && !karsiOlcek && harfliCevrilemeyen > 0 && (
+            <OlcekEksikPaneli
+              kurum={kaynakKurum}
+              belgeUrl={record.basariBelgesiUrl || ''}
+              departmentId={olcekBolumu}
+              currentUser={currentUser}
+              kayitlar={olcekListesi}
+              onKaydedildi={() => setOlcekSurumu((v) => v + 1)}
+            />
+          )}
           {isStudent ? (
             <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
               Belgeniz ve okunan notlar alındı. Bölüm kurulu notlarınızı inceleyip ÇAKÜ sistemine
@@ -7186,6 +7227,353 @@ function OlcekTablosu({ satirlar, bos }) {
   );
 }
 
+// ══════════════════════════════════════════════════════════════
+// ÖLÇEK EKSİK — KAYIT ÜZERİNDEN TEK TIKLA ÇÖZÜM
+//
+// Karşı kurumun tablosu yoksa harf notu çevrilemiyor ve akademisyen bugüne
+// kadar Ayarlar'a gidip kurumun not tablosunu bulup yüklemek zorundaydı.
+// Oysa gereken tablo çoğu zaman ELİNDEKİ BELGENİN İÇİNDE: transkriptlerin
+// büyük kısmı arka yüzünde "Not Sistemi / Grading System" tablosunu basıyor.
+//
+// Üç yol da buradan çıkar, kaydın yanından, sekme değiştirmeden:
+//   1) Belgeden oku  — aynı belge, ölçek satırları için ikinci kez okunur
+//   2) Hazır ölçek   — kurumların çoğu YÖK standardını kullanıyor
+//   3) Kayda bağla   — tablo aslında var ama kurum adı farklı yazılmış;
+//                      takma ad eklenir ve bir daha sorulmaz
+//
+// Hangi yol seçilirse seçilsin satırlar KAYDEDİLMEDEN ÖNCE gösterilir ve
+// düzenlenebilir: okunan tablo da bir tahmindir, onaylayan insandır.
+// ══════════════════════════════════════════════════════════════
+function OlcekEksikPaneli({ kurum, belgeUrl, departmentId, currentUser, kayitlar, onKaydedildi }) {
+  const [acik, setAcik] = useState(false);
+  const [okuyor, setOkuyor] = useState(false);
+  const [satirlar, setSatirlar] = useState(null);
+  const [kaynak, setKaynak] = useState('');
+  const [baglanacak, setBaglanacak] = useState('');
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+  const [mesaj, setMesaj] = useState('');
+
+  const sorunlar = satirlar && window.olcekSorunlari ? window.olcekSorunlari(satirlar) : [];
+  const hazirlar = window.hazirOlcekSecenekleri ? window.hazirOlcekSecenekleri() : [];
+  const mevcutlar = (kayitlar || []).filter((k) => k && k.kurum);
+
+  const belgedenOku = async () => {
+    if (!belgeUrl || !window.aiSatirCikar || !window.aiDosyaAdi) {
+      setMesaj('Belge okuma katmanı kullanılamıyor.');
+      return;
+    }
+    setOkuyor(true);
+    setMesaj('');
+    try {
+      const sonuc = await window.aiSatirCikar({
+        module: 'muafiyet',
+        docType: 'not_olcegi',
+        sutunlar: OLCEK_SUTUNLARI,
+        satirTanimi:
+          'belgedeki NOT SİSTEMİ / dönüşüm tablosunun her satırı (harf notu ve 4’lük katsayısı). ' +
+          'Ders satırlarını DEĞİL, notlandırma açıklamasındaki harf-katsayı tablosunu oku.',
+        dosyalar: [{ fileName: window.aiDosyaAdi(belgeUrl), name: 'Öğrenci belgesi' }],
+      });
+      const okunan = ((sonuc && sonuc.satirlar) || []).map((r) => ({
+        harf: r.harf || '',
+        katsayi: r.katsayi || '',
+        min: r.min || '',
+        max: r.max || '',
+      }));
+      if (!okunan.length) {
+        setMesaj(
+          'Belgede not sistemi tablosu bulunamadı. Hazır bir ölçekten başlayabilir ya da ' +
+            'Ayarlar → Not Ölçekleri’nden kurumun tablosunu yükleyebilirsiniz.'
+        );
+        setOkuyor(false);
+        return;
+      }
+      setSatirlar(okunan);
+      setKaynak('belge');
+      setMesaj(okunan.length + ' satır okundu. Kaydetmeden önce kontrol edin.');
+    } catch (e) {
+      setMesaj('Belge okunamadı: ' + (e.message || ''));
+    } finally {
+      setOkuyor(false);
+    }
+  };
+
+  const hazirSec = (id) => {
+    if (!id) return;
+    setSatirlar(window.hazirOlcekSatirlari ? window.hazirOlcekSatirlari(id) : []);
+    setKaynak('hazir:' + id);
+    setMesaj('Şablon yüklendi. Kurumun tablosu farklıysa satırları düzeltin.');
+  };
+
+  const kaydet = async () => {
+    if (!satirlar || !satirlar.length) return;
+    if (sorunlar.length) {
+      setMesaj('Önce ölçekteki sorunları giderin.');
+      return;
+    }
+    setKaydediliyor(true);
+    try {
+      await window.DBWrite.add(OLCEK_KOLEKSIYON, {
+        kurum: kurum,
+        // Havuz ortaktır: ekleyen bölüm değil, üniversite geneli. Bölüme özel
+        // bir sürüm gerekiyorsa Ayarlar'dan işaretlenir.
+        departmentId: '',
+        satirlar,
+        kaynak,
+        belgeUrl: kaynak === 'belge' ? belgeUrl || '' : '',
+        guncelleyen: currentUser?.name || currentUser?.identifier || '',
+        guncellemeTarihi: new Date().toISOString(),
+      });
+      setMesaj('');
+      setAcik(false);
+      setSatirlar(null);
+      if (onKaydedildi) onKaydedildi();
+    } catch (e) {
+      setMesaj('Kaydedilemedi: ' + (e.message || ''));
+    } finally {
+      setKaydediliyor(false);
+    }
+  };
+
+  const takmaAdEkle = async () => {
+    const hedef = mevcutlar.find((k) => String(k.id) === String(baglanacak));
+    if (!hedef) return;
+    setKaydediliyor(true);
+    try {
+      const eski = Array.isArray(hedef.takmaAdlar) ? hedef.takmaAdlar : [];
+      await window.DBWrite.set(
+        OLCEK_KOLEKSIYON,
+        hedef.id,
+        { takmaAdlar: eski.concat([kurum]) },
+        true
+      );
+      setMesaj('');
+      setAcik(false);
+      if (onKaydedildi) onKaydedildi();
+    } catch (e) {
+      setMesaj('Bağlanamadı: ' + (e.message || ''));
+    } finally {
+      setKaydediliyor(false);
+    }
+  };
+
+  const dugme = (renk, dolu) => ({
+    padding: '7px 13px',
+    borderRadius: 8,
+    border: dolu ? 'none' : '1px solid ' + renk,
+    background: dolu ? renk : '#fff',
+    color: dolu ? '#fff' : renk,
+    fontSize: 12.5,
+    fontWeight: 600,
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+  });
+  const kucukGirdi = {
+    width: 78,
+    padding: '5px 8px',
+    borderRadius: 6,
+    border: '1px solid ' + DS.border,
+    fontSize: 12.5,
+    fontFamily: 'inherit',
+  };
+
+  return (
+    <div
+      style={{
+        border: '1px solid #FCD34D',
+        background: DS.amberLight || '#FFFBEB',
+        borderRadius: 10,
+        padding: '11px 13px',
+      }}
+    >
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12.5, color: '#92400E', fontWeight: 600 }}>
+          <b>{kurum}</b> için not dönüşüm tablosu yok — harf notları ÇAKÜ karşılığına çevrilemiyor.
+        </span>
+        <button onClick={() => setAcik((v) => !v)} style={{ ...dugme('#B45309', true) }}>
+          {acik ? 'Kapat' : 'Tabloyu şimdi ekle'}
+        </button>
+      </div>
+
+      {acik && (
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* 1) Belgeden oku */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: DS.navy, marginBottom: 5 }}>
+              1 · Öğrencinin belgesinden oku
+            </div>
+            <button
+              onClick={belgedenOku}
+              disabled={!belgeUrl || okuyor}
+              style={{
+                ...dugme(DS.navy, true),
+                opacity: !belgeUrl || okuyor ? 0.55 : 1,
+                cursor: !belgeUrl || okuyor ? 'default' : 'pointer',
+              }}
+            >
+              {okuyor ? 'Belge okunuyor…' : 'Belgedeki not sistemini oku'}
+            </button>
+            <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 5, lineHeight: 1.5 }}>
+              {belgeUrl
+                ? 'Transkriptlerin çoğu arka yüzünde harf-katsayı tablosunu basar; aynı belge o tablo için yeniden okunur.'
+                : 'Bu kayıtta okunacak bir belge yok.'}
+            </div>
+          </div>
+
+          {/* 2) Hazır ölçek */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: DS.navy, marginBottom: 5 }}>
+              2 · Hazır bir ölçekten başla
+            </div>
+            <select
+              defaultValue=""
+              onChange={(e) => hazirSec(e.target.value)}
+              style={{
+                padding: '7px 10px',
+                borderRadius: 8,
+                border: '1px solid ' + DS.border,
+                fontSize: 12.5,
+                fontFamily: 'inherit',
+                maxWidth: 340,
+                width: '100%',
+              }}
+            >
+              <option value="">Şablon seçin…</option>
+              {hazirlar.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.ad}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3) Kayıtlı tabloya bağla */}
+          {mevcutlar.length > 0 && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: DS.navy, marginBottom: 5 }}>
+                3 · Kayıtlı bir tabloya bağla
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <select
+                  value={baglanacak}
+                  onChange={(e) => setBaglanacak(e.target.value)}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: 8,
+                    border: '1px solid ' + DS.border,
+                    fontSize: 12.5,
+                    fontFamily: 'inherit',
+                    maxWidth: 340,
+                    flex: '1 1 240px',
+                  }}
+                >
+                  <option value="">Aynı kurumun kayıtlı tablosu…</option>
+                  {mevcutlar.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.kurum}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={takmaAdEkle}
+                  disabled={!baglanacak || kaydediliyor}
+                  style={{
+                    ...dugme(DS.navy, false),
+                    opacity: !baglanacak || kaydediliyor ? 0.55 : 1,
+                  }}
+                >
+                  “{kurum}” adını bu tabloya ekle
+                </button>
+              </div>
+              <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 5, lineHeight: 1.5 }}>
+                Kurum adı belgede farklı yazılmışsa (“Uludağ” / “Bursa Uludağ”) bir kez bağlarsınız,
+                bir daha sorulmaz.
+              </div>
+            </div>
+          )}
+
+          {/* Okunan/seçilen satırlar — kaydetmeden önce düzenlenebilir */}
+          {satirlar && (
+            <div
+              style={{
+                borderTop: '1px dashed ' + DS.border,
+                paddingTop: 10,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 700, color: DS.navy }}>
+                Kaydedilecek tablo ({satirlar.length} satır) — {kurum}
+              </div>
+              {satirlar.map((r, i) => (
+                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {['harf', 'katsayi', 'min', 'max'].map((alan) => (
+                    <input
+                      key={alan}
+                      value={r[alan] || ''}
+                      placeholder={
+                        { harf: 'Harf', katsayi: 'Katsayı', min: 'Alt', max: 'Üst' }[alan]
+                      }
+                      onChange={(e) => {
+                        const yeni = satirlar.slice();
+                        yeni[i] = { ...yeni[i], [alan]: e.target.value };
+                        setSatirlar(yeni);
+                      }}
+                      style={kucukGirdi}
+                    />
+                  ))}
+                  <button
+                    onClick={() => setSatirlar(satirlar.filter((_, j) => j !== i))}
+                    title="Satırı sil"
+                    style={{ ...dugme(DS.red, false), padding: '4px 9px' }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <div>
+                <button
+                  onClick={() =>
+                    setSatirlar(satirlar.concat({ harf: '', katsayi: '', min: '', max: '' }))
+                  }
+                  style={{ ...dugme(DS.navy, false), padding: '5px 11px', fontSize: 12 }}
+                >
+                  + Satır
+                </button>
+              </div>
+              {sorunlar.length > 0 && (
+                <ul style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 12, color: '#B91C1C' }}>
+                  {sorunlar.map((x, i) => (
+                    <li key={i}>{x}</li>
+                  ))}
+                </ul>
+              )}
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button
+                  onClick={kaydet}
+                  disabled={kaydediliyor || sorunlar.length > 0}
+                  style={{
+                    ...dugme(DS.green, true),
+                    opacity: kaydediliyor || sorunlar.length ? 0.55 : 1,
+                  }}
+                >
+                  {kaydediliyor ? 'Kaydediliyor…' : 'Kaydet (üniversite geneli)'}
+                </button>
+                <button onClick={() => setSatirlar(null)} style={dugme('#6B7280', false)}>
+                  Vazgeç
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mesaj && <div style={{ fontSize: 12, color: DS.navy }}>{mesaj}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NotOlcekleriPanel({ currentUser, isStudent }) {
   const bolum = currentUser?.departmentId || '';
   const [cakuOlcek, setCakuOlcek] = useState([]);
@@ -7194,6 +7582,8 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
   const [duzenlenen, setDuzenlenen] = useState(null); // {id?, kurum, satirlar}
   const [belge, setBelge] = useState(null);
   const [mesaj, setMesaj] = useState('');
+  // Havuz üniversite geneli olunca liste uzuyor: arama şart.
+  const [arama, setArama] = useState('');
   const yuklenenRef = useRef(null);
 
   const yukle = useCallback(async () => {
@@ -7207,12 +7597,14 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
       ]);
       const d = (kural && kural.exists && kural.data) || {};
       setCakuOlcek(Array.isArray(d.notOlcegi) ? d.notOlcegi : []);
-      // Ölçekler bölüme göre ayrılır; bölümsüz eski kayıtlar herkese görünür.
-      setKayitlar(
-        (Array.isArray(liste) ? liste : []).filter(
-          (k) => !k.departmentId || String(k.departmentId) === String(bolum)
-        )
-      );
+      // ── HAVUZ ÜNİVERSİTE GENELİ ──
+      // Liste ARTIK SÜZÜLMÜYOR. Eskiden yalnız kendi bölümünün kayıtları
+      // görünüyordu; oysa çeviri sırasındaki arama zaten tüm kayıtlara
+      // bakıyordu. Sonuç: her bölüm aynı üniversitenin tablosunu yeniden
+      // yazıyor, listede göremediği için var olduğunu bilmiyordu.
+      // Bölüm bilgisi kaybolmuyor — kartta kapsam olarak gösteriliyor ve
+      // bölümün kendi tablosu ortak tablodan üstün tutuluyor.
+      setKayitlar(Array.isArray(liste) ? liste : []);
     } finally {
       setYukleniyor(false);
     }
@@ -7254,6 +7646,9 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
       })),
       belgeUrl: (yuklenenRef.current && yuklenenRef.current.url) || '',
       belgeAdi: (yuklenenRef.current && yuklenenRef.current.ad) || '',
+      // Kaynak kayda geçer: hangi tablonun belgeden okunduğu, hangisinin
+      // şablondan geldiği kart üzerinde görünsün.
+      kaynak: 'belge',
     }));
   };
 
@@ -7285,8 +7680,20 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
       } else {
         const veri = {
           kurum,
-          departmentId: String(bolum || ''),
+          // ── KAPSAM ──
+          // Varsayılan ORTAK (boş departmentId): tablo bir kez eklenir, tüm
+          // bölümler kullanır. "Yalnız bölümüme özel" işaretlenirse bölüm
+          // kimliği yazılır ve o bölüm için ortak tablodan ÜSTÜN tutulur
+          // (bkz. lib/karsi-olcek.js → kurumOlcegiBul).
+          departmentId: d.bolumeOzel ? String(bolum || '') : '',
           satirlar: d.satirlar || [],
+          // Kurum adının diğer yazımları: bir kez verilir, bulanık eşleştirme
+          // her seferinde yeniden tahmin etmek zorunda kalmaz.
+          takmaAdlar: (d.takmaAdlarMetni || '')
+            .split(/[,;\n]/)
+            .map((x) => x.trim())
+            .filter(Boolean),
+          kaynak: d.kaynak || '',
           belgeUrl: d.belgeUrl || '',
           belgeAdi: d.belgeAdi || '',
           guncelleyen: currentUser?.name || currentUser?.identifier || '',
@@ -7306,7 +7713,21 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
   };
 
   const sil = async (k) => {
-    if (!confirm('"' + k.kurum + '" ölçeği silinsin mi?')) return;
+    // Havuz ortak olduğu için silinen tablo BAŞKA BÖLÜMLERİN çevirisini de
+    // sessizce durdurur. Kendi bölümünün kaydı değilse bu açıkça söylenir.
+    const kendinin = String(k.departmentId || '') === String(bolum) && !!bolum;
+    const uyari = kendinin
+      ? '"' + k.kurum + '" ölçeği silinsin mi?'
+      : '"' +
+        k.kurum +
+        '" ölçeği ' +
+        (String(k.departmentId || '').trim()
+          ? 'BAŞKA BİR BÖLÜM tarafından eklenmiş'
+          : 'ÜNİVERSİTE GENELİ') +
+        (k.guncelleyen ? ' (' + k.guncelleyen + ')' : '') +
+        '.\n\nSilerseniz bu kurumdan gelen harf notları hiçbir bölümde çevrilemez.' +
+        '\n\nYine de silinsin mi?';
+    if (!confirm(uyari)) return;
     try {
       await window.DBWrite.remove(OLCEK_KOLEKSIYON, k.id);
       await yukle();
@@ -7333,6 +7754,47 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
     fontFamily: 'inherit',
     cursor: 'pointer',
   });
+
+  // Arama kurum adında VE takma adlarda çalışır: "Uludağ" yazan kişi, kaydı
+  // "Bursa Uludağ Üniversitesi" adıyla duruyor diye bulamamazlık etmesin.
+  const suzulmus = React.useMemo(() => {
+    const q = (arama || '').trim().toLocaleLowerCase('tr-TR');
+    const liste = q
+      ? kayitlar.filter((k) =>
+          (window.olcekAdlari ? window.olcekAdlari(k) : [k.kurum]).some((ad) =>
+            String(ad || '')
+              .toLocaleLowerCase('tr-TR')
+              .includes(q)
+          )
+        )
+      : kayitlar.slice();
+    // Bölüme özel kayıtlar üstte: kullanıcıyı en çok ilgilendiren onlar.
+    return liste.sort((a, b) => {
+      const ao = String(a.departmentId || '') === String(bolum) ? 0 : 1;
+      const bo = String(b.departmentId || '') === String(bolum) ? 0 : 1;
+      if (ao !== bo) return ao - bo;
+      return String(a.kurum || '').localeCompare(String(b.kurum || ''), 'tr');
+    });
+  }, [kayitlar, arama, bolum]);
+
+  const kapsamRozeti = (k) => {
+    const kendi = String(k.departmentId || '') === String(bolum) && !!bolum;
+    const ortak = !String(k.departmentId || '').trim();
+    if (kendi) return { metin: 'Bölümünüze özel', renk: '#5B21B6', bg: '#EDE9FE' };
+    if (ortak) return { metin: 'Üniversite geneli', renk: '#065F46', bg: '#D1FAE5' };
+    return { metin: 'Başka bölüm ekledi', renk: '#92400E', bg: '#FEF3C7' };
+  };
+
+  const KAYNAK_ETIKET = {
+    belge: 'belgeden okundu',
+    hazir: 'hazır şablon',
+  };
+  const kaynakEtiketi = (k) => {
+    const ham = String(k.kaynak || '');
+    if (!ham) return '';
+    if (ham.startsWith('hazir')) return KAYNAK_ETIKET.hazir;
+    return KAYNAK_ETIKET[ham] || ham;
+  };
 
   return (
     <div style={{ maxWidth: 900 }}>
@@ -7397,10 +7859,32 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
       </div>
 
       {/* ── Karşı kurumlar ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 10,
+          flexWrap: 'wrap',
+        }}
+      >
         <strong style={{ fontSize: 13.5, color: DS.navy }}>
-          Karşı kurum tabloları ({kayitlar.length})
+          Karşı kurum tabloları ({suzulmus.length}
+          {arama ? ' / ' + kayitlar.length : ''})
         </strong>
+        <input
+          value={arama}
+          onChange={(e) => setArama(e.target.value)}
+          placeholder="Kurum ara…"
+          style={{
+            padding: '6px 11px',
+            borderRadius: 8,
+            border: '1px solid ' + DS.border,
+            fontSize: 12.5,
+            fontFamily: 'inherit',
+            width: 200,
+          }}
+        />
         {!isStudent && (
           <button
             onClick={() => setDuzenlenen({ kurum: '', satirlar: [] })}
@@ -7410,6 +7894,11 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
           </button>
         )}
       </div>
+      <div style={{ fontSize: 11.5, color: DS.textMuted, marginBottom: 10, lineHeight: 1.55 }}>
+        Bu havuz <b>üniversite genelidir</b>: hangi bölüm eklerse eklesin tablo herkese açıktır,
+        aynı kurumu ikinci kez yazmaya gerek yok. Bir bölümün aynı kurum için kendi tablosu varsa o
+        bölümde onunki geçerli olur.
+      </div>
 
       {yukleniyor ? (
         <div style={{ fontSize: 12.5, color: DS.textMuted }}>Yükleniyor…</div>
@@ -7418,8 +7907,12 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
           Henüz kurum tablosu yok. Tablosu olmayan kurumdan yalnız harf notu gelirse ÇAKÜ karşılığı
           boş kalır ve kararı akademisyen elle verir.
         </div>
+      ) : suzulmus.length === 0 ? (
+        <div style={{ ...kart, fontSize: 12.5, color: DS.textMuted }}>
+          “{arama}” için kayıt bulunamadı.
+        </div>
       ) : (
-        kayitlar.map((k) => (
+        suzulmus.map((k) => (
           <div key={k.id} style={kart}>
             <div
               style={{
@@ -7431,6 +7924,34 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
               }}
             >
               <strong style={{ fontSize: 13.5, color: DS.navy }}>{k.kurum}</strong>
+              {(() => {
+                const r = kapsamRozeti(k);
+                return (
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      color: r.renk,
+                      background: r.bg,
+                      padding: '2px 8px',
+                      borderRadius: 999,
+                    }}
+                  >
+                    {r.metin}
+                  </span>
+                );
+              })()}
+              {kaynakEtiketi(k) && (
+                <span style={{ fontSize: 10.5, color: DS.textMuted }}>{kaynakEtiketi(k)}</span>
+              )}
+              {Array.isArray(k.takmaAdlar) && k.takmaAdlar.length > 0 && (
+                <span
+                  style={{ fontSize: 11, color: DS.textMuted }}
+                  title={'Diğer yazımlar: ' + k.takmaAdlar.join(', ')}
+                >
+                  +{k.takmaAdlar.length} yazım
+                </span>
+              )}
               {k.belgeAdi && (
                 <a
                   href={k.belgeUrl}
@@ -7450,7 +7971,14 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
               {!isStudent && (
                 <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                   <button
-                    onClick={() => setDuzenlenen({ ...k, satirlar: (k.satirlar || []).slice() })}
+                    onClick={() =>
+                      setDuzenlenen({
+                        ...k,
+                        satirlar: (k.satirlar || []).slice(),
+                        bolumeOzel: !!String(k.departmentId || '').trim(),
+                        takmaAdlarMetni: (k.takmaAdlar || []).join(', '),
+                      })
+                    }
                     style={{ ...dugme(DS.blue || '#2563EB'), padding: '5px 12px', fontSize: 12 }}
                   >
                     Düzenle
@@ -7498,6 +8026,118 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
               sorun değil.
             </div>
           </div>
+
+          {!duzenlenen.kendi && (
+            <>
+              {/* ── Takma adlar ──
+                  Aynı kurum belgeden belgeye farklı yazılıyor. Bulanık
+                  eşleştirme bunların bir kısmını yakalıyor ama hepsini değil;
+                  burada bir kez yazılan yazım kalıcı cevaptır. */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: DS.textMuted }}>
+                  Kurumun diğer yazımları (isteğe bağlı)
+                  <br />
+                  <input
+                    value={duzenlenen.takmaAdlarMetni || ''}
+                    onChange={(e) =>
+                      setDuzenlenen({ ...duzenlenen, takmaAdlarMetni: e.target.value })
+                    }
+                    placeholder="Uludağ Üniversitesi, B.U.Ü."
+                    style={{
+                      width: '100%',
+                      maxWidth: 380,
+                      padding: '8px 11px',
+                      borderRadius: 8,
+                      border: '1px solid ' + DS.border,
+                      fontSize: 13,
+                      fontFamily: 'inherit',
+                      marginTop: 4,
+                    }}
+                  />
+                </label>
+                <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 4 }}>
+                  Virgülle ayırın. Belgede bu adlardan biri geçtiğinde de bu tablo kullanılır.
+                </div>
+              </div>
+
+              {/* ── Kapsam ── */}
+              <div style={{ marginBottom: 12 }}>
+                <label
+                  style={{
+                    fontSize: 12.5,
+                    color: DS.navy,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!duzenlenen.bolumeOzel}
+                    onChange={(e) => setDuzenlenen({ ...duzenlenen, bolumeOzel: e.target.checked })}
+                  />
+                  Yalnız bölümüme özel olsun
+                </label>
+                <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 4, lineHeight: 1.5 }}>
+                  {duzenlenen.bolumeOzel
+                    ? 'Bu tablo yalnız sizin bölümünüzde geçerli olur ve aynı kurumun ortak tablosundan üstün tutulur.'
+                    : 'Tablo üniversite geneli havuza girer; tüm bölümler kullanır. Kurumla özel bir protokolünüz yoksa bunu işaretlemeyin.'}
+                </div>
+              </div>
+
+              {/* ── Hazır ölçekten başla ──
+                  Kurumların çoğu YÖK standardını kullanıyor; tabloyu elle
+                  yazmak yerine şablon seçilir, gerekirse düzeltilir. */}
+              <div
+                style={{
+                  paddingTop: 12,
+                  borderTop: '1px dashed ' + DS.borderLight,
+                  marginBottom: 12,
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 700, color: DS.navy, marginBottom: 5 }}>
+                  Hazır ölçekten başla
+                </div>
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    if (!id) return;
+                    setDuzenlenen((p) => ({
+                      ...p,
+                      satirlar: window.hazirOlcekSatirlari
+                        ? window.hazirOlcekSatirlari(id)
+                        : p.satirlar,
+                      kaynak: 'hazir:' + id,
+                    }));
+                    e.target.value = '';
+                  }}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: 8,
+                    border: '1px solid ' + DS.border,
+                    fontSize: 12.5,
+                    fontFamily: 'inherit',
+                    width: '100%',
+                    maxWidth: 380,
+                  }}
+                >
+                  <option value="">Şablon seçin…</option>
+                  {(window.hazirOlcekSecenekleri ? window.hazirOlcekSecenekleri() : []).map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.ad}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 5, lineHeight: 1.5 }}>
+                  Şablon satırları aşağıya yazılır ve düzenlenebilir. Puan aralıkları bilinçli
+                  olarak boştur: aralık kurumdan kuruma değişir, uydurulmuş aralık yanlış harf
+                  üretir.
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Tablo belgesi → satırlar */}
           <div
@@ -7620,6 +8260,105 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// AYARLAR SEKMESİ
+//
+// Sekme iki ayrı işi ALT ALTA yığıyordu: karşı kurumların not tabloları ve
+// eşleştirme eşikleri. İkisi de uzun, ikisi de kendi içinde form; sayfa
+// açıldığında hangisinin nerede bittiği görünmüyordu. Artık bölüm seçilir,
+// yalnız o bölüm çizilir.
+//
+// Bölümler BİLİNÇLİ olarak azdır. "Her ayarı tek yere topla" (taban puanlar,
+// şablonlar…) çekici görünüyor ama o veriler başka modüllerin sahipliğinde:
+// taban puan tablosu Yatay/Dikey Geçiş'in referansı, şablonlar Şablonlar
+// modülünün. Onları buraya kopyalamak iki sahipli veri üretirdi. Burada
+// yalnız BU modülün kendi ayarları durur; ötekilere yol gösterilir.
+// ══════════════════════════════════════════════════════════════
+const AYAR_BOLUMLERI = [
+  {
+    id: 'olcek',
+    baslik: 'Not Ölçekleri',
+    ozet: 'Karşı kurumların harf–katsayı tabloları. Üniversite geneli ortak havuz.',
+  },
+  {
+    id: 'esik',
+    baslik: 'Eşleştirme Eşikleri',
+    ozet: 'İçerik benzerliğinin hangi orandan sonra muafiyet/inceleme sayılacağı.',
+  },
+];
+
+function AyarlarSekmesi({ currentUser, records, thresholds, onSaveThresholds }) {
+  const [bolum, setBolum] = useState('olcek');
+  const secili = AYAR_BOLUMLERI.find((b) => b.id === bolum) || AYAR_BOLUMLERI[0];
+
+  return (
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          flexWrap: 'wrap',
+          borderBottom: '1px solid ' + DS.border,
+          paddingBottom: 10,
+          marginBottom: 4,
+        }}
+      >
+        {AYAR_BOLUMLERI.map((b) => {
+          const aktif = b.id === secili.id;
+          return (
+            <button
+              key={b.id}
+              onClick={() => setBolum(b.id)}
+              style={{
+                padding: '8px 15px',
+                borderRadius: 999,
+                border: '1px solid ' + (aktif ? DS.navy : DS.border),
+                background: aktif ? DS.navy : '#fff',
+                color: aktif ? '#fff' : DS.textSecondary,
+                fontSize: 12.5,
+                fontWeight: 600,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              {b.baslik}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 12, color: DS.textMuted, margin: '10px 0 18px', lineHeight: 1.55 }}>
+        {secili.ozet}
+      </div>
+
+      {secili.id === 'olcek' && <NotOlcekleriPanel currentUser={currentUser} isStudent={false} />}
+      {secili.id === 'esik' && (
+        <CalibrationPanel
+          records={records}
+          thresholds={thresholds}
+          onSaveThresholds={onSaveThresholds}
+        />
+      )}
+
+      {/* Bu modülde OLMAYAN ama aranan ayarlar: nerede olduklarını söyle,
+          kopyasını buraya taşıma. */}
+      <div
+        style={{
+          marginTop: 30,
+          paddingTop: 14,
+          borderTop: '1px dashed ' + DS.border,
+          fontSize: 11.5,
+          color: DS.textMuted,
+          lineHeight: 1.6,
+        }}
+      >
+        Burada bulamadıklarınız: belge şablonları <b>Şablonlar</b> modülünde, taban puan tabloları{' '}
+        <b>Taban Puanlar</b> modülünde, ÇAKÜ’nün kendi ders geçme ölçeği ise bölümün{' '}
+        <b>mezuniyet kurallarında</b> (yukarıdaki “ÇAKÜ ders notu tablosu” kartından düzenlenir).
+      </div>
     </div>
   );
 }
@@ -8806,19 +9545,17 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         )}
 
         {/* Tab İçeriği */}
-        {/* Ayarlar: yalnızca eşik kalibrasyonu (katalog/not tablosu yükleme kaldırıldı) */}
+        {/* Ayarlar: bölümlere ayrılmış (not ölçekleri · eşleştirme eşikleri).
+            İçerik Ders Muafiyet ve Yaz Okulu sekmelerinde AYNIDIR: ikisi de
+            aynı modülün sekmeleri ve çeviri kuralı ortak — tabloyu bir kez
+            eklemek yeter. */}
         {activeTab === 'ayarlar' && !isStudent && (
-          <>
-            {/* Not ölçekleri hem Ders Muafiyet hem Yaz Okulu altında görünür:
-                ikisi de aynı modülün sekmeleri ve çeviri kuralı ortak. */}
-            <NotOlcekleriPanel currentUser={currentUser} isStudent={false} />
-            <div style={{ height: 26 }} />
-            <CalibrationPanel
-              records={turRecords}
-              thresholds={thresholds}
-              onSaveThresholds={handleSaveThresholds}
-            />
-          </>
+          <AyarlarSekmesi
+            currentUser={currentUser}
+            records={turRecords}
+            thresholds={thresholds}
+            onSaveThresholds={handleSaveThresholds}
+          />
         )}
         {/* Yeni Muafiyet: yalnızca öğrenci oluşturur; akademisyen onaylar */}
         {activeTab === 'aday' && !isStudent && (
