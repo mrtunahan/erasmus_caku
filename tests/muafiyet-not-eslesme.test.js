@@ -23,25 +23,45 @@ const KARSI = [
   { harf: 'FF', katsayi: '0.00' },
 ];
 
-describe('dersNotunuCevir — puan önceliklidir', () => {
-  it('yüzlük puan doğrudan ÇAKÜ ölçeğinden çevrilir (karşı tabloya gerek yok)', () => {
-    const r = dersNotunuCevir({ gradePuan: '78', gradeHarf: 'BB' }, [], CAKU);
-    expect(r.harf).toBe('B3');
-    expect(r.kaynak).toBe('puan');
-  });
-
-  it('puan aralık dışındaysa ve harf varsa harf yolu denenir', () => {
-    const r = dersNotunuCevir({ gradePuan: '55', gradeHarf: 'BB' }, KARSI, CAKU);
-    // 55 hiçbir aralığa girmiyor (49–60 arası boşluk) → harften çevrildi
-    expect(r.harf).toBe('B3');
-    expect(r.kaynak).toBe('harf');
-  });
-
-  it('puan yoksa harf katsayı üzerinden çevrilir', () => {
-    const r = dersNotunuCevir({ gradeHarf: 'BB' }, KARSI, CAKU);
+describe('dersNotunuCevir — zincir: harf → katsayı → harf', () => {
+  it('harf, KARŞI KURUMUN katsayısı üzerinden çevrilir', () => {
+    // Uludağ'da BB = 3.00; ÇAKÜ'de 3.00 = B3.
+    const r = dersNotunuCevir({ gradeHarf: 'BB' }, KARSI, CAKU, 'Bursa Uludağ Üniversitesi');
     expect(r.harf).toBe('B3');
     expect(r.kaynak).toBe('harf');
     expect(r.karsiKatsayi).toBe(3);
+    expect(r.sebep).toContain('Bursa Uludağ Üniversitesi ölçeğinde "BB" = katsayı 3');
+  });
+
+  it('HARF VARKEN yüzlük puana BAKILMAZ', () => {
+    // Transkriptten okunan "puan" güvenilir değil: kredi/AKTS sütunu puan
+    // sanılabiliyor ve o sayı ÇAKÜ'nün 0-49 aralığına düşüp her dersi F
+    // yapıyordu. Harf varsa karar harfindir.
+    const r = dersNotunuCevir({ gradeHarf: 'BB', gradePuan: '6' }, KARSI, CAKU);
+    expect(r.harf).toBe('B3');
+    expect(r.kaynak).toBe('harf');
+  });
+
+  it('gerçek yüzlük puan da harfi ezmez', () => {
+    // 78 tek başına ÇAKÜ'de B3'e denk gelir; sonuç aynı olsa da yol harftir.
+    const r = dersNotunuCevir({ gradeHarf: 'AA', gradePuan: '78' }, KARSI, CAKU);
+    expect(r.harf).toBe('A');
+    expect(r.kaynak).toBe('harf');
+  });
+
+  it('belgede harf yoksa yüzlük puan kullanılır', () => {
+    const r = dersNotunuCevir({ gradePuan: '92' }, KARSI, CAKU);
+    expect(r.harf).toBe('A');
+    expect(r.kaynak).toBe('puan');
+    expect(r.sebep).toMatch(/harf notu yok/);
+  });
+
+  it('harf çevrilemezse puan SON ÇARE olarak denenir ve uyarı verilir', () => {
+    // Karşı kurumun tablosunda olmayan bir harf
+    const r = dersNotunuCevir({ gradeHarf: 'XX', gradePuan: '92' }, KARSI, CAKU);
+    expect(r.harf).toBe('A');
+    expect(r.kaynak).toBe('puan');
+    expect(r.sebep).toMatch(/kontrol edin/);
   });
 
   it('karşı kurumun tablosu yoksa çeviri YAPILMAZ ve sebep söylenir', () => {
@@ -62,12 +82,6 @@ describe('dersNotunuCevir — puan önceliklidir', () => {
   });
 
   it('katsayı ÇAKÜ ölçeğinde birebir yoksa AŞAĞIYA inilir, sebep yazılır', () => {
-    const r = dersNotunuCevir(
-      { gradeHarf: 'BA' },
-      KARSI.concat([{ harf: 'BA', katsayi: '3.50' }]),
-      CAKU
-    );
-    expect(r.harf).toBe('B1'); // 3.50 birebir var
     const r2 = dersNotunuCevir(
       { gradeHarf: 'DC' },
       KARSI.concat([{ harf: 'DC', katsayi: '1.50' }]),
@@ -98,6 +112,8 @@ describe('notEslemeTaslagi', () => {
     );
     expect(t.map((r) => r.cakuNot)).toEqual(['B3', 'A']);
     expect(t[0].karsiNot).toBe('BB');
+    expect(t[0].kaynak).toBe('harf');
+    // İkinci derste harf yok, yalnız puan var → puan yolu
     expect(t[1].kaynak).toBe('puan');
   });
 
