@@ -73,6 +73,7 @@ import {
   eksikEslesmeSayisi,
   notEslemeTaslagi,
 } from './lib/muafiyet-not-eslesme.js';
+import { tablolariSayfayaSigdir } from './lib/docx-tablo-sigdir.js';
 import {
   dersEslestir as belgeDersEslestir,
   okunanlarOzeti as belgeOkunanlarOzeti,
@@ -3869,6 +3870,20 @@ const TemplateEngine = (() => {
         /* konsol yoksa yut */
       }
       throw new Error('Şablon çıktısında etiket dengesi bozuldu. (' + balance.reason + ')');
+    }
+
+    // ── TABLOLARI SAYFAYA SIĞDIR ──
+    // Şablonlardaki ders tabloları çoğu zaman yazım alanından geniş; üretilen
+    // belge Word'de ve yazıcıda sağdan taşıyordu. Sütunlar burada orantılı
+    // küçültülür (Word'ün "Pencereye Sığdır"ının aynısı). Sığan tabloya
+    // dokunulmaz — bkz. lib/docx-tablo-sigdir.js.
+    // Dengesi bozulmuş bir çıktı üretmemek için sonuç yeniden denetlenir;
+    // beklenmedik bir durumda sığdırmadan ÖNCEKİ hâl korunur.
+    try {
+      const sigdirilmis = tablolariSayfayaSigdir(out);
+      if (sigdirilmis !== out && isTagBalanced(sigdirilmis)) out = sigdirilmis;
+    } catch (e) {
+      console.warn('[TemplateEngine] tablo sığdırma atlandı:', e && e.message);
     }
 
     zip.file('word/document.xml', out);
