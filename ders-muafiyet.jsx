@@ -6482,76 +6482,6 @@ const BirlesikPdfGrubu = ({ record, taraf, etiket, dosyaOnEki }) => {
   );
 };
 
-// ══════════════════════════════════════════════════════════════
-// BÖLÜMÜN OLUŞTURDUĞU BELGE — ÖĞRENCİ GÖRÜNÜMÜ
-//
-// Akademisyen "Belge Oluştur" dediğinde üretilen nihai belgenin snapshot'ı
-// kayda yazılıyor (`dilekceUrl`). Bu belge başvurunun sonucunu taşır; onu
-// yalnız memur listesinde tutmak, öğrenciyi kendi başvurusunun çıktısı için
-// sekreterliğe yürütüyordu.
-//
-// Öğrenci yalnız OKUR: alan `STUDENT_SELF_PROTECTED` içinde olduğu için
-// öğrencinin yazması sunucuda zaten engelli.
-// ══════════════════════════════════════════════════════════════
-const OlusanBelge = ({ record, isStudent = true }) => {
-  const url = record.dilekceUrl || '';
-  if (!url) return null;
-  // Dosya yolu her iki uçta da aynı; yalnız ön ek değişiyor.
-  const yol = String(url).replace('/api/files/download/', '');
-  const gorHref = '/api/files/view/' + yol;
-  const indirHref = '/api/files/download/' + yol + '?download=true';
-  const tarih = record.dilekceUploadedAt
-    ? new Date(record.dilekceUploadedAt).toLocaleDateString('tr-TR', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      })
-    : '';
-  const dugme = (bg, renk, kenar) => ({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '7px 15px',
-    borderRadius: 8,
-    border: kenar ? '1px solid ' + kenar : 'none',
-    background: bg,
-    color: renk,
-    fontSize: 12.5,
-    fontWeight: 600,
-    textDecoration: 'none',
-  });
-  return (
-    <div
-      style={{
-        padding: '12px 14px',
-        borderRadius: DS.radiusSm,
-        border: '1px solid ' + DS.border,
-        background: DS.bg,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        flexWrap: 'wrap',
-      }}
-    >
-      <div style={{ flex: '1 1 220px', minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: DS.navy }}>
-          {isStudent ? 'Bölümünüzün oluşturduğu belge' : 'Oluşturulan memur yazısı'}
-        </div>
-        <div style={{ fontSize: 11.5, color: DS.textSecondary, marginTop: 2 }}>
-          {record.dilekceBy ? record.dilekceBy : 'Bölüm'}
-          {tarih ? ' · ' + tarih : ''}
-        </div>
-      </div>
-      <a href={gorHref} target="_blank" rel="noreferrer" style={dugme(DS.navy, '#fff')}>
-        Görüntüle
-      </a>
-      <a href={indirHref} style={dugme('#fff', DS.navy, DS.border)}>
-        İndir
-      </a>
-    </div>
-  );
-};
-
 const BirlesikIcerikPdf = ({ record }) => {
   const karsiAd = record.otherUni || record.otherUniversity || 'Karşı kurum';
   const varMi =
@@ -7045,27 +6975,11 @@ const ExemptionHistory = ({
                 </div>
               )}
 
-              {/* ── BÖLÜMÜN OLUŞTURDUĞU BELGE ──
-                  `rec.dilekceUrl`, akademisyenin "Belge Oluştur" ile ürettiği
-                  nihai belgenin snapshot'ı. Önceden öğrenciye KAPALIYDI ve
-                  gerekçesi "bu dekanlık/memur çıktısıdır" idi. Karar
-                  değiştirildi: başvurunun sonucunu taşıyan belge başvuruyu
-                  yapanın da elinde olmalı — öğrenci belgeyi görmek için
-                  sekreterliğe gitmek zorunda kalmasın.
-                  Belge yalnız ÜRETİLDİYSE görünür ve öğrenci onu SALT OKUR:
-                  `dilekceUrl` sunucuda STUDENT_SELF_PROTECTED'a alındı (bu
-                  değişiklikle birlikte — önceden korunduğu sanılıyordu ama
-                  korunmuyordu). */}
-              {/* Kutu YALNIZ AKADEMİSYENDE. Öğrenciye kapatıldı: memur yazısı
-                  bölümün kendi resmî çıktısıdır, öğrencinin elinde işi yok ve
-                  "bölümünüzün oluşturduğu belge" başlığı öğrencide teslim
-                  edeceği evrakla karıştırılıyordu. Öğrencinin göreceği belge
-                  aşağıdaki teslim kutusunda: dilekçe, transkript, içerikler. */}
-              {!isStudent && rec.dilekceUrl && (
-                <div style={{ padding: '0 20px 12px' }}>
-                  <OlusanBelge record={rec} isStudent={false} />
-                </div>
-              )}
+              {/* Üretilen memur yazısı için ayrı bir kutu YOK. Belge zaten
+                  "Memur Yazısı" akışında önizleniyor, indiriliyor ve memura
+                  gönderiliyor; kayıt satırında ikinci kez göstermek listeyi
+                  uzatmaktan başka işe yaramıyordu. Öğrenciye de kapalı:
+                  memur yazısı bölümün kendi resmî çıktısı. */}
 
               {/* ── ÖĞRENCİ: bölüm sekreterliğine götüreceği evraklar ──
                   Öğrenci dilekçeyi ve ders içeriklerini ELDEN teslim ediyor.
