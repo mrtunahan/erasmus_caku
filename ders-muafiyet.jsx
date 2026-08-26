@@ -7739,11 +7739,14 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
         ? window.notEslemeTaslagi(
             record.matches || [],
             (karsiOlcek && karsiOlcek.satirlar) || [],
-            cakuKural || {}
+            cakuKural || {},
+            // Gerekçede kurumun ADI geçsin: "Bursa Uludağ ölçeğinde BB = 3.00"
+            // cümlesi, akademisyenin doğrulayabileceği tek cümlelik denetim.
+            (karsiOlcek && karsiOlcek.kurum) || kurum
           )
         : []
     );
-  }, [yukleniyor, karsiOlcek, cakuKural, record.matches]);
+  }, [yukleniyor, karsiOlcek, cakuKural, record.matches, kurum]);
 
   const liste = satirlar || [];
   const eksik = window.eksikEslesmeSayisi ? window.eksikEslesmeSayisi(liste) : 0;
@@ -7829,9 +7832,10 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
           <div
             style={{ fontSize: 12.5, color: DS.textSecondary, lineHeight: 1.6, marginBottom: 14 }}
           >
-            Karşılıklar sistemdeki ölçeklerden hesaplandı: <b>yüzlük puan</b> varsa doğrudan ÇAKÜ
-            ölçeğinden, yalnız <b>harf</b> varsa karşı kurumun katsayısı üzerinden. Değiştirmek
-            istediğiniz satırı elle yazabilirsiniz; belge <b>onayladığınız değerlerle</b> üretilir.
+            Karşılıklar sistemdeki ölçeklerden hesaplandı:{' '}
+            <b>karşı kurumdaki harf → o kurumdaki katsayı → ÇAKÜ’de aynı katsayının harfi</b>.
+            Belgede harf yoksa son çare olarak yüzlük puan kullanılır. Değiştirmek istediğiniz
+            satırı elle yazabilirsiniz; belge <b>onayladığınız değerlerle</b> üretilir.
           </div>
 
           {!cakuOlcekVar && (
@@ -7873,14 +7877,14 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
           ) : (
             <div style={{ border: '1px solid ' + DS.border, borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ display: 'flex', background: DS.surfaceHigh, fontWeight: 700 }}>
-                <div style={{ ...hucre, flex: 2 }}>Karşı kurum dersi</div>
-                <div style={{ ...hucre, width: 90 }}>Karşı not</div>
-                <div style={{ ...hucre, flex: 2 }}>ÇAKÜ dersi</div>
-                <div style={{ ...hucre, width: 110 }}>ÇAKÜ notu</div>
+                <div style={{ ...hucre, flex: 3 }}>Karşı kurum dersi</div>
+                <div style={{ ...hucre, width: 100, textAlign: 'center' }}>Karşı not</div>
+                <div style={{ ...hucre, flex: 3 }}>ÇAKÜ dersi</div>
+                <div style={{ ...hucre, width: 130, textAlign: 'center' }}>ÇAKÜ notu</div>
               </div>
               {liste.map((r) => (
                 <div key={r.anahtar} style={{ display: 'flex', alignItems: 'flex-start' }}>
-                  <div style={{ ...hucre, flex: 2 }}>
+                  <div style={{ ...hucre, flex: 3 }}>
                     <b style={{ color: DS.navy }}>{r.karsiKod || '—'}</b> {r.karsiAd}
                     {r.sebep && (
                       <div style={{ fontSize: 11, color: DS.textMuted, marginTop: 3 }}>
@@ -7888,11 +7892,13 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
                       </div>
                     )}
                   </div>
-                  <div style={{ ...hucre, width: 90, fontWeight: 700 }}>{r.karsiNot || '—'}</div>
-                  <div style={{ ...hucre, flex: 2 }}>
+                  <div style={{ ...hucre, width: 100, fontWeight: 700, textAlign: 'center' }}>
+                    {r.karsiNot || '—'}
+                  </div>
+                  <div style={{ ...hucre, flex: 3 }}>
                     <b style={{ color: DS.navy }}>{r.cakuKod || '—'}</b> {r.cakuAd}
                   </div>
-                  <div style={{ ...hucre, width: 110 }}>
+                  <div style={{ ...hucre, width: 130 }}>
                     <input
                       value={r.cakuNot}
                       onChange={(e) => guncelle(r.anahtar, e.target.value)}
@@ -10165,7 +10171,13 @@ const AI_TRANSKRIPT_SUTUNLARI = [
   {
     id: 'puan',
     label: 'Başarı Puanı (100’lük)',
-    hint: 'dersin 100 üzerinden puanı (ör. 87). YALNIZ sayıyı yaz; harf notunu buraya yazma. Yoksa boş bırak.',
+    // Model bu sütuna KREDİ/AKTS/KATSAYI yazınca (6, 3.00, 0 gibi) o sayı
+    // ÇAKÜ ölçeğinin 0–49 aralığına düşüyor ve ders sessizce F oluyordu.
+    // Sütunun ne OLMADIĞI açıkça yazılıyor; ayrıca çeviri artık harf
+    // önceliklidir (bkz. lib/muafiyet-not-eslesme.js).
+    hint:
+      'dersin 100 üzerinden başarı puanı (ör. 87). YALNIZ bu sütunu yaz: kredi, AKTS, ' +
+      'katsayı (4’lük ortalama) ve harf notu buraya YAZILMAZ. Belgede 100’lük puan yoksa boş bırak.',
   },
 ];
 
