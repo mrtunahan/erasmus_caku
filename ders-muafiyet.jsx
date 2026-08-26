@@ -7056,9 +7056,14 @@ const ExemptionHistory = ({
                   `dilekceUrl` sunucuda STUDENT_SELF_PROTECTED'a alındı (bu
                   değişiklikle birlikte — önceden korunduğu sanılıyordu ama
                   korunmuyordu). */}
-              {rec.dilekceUrl && (
+              {/* Kutu YALNIZ AKADEMİSYENDE. Öğrenciye kapatıldı: memur yazısı
+                  bölümün kendi resmî çıktısıdır, öğrencinin elinde işi yok ve
+                  "bölümünüzün oluşturduğu belge" başlığı öğrencide teslim
+                  edeceği evrakla karıştırılıyordu. Öğrencinin göreceği belge
+                  aşağıdaki teslim kutusunda: dilekçe, transkript, içerikler. */}
+              {!isStudent && rec.dilekceUrl && (
                 <div style={{ padding: '0 20px 12px' }}>
-                  <OlusanBelge record={rec} isStudent={isStudent} />
+                  <OlusanBelge record={rec} isStudent={false} />
                 </div>
               )}
 
@@ -7095,12 +7100,17 @@ const ExemptionHistory = ({
                       </>
                     ) : (
                       <>
-                        Muafiyet dilekçesini indirip <b>imzalayın</b>, ders içerikleriyle birlikte
-                        bölüm sekreterliğine teslim edin.
+                        Muafiyet dilekçesini indirip <b>imzalayın</b>; <b>transkriptiniz</b> ve ders
+                        içerikleriyle birlikte bölüm sekreterliğine teslim edin.
                       </>
                     )}{' '}
                     Dilekçedeki bilgiler başvurunuzdan gelir.
                   </div>
+                  {/* ── EVRAK LİSTESİ ──
+                      Dilekçe tek başına yetmiyor; transkript de elden isteniyor
+                      ve öğrenci onu sisteme yüklediği için "verdim" sanıp
+                      çıktısını almayı unutuyordu. Sisteme yüklediği nüsha
+                      burada indirilebilir olsun. */}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button
                       onClick={function () {
@@ -7120,7 +7130,60 @@ const ExemptionHistory = ({
                     >
                       Dilekçeyi İndir
                     </button>
+                    {(rec.basvuruTuru || 'muafiyet') !== 'intibak' &&
+                      (rec.transcriptUrl ? (
+                        <a
+                          href={
+                            '/api/files/download/' +
+                            String(rec.transcriptUrl).replace('/api/files/download/', '') +
+                            '?download=true'
+                          }
+                          style={{
+                            padding: '8px 16px',
+                            borderRadius: 8,
+                            border: '1px solid ' + DS.border,
+                            background: '#fff',
+                            color: DS.navy,
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            textDecoration: 'none',
+                          }}
+                        >
+                          Transkripti İndir
+                        </a>
+                      ) : (
+                        <span
+                          style={{
+                            padding: '8px 16px',
+                            borderRadius: 8,
+                            border: '1px dashed #FCD34D',
+                            background: DS.amberLight,
+                            color: '#92400E',
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}
+                        >
+                          Transkript yüklenmemiş
+                        </span>
+                      ))}
                   </div>
+                  {(rec.basvuruTuru || 'muafiyet') !== 'intibak' && (
+                    <ul
+                      style={{
+                        margin: 0,
+                        paddingLeft: 18,
+                        fontSize: 11.5,
+                        color: DS.textSecondary,
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      <li>İmzalı muafiyet dilekçesi</li>
+                      <li>
+                        <b>Transkript</b> (e-Devlet karekodlu çıktı)
+                      </li>
+                      <li>Karşı kurum ve ÇAKÜ ders içerikleri</li>
+                    </ul>
+                  )}
                   {/* Muafiyette birleşik içerik PDF'i yukarıda ayrı kutuda
                       zaten var; burada tekrarlanmasın. */}
                   {(rec.basvuruTuru || 'muafiyet') === 'intibak' && (
@@ -7608,6 +7671,287 @@ function OlcekEksikPaneli({ kurum, belgeUrl, departmentId, currentUser, kayitlar
           {mesaj && <div style={{ fontSize: 12, color: DS.navy }}>{mesaj}</div>}
         </div>
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// NOT EŞLEMESİ ONAYI — MEMUR YAZISINDAN ÖNCEKİ SON ADIM
+//
+// Muafiyet belgesinde iki not sütunu var: karşı kurumdaki not ve ÇAKÜ
+// karşılığı. Karşılık hiç hesaplanmıyordu; akademisyen belgeyi üretiyor, ÇAKÜ
+// sütunu boş çıkıyor ve tabloyu memur elle dolduruyordu.
+//
+// Artık belge ÜRETİLMEDEN ÖNCE eşleme gösteriliyor:
+//   • karşılıklar sistemdeki ölçeklerden OTOMATİK hesaplanır
+//     (yüzlük puan → ÇAKÜ ölçeği; yalnız harf → karşı kurumun katsayısı →
+//      ÇAKÜ harfi — bkz. lib/muafiyet-not-eslesme.js)
+//   • akademisyen her satırı görür, gerekirse değiştirir
+//   • onaylayınca karşılıklar KAYDA yazılır ve belge ondan sonra üretilir
+//
+// Karşı kurumun tablosu eksikse çeviri yapılmaz; o zaman da tabloyu buradan,
+// kaydın yanından eklemenin yolu açılır (OlcekEksikPaneli).
+// ══════════════════════════════════════════════════════════════
+function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnayla }) {
+  const bolum = record.departmentId || currentUser?.departmentId || activeDepartment || '';
+  const kurum = record.otherUni || record.otherUniversity || '';
+  const [cakuKural, setCakuKural] = useState(null);
+  const [karsiOlcek, setKarsiOlcek] = useState(null);
+  const [olcekListesi, setOlcekListesi] = useState([]);
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [surum, setSurum] = useState(0);
+  const [satirlar, setSatirlar] = useState(null);
+  const [calisiyor, setCalisiyor] = useState(false);
+
+  useEffect(() => {
+    let iptal = false;
+    setYukleniyor(true);
+    Promise.all([
+      bolum
+        ? window.apiReadDoc('mezuniyet_kurallari', String(bolum)).catch(() => null)
+        : Promise.resolve(null),
+      window.apiRead.fresh(OLCEK_KOLEKSIYON).catch(() => []),
+    ])
+      .then(([kural, liste]) => {
+        if (iptal) return;
+        const d = (kural && kural.exists && kural.data) || {};
+        setCakuKural(window.mezKuralNormalize ? window.mezKuralNormalize(d) : d);
+        const hepsi = Array.isArray(liste) ? liste : [];
+        setOlcekListesi(hepsi);
+        setKarsiOlcek(
+          window.kurumOlcegiBul
+            ? window.kurumOlcegiBul(kurum, hepsi, { departmentId: bolum })
+            : null
+        );
+      })
+      .finally(() => !iptal && setYukleniyor(false));
+    return () => {
+      iptal = true;
+    };
+  }, [bolum, kurum, surum]);
+
+  // Taslak yalnız veri değişince yeniden kurulur; akademisyenin elle yazdığı
+  // değer her render'da geri alınmasın.
+  useEffect(() => {
+    if (yukleniyor) return;
+    setSatirlar(
+      window.notEslemeTaslagi
+        ? window.notEslemeTaslagi(
+            record.matches || [],
+            (karsiOlcek && karsiOlcek.satirlar) || [],
+            cakuKural || {}
+          )
+        : []
+    );
+  }, [yukleniyor, karsiOlcek, cakuKural, record.matches]);
+
+  const liste = satirlar || [];
+  const eksik = window.eksikEslesmeSayisi ? window.eksikEslesmeSayisi(liste) : 0;
+  const cakuOlcekVar = ((cakuKural && cakuKural.notOlcegi) || []).length > 0;
+  // Harf notu olup çevrilemeyen ders varsa karşı kurumun tablosu eksik demektir.
+  const harfliCevrilemeyen = liste.filter((r) => r.karsiNot && !r.cakuNot).length;
+
+  const guncelle = (anahtar, deger) =>
+    setSatirlar((p) =>
+      (p || []).map((r) =>
+        r.anahtar === anahtar
+          ? { ...r, cakuNot: String(deger || '').toLocaleUpperCase('tr-TR'), elleGirilmis: true }
+          : r
+      )
+    );
+
+  const onayla = async () => {
+    setCalisiyor(true);
+    try {
+      await onOnayla(liste);
+    } finally {
+      setCalisiyor(false);
+    }
+  };
+
+  const dugme = (bg, renk, kenar) => ({
+    padding: '9px 18px',
+    borderRadius: 9,
+    border: kenar ? '1px solid ' + kenar : 'none',
+    background: bg,
+    color: renk,
+    fontSize: 13,
+    fontWeight: 700,
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+  });
+  // box-sizing açıkça verilir: sabit genişlikli sütuna dolgu eklenince
+  // hücreler tabloyu taşırıyor ve son sütun kenarın dışına çıkıyordu.
+  const hucre = {
+    padding: '8px 10px',
+    fontSize: 12.5,
+    borderBottom: '1px solid ' + DS.border,
+    boxSizing: 'border-box',
+    minWidth: 0,
+  };
+
+  return (
+    <div
+      onClick={onIptal}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.55)',
+        zIndex: 1200,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 14,
+          width: 'min(960px, 100%)',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid ' + DS.border }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: DS.navy }}>
+            Not Eşlemesini Onaylayın
+          </div>
+          <div style={{ fontSize: 12, color: DS.textMuted, marginTop: 3 }}>
+            {record.studentName} · {record.studentNo} · {kurum || 'karşı kurum'}
+          </div>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+          <div
+            style={{ fontSize: 12.5, color: DS.textSecondary, lineHeight: 1.6, marginBottom: 14 }}
+          >
+            Karşılıklar sistemdeki ölçeklerden hesaplandı: <b>yüzlük puan</b> varsa doğrudan ÇAKÜ
+            ölçeğinden, yalnız <b>harf</b> varsa karşı kurumun katsayısı üzerinden. Değiştirmek
+            istediğiniz satırı elle yazabilirsiniz; belge <b>onayladığınız değerlerle</b> üretilir.
+          </div>
+
+          {!cakuOlcekVar && (
+            <div
+              style={{
+                padding: '10px 13px',
+                borderRadius: 9,
+                background: DS.amberLight,
+                border: '1px solid #FCD34D',
+                color: '#92400E',
+                fontSize: 12.5,
+                marginBottom: 12,
+              }}
+            >
+              Bölümünüzün ÇAKÜ ders geçme ölçeği tanımlı değil — Ayarlar → Not Ölçekleri’nden
+              yükleyin, yoksa karşılıklar hesaplanamaz.
+            </div>
+          )}
+
+          {!yukleniyor && kurum && !karsiOlcek && harfliCevrilemeyen > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <OlcekEksikPaneli
+                kurum={kurum}
+                belgeUrl={record.transcriptUrl || record.basariBelgesiUrl || ''}
+                departmentId={bolum}
+                currentUser={currentUser}
+                kayitlar={olcekListesi}
+                onKaydedildi={() => setSurum((v) => v + 1)}
+              />
+            </div>
+          )}
+
+          {yukleniyor ? (
+            <div style={{ fontSize: 12.5, color: DS.textMuted }}>Ölçekler yükleniyor…</div>
+          ) : liste.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: DS.textMuted }}>
+              Bu kayıtta belgeye girecek ders yok.
+            </div>
+          ) : (
+            <div style={{ border: '1px solid ' + DS.border, borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', background: DS.surfaceHigh, fontWeight: 700 }}>
+                <div style={{ ...hucre, flex: 2 }}>Karşı kurum dersi</div>
+                <div style={{ ...hucre, width: 90 }}>Karşı not</div>
+                <div style={{ ...hucre, flex: 2 }}>ÇAKÜ dersi</div>
+                <div style={{ ...hucre, width: 110 }}>ÇAKÜ notu</div>
+              </div>
+              {liste.map((r) => (
+                <div key={r.anahtar} style={{ display: 'flex', alignItems: 'flex-start' }}>
+                  <div style={{ ...hucre, flex: 2 }}>
+                    <b style={{ color: DS.navy }}>{r.karsiKod || '—'}</b> {r.karsiAd}
+                    {r.sebep && (
+                      <div style={{ fontSize: 11, color: DS.textMuted, marginTop: 3 }}>
+                        {r.sebep}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ ...hucre, width: 90, fontWeight: 700 }}>{r.karsiNot || '—'}</div>
+                  <div style={{ ...hucre, flex: 2 }}>
+                    <b style={{ color: DS.navy }}>{r.cakuKod || '—'}</b> {r.cakuAd}
+                  </div>
+                  <div style={{ ...hucre, width: 110 }}>
+                    <input
+                      value={r.cakuNot}
+                      onChange={(e) => guncelle(r.anahtar, e.target.value)}
+                      placeholder="—"
+                      style={{
+                        width: '100%',
+                        padding: '5px 8px',
+                        borderRadius: 6,
+                        border: '1px solid ' + (r.cakuNot ? DS.border : '#FCA5A5'),
+                        background: r.cakuNot ? '#fff' : '#FEF2F2',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        textAlign: 'center',
+                        fontFamily: 'inherit',
+                      }}
+                    />
+                    {r.elleGirilmis && r.onerilen && r.onerilen !== r.cakuNot && (
+                      <div style={{ fontSize: 10.5, color: DS.textMuted, marginTop: 3 }}>
+                        öneri: {r.onerilen}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div
+          style={{
+            padding: '12px 18px',
+            borderTop: '1px solid ' + DS.border,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            background: '#FAFAFA',
+          }}
+        >
+          <span style={{ fontSize: 12, color: eksik ? '#B45309' : DS.textMuted, flex: 1 }}>
+            {eksik
+              ? eksik + ' derste ÇAKÜ karşılığı boş — belgede o satırlar boş çıkar.'
+              : liste.length + ' dersin karşılığı hazır.'}
+          </span>
+          <button onClick={onIptal} style={dugme('#fff', DS.textSecondary, DS.border)}>
+            Vazgeç
+          </button>
+          <button
+            onClick={onayla}
+            disabled={calisiyor || yukleniyor || liste.length === 0}
+            style={{
+              ...dugme(DS.navy, '#fff'),
+              opacity: calisiyor || yukleniyor || liste.length === 0 ? 0.55 : 1,
+            }}
+          >
+            {calisiyor ? 'Belge hazırlanıyor…' : 'Onayla ve Belgeyi Oluştur'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -9006,6 +9350,8 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
   // Üretilen belgenin önizlemesi: { blob, filename, baslik, belge }
   // Belge önce görüntülenir; kullanıcı sonra "İndir" veya "Gönder" der.
   const [onizleme, setOnizleme] = useState(null);
+  // Memur yazısından ÖNCE not eşlemesi onayı (yalnız ders muafiyetinde).
+  const [notEsleme, setNotEsleme] = useState(null);
   const [thresholds, setThresholds] = useState({
     autoApprove: CALIBRATION.autoApprove,
     review: CALIBRATION.review,
@@ -9149,6 +9495,15 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
       // aynı şablonu paylaşmaz — yetkili ikisini Şablonlar modülünden ayrı
       // ayrı eşler.
       const kayitTuru = rec.basvuruTuru || 'muafiyet';
+      // ── MEMUR YAZISI: ÖNCE NOT EŞLEMESİ ──
+      // Belgedeki ÇAKÜ not sütunu, karşı kurumun notunun çevrilmiş hâlidir ve
+      // bu çeviriyi ONAYLAYAN akademisyendir. Onaysız üretilen belge ya boş
+      // sütunla ya da kimsenin bakmadığı bir değerle memura gidiyordu.
+      // Yaz intibakında bu adım zaten kendi fazında var (belge_teslim).
+      if (!dilekceModu && kayitTuru === 'muafiyet' && amac !== 'onayli') {
+        setNotEsleme(rec);
+        return;
+      }
       const docType = dilekceModu ? DILEKCE_TURU[kayitTuru] || DILEKCE_TURU.muafiyet : kayitTuru;
       // Yaz intibakı çok aşamalıdır ve başarı notları ancak 2. adımda girilir.
       // NİHAİ belge süreç bitmeden üretilirse {{karşı_başarı_notu}} /
@@ -9710,6 +10065,55 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
           />
         )}
       </div>
+
+      {/* Not eşlemesi onayı — memur yazısı ÜRETİLMEDEN önce. Onaylanan
+          karşılıklar kayda yazılır, belge ondan sonra üretilir. */}
+      {notEsleme && (
+        <NotEslemeOnayi
+          record={notEsleme}
+          currentUser={currentUser}
+          activeDepartment={activeDepartment}
+          onIptal={function () {
+            setNotEsleme(null);
+          }}
+          onOnayla={async function (satirlar) {
+            const rec = notEsleme;
+            const harita = {};
+            (satirlar || []).forEach(function (r) {
+              harita[String(r.anahtar)] = String(r.cakuNot || '').trim();
+            });
+            // Karşılıklar eşleştirmelerin İÇİNE yazılır: belge üretimi
+            // `convertedGrade` okuyor ve kayıt bir daha açıldığında onaylanan
+            // değer yerinde duruyor.
+            const yeniMatches = (rec.matches || []).map(function (m, i) {
+              const a = String(m && m.id != null ? m.id : i);
+              return a in harita ? Object.assign({}, m, { convertedGrade: harita[a] }) : m;
+            });
+            const yama = {
+              matches: yeniMatches,
+              notEslemeOnayi: {
+                onaylayan: currentUser?.name || currentUser?.identifier || '',
+                tarih: new Date().toISOString(),
+              },
+              updatedAt: new Date().toISOString(),
+            };
+            try {
+              await window.DBWrite.update('muafiyet_records', String(rec.id), yama);
+            } catch (e) {
+              alert('Not eşlemesi kaydedilemedi: ' + (e.message || ''));
+              return;
+            }
+            const guncel = Object.assign({}, rec, yama);
+            setRecords(function (prev) {
+              return prev.map(function (r) {
+                return r.id === rec.id ? guncel : r;
+              });
+            });
+            setNotEsleme(null);
+            await handleGenerateDoc(guncel, 'onayli');
+          }}
+        />
+      )}
 
       {/* Belge önizleme — üretilen belge önce görüntülenir, sonra indirilir
           veya bir göreve gönderilir. */}

@@ -69,6 +69,11 @@ import {
 } from './lib/karsi-olcek.js';
 import { hazirOlcekBul, hazirOlcekSatirlari, hazirOlcekSecenekleri } from './lib/hazir-olcekler.js';
 import {
+  dersNotunuCevir,
+  eksikEslesmeSayisi,
+  notEslemeTaslagi,
+} from './lib/muafiyet-not-eslesme.js';
+import {
   dersEslestir as belgeDersEslestir,
   okunanlarOzeti as belgeOkunanlarOzeti,
   notKaynagi as belgeNotKaynagi,
@@ -1161,9 +1166,19 @@ function fitDocxPreview(container) {
   if (!wrap || !page) return;
   wrap.style.zoom = '';
   wrap.style.padding = '0';
-  const pageW = page.offsetWidth;
+  // ── ÖLÇEK SAYFAYA DEĞİL, İÇERİĞE GÖRE ──
+  // Ölçek yalnız sayfa genişliğine bakıyordu. Şablondaki tablo sayfanın yazım
+  // alanından genişse (muafiyet belgelerindeki iki yanlı ders tablosu çoğu
+  // zaman öyle) tablo sayfanın dışına taşıyor ve kaptaki `overflow-x: hidden`
+  // son sütunu kırpıyordu — önizlemede "kayma" görünen şey buydu. Taşan
+  // içeriğin gerçek genişliği ölçülür.
+  const icerikW = Math.max(
+    page.offsetWidth,
+    page.scrollWidth,
+    ...Array.from(page.querySelectorAll('table')).map((t) => t.scrollWidth || 0)
+  );
   const availW = container.clientWidth;
-  if (pageW && availW && pageW > availW) wrap.style.zoom = (availW / pageW).toFixed(3);
+  if (icerikW && availW && icerikW > availW) wrap.style.zoom = (availW / icerikW).toFixed(3);
 }
 window.fitDocxPreview = fitDocxPreview;
 
@@ -1295,7 +1310,9 @@ function BelgeOnizlemeModal({
           style={{
             flex: 1,
             overflowY: 'auto',
-            overflowX: 'hidden',
+            // Ölçekleme yetmezse (çok geniş tablo) kırpmak yerine kaydırılsın:
+            // görünmeyen bir sütun, yanlış görünen bir sütundan beterdir.
+            overflowX: 'auto',
             background: '#F3F4F6',
             padding: 16,
           }}
@@ -13729,6 +13746,11 @@ window.olcekKapsami = olcekKapsami;
 window.hazirOlcekSecenekleri = hazirOlcekSecenekleri;
 window.hazirOlcekSatirlari = hazirOlcekSatirlari;
 window.hazirOlcekBul = hazirOlcekBul;
+// Muafiyette karşı not → ÇAKÜ harfi çevirisi (bkz. lib/muafiyet-not-eslesme.js).
+// Hesaplanan değer ÖNERİDİR; kaydedilen, akademisyenin onayladığıdır.
+window.dersNotunuCevir = dersNotunuCevir;
+window.notEslemeTaslagi = notEslemeTaslagi;
+window.eksikEslesmeSayisi = eksikEslesmeSayisi;
 window.belgeHarfNormalize = belgeHarfNormalize;
 
 // Topluluk akışı ekleri: görsel/video yerinde önizlenir, gerisi bağlantı.
