@@ -2871,8 +2871,15 @@ const DERSPROGRAMI_ROWS = [
 window.TEMPLATE_VARS = {
   muafiyet: {
     docTypes: [
-      { id: 'muafiyet', label: 'Ders Muafiyet İsteği' },
-      { id: 'intibak', label: 'Yaz Dönemi Ders İntibak İsteği' },
+      // ── İKİ AYRI BELGE, İKİ AYRI OKUYUCU ──
+      // Aşağıdaki iki tür AKADEMİSYENİN ürettiği ve MEMURA giden resmî
+      // yazılardır (bkz. BELGE_OTO_KURALLAR: 'muafiyet:muafiyet' → memur):
+      // başvurunun sonucunu, onaylanan dersleri ve not karşılıklarını taşır.
+      // Öğrencinin imzalayıp bölüm sekreterliğine verdiği DİLEKÇE ayrı
+      // türdür (…_dilekce) ve not içermez. Etiketler hangisinin kime
+      // gittiğini söylüyor: yetkili şablonu yanlış türe eşlemesin.
+      { id: 'muafiyet', label: 'Ders Muafiyet Yazısı (memura gider)' },
+      { id: 'intibak', label: 'Yaz Dönemi Ders İntibak Yazısı (memura gider)' },
       // ÖĞRENCİNİN indirdiği başvuru dilekçesi — 'intibak' ile AYNI DEĞİLDİR.
       // 'intibak' akademisyenin ürettiği, başarı notlarının işlendiği NİHAİ
       // belgedir; bu ise öğrencinin süreç başında bölüm sekreterliğine

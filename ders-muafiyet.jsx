@@ -6476,7 +6476,7 @@ const BirlesikPdfGrubu = ({ record, taraf, etiket, dosyaOnEki }) => {
 // Öğrenci yalnız OKUR: alan `STUDENT_SELF_PROTECTED` içinde olduğu için
 // öğrencinin yazması sunucuda zaten engelli.
 // ══════════════════════════════════════════════════════════════
-const OlusanBelge = ({ record }) => {
+const OlusanBelge = ({ record, isStudent = true }) => {
   const url = record.dilekceUrl || '';
   if (!url) return null;
   // Dosya yolu her iki uçta da aynı; yalnız ön ek değişiyor.
@@ -6518,7 +6518,7 @@ const OlusanBelge = ({ record }) => {
     >
       <div style={{ flex: '1 1 220px', minWidth: 0 }}>
         <div style={{ fontSize: 12.5, fontWeight: 700, color: DS.navy }}>
-          Bölümünüzün oluşturduğu belge
+          {isStudent ? 'Bölümünüzün oluşturduğu belge' : 'Oluşturulan memur yazısı'}
         </div>
         <div style={{ fontSize: 11.5, color: DS.textSecondary, marginTop: 2 }}>
           {record.dilekceBy ? record.dilekceBy : 'Bölüm'}
@@ -6939,6 +6939,27 @@ const ExemptionHistory = ({
                       {isExpanded ? 'Kapat' : isStudent ? 'Talebimi Gör' : 'İncele'}
                     </button>
                   )}
+                  {/* ── AKADEMİSYENİN İKİ BELGESİ ──
+                      Bir başvuruda iki ayrı çıktı var ve okuyucuları farklı:
+                        • Öğrenci dilekçesi → öğrencinin imzalayıp bölüm
+                          sekreterliğine verdiği talep. Not içermez, süreç
+                          bitmeden de üretilir. Akademisyenin de görebilmesi
+                          gerekir: "öğrenci ne imzaladı" sorusunun cevabı.
+                        • Memur yazısı → başvurunun sonucunu taşıyan resmî
+                          yazı. Önizlenir, sonra memura gönderilir.
+                      Eskiden yalnız ikincisi vardı ve adı "Belge Oluştur"du;
+                      hangi belgenin üretildiği düğmeden anlaşılmıyordu. */}
+                  {onGenerateDoc && !isStudent && (
+                    <Button
+                      small
+                      variant="ghost"
+                      onClick={function () {
+                        onGenerateDoc(rec, 'dilekce');
+                      }}
+                    >
+                      Öğrenci Dilekçesi
+                    </Button>
+                  )}
                   {onGenerateDoc &&
                     !isStudent &&
                     !(rec.basvuruTuru === 'intibak' && rec.stage !== 'tamamlandi') && (
@@ -6949,7 +6970,7 @@ const ExemptionHistory = ({
                           onGenerateDoc(rec);
                         }}
                       >
-                        Belge Oluştur
+                        Memur Yazısı
                       </Button>
                     )}
                   {/* Silme: yalnız bölüm yetkilisi (ve üstü). Hem onay
@@ -7018,9 +7039,9 @@ const ExemptionHistory = ({
                   `dilekceUrl` sunucuda STUDENT_SELF_PROTECTED'a alındı (bu
                   değişiklikle birlikte — önceden korunduğu sanılıyordu ama
                   korunmuyordu). */}
-              {isStudent && rec.dilekceUrl && (
+              {rec.dilekceUrl && (
                 <div style={{ padding: '0 20px 12px' }}>
-                  <OlusanBelge record={rec} />
+                  <OlusanBelge record={rec} isStudent={isStudent} />
                 </div>
               )}
 
@@ -9141,6 +9162,20 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
       // {{çakü_başarı_notu}} yer tutucuları öncelikle bu değerlerle dolar;
       // akademisyen ayrıca not dönüşümü girdiyse (convertedGrade) o kazanır.
       const ogrNot = rec.ogrenciNotlari || {};
+      // Ders yarıyılı: kayıtlarda 'guz'/'bahar' kodu, belgede "Güz"/"Bahar"
+      // okunur hâli beklenir. Değeri OLMAYAN derste alan boş bırakılır —
+      // başvurunun dönemini ders dönemi diye yazmak, dersin gerçekte hangi
+      // yarıyılda alındığını uydurmak olurdu.
+      const donemYaz = function (v) {
+        const t = String(v == null ? '' : v)
+          .trim()
+          .toLocaleLowerCase('tr-TR');
+        if (!t) return '';
+        if (t === 'guz' || t === 'güz') return 'Güz';
+        if (t === 'bahar') return 'Bahar';
+        if (t === 'yaz') return 'Yaz';
+        return String(v).trim();
+      };
       const rows = rowsSrc.map(function (m, i) {
         const src = m.sourceCourse || m.source || {};
         const cak = m.localCourse || m.target || {};
@@ -9152,10 +9187,12 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
           kDersKod: src.code || '',
           kDersAd: src.name || '',
           kDersAkts: kAkts ? String(kAkts) : '',
+          kDersDonem: donemYaz(src.donem || src.yariyil),
           kDersNot: src.grade || ogr.kaynakNot || '',
           cDersKod: cak.code || '',
           cDersAd: cak.name || '',
           cDersAkts: cAkts ? String(cAkts) : '',
+          cDersDonem: donemYaz(cak.donem || cak.yariyil),
           cDersNot: m.convertedGrade || cak.grade || ogr.cakuNot || '',
           cDersStatu: cak.statu || '',
           _kAkts: kAkts,
@@ -9254,12 +9291,17 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
             'Dilekçe üretilemedi: ' +
               (res.message || res.reason || 'şablon bulunamadı') +
               (eslemeSorunu
-                ? '\n\nBölüm yetkiliniz Şablonlar modülünde, Ders Muafiyet modülü altına ' +
-                  '"' +
+                ? '\n\n' +
+                  (isStudent ? 'Bölüm yetkiliniz' : 'Şablonlar modülünde') +
+                  ' Ders Muafiyet modülü altına "' +
                   (DILEKCE_ETIKET[docType] || 'dilekçe') +
                   '" belge türüyle bir .docx ' +
-                  'yükleyip alanlarını eşlemiş olmalı.'
-                : '\n\nSorun sürerse bölüm sekreterliğine bildirin.')
+                  (isStudent
+                    ? 'yükleyip alanlarını eşlemiş olmalı.'
+                    : 'yükleyip 🧩 ile alanlarını eşleyin.')
+                : isStudent
+                  ? '\n\nSorun sürerse bölüm sekreterliğine bildirin.'
+                  : '')
           );
         }
         return;
@@ -9314,11 +9356,20 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         }
         return;
       }
+      // Şablonlar modülünde belge türü KENDİ etiketiyle listeleniyor
+      // ("Ders Muafiyet Yazısı (memura gider)"); mesajda başvuru türünün adı
+      // yazılırsa yetkili listede o adı arayıp bulamıyor.
+      const turEtiketi =
+        (
+          (window.templateDocTypes ? window.templateDocTypes('muafiyet') : []).find(
+            (x) => x.id === docType
+          ) || {}
+        ).label || turAd;
       const mesajlar = {
         'no-template':
-          turAd +
+          turEtiketi +
           ' için şablon bulunamadı.\nŞablonlar modülünden "Ders Muafiyet" modülü → "' +
-          turAd +
+          turEtiketi +
           '" belge türüne bir .docx şablonu yükleyip 🧩 ile eşleyin.',
         'not-docx': 'Atanan şablon .docx değil — belge üretimi yalnızca .docx ile çalışır.',
         'no-mapping':
@@ -10006,6 +10057,10 @@ const ManualExemptionForm = ({
         statu: course.statu || (course.sinif === 5 ? 'S' : '') || (cat && cat.status) || '',
         bolognaLink: course.bolognaLink || '',
         content: (cat && (cat.weeklyContent || cat.content)) || '',
+        // Dersin yarıyılı (Güz/Bahar) Ders Yönetimi'nde tanımlı. Belgedeki
+        // {{çakü_ders_dönemi}} yer tutucusu bugüne kadar hep boş çıkıyordu:
+        // değişken listede vardı ama hiçbir yerde doldurulmuyordu.
+        donem: course.donem || '',
       });
     };
     // 1) Bölüm dersleri — Ders Yönetimi kaynağı (AKTS + Z/S + Bologna linki)
@@ -10054,6 +10109,7 @@ const ManualExemptionForm = ({
             akts: String(opt.akts || '').replace(/\D/g, ''),
             statu: normalizeStatu(opt.statu) || r.cak.statu,
             bolognaLink: opt.bolognaLink || '',
+            donem: opt.donem || '',
             ...(hasContent
               ? {
                   content,
@@ -10366,6 +10422,7 @@ const ManualExemptionForm = ({
             name: r.cak.name,
             akts: r.cak.akts,
             statu: r.cak.statu,
+            donem: r.cak.donem || '',
             weeklyContent: r.cak.content,
             bolognaLink: r.cak.bolognaLink || '',
             fileUrl: fileUrls[i]?.cak || '',
