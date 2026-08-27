@@ -6,7 +6,7 @@ const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
 const { aramaKapsami, desenKacir, aramaAdlari } = require('../lib/ogrenci-arama');
-const { mukerrerAtlanabilirMi } = require('../lib/yazma-mukerrer');
+const { mukerrerAtlanabilirMi, mukerrerHataMi } = require('../lib/yazma-mukerrer');
 const { duyuruyaDokunabilir } = require('../lib/duyuru-sahip');
 const { auditWrites } = require('../middleware/auditLog');
 const { softAuth } = require('../middleware/softAuth');
@@ -1440,6 +1440,22 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
     return res.json({ success: true, ids: addedIds });
   } catch (error) {
     console.error('mongoWrite error:', error);
+    // BENZERSİZLİK İHLALİ ayrı anlatılır. Eskiden bu da genel "hata oluştu"
+    // metnine düşüyordu: aynı öğrenci numarasıyla ikinci kayıt açmaya çalışan
+    // yetkili, sebebi hiçbir yerde göremiyordu — kaydın zaten var olduğunu
+    // (başka bölümde ya da bölümsüz olduğu için listede görünmese bile)
+    // anlamasının yolu yoktu.
+    if (mukerrerHataMi(error)) {
+      const alan = Object.keys((error.keyPattern || error.keyValue || {}) ?? {})[0] || '';
+      const deger = alan && error.keyValue ? String(error.keyValue[alan]) : '';
+      return res.status(409).json({
+        error: alan
+          ? `Bu ${alan} değeriyle kayıt zaten var${deger ? ` (${deger})` : ''}.`
+          : 'Bu kayıt zaten var (benzersiz alan çakışması).',
+        code: 'duplicate',
+        field: alan || null,
+      });
+    }
     return res.status(500).json({ error: 'Yazma sırasında bir hata oluştu.' });
   }
 });
