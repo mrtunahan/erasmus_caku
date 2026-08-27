@@ -147,12 +147,21 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   };
 
   // ── Student Handlers ──
+  // ⚠ BÖLÜM ZORUNLU. Bu form eskiden departmentId HİÇ yazmıyordu: kaydedilen
+  // öğrenci veritabanına giriyor ama hiçbir bölümün listesine düşmüyordu
+  // (liste bölüme göre süzülür) — yetkiliye "eklendi sonra silindi" gibi
+  // görünüyordu. İkinci deneme ise studentNumber üzerindeki BENZERSİZ indekse
+  // takılıp "Kayıt sırasında hata oluştu" veriyordu. Yeni kayıt artık aktif
+  // bölümle açılır ve bölüm formda görünür/değiştirilebilir.
   const handleAddStudent = () => {
+    const deptObj = DEPARTMENTS.find((d) => d.id === activeDepartment);
     const newStudent = {
       id: String(Date.now()),
       studentNumber: '',
       firstName: '',
       lastName: '',
+      departmentId: activeDepartment || '',
+      departmentName: deptObj?.name || '',
       hostInstitution: '',
       hostCountry: '',
       semester: 'Fall 2025',
@@ -164,20 +173,100 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   };
 
   const handleSaveStudent = async (student) => {
+    const no = String(student.studentNumber || '').trim();
+    const mevcutSatir = students.find((s) => s.id === student.id);
+    // Zorunlu alan kuralı lib/ogrenci-kayit.js'te (test altında): numara ve
+    // BÖLÜM olmadan kayıt açılmaz — bölümsüz kayıt hiçbir listede görünmez.
+    const karar = window.ogrenciKayitKarari
+      ? window.ogrenciKayitKarari([], student)
+      : { durum: !no ? 'eksik_no' : !student.departmentId ? 'eksik_bolum' : 'yeni' };
+    if (!mevcutSatir && karar.durum === 'eksik_no') {
+      alert('Öğrenci numarası zorunludur.');
+      return;
+    }
+    if (!mevcutSatir && karar.durum === 'eksik_bolum') {
+      alert('Bölüm seçilmeden kayıt yapılamaz — kayıt hiçbir listede görünmezdi.');
+      return;
+    }
     setSaving(true);
     try {
-      if (students.find((s) => s.id === student.id)) {
+      if (mevcutSatir) {
         await DB.updateStudent(student.id, student);
         setStudents((prev) => prev.map((s) => (s.id === student.id ? student : s)));
       } else {
+        // ── AYNI NUMARAYLA KAYIT VAR MI? ──
+        // `students.studentNumber` BENZERSİZ indekslidir; ikinci ekleme
+        // veritabanı hatasıyla düşer. Üstelik var olan kayıt BAŞKA bölümde ya
+        // da bölümsüz olabileceği için ekrandaki listede görünmez — yetkili
+        // "kayıt yok ama eklettirmiyor" duvarına çarpar. Bu yüzden eklemeden
+        // önce TÜM öğrenciler arasında aranır ve varsa taşıma teklif edilir.
+        const hepsi = await DB.fetchStudents();
+        const ayniNo = window.ogrenciAyniNumarali
+          ? window.ogrenciAyniNumarali(hepsi, no)
+          : (hepsi || []).find((s) => String(s.studentNumber || '').trim() === no);
+        if (ayniNo) {
+          const ad = `${ayniNo.firstName || ''} ${ayniNo.lastName || ''}`.trim() || '(adsız kayıt)';
+          const mevcutBolum =
+            (DEPARTMENTS.find((d) => d.id === ayniNo.departmentId) || {}).name ||
+            (ayniNo.departmentId ? ayniNo.departmentId : 'bölümsüz');
+          const hedefBolum =
+            (DEPARTMENTS.find((d) => d.id === student.departmentId) || {}).name ||
+            student.departmentId;
+          if (
+            !confirm(
+              `${no} numarasıyla zaten bir kayıt var: ${ad} — şu an ${mevcutBolum}.\n\n` +
+                `Bu kayıt ${hedefBolum} bölümüne taşınsın ve formdaki bilgilerle ` +
+                'güncellensin mi?\n\nHayır derseniz hiçbir şey değişmez.'
+            )
+          ) {
+            setSaving(false);
+            return;
+          }
+          const sid = ayniNo.id || ayniNo._docId;
+          // Formda olmayan alanlar (ÇAP bölümleri, Erasmus eşleştirmeleri)
+          // KORUNUR — taşıma bir yeniden-oluşturma değildir.
+          const birlesik = window.ogrenciKayitBirlestir
+            ? window.ogrenciKayitBirlestir(ayniNo, student)
+            : { ...ayniNo, ...student, id: sid };
+          birlesik.id = sid;
+          await DB.updateStudent(sid, birlesik);
+          if (window.audit)
+            window.audit('student_dept_fix', 'students', sid, {
+              departmentId: student.departmentId,
+              meta: {
+                studentNumber: no,
+                oncekiBolum: ayniNo.departmentId || '(yok)',
+                yeniBolum: student.departmentId,
+              },
+            });
+          await loadData();
+          setEditingStudent(null);
+          alert('Var olan kayıt bu bölüme taşındı ve güncellendi.');
+          return;
+        }
         await DB.addStudent(student);
         setStudents((prev) => [...prev, student]);
       }
       setEditingStudent(null);
       alert('Öğrenci kaydedildi!');
     } catch (error) {
+      // Gerçek sebebi GÖSTER. Genel "hata oluştu" metni, benzersiz indeks
+      // ihlalini de yetki hatasını da aynı şekilde gizliyordu.
       console.error('Save error:', error);
-      alert('Kayıt sırasında hata oluştu.');
+      const msg = error?.message || '';
+      if (
+        msg.includes('11000') ||
+        msg.toLowerCase().includes('duplicate') ||
+        msg.includes('zaten var')
+      ) {
+        alert(
+          `${no} numarası zaten kayıtlı. Aynı numarayla ikinci kayıt açılamaz.\n\n` +
+            'Var olan kaydı bu bölüme taşımak için aynı numarayla tekrar kaydedin; ' +
+            'sistem taşıma teklif edecektir.'
+        );
+      } else {
+        alert('Kayıt sırasında hata oluştu:\n\n' + (msg || 'bilinmeyen hata'));
+      }
     } finally {
       setSaving(false);
     }
@@ -2043,6 +2132,49 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                   }
                   placeholder="9 haneli öğrenci numarası"
                 />
+              </div>
+              {/* Bölüm ZORUNLU: bölümsüz kayıt hiçbir listede görünmez ve
+                  "eklendi sonra kayboldu" gibi görünür. */}
+              <div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: C.navy,
+                    marginBottom: 6,
+                  }}
+                >
+                  Bölüm
+                </label>
+                <select
+                  value={editingStudent.departmentId || ''}
+                  onChange={(e) => {
+                    const d = DEPARTMENTS.find((x) => x.id === e.target.value);
+                    setEditingStudent({
+                      ...editingStudent,
+                      departmentId: e.target.value,
+                      departmentName: d?.name || '',
+                    });
+                  }}
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '10px 12px',
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 8,
+                    fontSize: 14,
+                    background: 'white',
+                    color: C.navy,
+                  }}
+                >
+                  <option value="">— Bölüm seçin —</option>
+                  {DEPARTMENTS.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>

@@ -221,6 +221,7 @@ import {
 import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './lib/zengin-metin.js';
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
+import { ayniNumarali, kayitBirlestir, kayitKarari } from './lib/ogrenci-kayit.js';
 import {
   ogrenciMi as capOgrenciMi,
   ekBolumler as capEkBolumler,
@@ -14163,6 +14164,10 @@ window.caprazKisitli = caprazKisitli;
 window.capSatiriMi = capSatiriMi;
 window.capBolumundenCikar = capBolumundenCikar;
 window.capSilinebilirMi = capSilinebilirMi;
+// Öğrenci kaydı ekleme kararı (bölümsüz kayıt / mükerrer numara).
+window.ogrenciAyniNumarali = ayniNumarali;
+window.ogrenciKayitBirlestir = kayitBirlestir;
+window.ogrenciKayitKarari = kayitKarari;
 // Yayın kapsamı (duyuru + anket ortak): yayımlayanın yetki alanı dışına çıkmaz.
 window.yayinKapsamCoz = yayinKapsamCoz;
 window.yayinKapsamYamasi = yayinKapsamYamasi;
