@@ -7680,6 +7680,44 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
       )
     );
 
+  // ── KARŞI NOTU AKADEMİSYEN DE GİREBİLİR ──
+  // Not normalde öğrencinin transkript okutmasıyla geliyor; öğrenci dersleri
+  // ELLE girdiyse ya da okuma o satırı bulamadıysa kayıtta not YOK ve
+  // çevrilecek bir şey de yok — memur yazısında iki not sütunu da boş
+  // çıkıyordu. Transkript akademisyenin önünde: notu buraya yazınca ÇAKÜ
+  // karşılığı tablodan anında hesaplanır ve kaydedilirken kayda da işlenir.
+  // (Bunu ÖĞRENCİ yapamaz; burası akademisyen ekranı.)
+  const karsiNotGuncelle = (anahtar, deger) =>
+    setSatirlar((p) =>
+      (p || []).map((r) => {
+        if (r.anahtar !== anahtar) return r;
+        const yeniNot = String(deger || '')
+          .trim()
+          .toLocaleUpperCase('tr-TR');
+        const cevrim = window.dersNotunuCevir
+          ? window.dersNotunuCevir(
+              // Sayı ise puan, değilse harf sayılır — çevirinin kendi kuralı.
+              { grade: yeniNot },
+              (karsiOlcek && karsiOlcek.satirlar) || [],
+              cakuKural || {},
+              (karsiOlcek && karsiOlcek.kurum) || kurum
+            )
+          : { harf: '', sebep: '' };
+        return {
+          ...r,
+          karsiNot: yeniNot,
+          karsiNotElle: true,
+          // Karşı not değişti: ÇAKÜ karşılığı yeniden hesaplanır. Elle
+          // yazılmış eski karşılığı korumak, girdisi değişmiş bir hesabın
+          // eski sonucunu göstermek olurdu.
+          cakuNot: cevrim.harf || '',
+          onerilen: cevrim.harf || '',
+          elleGirilmis: false,
+          sebep: yeniNot ? cevrim.sebep : 'Karşı kurum notu girilmedi.',
+        };
+      })
+    );
+
   const onayla = async () => {
     setCalisiyor(true);
     try {
@@ -7798,7 +7836,7 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
             <div style={{ border: '1px solid ' + DS.border, borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ display: 'flex', background: DS.surfaceHigh, fontWeight: 700 }}>
                 <div style={{ ...hucre, flex: 3 }}>Karşı kurum dersi</div>
-                <div style={{ ...hucre, width: 100, textAlign: 'center' }}>Karşı not</div>
+                <div style={{ ...hucre, width: 110, textAlign: 'center' }}>Karşı not</div>
                 <div style={{ ...hucre, flex: 3 }}>ÇAKÜ dersi</div>
                 <div style={{ ...hucre, width: 130, textAlign: 'center' }}>ÇAKÜ notu</div>
               </div>
@@ -7812,8 +7850,24 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
                       </div>
                     )}
                   </div>
-                  <div style={{ ...hucre, width: 100, fontWeight: 700, textAlign: 'center' }}>
-                    {r.karsiNot || '—'}
+                  <div style={{ ...hucre, width: 110 }}>
+                    <input
+                      value={r.karsiNot}
+                      onChange={(e) => karsiNotGuncelle(r.anahtar, e.target.value)}
+                      placeholder="—"
+                      title="Karşı kurumdaki not (transkriptten). Değiştirince ÇAKÜ karşılığı yeniden hesaplanır."
+                      style={{
+                        width: '100%',
+                        padding: '5px 8px',
+                        borderRadius: 6,
+                        border: '1px solid ' + (r.karsiNot ? DS.border : '#FCA5A5'),
+                        background: r.karsiNot ? '#fff' : '#FEF2F2',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        textAlign: 'center',
+                        fontFamily: 'inherit',
+                      }}
+                    />
                   </div>
                   <div style={{ ...hucre, flex: 3 }}>
                     <b style={{ color: DS.navy }}>{r.cakuKod || '—'}</b> {r.cakuAd}
@@ -7859,9 +7913,21 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
           }}
         >
           <span style={{ fontSize: 12, color: eksik ? '#B45309' : DS.textMuted, flex: 1 }}>
-            {eksik
-              ? eksik + ' derste ÇAKÜ karşılığı boş — belgede o satırlar boş çıkar.'
-              : liste.length + ' dersin karşılığı hazır.'}
+            {(() => {
+              if (!eksik) return liste.length + ' dersin karşılığı hazır.';
+              // Boş kalmanın İKİ sebebi var ve çözümleri farklı: karşı not hiç
+              // yoksa akademisyen transkriptten yazar; not varken karşılık
+              // çıkmıyorsa eksik olan kurumun tablosudur.
+              const notsuz = liste.filter((r) => !r.karsiNot).length;
+              const parcalar = [];
+              if (notsuz)
+                parcalar.push(notsuz + ' derste karşı kurum notu yok — "Karşı not" sütununa yazın');
+              if (eksik - notsuz)
+                parcalar.push(
+                  eksik - notsuz + ' derste karşılık hesaplanamadı (kurum tablosunu kontrol edin)'
+                );
+              return parcalar.join('; ') + '. Belgede o satırlar boş çıkar.';
+            })()}
           </span>
           <button onClick={onIptal} style={dugme('#fff', DS.textSecondary, DS.border)}>
             Vazgeç
@@ -10006,14 +10072,30 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
             const rec = notEsleme;
             const harita = {};
             (satirlar || []).forEach(function (r) {
-              harita[String(r.anahtar)] = String(r.cakuNot || '').trim();
+              harita[String(r.anahtar)] = r;
             });
             // Karşılıklar eşleştirmelerin İÇİNE yazılır: belge üretimi
             // `convertedGrade` okuyor ve kayıt bir daha açıldığında onaylanan
-            // değer yerinde duruyor.
+            // değer yerinde duruyor. Akademisyen karşı notu da girdiyse o da
+            // kayda işlenir — yoksa belgedeki "karşı başarı notu" sütunu boş
+            // kalır ve ÇAKÜ karşılığının dayanağı kayıtta görünmez.
             const yeniMatches = (rec.matches || []).map(function (m, i) {
               const a = String(m && m.id != null ? m.id : i);
-              return a in harita ? Object.assign({}, m, { convertedGrade: harita[a] }) : m;
+              const satir = harita[a];
+              if (!satir) return m;
+              const yeni = Object.assign({}, m, {
+                convertedGrade: String(satir.cakuNot || '').trim(),
+              });
+              if (satir.karsiNotElle) {
+                const not = String(satir.karsiNot || '').trim();
+                const src = Object.assign({}, m.sourceCourse || m.source || {}, { grade: not });
+                // Sayı ise puan, değilse harf alanına da yazılır: sonraki
+                // hesaplar (yeniden açıldığında) aynı yoldan geçsin.
+                if (/^\d/.test(not)) src.gradePuan = not;
+                else src.gradeHarf = not;
+                yeni.sourceCourse = src;
+              }
+              return yeni;
             });
             const yama = {
               matches: yeniMatches,

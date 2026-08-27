@@ -143,6 +143,39 @@ describe('notEslemeTaslagi', () => {
     expect(eksikEslesmeSayisi([])).toBe(0);
   });
 
+  it('ANAHTAR tam dizideki konumdur — kısmi onayda numara kaymaz', () => {
+    // Muafiyet eşleştirmelerinin id'si yok; kimlik dizideki sıradır.
+    // 0. ders onaysız, 1. ve 2. onaylı: onaylıların anahtarı 1 ve 2 olmalı,
+    // 0 ve 1 DEĞİL — yoksa onaylanan karşılık yanlış derse yazılır.
+    const ders = (kod, harf, onay) => ({
+      ...(onay ? { adminDecision: 'confirmed' } : {}),
+      sourceCourse: { code: kod, gradeHarf: harf },
+      localCourse: { code: 'C' + kod },
+    });
+    const t = notEslemeTaslagi(
+      [ders('X0', 'AA', false), ders('X1', 'BB', true), ders('X2', 'CC', true)],
+      KARSI,
+      CAKU
+    );
+    expect(t.map((r) => r.anahtar)).toEqual(['1', '2']);
+    expect(t.map((r) => r.karsiKod)).toEqual(['X1', 'X2']);
+  });
+
+  it('hiç onay yoksa anahtarlar 0dan başlar', () => {
+    const ders = (kod) => ({ sourceCourse: { code: kod, gradeHarf: 'AA' }, localCourse: {} });
+    const t = notEslemeTaslagi([ders('A'), ders('B')], KARSI, CAKU);
+    expect(t.map((r) => r.anahtar)).toEqual(['0', '1']);
+  });
+
+  it('id varsa anahtar id olur', () => {
+    const t = notEslemeTaslagi(
+      [{ id: 'm7', sourceCourse: { code: 'A', gradeHarf: 'AA' }, localCourse: {} }],
+      KARSI,
+      CAKU
+    );
+    expect(t[0].anahtar).toBe('m7');
+  });
+
   it('kayıt yoksa boş liste', () => {
     expect(notEslemeTaslagi(null, KARSI, CAKU)).toEqual([]);
   });
