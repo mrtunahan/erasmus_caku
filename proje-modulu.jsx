@@ -2675,6 +2675,15 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var dcs = _s([]),
     deptCourses = dcs[0],
     setDeptCourses = dcs[1]; // sinav_dersler'den yüklenen bölüm dersleri
+  // ── SEÇİM EŞLEMESİ İÇİN TÜM DERSLER ──
+  // Öğrenci BAŞKA bölümün dersini de alabiliyor (Benim Sayfam tüm bölümlerin
+  // lisans derslerini listeliyor). Seçtiği kimlikleri koda çevirirken yalnız
+  // kendi bölümünün listesine bakmak, servis derslerini (ör. Matematik
+  // bölümünün MAT142'si) sessizce düşürüyor ve "bu dersi seçmediniz"
+  // sonucunu veriyordu. Eşleme TÜM ders listesi üzerinden yapılır.
+  var tds = _s([]),
+    tumDersler = tds[0],
+    setTumDersler = tds[1];
   var [activeCategory, setActiveCategory] = useState('bolum'); // bolum, universite, tubitak
 
   var aps = _s([]),
@@ -2713,6 +2722,25 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     [activeDepartment]
   );
 
+  // Seçimi koda çevirmek için tüm ders listesi (yalnız öğrenci tarafında).
+  useEffect(
+    function () {
+      if (!isStudent || !window.apiRead) return;
+      window
+        .apiRead('sinav_dersler')
+        .then(function (all) {
+          setTumDersler(Array.isArray(all) ? all : []);
+        })
+        .catch(function (err) {
+          console.error('Ders listesi yüklenemedi:', err);
+        });
+    },
+    [isStudent]
+  );
+
+  // Eşlemede kullanılacak liste: tümü yüklendiyse o, yüklenene kadar bölüm.
+  var eslemeDersleri = tumDersler.length > 0 ? tumDersler : deptCourses;
+
   // ── Öğrencinin seçtiği ders kodlarını yükle ──
   // Kaynak: student_courses (dönem bazlı, Benim Sayfam'da seçilen). Öğrenci
   // birden çok dönemde ders seçmiş olabilir → tüm dönemlerin courseId'leri
@@ -2723,7 +2751,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         setStudentCourseCodes(null);
         return;
       }
-      if (!deptCourses || deptCourses.length === 0) return;
+      if (!eslemeDersleri || eslemeDersleri.length === 0) return;
 
       var idSet = {};
       var addIds = function (arr) {
@@ -2747,19 +2775,13 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             return s.studentNumber === currentUser.studentNumber;
           });
           if (me) addIds(me.myCourseIds);
-          var codes = [];
-          deptCourses.forEach(function (c) {
-            if (idSet[String(c.id)] && c.code) {
-              codes.push(c.code.trim().toLocaleLowerCase('tr'));
-            }
-          });
-          setStudentCourseCodes(codes);
+          setStudentCourseCodes(window.secilenDersKodlari(Object.keys(idSet), eslemeDersleri));
         })
         .catch(function () {
           setStudentCourseCodes([]);
         });
     },
-    [isStudent, currentUser && currentUser.studentNumber, deptCourses]
+    [isStudent, currentUser && currentUser.studentNumber, eslemeDersleri]
   );
 
   // ── Tüm projeleri yükle (üyelik kontrolü için) ──
@@ -2794,9 +2816,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           } else if (isStudent && activeCategory === 'bolum' && Array.isArray(studentCourseCodes)) {
             // Öğrenci yalnızca Benim Sayfam'da seçtiği derslere ait proje alanlarını görebilir
             filtered = data.filter(function (c) {
-              return (
-                c.code && studentCourseCodes.indexOf(c.code.trim().toLocaleLowerCase('tr')) >= 0
-              );
+              return c.code && window.dersSecilmisMi(studentCourseCodes, c.code);
             });
           } else {
             filtered = data;
@@ -3065,37 +3085,44 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
 
     try {
+      // ── SEÇİM İKİ KAYNAKTA ──
+      // Denetim yalnız ESKİ `students.myCourseIds` alanına bakıyordu. Benim
+      // Sayfam ise seçimi DÖNEM bazlı `student_courses` koleksiyonuna yazıyor
+      // ve o alana artık hiç dokunmuyor. Sonuç: dersini seçmiş öğrenci proje
+      // grubuna katılamıyor, "bu dersi seçmediniz" duvarına çarpıyordu.
+      // İki kaynak da okunur; birleştirme kuralı lib/ogrenci-ders-secimi.js'te.
+      var donemKayitlari = await window
+        .apiRead('student_courses', {
+          where: 'studentNumber:eq:s:' + currentUser.studentNumber,
+        })
+        .catch(function () {
+          return [];
+        });
       var students = await window.DB.fetchStudents();
       var studentRecord = students.find(function (s) {
         return s.studentNumber === currentUser.studentNumber;
       });
 
-      if (!studentRecord) {
+      var secilenIdler = window.secilenDersIdleri(donemKayitlari, studentRecord);
+      if (secilenIdler.length === 0) {
         alert(
-          "Öğrenci kaydınız bulunamadı. Lütfen önce 'Benim Sayfam' bölümünden derslerinizi seçin."
+          "Henüz ders seçiminiz görünmüyor. Lütfen önce 'Benim Sayfam' bölümünden " +
+            'bu dönemin derslerini seçip kaydedin.'
         );
         return false;
       }
 
-      var myCourseIds = Array.isArray(studentRecord.myCourseIds) ? studentRecord.myCourseIds : [];
+      // Kimlikler `sinav_dersler` koleksiyonundandır; proje modülü ayrı bir
+      // koleksiyon (project_courses) kullandığı için karşılaştırma ders KODU
+      // üzerinden yapılır.
+      var myCourseCodes = window.secilenDersKodlari(secilenIdler, eslemeDersleri);
 
-      // myCourseIds sinav_dersler koleksiyonundaki ID'lerdir.
-      // Proje modülü farklı koleksiyon (project_courses) kullandığı için
-      // ID yerine ders kodu (code) üzerinden karşılaştırma yapıyoruz.
-      var myCourseCodes = [];
-      deptCourses.forEach(function (c) {
-        if (myCourseIds.indexOf(c.id) >= 0 && c.code) {
-          myCourseCodes.push(c.code.trim().toLocaleLowerCase('tr'));
-        }
-      });
-
-      var targetCode = courseCode.trim().toLocaleLowerCase('tr');
-
-      if (myCourseCodes.indexOf(targetCode) === -1) {
+      if (!window.dersSecilmisMi(myCourseCodes, courseCode)) {
         alert(
           'Bu işlemi gerçekleştiremezsiniz!\n\n' +
-            'Sebep: İlk sisteme girdiğinizde bu dersi seçmediniz. ' +
-            'Bir proje grubuna katılabilmek veya oluşturabilmek için, dersin sizin seçtiğiniz dersler arasında olması gerekir.\n\n' +
+            'Sebep: Bu ders, seçtiğiniz dersler arasında görünmüyor. ' +
+            'Bir proje grubuna katılabilmek veya oluşturabilmek için dersin ' +
+            "'Benim Sayfam' bölümündeki ders seçiminizde olması gerekir.\n\n" +
             (courseInfo || '')
         );
         return false;
