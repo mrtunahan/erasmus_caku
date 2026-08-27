@@ -75,6 +75,12 @@ import {
 } from './lib/muafiyet-not-eslesme.js';
 import { tablolariSayfayaSigdir } from './lib/docx-tablo-sigdir.js';
 import {
+  dersSecilmisMi,
+  kodAnahtari as dersKodAnahtari,
+  secilenDersIdleri,
+  secilenDersKodlari,
+} from './lib/ogrenci-ders-secimi.js';
+import {
   dersEslestir as belgeDersEslestir,
   okunanlarOzeti as belgeOkunanlarOzeti,
   notKaynagi as belgeNotKaynagi,
@@ -13884,6 +13890,12 @@ window.hazirOlcekBul = hazirOlcekBul;
 window.dersNotunuCevir = dersNotunuCevir;
 window.notEslemeTaslagi = notEslemeTaslagi;
 window.eksikEslesmeSayisi = eksikEslesmeSayisi;
+// Öğrencinin seçtiği dersler İKİ kaynakta olabiliyor (student_courses +
+// eski students.myCourseIds); karar tek yerde (lib/ogrenci-ders-secimi.js).
+window.secilenDersIdleri = secilenDersIdleri;
+window.secilenDersKodlari = secilenDersKodlari;
+window.dersSecilmisMi = dersSecilmisMi;
+window.dersKodAnahtari = dersKodAnahtari;
 window.belgeHarfNormalize = belgeHarfNormalize;
 
 // Topluluk akışı ekleri: görsel/video yerinde önizlenir, gerisi bağlantı.
