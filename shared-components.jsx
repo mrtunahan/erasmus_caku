@@ -228,6 +228,9 @@ import {
   ogrenciBolumleri as capOgrenciBolumleri,
   ekBolumdeMi as capEkBolumdeMi,
   caprazKisitli,
+  capSatiriMi,
+  capBolumundenCikar,
+  capSilinebilirMi,
 } from './lib/cap-ogrenci.js';
 import {
   dersKodEtiketi,
@@ -14157,6 +14160,9 @@ window.capOgrencisiMi = capOgrencisiMi;
 window.capOgrenciBolumleri = capOgrenciBolumleri;
 window.capEkBolumdeMi = capEkBolumdeMi;
 window.caprazKisitli = caprazKisitli;
+window.capSatiriMi = capSatiriMi;
+window.capBolumundenCikar = capBolumundenCikar;
+window.capSilinebilirMi = capSilinebilirMi;
 // Yayın kapsamı (duyuru + anket ortak): yayımlayanın yetki alanı dışına çıkmaz.
 window.yayinKapsamCoz = yayinKapsamCoz;
 window.yayinKapsamYamasi = yayinKapsamYamasi;
