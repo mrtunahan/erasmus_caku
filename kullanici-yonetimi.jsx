@@ -183,21 +183,86 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     }
   };
 
+  // ⚠ SİLME GERİ ALINAMAZ. `students` kaydı sunucuda gerçekten silinir; yumuşak
+  // silme yoktur ve kademeli silme de yoktur — ders seçimi, transkript, staj,
+  // muafiyet gibi kayıtlar öğrenci NUMARASINA bağlı olduğu için yerinde kalır.
+  // Bu yüzden silinen kaydın tamamı denetim kaydına `before` olarak yazılır:
+  // yanlışlıkla silinen öğrenci bu kayıttan birebir geri oluşturulabilsin.
   const handleDeleteStudent = async (id) => {
-    if (!confirm('Bu öğrenciyi silmek istediğinizden emin misiniz?')) return;
+    const st = students.find((s) => s.id === id);
+    if (!st) return;
+    // ÇAP satırından silme YASAK: bu liste ek bölümün listesidir, kayıt ise
+    // öğrencinin ANA bölümüne aittir. Buradan silmek öğrenciyi ana bölümünden
+    // de yok eder (bkz. lib/cap-ogrenci.js). Yapılacak şey bağı koparmaktır.
+    const capSatiri = window.capSatiriMi
+      ? window.capSatiriMi(st, activeDepartment)
+      : String(st.departmentId || '') !== String(activeDepartment) &&
+        Array.isArray(st.additionalDepartments) &&
+        st.additionalDepartments.includes(activeDepartment);
+    if (capSatiri) {
+      alert(
+        'Bu öğrenci bu bölüme ÇAP ile eklenmiş; asıl kaydı kendi ana bölümünde.\n\n' +
+          'Buradan silmek öğrenciyi ANA BÖLÜMÜNDEN de silerdi. Bunun yerine ' +
+          '"ÇAP bağını kaldır" düğmesini kullanın — öğrenci yalnız bu bölümden çıkar.'
+      );
+      return;
+    }
+    const ad = `${st.firstName || ''} ${st.lastName || ''}`.trim() || st.studentNumber;
+    if (
+      !confirm(
+        `${ad} (${st.studentNumber || '—'}) adlı öğrencinin kaydı SİLİNECEK.\n\n` +
+          'Bu işlem geri alınamaz. Devam edilsin mi?'
+      )
+    )
+      return;
     try {
-      const st = students.find((s) => s.id === id);
-      await DB.deleteStudent(id);
+      // Denetim kaydı SİLMEDEN ÖNCE yazılır: silme başarılı olup log yazımı
+      // düşerse geri dönüş noktası kalmazdı.
       if (window.audit)
-        window.audit('student_delete', 'students', id, {
+        await window.audit('student_delete', 'students', id, {
+          departmentId: activeDepartment,
+          before: st,
           meta: {
-            studentNumber: st?.studentNumber,
-            name: `${st?.firstName || ''} ${st?.lastName || ''}`.trim(),
+            studentNumber: st.studentNumber,
+            name: ad,
+            // Geri oluşturmak için gereken alanlar burada; `before` tam kayıt.
+            geriYukleme:
+              'Kayıt `before` alanında; aynı öğrenci numarasıyla yeniden oluşturulabilir.',
           },
         });
+      await DB.deleteStudent(id);
       setStudents((prev) => prev.filter((s) => s.id !== id));
     } catch (error) {
       console.error('Delete error:', error);
+      alert('Silinemedi: ' + (error.message || 'bilinmeyen hata'));
+    }
+  };
+
+  // ÇAP bağını koparır — öğrenci kaydına dokunmaz, yalnız bu bölümü ek bölüm
+  // listesinden çıkarır.
+  const handleRemoveCapStudent = async (student) => {
+    const ad =
+      `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.studentNumber;
+    const deptAd = (DEPARTMENTS.find((d) => d.id === activeDepartment) || {}).name || 'bu bölüm';
+    if (!confirm(`${ad} adlı öğrencinin ${deptAd} ÇAP kaydı kaldırılsın mı?`)) return;
+    const sid = student.id || student._docId;
+    try {
+      const kalan = window.capBolumundenCikar
+        ? window.capBolumundenCikar(student, activeDepartment)
+        : (Array.isArray(student.additionalDepartments)
+            ? student.additionalDepartments
+            : []
+          ).filter((d) => d !== activeDepartment);
+      await DB.updateStudent(sid, { ...student, additionalDepartments: kalan });
+      if (window.audit)
+        window.audit('student_cap_remove', 'students', sid, {
+          departmentId: activeDepartment,
+          meta: { studentNumber: student.studentNumber, capDepartment: activeDepartment },
+        });
+      setStudents((prev) => prev.filter((s) => (s.id || s._docId) !== sid));
+    } catch (e) {
+      console.error('ÇAP kaldırma hatası:', e);
+      alert('Kaldırılamadı: ' + e.message);
     }
   };
 
@@ -869,21 +934,50 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                             >
                               <EditIcon />
                             </button>
-                            <button
-                              onClick={() => handleDeleteStudent(student.id)}
-                              style={{
-                                padding: '6px',
-                                border: `1px solid ${C.border}`,
-                                borderRadius: 6,
-                                background: 'white',
-                                cursor: 'pointer',
-                                color: C.accent,
-                                display: 'flex',
-                              }}
-                              title="Sil"
-                            >
-                              <TrashIcon />
-                            </button>
+                            {/* ÇAP satırında SİLME YOKTUR: kayıt öğrencinin ana
+                                bölümüne aittir, buradan silmek onu oradan da
+                                yok ederdi (bkz. lib/cap-ogrenci.js). */}
+                            {(
+                              window.capSatiriMi
+                                ? window.capSatiriMi(student, activeDepartment)
+                                : String(student.departmentId || '') !== String(activeDepartment) &&
+                                  Array.isArray(student.additionalDepartments) &&
+                                  student.additionalDepartments.includes(activeDepartment)
+                            ) ? (
+                              <button
+                                onClick={() => handleRemoveCapStudent(student)}
+                                style={{
+                                  padding: '6px 10px',
+                                  border: `1px solid ${C.border}`,
+                                  borderRadius: 6,
+                                  background: 'white',
+                                  cursor: 'pointer',
+                                  color: C.accent,
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title="Öğrenciyi bu bölümden çıkarır; kaydı silmez"
+                              >
+                                ÇAP bağını kaldır
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleDeleteStudent(student.id)}
+                                style={{
+                                  padding: '6px',
+                                  border: `1px solid ${C.border}`,
+                                  borderRadius: 6,
+                                  background: 'white',
+                                  cursor: 'pointer',
+                                  color: C.accent,
+                                  display: 'flex',
+                                }}
+                                title="Sil"
+                              >
+                                <TrashIcon />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

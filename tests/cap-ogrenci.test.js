@@ -14,6 +14,9 @@ import {
   ogrenciBolumleri,
   ekBolumdeMi,
   caprazKisitli,
+  capSatiriMi,
+  capBolumundenCikar,
+  capSilinebilirMi,
 } from '../lib/cap-ogrenci.js';
 
 const cap = {
@@ -107,5 +110,53 @@ describe('ogrenciMi', () => {
     expect(ogrenciMi(cap)).toBe(true);
     expect(ogrenciMi(hoca)).toBe(false);
     expect(ogrenciMi(null)).toBe(false);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// ÇAP SATIRI VE SİLME KORUMASI
+//
+// Veri kaybı buradan geldi: ÇAP öğrencisi ikinci bölümün öğrenci listesinde
+// görünüyor ve satırdaki tek işlem "Sil" idi — o düğme öğrencinin TÜM kaydını
+// siliyordu, yani ana bölümünden de. Silme yalnız ana bölümde yapılabilir.
+// ══════════════════════════════════════════════════════════════
+describe('capSatiriMi', () => {
+  it('ek bölümün listesinde ÇAP satırıdır', () => {
+    expect(capSatiriMi(cap, 'elektrik')).toBe(true);
+  });
+  it('ana bölümün listesinde ÇAP satırı değildir', () => {
+    expect(capSatiriMi(cap, 'bilgisayar')).toBe(false);
+  });
+  it('tek bölümlü öğrenci hiçbir yerde ÇAP satırı değildir', () => {
+    expect(capSatiriMi(duz, 'bilgisayar')).toBe(false);
+    expect(capSatiriMi(duz, 'elektrik')).toBe(false);
+  });
+});
+
+describe('capBolumundenCikar', () => {
+  it('yalnız o bölümü listeden çıkarır', () => {
+    const cok = {
+      departmentId: 'bilgisayar',
+      additionalDepartments: ['elektrik', 'makine'],
+    };
+    expect(capBolumundenCikar(cok, 'elektrik')).toEqual(['makine']);
+  });
+  it('tek ÇAP bölümü çıkınca liste boşalır', () => {
+    expect(capBolumundenCikar(cap, 'elektrik')).toEqual([]);
+  });
+  it('ana bölüm listeden zaten yok, dokunmaz', () => {
+    expect(capBolumundenCikar(cap, 'bilgisayar')).toEqual(['elektrik']);
+  });
+});
+
+describe('capSilinebilirMi', () => {
+  it('ÇAP BÖLÜMÜNDEN SİLİNEMEZ — kayıt ana bölümde de yok olurdu', () => {
+    expect(capSilinebilirMi(cap, 'elektrik')).toBe(false);
+  });
+  it('ana bölümünden silinebilir', () => {
+    expect(capSilinebilirMi(cap, 'bilgisayar')).toBe(true);
+  });
+  it('tek bölümlü öğrenci kendi bölümünden silinebilir', () => {
+    expect(capSilinebilirMi(duz, 'bilgisayar')).toBe(true);
   });
 });
