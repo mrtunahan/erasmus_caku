@@ -222,6 +222,14 @@ import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './l
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
 import {
+  ogrenciMi as capOgrenciMi,
+  ekBolumler as capEkBolumler,
+  capOgrencisiMi,
+  ogrenciBolumleri as capOgrenciBolumleri,
+  ekBolumdeMi as capEkBolumdeMi,
+  caprazKisitli,
+} from './lib/cap-ogrenci.js';
+import {
   dersKodEtiketi,
   slotBirlestir,
   slotDersCikar,
@@ -8592,6 +8600,9 @@ const LoginModal = ({ onLogin }) => {
         departmentId: selectedDepartment,
         departmentName: deptObj?.name || '',
         erasmusAccess: false,
+        // Yeni kayıtta ÇAP olamaz; alan yine de taşınır ki oturum şekli
+        // her yolda aynı olsun.
+        additionalDepartments: [],
       };
       onLogin(user);
     } catch (err) {
@@ -8650,6 +8661,11 @@ const LoginModal = ({ onLogin }) => {
             departmentId: student.departmentId || 'bilgisayar',
             departmentName: student.departmentName || 'Bilgisayar Mühendisliği',
             erasmusAccess: student.erasmusAccess === true,
+            // ÇAP/yandal ikinci bölümleri — oturumda taşınmazsa öğrenci o
+            // bölüme ait hiçbir şeyi göremez (bkz. lib/cap-ogrenci.js).
+            additionalDepartments: Array.isArray(student.additionalDepartments)
+              ? student.additionalDepartments
+              : [],
           };
           setPendingUser(user);
           setSetupPasswordMode(true);
@@ -8697,6 +8713,10 @@ const LoginModal = ({ onLogin }) => {
         departmentId: studentInfo.departmentId || 'bilgisayar',
         departmentName: studentInfo.departmentName || 'Bilgisayar Mühendisliği',
         erasmusAccess: studentInfo.erasmusAccess === true,
+        // ÇAP/yandal ikinci bölümleri (bkz. lib/cap-ogrenci.js).
+        additionalDepartments: Array.isArray(studentInfo.additionalDepartments)
+          ? studentInfo.additionalDepartments
+          : [],
       };
 
       // Sunucu tarafında şifre doğrulama
@@ -14130,6 +14150,13 @@ window.zenginDuzMetin = zenginDuzMetin;
 window.zenginBosMu = zenginBosMu;
 window.duyuruKapsamCoz = duyuruKapsamCoz;
 window.duyuruKapsamdaMi = duyuruKapsamdaMi;
+// ÇAP/çapraz bölüm kuralları (app-shell.jsx bunları window üzerinden okur).
+window.capOgrenciMi = capOgrenciMi;
+window.capEkBolumler = capEkBolumler;
+window.capOgrencisiMi = capOgrencisiMi;
+window.capOgrenciBolumleri = capOgrenciBolumleri;
+window.capEkBolumdeMi = capEkBolumdeMi;
+window.caprazKisitli = caprazKisitli;
 // Yayın kapsamı (duyuru + anket ortak): yayımlayanın yetki alanı dışına çıkmaz.
 window.yayinKapsamCoz = yayinKapsamCoz;
 window.yayinKapsamYamasi = yayinKapsamYamasi;
