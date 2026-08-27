@@ -185,16 +185,20 @@ router.post('/student', async (req, res) => {
         await setPasswordDoc('student_passwords', { [trimmedId]: bcryptHash }, true);
       }
       let departmentId = 'bilgisayar';
+      let additionalDepartments = [];
       try {
         const db = await getDbSafe();
         const studentDoc = await db.collection('students').findOne({ studentNumber: trimmedId });
         if (studentDoc && studentDoc.departmentId) departmentId = studentDoc.departmentId;
+        if (studentDoc && Array.isArray(studentDoc.additionalDepartments)) {
+          additionalDepartments = studentDoc.additionalDepartments;
+        }
       } catch (e) {
         console.warn('Student departmentId lookup error:', e.message);
       }
       const token = generateToken({ role: 'student', identifier: trimmedId, departmentId });
       setTokenCookie(res, token);
-      return res.json({ success: true, token, departmentId });
+      return res.json({ success: true, token, departmentId, additionalDepartments });
     } else {
       recordAttempt(rateLimitKey);
       return res.json({ success: false, error: 'Giriş bilgileri hatalı!' });
@@ -699,6 +703,12 @@ router.post('/student-lookup', async (req, res) => {
         departmentId: student.departmentId || 'bilgisayar',
         departmentName: student.departmentName || '',
         erasmusAccess: student.erasmusAccess === true,
+        // ÇAP/yandal ile eklendiği ikinci bölüm(ler). Bu alan dönmediği sürece
+        // öğrenci oturumu ikinci bölümünü hiç bilmiyordu ve o bölüme ait
+        // hiçbir şeyi göremiyordu (bkz. lib/cap-ogrenci.js).
+        additionalDepartments: Array.isArray(student.additionalDepartments)
+          ? student.additionalDepartments
+          : [],
       },
     });
   } catch (error) {

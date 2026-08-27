@@ -24,7 +24,7 @@ const IDLE_ACTIVITY_KEY = 'caku_last_activity';
 
 // Sidebar/RightSidebar/route-guard için ortak: kullanıcının erişebileceği
 // bölümler. Kurallar:
-//   • Öğrenci → yalnız kendi bölümü
+//   • Öğrenci → kendi bölümü + ÇAP/yandal ek bölümleri
 //   • Ergün ÇINAR (fakülte staj koordinatörü) → tüm bölümler
 //   • Üniversite yetkilisi → adminScope'a göre tüm fakülteler veya kendi fakültesi
 //   • Fakülte yetkilisi → kendi fakültesi + ek bölümler (additionalDepartments)
@@ -68,9 +68,14 @@ function computeAvailableDepts(currentUser, adminScope, memurAtamalari) {
     return allDepts;
   }
 
-  // Öğrenci — yalnız kendi bölümü
+  // Öğrenci — kendi bölümü + ÇAP/yandal ile eklendiği bölümler. ÇAP öğrencisi
+  // iki programın öğrencisidir; ikinci bölümünün ders programını, sınavlarını,
+  // duyurularını ve projelerini görmesi gerekir (bkz. lib/cap-ogrenci.js).
   if (isStudent) {
-    return allDepts.filter((d) => d.id === mainDept);
+    const ogrBolumleri = window.capOgrenciBolumleri
+      ? window.capOgrenciBolumleri(currentUser)
+      : [mainDept].concat(extras).filter(Boolean);
+    return allDepts.filter((d) => ogrBolumleri.includes(d.id));
   }
 
   // Bölüm listesi birleştirici (id'ye göre tekilleştir)
@@ -568,8 +573,15 @@ const Sidebar = ({
     ? currentUser.additionalDepartments
     : [];
   const mainDept = currentUser?.departmentId;
-  const isOnExtraDept =
-    activeDepartment && activeDepartment !== mainDept && extras.includes(activeDepartment);
+  // ÖĞRENCİYE UYGULANMAZ: bu kısıt ek bölümde ders veren AKADEMİSYEN içindir.
+  // ÇAP öğrencisi ikinci bölümün de öğrencisidir; kısıt uygulanırsa o bölümde
+  // akademisyen modüllerine düşerdi (bkz. lib/cap-ogrenci.js).
+  const isOnExtraDept = window.caprazKisitli
+    ? window.caprazKisitli(currentUser, activeDepartment)
+    : currentUser?.role !== 'student' &&
+      !!activeDepartment &&
+      activeDepartment !== mainDept &&
+      extras.includes(activeDepartment);
   // Üniversite dışı akademisyen: eklendiği bölümde Öğrenci Portalı'na da erişir.
   const isExternalUser = currentUser?.external === true;
 
@@ -2586,10 +2598,12 @@ function AppShell() {
     };
   }, [currentUser?.studentNumber, currentUser?.role]);
 
-  // Erasmus erişimi yetkili tarafından değiştirildiğinde, öğrencinin çıkış/giriş
-  // yapmasına gerek kalmadan sayfa yenilenince güncel değeri sunucudan senkronla.
-  // currentUser localStorage'dan geri yüklendiği için aksi halde eski (stale)
-  // erasmusAccess değeri kalıyor; öğrenci refresh atınca yetki aktifleşmiyordu.
+  // Yetkili tarafından değiştirilen öğrenci alanlarını, öğrencinin çıkış/giriş
+  // yapmasına gerek kalmadan sayfa yenilenince sunucudan senkronla. currentUser
+  // localStorage'dan geri yüklendiği için aksi halde eski (stale) değer kalıyor:
+  //   • erasmusAccess → yetki verilse de öğrencide aktifleşmiyordu.
+  //   • additionalDepartments → ÇAP öğrencisi olarak ikinci bölüme eklenen
+  //     öğrenci o bölümü hiç görmüyordu (bkz. lib/cap-ogrenci.js).
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'student' || !currentUser.studentNumber) return;
     let cancelled = false;
@@ -2599,10 +2613,22 @@ function AppShell() {
         const me = students.find((s) => s.studentNumber === currentUser.studentNumber);
         if (!me || cancelled) return;
         const serverErasmus = me.erasmusAccess === true;
-        if (serverErasmus !== (currentUser.erasmusAccess === true)) {
+        const sunucuEk = Array.isArray(me.additionalDepartments) ? me.additionalDepartments : [];
+        const oturumEk = Array.isArray(currentUser.additionalDepartments)
+          ? currentUser.additionalDepartments
+          : [];
+        const ekDegisti =
+          sunucuEk.length !== oturumEk.length ||
+          sunucuEk.some((d) => !oturumEk.includes(d)) ||
+          oturumEk.some((d) => !sunucuEk.includes(d));
+        if (serverErasmus !== (currentUser.erasmusAccess === true) || ekDegisti) {
           setCurrentUser((prev) => {
             if (!prev) return prev;
-            const next = { ...prev, erasmusAccess: serverErasmus };
+            const next = {
+              ...prev,
+              erasmusAccess: serverErasmus,
+              additionalDepartments: sunucuEk,
+            };
             try {
               localStorage.setItem('caku_current_user', JSON.stringify(next));
             } catch (_) {
@@ -2651,10 +2677,13 @@ function AppShell() {
     const extras = Array.isArray(currentUser?.additionalDepartments)
       ? currentUser.additionalDepartments
       : [];
-    const isOnExtraDept =
-      activeDepartment &&
-      activeDepartment !== currentUser?.departmentId &&
-      extras.includes(activeDepartment);
+    // Öğrenci hariç (bkz. Sidebar'daki aynı kural ve lib/cap-ogrenci.js).
+    const isOnExtraDept = window.caprazKisitli
+      ? window.caprazKisitli(currentUser, activeDepartment)
+      : currentUser?.role !== 'student' &&
+        !!activeDepartment &&
+        activeDepartment !== currentUser?.departmentId &&
+        extras.includes(activeDepartment);
     // Üniversite dışı akademisyen: eklendiği bölümde Öğrenci Portalı da açık.
     const isExternalUser = currentUser?.external === true;
 
@@ -2790,11 +2819,15 @@ function AppShell() {
   const extrasUser = Array.isArray(currentUser?.additionalDepartments)
     ? currentUser.additionalDepartments
     : [];
-  const isOnExtraDeptForModule =
-    !!currentUser &&
-    activeDepartment &&
-    activeDepartment !== currentUser.departmentId &&
-    extrasUser.includes(activeDepartment);
+  // ⚠ ÖĞRENCİ BURAYA GİRMEZ. Bu dal kullanıcıyı o bölümde AKADEMİSYEN sayar;
+  // ÇAP öğrencisi girseydi ikinci bölümde akademisyen yetkisi kazanırdı.
+  const isOnExtraDeptForModule = window.caprazKisitli
+    ? window.caprazKisitli(currentUser, activeDepartment)
+    : !!currentUser &&
+      currentUser.role !== 'student' &&
+      activeDepartment &&
+      activeDepartment !== currentUser.departmentId &&
+      extrasUser.includes(activeDepartment);
   const effectiveUser = isOnExtraDeptForModule
     ? {
         ...currentUser,
