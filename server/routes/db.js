@@ -5,6 +5,7 @@ const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
+const { aramaKapsami, desenKacir, aramaAdlari } = require('../lib/ogrenci-arama');
 const { mukerrerAtlanabilirMi } = require('../lib/yazma-mukerrer');
 const { duyuruyaDokunabilir } = require('../lib/duyuru-sahip');
 const { auditWrites } = require('../middleware/auditLog');
@@ -1469,6 +1470,71 @@ router.get('/student-count', async (req, res) => {
     return res.json({ count });
   } catch (err) {
     return res.status(500).json({ error: 'Sayı alınamadı', count: 0 });
+  }
+});
+
+// ══════════════════════════════════════════════
+// GET /api/db/student-search?q=... - Sınıf arkadaşı ADI arama
+//
+// Öğrenci proje grubuna üye eklerken arkadaşının adını elle yazmak zorunda
+// kalıyordu: `students` koleksiyonu öğrenciye KENDİ kaydına daraltılmış
+// (STUDENT_READ_SCOPED), dolayısıyla öneri listesi hep boş dönüyordu.
+//
+// Koleksiyonu açmak yerine dar bir arama uç noktası: yalnız AD döner —
+// numara, e-posta, bölüm, hiçbir şey yok. Üstelik:
+//   • en az 2 harf gerekir → listeyi boş sorguyla dökmek mümkün değil
+//   • kapsam ARAYANIN KENDİ bölümüdür; bölüm istemciden ALINMAZ, öğrencinin
+//     kendi kaydından çözülür (başka bölümü tarayamaz)
+//   • en çok 10 sonuç
+// Personel zaten `students` okuyabildiği için onlara ek bir kapı açılmıyor;
+// istedikleri bölümü sorabilirler.
+// NOT: /:collection param rotasından ÖNCE tanımlanmalı.
+// ══════════════════════════════════════════════
+router.get('/student-search', async (req, res) => {
+  try {
+    const user = decodeUser(req);
+    if (DB_AUTH_ENFORCED && !user) {
+      return res.status(401).json({ error: 'Giriş gerekli.', students: [] });
+    }
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.json({ students: [] });
+
+    const db = await getDbSafe();
+    // Aranacak bölüm(ler). Personel istediği bölümü sorabilir; öğrencinin
+    // kapsamı KENDİ kaydından çözülür, istemcinin yazdığı değere güvenilmez.
+    const ogrenciMi = !user || user.role === 'student';
+    const ben = ogrenciMi
+      ? await db
+          .collection('students')
+          .findOne({ studentNumber: String((user && user.identifier) || '') })
+      : null;
+    const { izin, kapsamlar } = aramaKapsami(user, ben, req.query.departmentId);
+    if (!izin) return res.json({ students: [] });
+
+    // Düzenli ifade kaçışı: kullanıcı metni desen olarak yorumlanmasın.
+    const desen = new RegExp(desenKacir(q), 'i');
+    const filtre = { $or: [{ firstName: desen }, { lastName: desen }, { name: desen }] };
+    if (kapsamlar.length > 0) {
+      filtre.$and = [
+        {
+          $or: [
+            { departmentId: { $in: kapsamlar } },
+            { additionalDepartments: { $in: kapsamlar } },
+          ],
+        },
+      ];
+    }
+    const kayitlar = await db
+      .collection('students')
+      .find(filtre)
+      .project({ firstName: 1, lastName: 1, name: 1, _id: 0 })
+      .limit(10)
+      .toArray();
+
+    return res.json({ students: aramaAdlari(kayitlar) });
+  } catch (err) {
+    console.error('student-search error:', err);
+    return res.status(500).json({ error: 'Arama yapılamadı.', students: [] });
   }
 });
 

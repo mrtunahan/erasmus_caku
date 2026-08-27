@@ -2542,9 +2542,30 @@ async function apiReadDoc(collection, docId) {
   return p;
 }
 
+// ── Öğrenci adı arama ────────────────────────────────────────
+// `students` koleksiyonu öğrenciye kendi kaydı dışında kapalıdır (gizlilik).
+// Proje üyesi seçimi gibi yerlerde ada göre öneri gerektiğinden sunucuda dar
+// kapsamlı bir uç nokta var: yalnız AD döner, en az 2 harf ister, öğrenci için
+// bölüm kapsamını sunucu kendi kaydından belirler.
+async function ogrenciAra(q, departmentId) {
+  const arama = String(q || '').trim();
+  if (arama.length < 2) return [];
+  const url = new URL('/api/db/student-search', window.location.origin);
+  url.searchParams.set('q', arama);
+  if (departmentId) url.searchParams.set('departmentId', departmentId);
+  const token = localStorage.getItem('caku_auth_token');
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const response = await fetch(url.toString(), { headers, credentials: 'include' });
+  if (!response.ok) return [];
+  const data = await response.json().catch(() => ({}));
+  return Array.isArray(data.students) ? data.students : [];
+}
+
 // API yardımcılarını global yap (diğer modüller için)
 window.apiRead = apiRead;
 window.apiReadDoc = apiReadDoc;
+window.ogrenciAra = ogrenciAra;
 
 // ══════════════════════════════════════════════════════════════
 // Kiracı (tenant) kimliği — beyaz etiket temeli (bkz. docs/hardcoded-envanter.md)

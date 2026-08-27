@@ -1167,10 +1167,18 @@ function CreateProjectModal({
     members = ms[0],
     setMembers = ms[1];
 
-  // Öğrenci arkadaşlarını elle yazmasın; bölümdeki öğrenci adlarından öneri sun.
+  // ── Öğrenci adı önerileri ────────────────────────────────────
+  // Eskiden tüm öğrenci listesi çekilip istemcide süzülüyordu. `students`
+  // koleksiyonu öğrenciye yalnız KENDİ kaydını döndürdüğü için (gizlilik
+  // kısıtı) öneri listesi öğrenci tarafında hep boş kalıyordu. Artık sunucudaki
+  // dar kapsamlı arama uç noktası kullanılır: en az 2 harf yazılınca, yalnız ad
+  // döner, bölüm kapsamını öğrenci için sunucu belirler.
   var cs = _s([]),
     classmates = cs[0],
     setClassmates = cs[1];
+  var aq = _s(''),
+    aramaMetni = aq[0],
+    setAramaMetni = aq[1];
   var ai = _s(-1),
     activeIdx = ai[0],
     setActiveIdx = ai[1];
@@ -1178,48 +1186,42 @@ function CreateProjectModal({
   _e(
     function () {
       var alive = true;
-      if (!window.DB || !window.DB.fetchStudents) return undefined;
-      window.DB.fetchStudents()
-        .then(function (list) {
-          if (!alive) return;
-          var names = (list || [])
-            .filter(function (s) {
-              if (!departmentId) return true;
-              if (s.departmentId === departmentId) return true;
-              return (
-                Array.isArray(s.additionalDepartments) &&
-                s.additionalDepartments.indexOf(departmentId) >= 0
-              );
-            })
-            .map(function (s) {
-              return (
-                ((s.firstName || '') + ' ' + (s.lastName || '')).trim() || (s.name || '').trim()
-              );
-            })
-            .filter(function (n) {
-              return n.length > 0;
+      var q = (aramaMetni || '').trim();
+      if (q.length < 2 || !window.ogrenciAra) {
+        setClassmates([]);
+        return undefined;
+      }
+      var zamanlayici = setTimeout(function () {
+        window
+          .ogrenciAra(q, departmentId)
+          .then(function (list) {
+            if (!alive) return;
+            var uniq = [];
+            (list || []).forEach(function (n) {
+              var ad = String(n || '').trim();
+              if (ad && uniq.indexOf(ad) < 0) uniq.push(ad);
             });
-          var uniq = [];
-          names.forEach(function (n) {
-            if (uniq.indexOf(n) < 0) uniq.push(n);
+            uniq.sort(function (a, b) {
+              return a.localeCompare(b, 'tr');
+            });
+            setClassmates(uniq);
+          })
+          .catch(function () {
+            if (alive) setClassmates([]);
           });
-          uniq.sort(function (a, b) {
-            return a.localeCompare(b, 'tr');
-          });
-          setClassmates(uniq);
-        })
-        .catch(function () {});
+      }, 250);
       return function () {
         alive = false;
+        clearTimeout(zamanlayici);
       };
     },
-    [departmentId]
+    [aramaMetni, departmentId]
   );
 
-  // Yazılan öne göre (adın tamamı veya bir kelimesi ile başlayan) öğrenci önerileri.
+  // Sunucudan gelen adlardan; kendini ve zaten seçilmiş üyeleri ele.
   var suggestFor = function (query) {
     var q = (query || '').trim().toLocaleLowerCase('tr');
-    if (!q) return [];
+    if (q.length < 2) return [];
     var chosen = members.map(function (m) {
       return (m || '').trim().toLocaleLowerCase('tr');
     });
@@ -1229,10 +1231,7 @@ function CreateProjectModal({
         var nm = c.toLocaleLowerCase('tr');
         if (nm === me) return false;
         if (chosen.indexOf(nm) >= 0) return false;
-        if (nm.indexOf(q) === 0) return true;
-        return nm.split(/\s+/).some(function (w) {
-          return w.indexOf(q) === 0;
-        });
+        return true;
       })
       .slice(0, 8);
   };
@@ -1461,9 +1460,13 @@ function CreateProjectModal({
                     value={member}
                     onChange={function (e) {
                       updateMember(idx, e.target.value);
+                      if (idx !== 0) setAramaMetni(e.target.value);
                     }}
                     onFocus={function () {
-                      if (idx !== 0) setActiveIdx(idx);
+                      if (idx !== 0) {
+                        setActiveIdx(idx);
+                        setAramaMetni(member);
+                      }
                     }}
                     onBlur={function () {
                       // Öneriye tıklama onMouseDown ile yakalanır; blur'da gecikmeli kapat.
@@ -2684,6 +2687,13 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   var tds = _s([]),
     tumDersler = tds[0],
     setTumDersler = tds[1];
+  // Liste gelene kadar eşleme YAPILMAZ. Aksi halde kısmi (yalnız aktif bölüm)
+  // liste üzerinden hesap yapılıyor, öğrenci başka bölümün dersini seçmişse
+  // ilk anda "bu dersi seçmediniz" hatası alıyor, liste gelince kendiliğinden
+  // düzeliyordu.
+  var dlh = _s(false),
+    dersListesiHazir = dlh[0],
+    setDersListesiHazir = dlh[1];
   var [activeCategory, setActiveCategory] = useState('bolum'); // bolum, universite, tubitak
 
   var aps = _s([]),
@@ -2730,16 +2740,19 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         .apiRead('sinav_dersler')
         .then(function (all) {
           setTumDersler(Array.isArray(all) ? all : []);
+          setDersListesiHazir(true);
         })
         .catch(function (err) {
           console.error('Ders listesi yüklenemedi:', err);
+          setDersListesiHazir(true);
         });
     },
     [isStudent]
   );
 
-  // Eşlemede kullanılacak liste: tümü yüklendiyse o, yüklenene kadar bölüm.
-  var eslemeDersleri = tumDersler.length > 0 ? tumDersler : deptCourses;
+  // Eşlemede kullanılacak liste: tüm dersler. Liste hazır değilken bölüm
+  // listesine düşmek yanlış sonuç ürettiği için hazır olana kadar beklenir.
+  var eslemeDersleri = dersListesiHazir && tumDersler.length > 0 ? tumDersler : deptCourses;
 
   // ── Öğrencinin seçtiği ders kodlarını yükle ──
   // Kaynak: student_courses (dönem bazlı, Benim Sayfam'da seçilen). Öğrenci
@@ -2751,6 +2764,9 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         setStudentCourseCodes(null);
         return;
       }
+      // Tüm ders listesi gelmeden hesaplama yapma; kısmi listeyle çıkan sonuç
+      // dersleri sessizce eleyip yanlış uyarıya yol açıyor.
+      if (!dersListesiHazir) return;
       if (!eslemeDersleri || eslemeDersleri.length === 0) return;
 
       var idSet = {};
@@ -2781,7 +2797,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           setStudentCourseCodes([]);
         });
     },
-    [isStudent, currentUser && currentUser.studentNumber, eslemeDersleri]
+    [isStudent, currentUser && currentUser.studentNumber, dersListesiHazir, eslemeDersleri]
   );
 
   // ── Tüm projeleri yükle (üyelik kontrolü için) ──
@@ -3115,7 +3131,19 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       // Kimlikler `sinav_dersler` koleksiyonundandır; proje modülü ayrı bir
       // koleksiyon (project_courses) kullandığı için karşılaştırma ders KODU
       // üzerinden yapılır.
-      var myCourseCodes = window.secilenDersKodlari(secilenIdler, eslemeDersleri);
+      // Tıklama anında liste henüz yüklenmemiş olabilir; kısmi listeyle karar
+      // vermek yerine dersleri burada taze okuyoruz (yarış koşulunu kapatır).
+      var karsilastirmaDersleri = eslemeDersleri;
+      if (!dersListesiHazir) {
+        karsilastirmaDersleri = await window.apiRead('sinav_dersler').catch(function () {
+          return eslemeDersleri;
+        });
+        if (!Array.isArray(karsilastirmaDersleri) || karsilastirmaDersleri.length === 0) {
+          karsilastirmaDersleri = eslemeDersleri;
+        }
+      }
+
+      var myCourseCodes = window.secilenDersKodlari(secilenIdler, karsilastirmaDersleri);
 
       if (!window.dersSecilmisMi(myCourseCodes, courseCode)) {
         alert(
