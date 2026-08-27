@@ -9975,8 +9975,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         {/* Yeni Muafiyet: yalnızca öğrenci oluşturur; akademisyen onaylar */}
         {activeTab === 'aday' && !isStudent && (
           <ManualExemptionForm
-            key={'aday-' + basvuruTuru}
+            key={'aday-' + basvuruTuru + '::' + (activeDepartment || '')}
             currentUser={currentUser}
+            activeDepartment={activeDepartment}
             courseContents={courseContents}
             basvuruTuru={basvuruTuru}
             turMeta={turMeta}
@@ -9992,8 +9993,12 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         )}
         {activeTab === 'yeni' && isStudent && (
           <ManualExemptionForm
-            key={basvuruTuru}
+            // Bölüm değişince form SIFIRLANIR: bir muafiyet talebi tek bir
+            // programa aittir; ÇAP öğrencisi bölüm değiştirdiğinde önceki
+            // bölümün seçili dersleri formda kalmamalı.
+            key={basvuruTuru + '::' + (activeDepartment || '')}
             currentUser={currentUser}
+            activeDepartment={activeDepartment}
             courseContents={courseContents}
             basvuruTuru={basvuruTuru}
             turMeta={turMeta}
@@ -10280,6 +10285,7 @@ const normalizeStatu = (s) => {
 // bırakılırsa geçici aday numarası üretilir.
 const ManualExemptionForm = ({
   currentUser,
+  activeDepartment,
   onSave,
   courseContents,
   basvuruTuru,
@@ -10287,6 +10293,16 @@ const ManualExemptionForm = ({
   vekaleten,
   mevcutKayitlar,
 }) => {
+  // ⚠ BAĞLAM BÖLÜMÜ AKTİF BÖLÜMDÜR, ÖĞRENCİNİN ANA BÖLÜMÜ DEĞİL.
+  // ÇAP öğrencisi ikinci bölümüne geçtiğinde ÇAKÜ tarafındaki ders listesi
+  // hâlâ ana bölümün derslerini gösteriyordu; ikinci programın dersinden
+  // muafiyet isteyemiyordu. Talep de yanlış bölüme yazılıyor, doğru bölümün
+  // onay listesine hiç düşmüyordu (bkz. lib/cap-ogrenci.js).
+  const baglamBolumId = activeDepartment || currentUser?.departmentId || '';
+  // Bağlam bölümünün görünen adı — dilekçede "bölümümüz" olarak geçer.
+  const baglamBolumAdi =
+    ((window.DEPARTMENTS || []).find((d) => String(d.id) === String(baglamBolumId)) || {}).name ||
+    '';
   const [studentName, setStudentName] = useState(vekaleten ? '' : currentUser?.name || '');
   const [studentNo, setStudentNo] = useState(
     vekaleten ? '' : currentUser?.studentNumber || currentUser?.identifier || ''
@@ -10473,19 +10489,33 @@ const ManualExemptionForm = ({
   const [deptCourses, setDeptCourses] = useState([]);
   useEffect(() => {
     let alive = true;
-    window
-      .apiRead('sinav_dersler')
-      .then((all) => {
+    (async () => {
+      try {
+        // Bölümün TÜM kimlik biçimleri denenir: aynı bölüm kimi kayıtta slug,
+        // kimi kayıtta ObjectId taşıyor; ham eşitlik dersleri sessizce düşürür.
+        let variants = [baglamBolumId];
+        if (baglamBolumId && window.deptIdVariants) {
+          try {
+            variants = await window.deptIdVariants(baglamBolumId);
+          } catch (_) {
+            variants = [baglamBolumId];
+          }
+        }
+        const vset = new Set((variants || [baglamBolumId]).filter(Boolean).map(String));
+        const all = await window.apiRead('sinav_dersler');
         if (!alive) return;
-        const deptId = currentUser?.departmentId || '';
-        const list = (all || []).filter((c) => !deptId || (c.departmentId || '') === deptId);
+        const list = (all || []).filter(
+          (c) => vset.size === 0 || vset.has(String(c.departmentId || ''))
+        );
         setDeptCourses(list);
-      })
-      .catch(() => {});
+      } catch (_) {
+        /* ders listesi okunamadı — katalog yine de kullanılabilir */
+      }
+    })();
     return () => {
       alive = false;
     };
-  }, [currentUser?.departmentId]);
+  }, [baglamBolumId]);
 
   const cakOptions = useMemo(() => {
     const normCode = (c) =>
@@ -11007,8 +11037,11 @@ const ManualExemptionForm = ({
         otherUni: rows[0]?.src.uni || '',
         otherFaculty: rows[0]?.src.faculty || '',
         otherDept: rows[0]?.src.dept || '',
-        localDept: currentUser?.departmentName || '',
-        departmentId: currentUser?.departmentId || '',
+        localDept: baglamBolumAdi || currentUser?.departmentName || '',
+        // Talep AKTİF bölüme yazılır: ÇAP öğrencisinin ikinci programa yaptığı
+        // başvuru o bölümün onay listesine düşmeli (liste departmentId'ye göre
+        // süzülüyor), ana bölümünkine değil.
+        departmentId: baglamBolumId,
         basvuruTuru: basvuruTuru || 'muafiyet',
         transcriptUrl,
         transcriptUploadedAt: new Date().toISOString(),
