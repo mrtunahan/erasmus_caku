@@ -2466,6 +2466,17 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   const kriterDocId = (activeDepartment || 'genel') + ':yatay-kriter-' + turId;
   useEffect(() => {
     let iptal = false;
+    // ⚠ ÖĞRENCİ BU KOLEKSİYONU OKUYAMAZ ve okumamalı: taban sıralama eşiği
+    // başvurunun iç değerlendirme ölçütüdür, öğrenci sonucunu önceden
+    // hesaplamasın diye sunucuda kapalıdır (STUDENT_READ_DENY). İstek yine de
+    // gönderiliyordu; 403 dönüyor, modül sessizce yutuyor ama ortak okuma
+    // katmanı "Sunucudan veri alınamıyor" bannerını basıyordu. Öğrenci her
+    // yatay geçiş açılışında sunucu arızası sanıyordu. İstek hiç yapılmaz.
+    if (isStudent) {
+      setSiralamaEsik('');
+      setKontenjanlar({});
+      return undefined;
+    }
     window
       .apiRead('taban_puanlar')
       .then((liste) => {
@@ -2480,7 +2491,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
     return () => {
       iptal = true;
     };
-  }, [kriterDocId]);
+  }, [kriterDocId, isStudent]);
 
   const kriterKaydet = async () => {
     setKriterKaydediliyor(true);
