@@ -85,17 +85,98 @@ const BYBos = ({ children }) => (
 );
 
 // Sekmeler tek listede: ekleme/çıkarma tek satır, sıralama burada görünür.
+//
+// `grup` alanı sekme çubuğunu okunur kılar: dokuz sekme düz bir sırada
+// dizildiğinde hepsi aynı ağırlıkta görünüyor ve aradığını bulmak taramayı
+// gerektiriyordu. Aynı işe bakan sekmeler artık yan yana ve grup adıyla
+// ayrılmış duruyor. `ipucu` yalnız tooltip'teydi — yani görünmezdi; artık
+// aktif sekmenin altında yazı olarak da çıkıyor.
 const BY_SEKMELER = [
-  { id: 'classrooms', label: 'Sınıf / Salon', ipucu: 'Bölümün derslik ve salon tanımları' },
-  { id: 'supervisors', label: 'Gözetmenler', ipucu: 'Sınav gözetmeni akademisyenler' },
-  { id: 'kilitler', label: 'Ders Seçim Kilitleri', ipucu: 'Öğrencinin ders seçimini aç/kapat' },
-  { id: 'benimayar', label: 'Benim Sayfam', ipucu: 'Öğrenci sayfasında görünecek alanlar' },
-  { id: 'akademisyenbilgi', label: 'Akademisyenler', ipucu: 'İletişim bilgileri ve ders programı' },
-  { id: 'memurbilgi', label: 'Memurlar', ipucu: 'Bu bölüme memur ata ve modüllerini seç' },
-  { id: 'duyurular', label: 'Duyurular', ipucu: 'Kapsamındaki bölümlere pop-up duyuru' },
-  { id: 'mezuniyet', label: 'Mezuniyet Kuralları', ipucu: 'AKTS, AGNO ve staj şartı' },
-  { id: 'programayar', label: 'Program Ayarları', ipucu: 'Ders programı rengi ve saat aralığı' },
+  {
+    id: 'classrooms',
+    label: 'Sınıf / Salon',
+    grup: 'Kaynaklar',
+    ipucu: 'Bölümün derslik ve salon tanımları',
+  },
+  {
+    id: 'supervisors',
+    label: 'Gözetmenler',
+    grup: 'Kaynaklar',
+    ipucu: 'Sınav gözetmeni akademisyenler',
+  },
+  {
+    id: 'akademisyenbilgi',
+    label: 'Akademisyenler',
+    grup: 'Personel',
+    ipucu: 'İletişim bilgileri ve ders programı',
+  },
+  {
+    id: 'memurbilgi',
+    label: 'Memurlar',
+    grup: 'Personel',
+    ipucu: 'Bu bölüme memur ata ve modüllerini seç',
+  },
+  {
+    id: 'kilitler',
+    label: 'Ders Seçim Kilitleri',
+    grup: 'Öğrenci',
+    ipucu: 'Öğrencinin ders seçimini aç/kapat',
+  },
+  {
+    id: 'benimayar',
+    label: 'Benim Sayfam',
+    grup: 'Öğrenci',
+    ipucu: 'Öğrenci sayfasında görünecek alanlar',
+  },
+  {
+    id: 'mezuniyet',
+    label: 'Mezuniyet Kuralları',
+    grup: 'Öğrenci',
+    ipucu: 'AKTS, AGNO ve staj şartı',
+  },
+  {
+    id: 'duyurular',
+    label: 'Duyurular',
+    grup: 'Bölüm',
+    ipucu: 'Kapsamındaki bölümlere pop-up duyuru',
+  },
+  {
+    id: 'programayar',
+    label: 'Program Ayarları',
+    grup: 'Bölüm',
+    ipucu: 'Ders programı rengi ve saat aralığı',
+  },
 ];
+
+/**
+ * Bölüm başlığı: ad + açıklama solda, birincil işlem sağda.
+ *
+ * Birincil işlemler tablonun DİBİNDE, son satıra sıkıştırılmış bir hücrede
+ * duruyordu ("+ Yeni Sınıf Ekle"); tablo uzayınca ekranın dışında kalıyor ve
+ * başlıkla ilgisi kopuyordu. Artık her bölümde aynı yerde: sağ üstte.
+ */
+const BYBolumBasligi = ({ baslik, aciklama, islem }) => (
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+      gap: 14,
+      flexWrap: 'wrap',
+      marginBottom: 12,
+    }}
+  >
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: BY.navy }}>{baslik}</div>
+      {aciklama ? (
+        <div style={{ fontSize: 12.5, color: BY.textMuted, marginTop: 3, lineHeight: 1.5 }}>
+          {aciklama}
+        </div>
+      ) : null}
+    </div>
+    {islem ? <div style={{ flexShrink: 0 }}>{islem}</div> : null}
+  </div>
+);
 
 // Hangi bölümü düzenlediğimizi söyleyen şerit — modül bölüme özeldir, bu
 // ekranda yapılan her ayar yalnız o bölümü etkiler.
@@ -465,65 +546,104 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif" }}>
-      {/* Header */}
+      {/* ── Başlık ──
+          "Düzenlenen bölüm" ayrı bir tam genişlik şeridiydi; başlıkla üst
+          üste iki kutu, ikisi de tek satır bilgi taşıyordu. Bölüm adı artık
+          başlığın yanında bir rozet: aynı bilgi, yarısı kadar yer. */}
       <div
         style={{
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
-          justifyContent: 'space-between',
           gap: 12,
-          marginBottom: 24,
+          marginBottom: 18,
         }}
       >
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: BY.navy, margin: 0 }}>
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: BY.navy, margin: 0 }}>
             Bölüm Yönetimi
           </h1>
-          {/* Eski alt başlık "hiyerarşi"den söz ediyordu; o sekme kaldırılmıştı
-              (bölüm tanımı artık Fakülte Yönetimi'nde). */}
-          <p style={{ fontSize: 13, color: BY.textMuted, marginTop: 4 }}>
-            Derslikler, gözetmenler, akademisyen ve memur ayarları — <b>yalnız bu bölüm için</b>
+          <p style={{ fontSize: 12.5, color: BY.textMuted, margin: '4px 0 0' }}>
+            Bu ekrandaki her ayar <b>yalnız yandaki bölümü</b> etkiler.
           </p>
         </div>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '7px 13px',
+            borderRadius: 999,
+            background: BY.bluePale,
+            border: '1px solid #BFDBFE',
+            color: BY.blue,
+            fontSize: 13,
+            fontWeight: 700,
+            maxWidth: '100%',
+          }}
+          title={aktifBolumAdi || 'Bölüm seçilmedi'}
+        >
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: BY.blue,
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {aktifBolumAdi || 'Bölüm seçilmedi'}
+          </span>
+        </span>
       </div>
 
       {/* ── Sekmeler ──
           Yedi sekme, yedi kez kopyalanmış aynı 16 satırlık düğme bloğuydu;
           bir sekmenin rengi ya da boşluğu değişince diğerleri geride
-          kalıyordu. Liste artık veri: yeni sekme bir satır. */}
-      <div style={byBolumBaslik}>
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: BY.textMuted, letterSpacing: 0.3 }}>
-          DÜZENLENEN BÖLÜM
-        </div>
-        <div style={{ fontSize: 14.5, fontWeight: 700, color: BY.navy }}>
-          {aktifBolumAdi || 'Bölüm seçilmedi'}
-        </div>
-      </div>
+          kalıyordu. Liste artık veri: yeni sekme bir satır.
+          Sekmeler ayrıca GRUPLANIR — dokuzu düz sırada dizilince hepsi aynı
+          ağırlıkta görünüyor, aranan sekme ancak okuyarak bulunuyordu. */}
       <div style={byySekmeCubugu}>
-        {BY_SEKMELER.map((t) => {
+        {BY_SEKMELER.map((t, i) => {
           const aktif = activeTab === t.id;
+          const yeniGrup = i > 0 && BY_SEKMELER[i - 1].grup !== t.grup;
           return (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              title={t.ipucu}
-              style={{
-                padding: '9px 14px',
-                borderRadius: 8,
-                border: '1px solid ' + (aktif ? BY.blue : 'transparent'),
-                background: aktif ? BY.bluePale : 'transparent',
-                color: aktif ? BY.blue : BY.textMuted,
-                fontWeight: aktif ? 700 : 500,
-                fontSize: 13,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                fontFamily: 'inherit',
-                transition: 'all .15s',
-              }}
-            >
-              {t.label}
-            </button>
+            <React.Fragment key={t.id}>
+              {yeniGrup && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 1,
+                    alignSelf: 'stretch',
+                    background: BY.border,
+                    margin: '2px 6px',
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+              <button
+                onClick={() => setActiveTab(t.id)}
+                title={t.ipucu}
+                aria-current={aktif ? 'page' : undefined}
+                style={{
+                  padding: '9px 14px',
+                  borderRadius: 8,
+                  border: '1px solid ' + (aktif ? BY.blue : 'transparent'),
+                  background: aktif ? BY.surface : 'transparent',
+                  color: aktif ? BY.blue : BY.textMuted,
+                  fontWeight: aktif ? 700 : 500,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  fontFamily: 'inherit',
+                  boxShadow: aktif ? '0 1px 2px rgba(16,24,40,0.06)' : 'none',
+                  transition: 'all .15s',
+                }}
+              >
+                {t.label}
+              </button>
+            </React.Fragment>
           );
         })}
       </div>
@@ -578,166 +698,190 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         activeTab !== 'mezuniyet' &&
         activeTab !== 'programayar' &&
         (loading ? (
-          <div style={{ padding: 40, textAlign: 'center' }}>Yükleniyor...</div>
+          <BYBos>Yükleniyor…</BYBos>
         ) : (
-          <div
-            style={{
-              background: 'white',
-              borderRadius: 12,
-              border: '1px solid #E5E7EB',
-              overflow: 'hidden',
-            }}
-          >
-            <div style={{ overflowX: 'auto' }}>
-              {/* DEPARTMENTS TAB (ADMIN) */}
-              {activeTab === 'departments' && isAdmin && (
-                <table style={byTablo}>
-                  <thead>
-                    <tr>
-                      <th style={byTh}>Bölüm Adı</th>
-                      <th style={byTh}>Yetkili Kişi</th>
-                      <th style={{ ...byTh, textAlign: 'center', width: 120 }}>İşlem</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {departments.map((d) => (
-                      <tr key={d.id}>
-                        <td style={{ ...byTd, fontWeight: 600 }}>{d.name}</td>
-                        <td style={byTd}>
-                          {d.managerNames?.join(', ') || d.managerName || (
-                            <span style={{ color: '#9CA3AF' }}>Atanmadı</span>
-                          )}
-                        </td>
-                        <td style={{ ...byTd, textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                            <GhostBtn onClick={() => startDeptEdit(d)}>Düzenle</GhostBtn>
-                            <GhostBtn
-                              onClick={() => handleDeptDelete(d)}
-                              style={{ color: '#DC2626' }}
-                            >
-                              Sil
-                            </GhostBtn>
-                          </div>
-                        </td>
+          <>
+            {/* Bölüm başlığı ve BİRİNCİL İŞLEM tablonun üstünde, sabit yerde.
+                "+ Yeni Sınıf Ekle" tablonun son satırındaydı; liste uzayınca
+                ekrandan çıkıyor, kullanıcı ekleme düğmesini arıyordu. */}
+            {activeTab === 'classrooms' && (
+              <BYBolumBasligi
+                baslik="Sınıf / Salon"
+                aciklama={
+                  'Sınav ve ders programı yerleştirmesi bu listedeki salonları kullanır. ' +
+                  'Kapasite, sınav oturumu planlanırken dikkate alınır.'
+                }
+                islem={<Btn onClick={() => startClassEdit()}>+ Yeni Sınıf / Salon</Btn>}
+              />
+            )}
+            {activeTab === 'supervisors' && (
+              <>
+                <BYBolumBasligi
+                  baslik="Gözetmenler"
+                  aciklama="Sınav gözetmeni olarak görevlendirilebilecek akademisyenler."
+                  islem={<Btn onClick={startSupAdd}>+ Yeni Gözetmen</Btn>}
+                />
+                {/* Kural paneli KENDİ kartında: tabloyla aynı kartın içindeyken
+                    ikisi tek bir uzun blok gibi okunuyor, ayarın nerede bitip
+                    listenin nerede başladığı belli olmuyordu. */}
+                <GozetmenKurali departmentId={activeDepartment} />
+              </>
+            )}
+            <div
+              style={{
+                background: 'white',
+                borderRadius: 12,
+                border: '1px solid #E5E7EB',
+                overflow: 'hidden',
+                boxShadow: '0 1px 2px rgba(16,24,40,0.04)',
+              }}
+            >
+              <div style={{ overflowX: 'auto' }}>
+                {/* DEPARTMENTS TAB (ADMIN) */}
+                {activeTab === 'departments' && isAdmin && (
+                  <table style={byTablo}>
+                    <thead>
+                      <tr>
+                        <th style={byTh}>Bölüm Adı</th>
+                        <th style={byTh}>Yetkili Kişi</th>
+                        <th style={{ ...byTh, textAlign: 'center', width: 120 }}>İşlem</th>
                       </tr>
-                    ))}
-                    <tr>
-                      <td
-                        colSpan={3}
-                        style={{
-                          ...byTd,
-                          textAlign: 'right',
-                          background: BY.surfaceMuted,
-                          borderBottom: 'none',
-                        }}
-                      >
-                        <Btn onClick={() => startDeptEdit()}>+ Yeni Bölüm Tanımla</Btn>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              )}
-
-              {/* CLASSROOMS TAB */}
-              {activeTab === 'classrooms' && (
-                <table style={byTablo}>
-                  <thead>
-                    <tr>
-                      <th style={byTh}>Sınıf/Salon Adı</th>
-                      <th style={{ ...byTh, textAlign: 'center' }}>Kapasite</th>
-                      <th style={{ ...byTh, textAlign: 'center', width: 120 }}>İşlem</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {classrooms.length === 0 && (
-                      <BYTabloBos kolon={3}>
-                        Bu bölümde tanımlı sınıf/salon yok. Aşağıdan ekleyebilirsiniz.
-                      </BYTabloBos>
-                    )}
-                    {classrooms.map((c) => (
-                      <tr key={c.id}>
-                        <td style={{ ...byTd, fontWeight: 600 }}>{c.name}</td>
-                        <td style={{ ...byTd, textAlign: 'center' }}>{c.capacity || '-'}</td>
-                        <td style={{ ...byTd, textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                            <GhostBtn onClick={() => startClassEdit(c)}>Düzenle</GhostBtn>
-                            <GhostBtn
-                              onClick={() => handleClassDelete(c)}
-                              style={{ color: '#DC2626' }}
-                            >
-                              Sil
-                            </GhostBtn>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    <tr>
-                      <td
-                        colSpan={3}
-                        style={{
-                          ...byTd,
-                          textAlign: 'right',
-                          background: BY.surfaceMuted,
-                          borderBottom: 'none',
-                        }}
-                      >
-                        <Btn onClick={() => startClassEdit()}>+ Yeni Sınıf Ekle</Btn>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              )}
-
-              {/* SUPERVISORS TAB — professors koleksiyonundan roles:gozetmen */}
-              {activeTab === 'supervisors' && <GozetmenKurali departmentId={activeDepartment} />}
-              {activeTab === 'supervisors' && (
-                <table style={byTablo}>
-                  <thead>
-                    <tr>
-                      <th style={byTh}>Gözetmen Akademisyen</th>
-                      <th style={{ ...byTh, textAlign: 'center', width: 150 }}>İşlem</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {supervisors.map((s) => (
-                      <tr key={s.id} style={{ borderBottom: '1px solid #E5E7EB' }}>
-                        <td style={{ ...byTd, fontWeight: 600 }}>{s.name}</td>
-                        <td style={{ ...byTd, textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                            <GhostBtn onClick={() => startSupEdit(s)}>Düzenle</GhostBtn>
-                            <GhostBtn
-                              onClick={() => handleSupRemoveRole(s)}
-                              style={{ color: '#DC2626' }}
-                            >
-                              Çıkar
-                            </GhostBtn>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {supervisors.length === 0 && (
+                    </thead>
+                    <tbody>
+                      {departments.map((d) => (
+                        <tr key={d.id}>
+                          <td style={{ ...byTd, fontWeight: 600 }}>{d.name}</td>
+                          <td style={byTd}>
+                            {d.managerNames?.join(', ') || d.managerName || (
+                              <span style={{ color: '#9CA3AF' }}>Atanmadı</span>
+                            )}
+                          </td>
+                          <td style={{ ...byTd, textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                              <GhostBtn onClick={() => startDeptEdit(d)}>Düzenle</GhostBtn>
+                              <GhostBtn
+                                onClick={() => handleDeptDelete(d)}
+                                style={{ color: '#DC2626' }}
+                              >
+                                Sil
+                              </GhostBtn>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                       <tr>
                         <td
-                          colSpan={2}
-                          style={{ padding: 24, textAlign: 'center', color: '#9CA3AF' }}
+                          colSpan={3}
+                          style={{
+                            ...byTd,
+                            textAlign: 'right',
+                            background: BY.surfaceMuted,
+                            borderBottom: 'none',
+                          }}
                         >
-                          Henüz gözetmen atanmamış
+                          <Btn onClick={() => startDeptEdit()}>+ Yeni Bölüm Tanımla</Btn>
                         </td>
                       </tr>
-                    )}
-                    <tr>
-                      <td
-                        colSpan={2}
-                        style={{ ...byTd, background: BY.surfaceMuted, borderBottom: 'none' }}
-                      >
-                        <Btn onClick={startSupAdd}>+ Yeni Gözetmen Ekle</Btn>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              )}
+                    </tbody>
+                  </table>
+                )}
+
+                {/* CLASSROOMS TAB */}
+                {activeTab === 'classrooms' && (
+                  <table style={byTablo}>
+                    {/* Sabit sütun genişlikleri: eskiden yalnız "İşlem"in
+                      genişliği vardı, bu yüzden "Kapasite" bütün boşluğu
+                      yutuyor ve başlık satırın ortasında asılı kalıyordu. */}
+                    <colgroup>
+                      <col />
+                      <col style={{ width: 140 }} />
+                      <col style={{ width: 160 }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th style={byTh}>Sınıf/Salon Adı</th>
+                        <th style={{ ...byTh, textAlign: 'center' }}>Kapasite</th>
+                        <th style={{ ...byTh, textAlign: 'center' }}>İşlem</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {classrooms.length === 0 && (
+                        <BYTabloBos kolon={3}>
+                          Bu bölümde tanımlı sınıf/salon yok. Yukarıdaki “Yeni Sınıf / Salon”
+                          düğmesiyle ekleyebilirsiniz.
+                        </BYTabloBos>
+                      )}
+                      {classrooms.map((c) => (
+                        <tr key={c.id}>
+                          <td style={{ ...byTd, fontWeight: 600 }}>{c.name}</td>
+                          <td style={{ ...byTd, textAlign: 'center' }}>
+                            {c.capacity ? (
+                              <BYRozet renk={BY.tealText} zemin={BY.tealPale}>
+                                {c.capacity} kişi
+                              </BYRozet>
+                            ) : (
+                              <span style={{ color: '#94A3B8' }}>—</span>
+                            )}
+                          </td>
+                          <td style={{ ...byTd, textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                              <GhostBtn onClick={() => startClassEdit(c)}>Düzenle</GhostBtn>
+                              <GhostBtn
+                                onClick={() => handleClassDelete(c)}
+                                style={{ color: '#DC2626' }}
+                              >
+                                Sil
+                              </GhostBtn>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {/* SUPERVISORS TAB — professors koleksiyonundan roles:gozetmen */}
+                {activeTab === 'supervisors' && (
+                  <table style={byTablo}>
+                    <colgroup>
+                      <col />
+                      <col style={{ width: 180 }} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th style={byTh}>Gözetmen Akademisyen</th>
+                        <th style={{ ...byTh, textAlign: 'center' }}>İşlem</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {supervisors.map((s) => (
+                        <tr key={s.id}>
+                          <td style={{ ...byTd, fontWeight: 600 }}>{s.name}</td>
+                          <td style={{ ...byTd, textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                              <GhostBtn onClick={() => startSupEdit(s)}>Düzenle</GhostBtn>
+                              <GhostBtn
+                                onClick={() => handleSupRemoveRole(s)}
+                                style={{ color: '#DC2626' }}
+                              >
+                                Çıkar
+                              </GhostBtn>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {supervisors.length === 0 && (
+                        <BYTabloBos kolon={2}>
+                          Henüz gözetmen atanmamış. Yukarıdaki “Yeni Gözetmen” düğmesiyle
+                          ekleyebilirsiniz.
+                        </BYTabloBos>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
-          </div>
+          </>
         ))}
 
       {/* Bölüm Modal */}
@@ -3739,7 +3883,7 @@ function GozetmenKurali({ departmentId }) {
   if (yukleniyor) return null;
 
   return (
-    <div style={{ padding: 16, borderBottom: '1px solid #E5E7EB', background: '#FAFBFC' }}>
+    <div style={{ ...byKart, background: BY.surfaceMuted, marginBottom: 14 }}>
       <div style={{ fontSize: 13.5, fontWeight: 700, color: '#1F2937', marginBottom: 4 }}>
         Dersin hocası kendi sınavında gözetmen olsun mu?
       </div>
