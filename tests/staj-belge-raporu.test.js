@@ -18,6 +18,17 @@ import {
   raporSatiri,
   raporTablosu,
   raporDosyaAdi,
+  SUTUN_KATALOGU,
+  VARSAYILAN_SUTUNLAR,
+  sutunBul,
+  sutunlariCoz,
+  hucreDegeri,
+  tarihMetni,
+  sunumAraligi,
+  saatiDakikaya,
+  dakikayiSaate,
+  sunumSlotlari,
+  raporSiralamasi,
 } from '../lib/staj-belge-raporu.js';
 
 const basvuru = {
@@ -153,5 +164,163 @@ describe('raporDosyaAdi', () => {
   });
   it('etiket yoksa seçilen öğrenciler adını kullanır', () => {
     expect(raporDosyaAdi('')).toBe('staj-belge-durumu-Secilen-Ogrenciler.xlsx');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// SEÇİLEBİLİR SÜTUNLAR
+//
+// Her komisyon aynı sütunları istemiyor; çıktı seçilen sütunlardan kurulur
+// ve SIRA SEÇİM SIRASIDIR.
+// ══════════════════════════════════════════════════════════════
+describe('sutunlariCoz', () => {
+  it('seçim yoksa varsayılana düşer', () => {
+    expect(sutunlariCoz().map((s) => s.id)).toEqual(VARSAYILAN_SUTUNLAR);
+    expect(sutunlariCoz([]).map((s) => s.id)).toEqual(VARSAYILAN_SUTUNLAR);
+  });
+  it('SIRA SEÇİM SIRASIDIR, katalog sırası değil', () => {
+    expect(sutunlariCoz(['adSoyad', 'ogrenciNo']).map((s) => s.id)).toEqual([
+      'adSoyad',
+      'ogrenciNo',
+    ]);
+  });
+  it('tanınmayan sütun atılır', () => {
+    expect(sutunlariCoz(['ogrenciNo', 'yok_boyle_bir_sey']).map((s) => s.id)).toEqual([
+      'ogrenciNo',
+    ]);
+  });
+  it('yinelenen sütun bir kez alınır', () => {
+    expect(sutunlariCoz(['ogrenciNo', 'ogrenciNo']).map((s) => s.id)).toEqual(['ogrenciNo']);
+  });
+  it('hiçbiri çözülemezse boş tablo değil, varsayılan döner', () => {
+    expect(sutunlariCoz(['a', 'b']).map((s) => s.id)).toEqual(VARSAYILAN_SUTUNLAR);
+  });
+});
+
+describe('SUTUN_KATALOGU', () => {
+  it('kimlikler benzersiz', () => {
+    const idler = SUTUN_KATALOGU.map((s) => s.id);
+    expect(new Set(idler).size).toBe(idler.length);
+  });
+  it('varsayılanların hepsi katalogda var', () => {
+    VARSAYILAN_SUTUNLAR.forEach((id) => expect(sutunBul(id)).not.toBe(null));
+  });
+  it('sunum sütunları katalogda', () => {
+    expect(sutunBul('sunumTarihi').tur).toBe('sunum');
+    expect(sutunBul('sunumSaati').tur).toBe('sunum');
+  });
+});
+
+describe('hucreDegeri', () => {
+  it('başvuru alanını okur', () => {
+    expect(hucreDegeri('tcKimlikNo', { tcKimlikNo: '11111111111' })).toBe('11111111111');
+  });
+  it('başvuru durumunu Türkçe yazar', () => {
+    expect(hucreDegeri('status', { status: 'tamamlandi' })).toBe('Tamamlandı');
+    expect(hucreDegeri('status', { status: 'bilinmeyen' })).toBe('bilinmeyen');
+  });
+  it('belge sütununu yükleme haritasından çözer', () => {
+    expect(hucreDegeri('belge:zorunlu_staj_formu', basvuru, yuklemeler)).toBe(YUKLU);
+  });
+  it('boş sütun her zaman boş', () => {
+    expect(hucreDegeri('bos:Not', { Not: 'dolu olmamalı' })).toBe('');
+  });
+  it('tanınmayan sütun boş döner', () => {
+    expect(hucreDegeri('yok', basvuru)).toBe('');
+  });
+});
+
+describe('raporTablosu — seçili sütunlarla', () => {
+  it('yalnız seçilen sütunlar çıkar', () => {
+    const t = raporTablosu([basvuru], { a1: yuklemeler }, ['ogrenciNo', 'sunumTarihi']);
+    expect(t[0]).toEqual(['Öğrenci Numarası', 'Sunum Tarihi']);
+    expect(t[1]).toHaveLength(2);
+  });
+  it('eski çağrı biçimi (sütunsuz) varsayılanı verir', () => {
+    expect(raporTablosu([basvuru], { a1: yuklemeler })[0]).toEqual(raporBasliklari());
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// SUNUM TAKVİMİ
+// ══════════════════════════════════════════════════════════════
+describe('tarihMetni', () => {
+  it('ISO tarihi gün.ay.yıl yazar', () => {
+    expect(tarihMetni('2026-06-15')).toBe('15.06.2026');
+  });
+  it('boş ya da tanınmayan değeri olduğu gibi bırakır', () => {
+    expect(tarihMetni('')).toBe('');
+    expect(tarihMetni('15 Haziran')).toBe('15 Haziran');
+  });
+});
+
+describe('sunumAraligi', () => {
+  it('başlangıç ve bitişi birleştirir', () => {
+    expect(sunumAraligi({ sunumBaslangic: '09:00', sunumBitis: '09:20' })).toBe('09:00 - 09:20');
+  });
+  it('yalnız biri varsa onu yazar', () => {
+    expect(sunumAraligi({ sunumBaslangic: '09:00' })).toBe('09:00');
+  });
+  it('atanmamışsa boş', () => {
+    expect(sunumAraligi({})).toBe('');
+  });
+});
+
+describe('saatiDakikaya / dakikayiSaate', () => {
+  it('ileri geri çevirir', () => {
+    expect(saatiDakikaya('09:30')).toBe(570);
+    expect(dakikayiSaate(570)).toBe('09:30');
+    expect(dakikayiSaate(saatiDakikaya('00:05'))).toBe('00:05');
+  });
+  it('geçersiz saat null döner', () => {
+    expect(saatiDakikaya('')).toBe(null);
+    expect(saatiDakikaya('25:00')).toBe(null);
+    expect(saatiDakikaya('09:75')).toBe(null);
+    expect(saatiDakikaya('9.30')).toBe(null);
+  });
+});
+
+describe('sunumSlotlari', () => {
+  it('ardışık aralıklar üretir', () => {
+    expect(sunumSlotlari('09:00', 20, 3)).toEqual([
+      { baslangic: '09:00', bitis: '09:20' },
+      { baslangic: '09:20', bitis: '09:40' },
+      { baslangic: '09:40', bitis: '10:00' },
+    ]);
+  });
+  it('BİTİŞ SAATİNİ AŞAN SLOT ÜRETİLMEZ', () => {
+    const s = sunumSlotlari('09:00', 30, 10, '10:00');
+    expect(s).toHaveLength(2);
+    expect(s[s.length - 1].bitis).toBe('10:00');
+  });
+  it('geçersiz girdide boş döner', () => {
+    expect(sunumSlotlari('', 20, 3)).toEqual([]);
+    expect(sunumSlotlari('09:00', 0, 3)).toEqual([]);
+    expect(sunumSlotlari('09:00', 20, 0)).toEqual([]);
+  });
+});
+
+describe('raporSiralamasi', () => {
+  it('SUNUM TAKVİMİNE göre sıralar — çıktı program cetveli olarak okunmalı', () => {
+    const liste = [
+      { id: '1', ogrenciNo: '111', sunumTarihi: '2026-06-16', sunumBaslangic: '09:00' },
+      { id: '2', ogrenciNo: '222', sunumTarihi: '2026-06-15', sunumBaslangic: '10:00' },
+      { id: '3', ogrenciNo: '333', sunumTarihi: '2026-06-15', sunumBaslangic: '09:00' },
+    ];
+    expect(raporSiralamasi(liste).map((x) => x.ogrenciNo)).toEqual(['333', '222', '111']);
+  });
+  it('takvimi atanmayanlar sona düşer', () => {
+    const liste = [
+      { id: '1', ogrenciNo: '111' },
+      { id: '2', ogrenciNo: '222', sunumTarihi: '2026-06-15' },
+    ];
+    expect(raporSiralamasi(liste).map((x) => x.ogrenciNo)).toEqual(['222', '111']);
+  });
+  it('takvim yoksa etap ve numara sırası geçerli', () => {
+    const liste = [
+      { id: '1', ogrenciNo: '222', stajEtapLabel: '2025 Yaz' },
+      { id: '2', ogrenciNo: '111', stajEtapLabel: '2025 Yaz' },
+    ];
+    expect(raporSiralamasi(liste).map((x) => x.ogrenciNo)).toEqual(['111', '222']);
   });
 });

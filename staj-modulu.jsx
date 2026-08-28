@@ -4973,6 +4973,19 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [raporEtapId, setRaporEtapId] = useState('');
   const [raporSecili, setRaporSecili] = useState([]); // başvuru id listesi
   const [raporHazirlaniyor, setRaporHazirlaniyor] = useState(false);
+  // Panel varsayılan olarak KAPALI: yönetim ekranının üstünü kaplamasın.
+  const [raporAcik, setRaporAcik] = useState(false);
+  const [raporSutunlarAcik, setRaporSutunlarAcik] = useState(false);
+  // Hangi sütunlar çıktıya girecek — sıra SEÇİM SIRASIDIR.
+  const [raporSutunlar, setRaporSutunlar] = useState(() =>
+    (window.STAJ_VARSAYILAN_SUTUNLAR || []).slice()
+  );
+  // Toplu sunum ataması
+  const [sunumTarihi, setSunumTarihi] = useState('');
+  const [sunumBasSaat, setSunumBasSaat] = useState('09:00');
+  const [sunumBitSaat, setSunumBitSaat] = useState('');
+  const [sunumDilim, setSunumDilim] = useState(20);
+  const [sunumAtaniyor, setSunumAtaniyor] = useState(false);
 
   // Dışa aktarımda kullanılacak etap ve başvuru kümeleri. Ergün ÇINAR için
   // bölüm filtresiz tüm fakülte; diğer roller için kendi bölümleri.
@@ -5156,29 +5169,152 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const raporTumunuSec = () => setRaporSecili(raporAdaylari.map((a) => a.id));
   const raporSecimiTemizle = () => setRaporSecili([]);
 
+  // Sütun seçimi: işaretleme sırası çıktı sırasıdır.
+  const raporSutunDegistir = (id) => {
+    setRaporSutunlar((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : prev.concat([id])
+    );
+  };
+  const raporSutunVarsayilan = () =>
+    setRaporSutunlar((window.STAJ_VARSAYILAN_SUTUNLAR || []).slice());
+
+  // Rapora girecek başvurular — seçim varsa yalnız seçilenler.
+  const raporKapsami = () =>
+    raporSecili.length > 0 ? raporAdaylari.filter((a) => raporSeciliSet.has(a.id)) : raporAdaylari;
+
+  // ── Toplu sunum takvimi ataması ──
+  // Seçilen tarihte, verilen saatten başlayarak ardışık dilimler. Bitiş saati
+  // verilirse taşan öğrenciye slot ÜRETİLMEZ; kaç kişinin dışarıda kaldığı
+  // söylenir (sessizce gece yarısına kaymasındansa komisyon görsün).
+  const handleSunumAta = async () => {
+    if (!raporYetkisi) {
+      alert('Sunum takvimini yalnızca bölüm yetkilisi veya staj komisyonu üyesi düzenleyebilir.');
+      return;
+    }
+    if (!sunumTarihi) {
+      alert('Önce sunum tarihini seçin.');
+      return;
+    }
+    const hedef = window.stajRaporSiralamasi(raporKapsami());
+    if (hedef.length === 0) {
+      alert('Takvim atanacak öğrenci bulunamadı.');
+      return;
+    }
+    const slotlar = window.stajSunumSlotlari(
+      sunumBasSaat,
+      Number(sunumDilim),
+      hedef.length,
+      sunumBitSaat
+    );
+    if (slotlar.length === 0) {
+      alert('Geçerli bir başlangıç saati ve dilim süresi girin.');
+      return;
+    }
+    const disarida = hedef.length - slotlar.length;
+    const onay =
+      `${slotlar.length} öğrenciye ${sunumTarihi} tarihinde ` +
+      `${slotlar[0].baslangic}–${slotlar[slotlar.length - 1].bitis} arasında sunum saati ` +
+      'atanacak.' +
+      (disarida > 0
+        ? `\n\nDİKKAT: ${disarida} öğrenciye saat kalmadı (bitiş saati doldu); ` +
+          'onlar atanmadan bırakılacak.'
+        : '');
+    if (!confirm(onay + '\n\nDevam edilsin mi?')) return;
+    setSunumAtaniyor(true);
+    try {
+      for (let i = 0; i < slotlar.length; i++) {
+        const app = hedef[i];
+        await window.DBWrite.set(
+          'internship_applications',
+          app.id,
+          {
+            sunumTarihi,
+            sunumBaslangic: slotlar[i].baslangic,
+            sunumBitis: slotlar[i].bitis,
+            sunumAtayan: currentUser?.name || currentUser?.identifier || '',
+            sunumAtandiAt: new Date().toISOString(),
+          },
+          true
+        );
+      }
+      if (window.audit)
+        window.audit('staj_sunum_atama', 'internship_applications', raporEtapId || 'secim', {
+          departmentId: effectiveDept,
+          meta: { tarih: sunumTarihi, ogrenciSayisi: slotlar.length, atanamayan: disarida },
+        });
+      await loadAllData();
+      alert(
+        `${slotlar.length} öğrenciye sunum saati atandı.` +
+          (disarida > 0 ? ` ${disarida} öğrenci atanmadan kaldı.` : '')
+      );
+    } catch (e) {
+      console.error('Sunum atama hatası:', e);
+      alert('Sunum takvimi atanamadı: ' + (e && e.message ? e.message : e));
+    } finally {
+      setSunumAtaniyor(false);
+    }
+  };
+
+  // Tek öğrencinin sunum saatini elle düzeltme.
+  const sunumSatirGuncelle = async (app, alan, deger) => {
+    if (!raporYetkisi) return;
+    try {
+      await window.DBWrite.set('internship_applications', app.id, { [alan]: deger }, true);
+      await loadAllData();
+    } catch (e) {
+      console.error('Sunum güncellenemedi:', e);
+      alert('Sunum bilgisi kaydedilemedi: ' + (e && e.message ? e.message : e));
+    }
+  };
+
+  // Seçilen öğrencilerin sunum takvimini temizler.
+  const handleSunumTemizle = async () => {
+    const hedef = raporKapsami().filter((a) => a.sunumTarihi || a.sunumBaslangic);
+    if (hedef.length === 0) {
+      alert('Temizlenecek sunum kaydı yok.');
+      return;
+    }
+    if (!confirm(`${hedef.length} öğrencinin sunum takvimi silinsin mi?`)) return;
+    setSunumAtaniyor(true);
+    try {
+      for (const app of hedef) {
+        await window.DBWrite.set(
+          'internship_applications',
+          app.id,
+          { sunumTarihi: '', sunumBaslangic: '', sunumBitis: '' },
+          true
+        );
+      }
+      await loadAllData();
+    } catch (e) {
+      console.error('Sunum temizleme hatası:', e);
+      alert('Silinemedi: ' + (e && e.message ? e.message : e));
+    } finally {
+      setSunumAtaniyor(false);
+    }
+  };
+
   const handleBelgeRaporuXLSX = async () => {
     if (!raporYetkisi) {
       alert('Bu raporu yalnızca bölüm yetkilisi veya staj komisyonu üyesi alabilir.');
       return;
     }
     // Seçim yapılmadıysa etaptaki HERKES çıkar; seçim varsa yalnız seçilenler.
-    const secilenler =
-      raporSecili.length > 0
-        ? raporAdaylari.filter((a) => raporSeciliSet.has(a.id))
-        : raporAdaylari;
+    const secilenler = raporKapsami();
     if (secilenler.length === 0) {
       alert('Rapora eklenecek öğrenci bulunamadı.');
       return;
     }
     setRaporHazirlaniyor(true);
     try {
-      const tablo = window.stajRaporTablosu(secilenler, allUploads);
+      const tablo = window.stajRaporTablosu(secilenler, allUploads, raporSutunlar);
       const XLSX = await loadSheetJS();
       const ws = XLSX.utils.aoa_to_sheet(tablo);
-      // Sütun genişlikleri: kurum ve belge sütunları uzun metin taşır.
-      ws['!cols'] = tablo[0].map((baslik, i) => ({
-        wch: i === 3 ? 46 : Math.max(String(baslik).length + 4, 18),
-      }));
+      // Sütun genişliği: en uzun hücreye göre, makul bir tavanla.
+      ws['!cols'] = tablo[0].map((baslik, i) => {
+        const enUzun = tablo.reduce((m, satir) => Math.max(m, String(satir[i] || '').length), 0);
+        return { wch: Math.min(Math.max(enUzun + 3, String(baslik).length + 3, 14), 50) };
+      });
       tablo[0].forEach((_, ci) => {
         const ref = XLSX.utils.encode_cell({ r: 0, c: ci });
         if (ws[ref]) ws[ref].s = { font: { bold: true } };
@@ -5191,7 +5327,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       if (window.audit)
         window.audit('staj_belge_raporu', 'internship_applications', raporEtapId || 'secim', {
           departmentId: effectiveDept,
-          meta: { ogrenciSayisi: secilenler.length, etap: etap?.label || '(seçim)' },
+          meta: {
+            ogrenciSayisi: secilenler.length,
+            etap: etap?.label || '(seçim)',
+            sutunSayisi: tablo[0].length,
+          },
         });
     } catch (e) {
       console.error('Belge raporu hatası:', e);
@@ -8555,17 +8695,33 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               )}
 
               {/* ── Belge Durum Raporu (bölüm yetkilisi / staj komisyonu) ── */}
+              {/* Panel AÇILIR/KAPANIR ve varsayılan olarak kapalıdır: yönetim
+                  ekranının üstünü kaplamasın, isteyen açsın. */}
               {raporYetkisi && (
                 <div
                   style={{
                     background: 'linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%)',
                     border: '1.5px solid #05966920',
                     borderRadius: 14,
-                    padding: responsive.val(14, 18, 22),
+                    padding: responsive.val(12, 16, 18),
                     marginBottom: 20,
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <button
+                    onClick={() => setRaporAcik((v) => !v)}
+                    aria-expanded={raporAcik}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      width: '100%',
+                      background: 'transparent',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
                     <div
                       style={{
                         width: 32,
@@ -8575,6 +8731,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
                       <StajIcon
@@ -8583,143 +8740,461 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         color="white"
                       />
                     </div>
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: STAJ.navy }}>
-                        Belge Durum Raporu (XLSX)
+                        Belge Durum Raporu &amp; Sunum Takvimi
                       </div>
                       <div style={{ fontSize: 11, color: STAJ.textMuted }}>
-                        Etap, öğrenci ve staj yeri bilgisiyle birlikte her belgenin yüklenip
-                        yüklenmediği. EK-2 ve Not sütunları elle doldurulmak üzere boş gelir.
+                        Sütunları seçerek XLSX alın; öğrencilere sunum tarihi ve saati atayın.
                       </div>
                     </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: 10,
-                      alignItems: 'center',
-                      marginBottom: 12,
-                    }}
-                  >
-                    <select
-                      value={raporEtapId}
-                      onChange={(e) => {
-                        setRaporEtapId(e.target.value);
-                        setRaporSecili([]);
-                      }}
+                    <span
                       style={{
-                        padding: '9px 12px',
-                        borderRadius: 8,
-                        border: '1.5px solid #05966940',
-                        background: 'white',
-                        fontSize: 13,
-                        color: STAJ.navy,
-                        minWidth: 220,
-                      }}
-                    >
-                      <option value="">Tüm etaplar</option>
-                      {stajPeriods.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.label}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={raporTumunuSec}
-                      style={{
-                        padding: '8px 14px',
-                        borderRadius: 8,
-                        border: '1.5px solid #05966950',
-                        background: 'white',
-                        color: '#059669',
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Tümünü seç
-                    </button>
-                    <button
-                      onClick={raporSecimiTemizle}
-                      style={{
-                        padding: '8px 14px',
-                        borderRadius: 8,
-                        border: `1.5px solid ${STAJ.border}`,
-                        background: 'white',
-                        color: STAJ.textMuted,
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Seçimi temizle
-                    </button>
-                    <div style={{ flex: 1 }} />
-                    <button
-                      onClick={handleBelgeRaporuXLSX}
-                      disabled={raporHazirlaniyor}
-                      style={{
-                        padding: '9px 18px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: raporHazirlaniyor ? STAJ.textMuted : '#059669',
-                        color: 'white',
-                        fontSize: 13,
+                        fontSize: 12,
                         fontWeight: 700,
-                        cursor: raporHazirlaniyor ? 'default' : 'pointer',
+                        color: '#059669',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      {raporHazirlaniyor ? 'Hazırlanıyor…' : 'XLSX indir'}
-                    </button>
-                  </div>
+                      {raporAcik ? 'Gizle ▲' : 'Göster ▼'}
+                    </span>
+                  </button>
 
-                  <div style={{ fontSize: 12, color: STAJ.textMuted, marginBottom: 8 }}>
-                    {raporSecili.length > 0
-                      ? `${raporSecili.length} öğrenci seçili — yalnız seçilenler çıkar.`
-                      : `Seçim yapılmadı — listedeki ${raporAdaylari.length} öğrencinin tamamı çıkar.`}
-                  </div>
-
-                  <div
-                    style={{
-                      maxHeight: 220,
-                      overflowY: 'auto',
-                      background: 'white',
-                      border: `1px solid ${STAJ.border}`,
-                      borderRadius: 8,
-                    }}
-                  >
-                    {raporAdaylari.length === 0 && (
-                      <div style={{ padding: 14, fontSize: 12.5, color: STAJ.textMuted }}>
-                        Bu etapta başvuru yok.
-                      </div>
-                    )}
-                    {raporAdaylari.map((a) => (
-                      <label
-                        key={a.id}
+                  {raporAcik && (
+                    <div style={{ marginTop: 16 }}>
+                      {/* Etap seçimi ve indirme */}
+                      <div
                         style={{
                           display: 'flex',
-                          alignItems: 'center',
+                          flexWrap: 'wrap',
                           gap: 10,
-                          padding: '8px 12px',
-                          borderBottom: `1px solid ${STAJ.border}`,
-                          cursor: 'pointer',
-                          fontSize: 12.5,
-                          color: STAJ.navy,
+                          alignItems: 'center',
+                          marginBottom: 12,
                         }}
                       >
-                        <input
-                          type="checkbox"
-                          checked={raporSeciliSet.has(a.id)}
-                          onChange={() => raporSecimDegistir(a.id)}
-                        />
-                        <span style={{ fontWeight: 600, minWidth: 96 }}>{a.ogrenciNo || '—'}</span>
-                        <span style={{ flex: 1 }}>{a.adSoyad || '—'}</span>
-                        <span style={{ color: STAJ.textMuted }}>{a.stajEtapLabel || ''}</span>
-                      </label>
-                    ))}
-                  </div>
+                        <select
+                          value={raporEtapId}
+                          onChange={(e) => {
+                            setRaporEtapId(e.target.value);
+                            setRaporSecili([]);
+                          }}
+                          style={{
+                            padding: '9px 12px',
+                            borderRadius: 8,
+                            border: '1.5px solid #05966940',
+                            background: 'white',
+                            fontSize: 13,
+                            color: STAJ.navy,
+                            minWidth: 220,
+                          }}
+                        >
+                          <option value="">Tüm etaplar</option>
+                          {stajPeriods.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={raporTumunuSec}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: 8,
+                            border: '1.5px solid #05966950',
+                            background: 'white',
+                            color: '#059669',
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Tümünü seç
+                        </button>
+                        <button
+                          onClick={raporSecimiTemizle}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: 8,
+                            border: `1.5px solid ${STAJ.border}`,
+                            background: 'white',
+                            color: STAJ.textMuted,
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Seçimi temizle
+                        </button>
+                        <div style={{ flex: 1 }} />
+                        <button
+                          onClick={handleBelgeRaporuXLSX}
+                          disabled={raporHazirlaniyor}
+                          style={{
+                            padding: '9px 18px',
+                            borderRadius: 8,
+                            border: 'none',
+                            background: raporHazirlaniyor ? STAJ.textMuted : '#059669',
+                            color: 'white',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor: raporHazirlaniyor ? 'default' : 'pointer',
+                          }}
+                        >
+                          {raporHazirlaniyor ? 'Hazırlanıyor…' : 'XLSX indir'}
+                        </button>
+                      </div>
+
+                      {/* ── Sütun seçimi (açılır/kapanır) ── */}
+                      <div
+                        style={{
+                          background: 'white',
+                          border: `1px solid ${STAJ.border}`,
+                          borderRadius: 8,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <button
+                          onClick={() => setRaporSutunlarAcik((v) => !v)}
+                          aria-expanded={raporSutunlarAcik}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            width: '100%',
+                            padding: '10px 12px',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            color: STAJ.navy,
+                          }}
+                        >
+                          <span>Çıktı sütunları — {raporSutunlar.length} seçili</span>
+                          <span style={{ color: '#059669' }}>
+                            {raporSutunlarAcik ? 'Gizle ▲' : 'Düzenle ▼'}
+                          </span>
+                        </button>
+                        {raporSutunlarAcik && (
+                          <div style={{ padding: '0 12px 12px' }}>
+                            <div style={{ fontSize: 11, color: STAJ.textMuted, marginBottom: 8 }}>
+                              İşaretleme sırası çıktıdaki sütun sırasıdır.
+                            </div>
+                            <div
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: responsive.val(
+                                  '1fr',
+                                  '1fr 1fr',
+                                  '1fr 1fr 1fr'
+                                ),
+                                gap: 6,
+                                maxHeight: 240,
+                                overflowY: 'auto',
+                              }}
+                            >
+                              {(window.STAJ_SUTUN_KATALOGU || []).map((sut) => {
+                                const sira = raporSutunlar.indexOf(sut.id);
+                                return (
+                                  <label
+                                    key={sut.id}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 8,
+                                      fontSize: 12,
+                                      color: STAJ.navy,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={sira >= 0}
+                                      onChange={() => raporSutunDegistir(sut.id)}
+                                    />
+                                    <span style={{ flex: 1 }}>{sut.baslik}</span>
+                                    {sira >= 0 && (
+                                      <span
+                                        style={{
+                                          fontSize: 10,
+                                          fontWeight: 700,
+                                          color: '#059669',
+                                          background: '#ECFDF5',
+                                          borderRadius: 10,
+                                          padding: '1px 7px',
+                                        }}
+                                      >
+                                        {sira + 1}
+                                      </span>
+                                    )}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                              <button
+                                onClick={raporSutunVarsayilan}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 6,
+                                  border: `1px solid ${STAJ.border}`,
+                                  background: 'white',
+                                  color: STAJ.textMuted,
+                                  fontSize: 11.5,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Varsayılana dön
+                              </button>
+                              <button
+                                onClick={() => setRaporSutunlar([])}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 6,
+                                  border: `1px solid ${STAJ.border}`,
+                                  background: 'white',
+                                  color: STAJ.textMuted,
+                                  fontSize: 11.5,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Tümünü kaldır
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ── Sunum takvimi ataması ── */}
+                      <div
+                        style={{
+                          background: 'white',
+                          border: `1px solid ${STAJ.border}`,
+                          borderRadius: 8,
+                          padding: 12,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            color: STAJ.navy,
+                            marginBottom: 8,
+                          }}
+                        >
+                          Sunum takvimi ata
+                        </div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 10,
+                            alignItems: 'flex-end',
+                          }}
+                        >
+                          <label style={{ fontSize: 11, color: STAJ.textMuted }}>
+                            Tarih
+                            <input
+                              type="date"
+                              value={sunumTarihi}
+                              onChange={(e) => setSunumTarihi(e.target.value)}
+                              style={{
+                                display: 'block',
+                                marginTop: 4,
+                                padding: '7px 10px',
+                                borderRadius: 6,
+                                border: `1px solid ${STAJ.border}`,
+                                fontSize: 12.5,
+                                color: STAJ.navy,
+                              }}
+                            />
+                          </label>
+                          <label style={{ fontSize: 11, color: STAJ.textMuted }}>
+                            Başlangıç
+                            <input
+                              type="time"
+                              value={sunumBasSaat}
+                              onChange={(e) => setSunumBasSaat(e.target.value)}
+                              style={{
+                                display: 'block',
+                                marginTop: 4,
+                                padding: '7px 10px',
+                                borderRadius: 6,
+                                border: `1px solid ${STAJ.border}`,
+                                fontSize: 12.5,
+                                color: STAJ.navy,
+                              }}
+                            />
+                          </label>
+                          <label style={{ fontSize: 11, color: STAJ.textMuted }}>
+                            Bitiş (isteğe bağlı)
+                            <input
+                              type="time"
+                              value={sunumBitSaat}
+                              onChange={(e) => setSunumBitSaat(e.target.value)}
+                              style={{
+                                display: 'block',
+                                marginTop: 4,
+                                padding: '7px 10px',
+                                borderRadius: 6,
+                                border: `1px solid ${STAJ.border}`,
+                                fontSize: 12.5,
+                                color: STAJ.navy,
+                              }}
+                            />
+                          </label>
+                          <label style={{ fontSize: 11, color: STAJ.textMuted }}>
+                            Kişi başı (dk)
+                            <input
+                              type="number"
+                              min="5"
+                              step="5"
+                              value={sunumDilim}
+                              onChange={(e) => setSunumDilim(e.target.value)}
+                              style={{
+                                display: 'block',
+                                marginTop: 4,
+                                padding: '7px 10px',
+                                borderRadius: 6,
+                                border: `1px solid ${STAJ.border}`,
+                                fontSize: 12.5,
+                                color: STAJ.navy,
+                                width: 92,
+                              }}
+                            />
+                          </label>
+                          <button
+                            onClick={handleSunumAta}
+                            disabled={sunumAtaniyor}
+                            style={{
+                              padding: '9px 16px',
+                              borderRadius: 8,
+                              border: 'none',
+                              background: sunumAtaniyor ? STAJ.textMuted : STAJ.primary,
+                              color: 'white',
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              cursor: sunumAtaniyor ? 'default' : 'pointer',
+                            }}
+                          >
+                            {sunumAtaniyor ? 'Atanıyor…' : 'Seçilenlere ata'}
+                          </button>
+                          <button
+                            onClick={handleSunumTemizle}
+                            disabled={sunumAtaniyor}
+                            style={{
+                              padding: '9px 14px',
+                              borderRadius: 8,
+                              border: `1.5px solid ${STAJ.border}`,
+                              background: 'white',
+                              color: STAJ.textMuted,
+                              fontSize: 12.5,
+                              fontWeight: 600,
+                              cursor: sunumAtaniyor ? 'default' : 'pointer',
+                            }}
+                          >
+                            Takvimi temizle
+                          </button>
+                        </div>
+                        <div style={{ fontSize: 11, color: STAJ.textMuted, marginTop: 8 }}>
+                          Saatler listedeki sıraya göre ardışık verilir. Bitiş saati girilirse taşan
+                          öğrencilere saat atanmaz — kimlerin kaldığı işlem sonunda bildirilir.
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: 12, color: STAJ.textMuted, marginBottom: 8 }}>
+                        {raporSecili.length > 0
+                          ? `${raporSecili.length} öğrenci seçili — yalnız seçilenler işleme girer.`
+                          : `Seçim yapılmadı — listedeki ${raporAdaylari.length} öğrencinin tamamı işleme girer.`}
+                      </div>
+
+                      {/* Öğrenci listesi — seçim ve sunum saati düzeltme */}
+                      <div
+                        style={{
+                          maxHeight: 260,
+                          overflowY: 'auto',
+                          background: 'white',
+                          border: `1px solid ${STAJ.border}`,
+                          borderRadius: 8,
+                        }}
+                      >
+                        {raporAdaylari.length === 0 && (
+                          <div style={{ padding: 14, fontSize: 12.5, color: STAJ.textMuted }}>
+                            Bu etapta başvuru yok.
+                          </div>
+                        )}
+                        {window.stajRaporSiralamasi(raporAdaylari).map((a) => (
+                          <div
+                            key={a.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              flexWrap: 'wrap',
+                              gap: 8,
+                              padding: '8px 12px',
+                              borderBottom: `1px solid ${STAJ.border}`,
+                              fontSize: 12.5,
+                              color: STAJ.navy,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={raporSeciliSet.has(a.id)}
+                              onChange={() => raporSecimDegistir(a.id)}
+                            />
+                            <span style={{ fontWeight: 600, minWidth: 96 }}>
+                              {a.ogrenciNo || '—'}
+                            </span>
+                            <span style={{ flex: 1, minWidth: 140 }}>{a.adSoyad || '—'}</span>
+                            <input
+                              type="date"
+                              value={a.sunumTarihi || ''}
+                              onChange={(e) => sunumSatirGuncelle(a, 'sunumTarihi', e.target.value)}
+                              title="Sunum tarihi"
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: 6,
+                                border: `1px solid ${STAJ.border}`,
+                                fontSize: 12,
+                                color: STAJ.navy,
+                              }}
+                            />
+                            <input
+                              type="time"
+                              value={a.sunumBaslangic || ''}
+                              onChange={(e) =>
+                                sunumSatirGuncelle(a, 'sunumBaslangic', e.target.value)
+                              }
+                              title="Sunum başlangıç saati"
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: 6,
+                                border: `1px solid ${STAJ.border}`,
+                                fontSize: 12,
+                                color: STAJ.navy,
+                              }}
+                            />
+                            <input
+                              type="time"
+                              value={a.sunumBitis || ''}
+                              onChange={(e) => sunumSatirGuncelle(a, 'sunumBitis', e.target.value)}
+                              title="Sunum bitiş saati"
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: 6,
+                                border: `1px solid ${STAJ.border}`,
+                                fontSize: 12,
+                                color: STAJ.navy,
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

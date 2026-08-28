@@ -940,6 +940,21 @@ async function enforceWritePolicies(db, op, user) {
       delete op.data.duzenlenmeZamani;
     }
 
+    // SUNUM TAKVİMİ ÖĞRENCİYE KAPALI.
+    //
+    // Staj sunum tarihi ve saati komisyonun kararıdır; başvuru kaydında
+    // durur ve öğrenci kendi başvurusunu yazabildiği için bu alanlar da
+    // yazılabilir olurdu. Öğrenci kendi sunum saatini seçebilseydi takvim
+    // komisyonun elinden çıkardı — üstelik başkasının saatiyle çakışacak
+    // şekilde. Alanlar sessizce düşürülür (öğrenci arayüzü zaten göndermez).
+    if (op.collection === 'internship_applications' && op.data && typeof op.data === 'object') {
+      delete op.data.sunumTarihi;
+      delete op.data.sunumBaslangic;
+      delete op.data.sunumBitis;
+      delete op.data.sunumAtayan;
+      delete op.data.sunumAtandiAt;
+    }
+
     // student_courses: sahiplik alanı her zaman JWT kimliğine sabitlenir —
     // öğrenci başkası adına dönem dersi kaydı oluşturamaz.
     if (
