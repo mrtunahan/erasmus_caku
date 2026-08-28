@@ -2542,6 +2542,8 @@ function AppShell() {
   // ── Lazy Loading State ──
   const [loadedModules, setLoadedModules] = useState({});
   const [moduleLoading, setModuleLoading] = useState(false);
+  // Yükleme başarısız olduğunda gösterilecek gerçek sebep (bkz. lib/modul-yukleme.js)
+  const [moduleError, setModuleError] = useState(null);
 
   // Öğrenci ders seçimi durumu: seçim yapmadıysa "benim" dışındaki modüllere erişemez
   const [studentCoursesChecked, setStudentCoursesChecked] = useState(false);
@@ -2762,30 +2764,67 @@ function AppShell() {
     commissionModules,
   ]);
 
-  // Lazy load module
+  // ── Tembel modül yükleme ──
+  // ⚠ BAYAT PARÇA. Sunucuya yeni sürüm yüklenince eski parça dosyaları
+  // siliniyor; açık duran sekme hâlâ eski giriş dosyasını çalıştırdığı için
+  // artık var olmayan bir dosya adını istiyor ve 404 alıyor. Kullanıcı
+  // "Modül yüklenemedi" duvarına çarpıyordu — özellikle o oturumda henüz
+  // açılmamış modüllerde (yatay geçiş gibi), her dağıtımdan sonra.
+  //
+  // Çözüm iki katmanlı: bir kez yeniden DENE (anlık ağ hatası olabilir),
+  // hâlâ olmuyorsa sayfayı BİR KEZ yenile — yeni giriş dosyası gelsin.
+  // "Bir kez" şart: gerçekten bozuk bir parçada sonsuz yenileme döngüsü
+  // oluşurdu. Karar ve damga lib/modul-yukleme.js'te (test altında).
   useEffect(() => {
     const lazyMod = window.__lazyModules?.[route];
-    if (!lazyMod) return;
+    if (!lazyMod) return undefined;
 
     const componentName = lazyMod.component;
     if (window[componentName]) {
       if (!loadedModules[route]) {
         setLoadedModules((prev) => ({ ...prev, [route]: true }));
       }
-      return;
+      return undefined;
     }
 
+    let iptal = false;
     setModuleLoading(true);
+    setModuleError(null);
+
+    const basarili = () => {
+      if (iptal) return;
+      // Yükleme başardı: yenileme hakkı bir sonraki dağıtım için geri verilir.
+      if (window.modulDamgayiSil) window.modulDamgayiSil(route, window.sessionStorage);
+      setLoadedModules((prev) => ({ ...prev, [route]: true }));
+      setModuleLoading(false);
+    };
+
+    const basarisiz = (err) => {
+      if (iptal) return;
+      console.error('Module load error:', err);
+      const karar = window.modulYuklemeKarari
+        ? window.modulYuklemeKarari(err, route, window.sessionStorage)
+        : 'hata';
+      if (karar === 'yenile') {
+        window.location.reload();
+        return;
+      }
+      setModuleError(err);
+      setModuleLoading(false);
+    };
+
     lazyMod
       .loader()
-      .then(() => {
-        setLoadedModules((prev) => ({ ...prev, [route]: true }));
-        setModuleLoading(false);
-      })
-      .catch((err) => {
-        console.error('Module load error:', err);
-        setModuleLoading(false);
+      .then(basarili)
+      .catch(() => {
+        // Tek bir yeniden deneme: anlık ağ hatasında sayfayı yenilemeye gerek yok.
+        if (iptal) return undefined;
+        return lazyMod.loader().then(basarili).catch(basarisiz);
       });
+
+    return () => {
+      iptal = true;
+    };
   }, [route]);
 
   // Close sidebar on route change (mobile)
@@ -2963,9 +3002,41 @@ function AppShell() {
           activeDepartment,
           departmentInfo: DEPARTMENTS.find((d) => d.id === activeDepartment),
         });
+      // Sebebi SÖYLE ve çözümü kullanıcıya elle yaptırma: yeniden deneme
+      // düğmesi ver. Otomatik yenileme hakkı bu noktaya gelindiğinde zaten
+      // kullanılmıştır (bkz. yukarıdaki tembel yükleme etkisi).
       return (
-        <div style={{ padding: '40px 16px', textAlign: 'center', color: '#c00' }}>
-          Modül yüklenemedi. Lütfen sayfayı yenileyin (Ctrl+Shift+R).
+        <div
+          style={{
+            padding: '48px 20px',
+            textAlign: 'center',
+            maxWidth: 460,
+            margin: '0 auto',
+          }}
+        >
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#B91C1C', marginBottom: 8 }}>
+            Bu bölüm yüklenemedi
+          </div>
+          <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6, marginBottom: 18 }}>
+            {window.modulHataMetni
+              ? window.modulHataMetni(moduleError)
+              : 'Sayfayı yenilemeyi deneyin (Ctrl+Shift+R).'}
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '10px 20px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#1B2A4A',
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Sayfayı yenile
+          </button>
         </div>
       );
     }

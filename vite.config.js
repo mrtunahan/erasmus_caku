@@ -54,6 +54,16 @@ export default defineConfig(async () => ({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    // ⚠ ESKİ PARÇALAR SİLİNMEZ. Varsayılan davranış her derlemede dist'i
+    // boşaltmaktı; canlıda yeni sürüm yayınlanınca AÇIK DURAN sekmeler hâlâ
+    // eski giriş dosyasını çalıştırdığı için artık var olmayan parça adlarını
+    // istiyor, nginx 404 dönüyor ve kullanıcı "Modül yüklenemedi" duvarına
+    // çarpıyordu (özellikle o oturumda henüz açılmamış modüllerde).
+    // Eski parçalar yerinde kalınca açık sekmeler çalışmaya devam eder; yeni
+    // sekmeler zaten önbelleğe alınmayan index.html üzerinden yeni parçaları
+    // alır. Bedeli dist'in zamanla büyümesidir — arada bir eski
+    // assets/ dosyalarını temizlemek yeterli.
+    emptyOutDir: false,
     rollupOptions: {
       input: 'index.html',
       output: {
