@@ -613,49 +613,92 @@ function CyBasvuruKarti({
   const [talepGerekce, setTalepGerekce] = useState('');
   const [talepGonderiliyor, setTalepGonderiliyor] = useState(false);
 
-  // Alan/değer çifti — etiket üstte küçük, değer altta belirgin. Eskiden
-  // "Etiket: değer" tek satırdaydı ve on iki alan yan yana dizilince
-  // okunmuyordu.
+  // ── BİLGİ IZGARASI: TEK ŞEBEKE ──
+  // Her grup KENDİ ızgarasına sahipti; auto-fit sütun sayısını grubun alan
+  // sayısına göre seçtiği için Kimlik 2, Öğrenim Durumu 5 sütuna açılıyor ve
+  // değerler gruptan gruba farklı yerlere düşüyordu — hizasız, dağınık bir
+  // görüntü. Artık TÜM alanlar tek bir ızgarada; grup başlıkları satırın
+  // tamamını kaplayan ayraçlar. Böylece her değer aynı dikey rayda durur.
+  const GRID_ARA = 'baslik';
+
   const satir = (k, v) =>
     v ? (
-      <div key={k}>
-        <div style={{ fontSize: 10.5, color: CY.textMuted, letterSpacing: 0.2 }}>{k}</div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: CY.text, marginTop: 1 }}>{v}</div>
+      <div key={k} style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: CY.textMuted,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}
+        >
+          {k}
+        </div>
+        <div
+          style={{
+            fontSize: 13.5,
+            fontWeight: 600,
+            color: CY.text,
+            marginTop: 3,
+            lineHeight: 1.4,
+            wordBreak: 'break-word',
+          }}
+        >
+          {v}
+        </div>
       </div>
     ) : null;
 
-  // Alanları anlam gruplarına ayırır; grup başlığı ince bir ayraçtır.
+  // Satırın tamamını kaplayan grup ayracı.
+  const ayrac = (baslik) => (
+    <div
+      key={GRID_ARA + baslik}
+      style={{
+        gridColumn: '1 / -1',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        marginTop: 4,
+      }}
+    >
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          color: CY.accent,
+          textTransform: 'uppercase',
+          letterSpacing: 0.8,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {baslik}
+      </span>
+      <span style={{ flex: 1, height: 1, background: CY.border }} />
+    </div>
+  );
+
+  // Grup: başlık + alanlar tek ızgaraya düz olarak akar (iç içe div YOK —
+  // iç içe olsaydı hizalama yine bozulurdu).
   const grup = (baslik, alanlar) => {
     const dolu = alanlar.filter(Boolean);
-    if (dolu.length === 0) return null;
-    return (
-      <div key={baslik} style={{ marginBottom: 14 }}>
-        <div
-          style={{
-            fontSize: 10.5,
-            fontWeight: 700,
-            color: CY.textMuted,
-            textTransform: 'uppercase',
-            letterSpacing: 0.6,
-            paddingBottom: 6,
-            marginBottom: 8,
-            borderBottom: '1px solid ' + CY.border,
-          }}
-        >
-          {baslik}
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))',
-            gap: 12,
-          }}
-        >
-          {dolu}
-        </div>
-      </div>
-    );
+    return dolu.length ? [ayrac(baslik)].concat(dolu) : [];
   };
+
+  const bilgiIzgarasi = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '14px 22px',
+    alignItems: 'start',
+  };
+
+  const basHarfleri = (ad) =>
+    String(ad || '?')
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((x) => x.charAt(0).toLocaleUpperCase('tr'))
+      .join('');
 
   return (
     <div style={{ ...cyCard, padding: 0, overflow: 'hidden' }}>
@@ -667,27 +710,80 @@ function CyBasvuruKarti({
           gap: 12,
           padding: '14px 18px',
           cursor: 'pointer',
-          flexWrap: 'wrap',
+          background: open ? CY.bg : 'transparent',
+          borderLeft: '3px solid ' + (open ? CY.accent : 'transparent'),
         }}
       >
+        {/* Baş harf rozeti — liste uzadığında satırları gözle ayırmayı
+            kolaylaştırır; durum rengini taşır. */}
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            flexShrink: 0,
+            background: st.bg,
+            color: st.color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 12.5,
+            fontWeight: 700,
+            letterSpacing: 0.3,
+          }}
+        >
+          {basHarfleri(rec.ogrenciAdSoyad)}
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: CY.navy }}>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: CY.navy,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
             {rec.ogrenciAdSoyad || '—'}
-            {rec.ogrenciNo ? '  ·  ' + rec.ogrenciNo : ''}
+            {rec.ogrenciNo ? (
+              <span style={{ color: CY.textMuted, fontWeight: 600 }}>
+                {'  ·  ' + rec.ogrenciNo}
+              </span>
+            ) : null}
           </div>
-          <div style={{ fontSize: 11.5, color: CY.textMuted, marginTop: 3 }}>
+          <div
+            style={{
+              fontSize: 11.5,
+              color: CY.textMuted,
+              marginTop: 3,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
             {[rec.bolum, rec.tercih1 && '1. tercih: ' + rec.tercih1].filter(Boolean).join('  ·  ')}
           </div>
         </div>
-        <span style={cyPill(st.color, st.bg)}>{st.label}</span>
-        <span style={{ color: CY.textMuted, fontSize: 11.5, fontWeight: 600 }}>
-          {open ? 'Gizle' : 'Detaylar'}
+        <span style={{ ...cyPill(st.color, st.bg), flexShrink: 0 }}>{st.label}</span>
+        <span
+          style={{
+            color: CY.textMuted,
+            fontSize: 11.5,
+            fontWeight: 600,
+            flexShrink: 0,
+            minWidth: 52,
+            textAlign: 'right',
+          }}
+        >
+          {open ? 'Gizle ▲' : 'Detay ▼'}
         </span>
       </div>
 
       {open && (
         <div style={{ padding: '0 18px 16px', borderTop: '1px solid ' + CY.border }}>
-          <div style={{ margin: '14px 0 4px' }}>
+          {/* Tek ızgara: grup ayraçları satırı kaplar, alanlar aynı rayda. */}
+          <div style={{ ...bilgiIzgarasi, margin: '16px 0 18px' }}>
             {grup('Kimlik', [satir('Uyruk', rec.uyruk), satir('Doğum Tarihi', rec.dogumTarihi)])}
             {grup('İletişim', [
               satir('GSM', rec.telCep),
@@ -722,21 +818,40 @@ function CyBasvuruKarti({
               aynı yeşil rozetteydi, eksik belge fark edilmiyordu). */}
           <div
             style={{
-              fontSize: 10.5,
-              fontWeight: 700,
-              color: CY.textMuted,
-              textTransform: 'uppercase',
-              letterSpacing: 0.6,
-              paddingBottom: 6,
-              marginBottom: 8,
-              borderBottom: '1px solid ' + CY.border,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginBottom: 10,
             }}
           >
-            Ekler
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: CY.accent,
+                textTransform: 'uppercase',
+                letterSpacing: 0.8,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Ekler
+            </span>
+            <span style={{ flex: 1, height: 1, background: CY.border }} />
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
             {(tur?.ekler || []).map((ek) => {
               const f = (rec.ekler || {})[ek.id];
+              const rozet = {
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                borderRadius: 8,
+                padding: '5px 11px',
+                textDecoration: 'none',
+                border: '1px solid ',
+              };
               return f ? (
                 <a
                   key={ek.id}
@@ -744,21 +859,28 @@ function CyBasvuruKarti({
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
-                    fontSize: 12,
+                    ...rozet,
                     color: CY.accent,
-                    fontWeight: 600,
-                    textDecoration: 'none',
-                    border: '1px solid ' + CY.accent + '55',
                     background: CY.accentPale,
-                    borderRadius: 14,
-                    padding: '4px 11px',
+                    border: '1px solid ' + CY.accent + '55',
                   }}
                 >
+                  <span aria-hidden="true">✓</span>
                   {ek.title}
                 </a>
               ) : (
-                <span key={ek.id} style={cyPill(CY.textMuted, CY.bg)}>
-                  {ek.title} — yüklenmedi
+                <span
+                  key={ek.id}
+                  style={{
+                    ...rozet,
+                    color: CY.textMuted,
+                    background: CY.bg,
+                    border: '1px dashed ' + CY.border,
+                  }}
+                >
+                  <span aria-hidden="true">○</span>
+                  {ek.title}
+                  <span style={{ fontWeight: 500, opacity: 0.8 }}>· yüklenmedi</span>
                 </span>
               );
             })}
@@ -1219,9 +1341,21 @@ function CyBasvuruKarti({
               </div>
             )}
 
-          {/* ── AKADEMİSYEN: dilekçe üret + öğrencinin imzalı dilekçesi + karar ── */}
+          {/* ── AKADEMİSYEN: dilekçe üret + öğrencinin imzalı dilekçesi + karar ──
+              İşlemler kartın altında AYRI bir şeritte toplanır; bilgi alanının
+              içine dağılmış düğmeler kartı dağınık gösteriyordu. */}
           {isStaff && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                marginTop: 4,
+                paddingTop: 14,
+                borderTop: '1px solid ' + CY.border,
+              }}
+            >
               <button
                 type="button"
                 onClick={() => onDilekce(rec)}
