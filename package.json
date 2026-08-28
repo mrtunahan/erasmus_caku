@@ -16,6 +16,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "analyze": "ANALYZE=true vite build",
+    "deploy": "bash scripts/deploy.sh",
     "prepare": "husky 2>/dev/null || true"
   },
   "repository": {
