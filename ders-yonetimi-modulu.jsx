@@ -15,6 +15,49 @@ const Btn = window.Btn;
 const Badge = window.Badge;
 const DBWrite = window.DBWrite || {};
 
+// ── Form bölüm ayracı ──
+// "Yeni Ders Tanımla" formu on alanı düz bir listede sıralıyordu; hangi
+// alanın hangi işe yaradığı ancak etiketi okunarak anlaşılıyordu. Alanlar
+// artık anlam gruplarında ve gruplar bu ince ayraçla ayrılıyor.
+const DYAyrac = ({ children }) => (
+  <div
+    style={{
+      gridColumn: '1 / -1',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      marginTop: 8,
+      marginBottom: 2,
+    }}
+  >
+    <span
+      style={{
+        fontSize: 10,
+        fontWeight: 700,
+        color: '#4F46E5',
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </span>
+    {/* ayraç çizgisi */}
+    <span style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+  </div>
+);
+
+/** Formun tamamı TEK ızgarada: her alan aynı dikey rayda hizalanır. */
+const dyFormIzgarasi = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+  gap: '10px 16px',
+  alignItems: 'start',
+};
+
+/** Satırın tamamını kaplayan alan (ders adı, hoca seçici gibi). */
+const dyTamSatir = { gridColumn: '1 / -1' };
+
 const SINIF_COLORS = {
   1: { bg: '#B2EBF2', text: '#006064', label: '1. Sınıf' },
   2: { bg: '#C8E6C9', text: '#1B5E20', label: '2. Sınıf' },
@@ -217,30 +260,49 @@ function DersListesiIceAktarModal({
           bulunmadığı için aşağıdan toplu verilir — her satırda tek tek değiştirebilirsiniz.
         </p>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <label
-            style={{
-              padding: '8px 14px',
-              border: '1px dashed #A5B4FC',
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontSize: 13,
-              fontWeight: 600,
-              color: '#4F46E5',
-              background: '#EEF2FF',
-            }}
+        {/* Dosya seçimi bir bırakma alanı: küçük soluk bir düğme, geniş
+            boşluğun ortasında kaybolup pencerenin asıl işini gizliyordu.
+            Seçilen dosya ve okuma durumu aynı alanda görünür. */}
+        <label
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '22px 18px',
+            border: '1.5px dashed ' + (dosyaAdi ? '#818CF8' : '#C7D2FE'),
+            borderRadius: 12,
+            cursor: okunuyor ? 'wait' : 'pointer',
+            background: dosyaAdi ? '#EEF2FF' : '#F8FAFF',
+            textAlign: 'center',
+            transition: 'background .15s, border-color .15s',
+          }}
+        >
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#4F46E5"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
           >
-            📄 Dosya Seç (.docx / .pdf)
-            <input
-              type="file"
-              accept=".docx,.pdf"
-              onChange={dosyaSec}
-              style={{ display: 'none' }}
-            />
-          </label>
-          {dosyaAdi && <span style={{ fontSize: 12.5, color: '#374151' }}>{dosyaAdi}</span>}
-          {okunuyor && <span style={{ fontSize: 12.5, color: '#6B7280' }}>Belge okunuyor…</span>}
-        </div>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: '#4F46E5' }}>
+            {okunuyor ? 'Belge okunuyor…' : dosyaAdi ? dosyaAdi : 'Ders listesi belgesini seçin'}
+          </span>
+          <span style={{ fontSize: 11.5, color: '#6B7280' }}>
+            {dosyaAdi
+              ? 'Başka bir belge seçmek için tıklayın'
+              : 'Word (.docx) veya PDF · tıklayarak seçin'}
+          </span>
+          <input type="file" accept=".docx,.pdf" onChange={dosyaSec} style={{ display: 'none' }} />
+        </label>
 
         {hata && (
           <div
@@ -881,102 +943,137 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* İçe aktarma, "yeni ders" kadar sık kullanılan ama ikincil bir
+              işlem: birincil düğmeyle aynı ağırlıkta durmamalı, ama emoji
+              taşıyan soluk bir düğme de olmamalı. Çizgi ikonlu, temanın
+              indigo tonunda ikincil düğme. */}
           <button
             onClick={() => setIceAktarAcik(true)}
             title="Bölümün açılan dersler tablosunu (.docx / .pdf) okuyup toplu ekler"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#EEF2FF';
+              e.currentTarget.style.borderColor = '#818CF8';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'white';
+              e.currentTarget.style.borderColor = '#C7D2FE';
+            }}
             style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
               padding: '10px 16px',
               background: 'white',
-              border: '1px solid #A5B4FC',
+              border: '1px solid #C7D2FE',
               color: '#4F46E5',
               borderRadius: 8,
               cursor: 'pointer',
               fontWeight: 600,
               fontSize: 13,
+              fontFamily: 'inherit',
+              transition: 'background .15s, border-color .15s',
             }}
           >
-            📄 Listeden İçe Aktar
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Listeden İçe Aktar
           </button>
           <Btn onClick={startNew}>+ Yeni Ders Tanımla</Btn>
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
-        <div
-          style={{
-            background: 'white',
-            padding: 16,
-            borderRadius: 12,
-            border: '1px solid #E5E7EB',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-          }}
-        >
-          <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 600 }}>Tümü</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: '#1B2A4A' }}>{courses.length}</div>
-        </div>
-        <div
-          style={{
-            background: 'white',
-            padding: 16,
-            borderRadius: 12,
-            border: '1px solid #E5E7EB',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-          }}
-        >
-          <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 600 }}>Güz Dönemi</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: '#0D47A1' }}>
-            {courses.filter((c) => c.donem === 'guz').length}
-          </div>
-        </div>
-        <div
-          style={{
-            background: 'white',
-            padding: 16,
-            borderRadius: 12,
-            border: '1px solid #E5E7EB',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-          }}
-        >
-          <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 600 }}>Bahar Dönemi</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: '#1B5E20' }}>
-            {courses.filter((c) => c.donem === 'bahar').length}
-          </div>
-        </div>
-        {courses.filter((c) => !c.donem || (c.donem !== 'guz' && c.donem !== 'bahar')).length >
-          0 && (
+      {/* ── Özet şeridi ──
+          Kartlar 150 px yüksekliğindeydi ve üç tane vardı; asıl iş olan ders
+          tablosunu ekranın altına itiyorlardı. Aynı bilgi dörtte bir yerde.
+          Ayrıca "hocası atanmamış" sayısı eklendi: bu modülün asıl işlevi
+          sınav ve ders programına veri hazırlamak, hocası olmayan ders o
+          programda yer alamıyor — sayının görünür olması gerekiyor. */}
+      {(() => {
+        const egitmensiz = courses.filter(
+          (c) => (window.dersEgitmenleri ? window.dersEgitmenleri(c) : []).length === 0
+        ).length;
+        const kutular = [
+          { etiket: 'Tümü', deger: courses.length, renk: '#1B2A4A' },
+          {
+            etiket: 'Güz',
+            deger: courses.filter((c) => c.donem === 'guz').length,
+            renk: '#0D47A1',
+          },
+          {
+            etiket: 'Bahar',
+            deger: courses.filter((c) => c.donem === 'bahar').length,
+            renk: '#1B5E20',
+          },
+          {
+            etiket: 'Dönemsiz',
+            deger: courses.filter((c) => !c.donem || (c.donem !== 'guz' && c.donem !== 'bahar'))
+              .length,
+            renk: '#EA580C',
+            gizleSifir: true,
+          },
+          {
+            etiket: 'Hocası atanmamış',
+            deger: egitmensiz,
+            renk: egitmensiz > 0 ? '#B45309' : '#6B7280',
+            gizleSifir: false,
+          },
+        ].filter((k) => !(k.gizleSifir && k.deger === 0));
+        return (
           <div
             style={{
-              background: '#FFF7ED',
-              padding: 16,
-              borderRadius: 12,
-              border: '1px solid #FED7AA',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+              gap: 10,
+              marginBottom: 18,
             }}
           >
-            <div style={{ fontSize: 13, color: '#C2410C', fontWeight: 600 }}>
-              Dönem Belirtilmemiş
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#EA580C' }}>
-              {courses.filter((c) => !c.donem || (c.donem !== 'guz' && c.donem !== 'bahar')).length}
-            </div>
+            {kutular.map((k) => (
+              <div
+                key={k.etiket}
+                style={{
+                  background: 'white',
+                  padding: '11px 14px',
+                  borderRadius: 10,
+                  border: '1px solid #E5E7EB',
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    color: '#6B7280',
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {k.etiket}
+                </span>
+                <span style={{ fontSize: 20, fontWeight: 700, color: k.renk, flexShrink: 0 }}>
+                  {k.deger}
+                </span>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       {loading ? (
         <div style={{ padding: 40, textAlign: 'center' }}>Yükleniyor...</div>
@@ -1031,8 +1128,23 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
 
           <div style={{ overflowX: 'auto' }}>
             <table
-              style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 600 }}
+              style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 780 }}
             >
+              {/* Sabit sütun genişlikleri. Eskiden hiçbir sütunun genişliği
+                  yoktu; tarayıcı boşluğu içeriğe göre dağıtıyor, "Sınıf" ile
+                  "Ders Adı" arasında kocaman bir boşluk kalıyor, başlıklar
+                  değerlerinden kopuk duruyordu. Ders adı esner, ölçü sütunları
+                  sabit kalır. */}
+              <colgroup>
+                <col style={{ width: 110 }} />
+                <col />
+                <col style={{ width: 96 }} />
+                <col style={{ width: 96 }} />
+                <col style={{ width: 88 }} />
+                <col style={{ width: 88 }} />
+                <col style={{ width: 220 }} />
+                <col style={{ width: 130 }} />
+              </colgroup>
               <thead>
                 <tr style={{ background: 'white' }}>
                   <th
@@ -1174,7 +1286,15 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                         </span>
                       )}
                     </td>
-                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>{c.duration} dk</td>
+                    {/* Süre boşken " dk" yazıyordu — değeri olmayan hücre
+                        birimini değil, boş olduğunu göstermeli. */}
+                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      {c.duration ? (
+                        c.duration + ' dk'
+                      ) : (
+                        <span style={{ color: '#9CA3AF' }}>—</span>
+                      )}
+                    </td>
                     <td style={{ padding: '12px 16px', fontSize: 12 }}>
                       {window.dersEgitmenMetni(c) || (
                         <span style={{ color: '#9CA3AF' }}>Bilinmiyor</span>
@@ -1243,17 +1363,22 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
           open={true}
           title={editingCourse === 'new' ? 'Yeni Ders Tanımla' : 'Ders Bilgilerini Düzenle'}
           onClose={() => setEditingCourse(null)}
-          width={600}
+          width={720}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
-              <FormField label="Ders Kodu">
-                <Input
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  placeholder="Örn: BİL101"
-                />
-              </FormField>
+          {/* Tek ızgara + grup ayraçları: alanlar aynı rayda hizalanır,
+              hangi alanın hangi işe ait olduğu başlıktan okunur. */}
+          <div style={dyFormIzgarasi}>
+            <DYAyrac>Ders Tanımı</DYAyrac>
+            <FormField label="Ders Kodu">
+              <Input
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })}
+                placeholder="Örn: BİL101"
+              />
+            </FormField>
+            {/* Ders adı iki sütun kaplar: kısa kodun yanında tek sütunda
+                kalınca satırın üçte biri boş duruyordu. */}
+            <div style={{ gridColumn: 'span 2' }}>
               <FormField label="Ders Adı">
                 <Input
                   value={form.name}
@@ -1262,78 +1387,86 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                 />
               </FormField>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <FormField label="Sınıf">
-                <Select
-                  value={form.sinif}
-                  onChange={(e) => setForm({ ...form, sinif: parseInt(e.target.value) })}
-                >
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <option key={s} value={s}>
-                      {s === 5 ? 'Seçmeli' : `${s}. Sınıf`}
-                    </option>
-                  ))}
-                </Select>
-              </FormField>
-              <FormField label="Dönem">
-                <Select
-                  value={form.donem}
-                  onChange={(e) => setForm({ ...form, donem: e.target.value })}
-                >
-                  <option value="guz">Güz</option>
-                  <option value="bahar">Bahar</option>
-                </Select>
-              </FormField>
-              <FormField label="AKTS">
-                <Select
-                  value={form.akts}
-                  onChange={(e) => setForm({ ...form, akts: parseInt(e.target.value) })}
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((a) => (
-                    <option key={a} value={a}>
-                      {a} AKTS
-                    </option>
-                  ))}
-                </Select>
-              </FormField>
-              <FormField label="Zorunlu / Seçmeli *">
-                <Select
-                  value={form.statu}
-                  onChange={(e) => setForm({ ...form, statu: e.target.value })}
-                >
-                  <option value="">— Seçiniz —</option>
-                  <option value="Z">Z (Zorunlu)</option>
-                  <option value="S">S (Seçmeli)</option>
-                </Select>
-              </FormField>
-              <FormField label="Seviye">
-                <Select
-                  value={form.seviye}
-                  onChange={(e) => setForm({ ...form, seviye: e.target.value })}
-                >
-                  <option value="lisans">Lisans</option>
-                  <option value="yukseklisans">Yüksek Lisans</option>
-                  <option value="doktora">Doktora</option>
-                </Select>
-              </FormField>
-              <FormField label="Sınav Süresi (dk)">
-                <Select
-                  value={form.duration}
-                  onChange={(e) => setForm({ ...form, duration: parseInt(e.target.value) })}
-                >
-                  {[30, 45, 60, 75, 90, 105, 120, 150].map((d) => (
-                    <option key={d} value={d}>
-                      {d} dk
-                    </option>
-                  ))}
-                </Select>
-              </FormField>
-              {/* ── İlgili akademisyen(ler) ──
-                  Bazı dersler tek hocayla yürümez: "Bitirme Projesi" her
-                  öğrencide ayrı danışmanla, lisansüstü "Uzmanlık Alanı Dersi"
-                  her danışmanın kendi grubuyla okutulur. Bu yüzden hoca sayısı
-                  SINIRSIZDIR. Ders programında slota koyarken hangi hoca için
-                  yerleştirildiği ayrıca sorulur. */}
+
+            <DYAyrac>Programdaki Yeri</DYAyrac>
+            <FormField label="Sınıf">
+              <Select
+                value={form.sinif}
+                onChange={(e) => setForm({ ...form, sinif: parseInt(e.target.value) })}
+              >
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <option key={s} value={s}>
+                    {s === 5 ? 'Seçmeli' : `${s}. Sınıf`}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="Dönem">
+              <Select
+                value={form.donem}
+                onChange={(e) => setForm({ ...form, donem: e.target.value })}
+              >
+                <option value="guz">Güz</option>
+                <option value="bahar">Bahar</option>
+              </Select>
+            </FormField>
+            <FormField label="Seviye">
+              <Select
+                value={form.seviye}
+                onChange={(e) => setForm({ ...form, seviye: e.target.value })}
+              >
+                <option value="lisans">Lisans</option>
+                <option value="yukseklisans">Yüksek Lisans</option>
+                <option value="doktora">Doktora</option>
+              </Select>
+            </FormField>
+
+            <DYAyrac>Yük ve Sınav</DYAyrac>
+            <FormField label="AKTS">
+              <Select
+                value={form.akts}
+                onChange={(e) => setForm({ ...form, akts: parseInt(e.target.value) })}
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((a) => (
+                  <option key={a} value={a}>
+                    {a} AKTS
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="Zorunlu / Seçmeli *">
+              <Select
+                value={form.statu}
+                onChange={(e) => setForm({ ...form, statu: e.target.value })}
+              >
+                <option value="">— Seçiniz —</option>
+                <option value="Z">Z (Zorunlu)</option>
+                <option value="S">S (Seçmeli)</option>
+              </Select>
+            </FormField>
+            <FormField label="Sınav Süresi (dk)">
+              <Select
+                value={form.duration}
+                onChange={(e) => setForm({ ...form, duration: parseInt(e.target.value) })}
+              >
+                {[30, 45, 60, 75, 90, 105, 120, 150].map((d) => (
+                  <option key={d} value={d}>
+                    {d} dk
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+
+            <DYAyrac>Akademisyen ve Kaynak</DYAyrac>
+            {/* ── İlgili akademisyen(ler) ──
+                Bazı dersler tek hocayla yürümez: "Bitirme Projesi" her
+                öğrencide ayrı danışmanla, lisansüstü "Uzmanlık Alanı Dersi"
+                her danışmanın kendi grubuyla okutulur. Bu yüzden hoca sayısı
+                SINIRSIZDIR. Ders programında slota koyarken hangi hoca için
+                yerleştirildiği ayrıca sorulur.
+                Alan SATIRIN TAMAMINI kaplar: seçilen hocalar rozet olarak
+                birikiyor ve dar sütunda alt alta taşıyordu. */}
+            <div style={dyTamSatir}>
               <FormField label="İlgili Akademisyen(ler)">
                 <EgitmenSecici
                   secilenler={form.professors}
@@ -1341,6 +1474,8 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                   onDegis={(liste) => setForm({ ...form, professors: liste })}
                 />
               </FormField>
+            </div>
+            <div style={dyTamSatir}>
               <FormField label="Ders Bologna Linki *">
                 <Input
                   value={form.bolognaLink}
@@ -1349,23 +1484,37 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                 />
               </FormField>
             </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-              <button
-                onClick={() => setEditingCourse(null)}
-                style={{
-                  padding: '10px 16px',
-                  background: 'white',
-                  border: '1px solid #D1D5DB',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                }}
-              >
-                İptal
-              </button>
-              <Btn onClick={handleSave} disabled={saving}>
-                {saving ? 'Kaydediliyor...' : 'Kaydet'}
-              </Btn>
-            </div>
+          </div>
+          {/* İşlem çubuğu: forma ince bir çizgiyle bağlı, hep aynı yerde. */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              justifyContent: 'flex-end',
+              marginTop: 18,
+              paddingTop: 14,
+              borderTop: '1px solid #E5E7EB',
+            }}
+          >
+            <button
+              onClick={() => setEditingCourse(null)}
+              style={{
+                padding: '10px 16px',
+                background: 'white',
+                border: '1px solid #D1D5DB',
+                borderRadius: 8,
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#6B7280',
+                fontFamily: 'inherit',
+              }}
+            >
+              İptal
+            </button>
+            <Btn onClick={handleSave} disabled={saving}>
+              {saving ? 'Kaydediliyor...' : 'Kaydet'}
+            </Btn>
           </div>
         </Modal>
       )}
