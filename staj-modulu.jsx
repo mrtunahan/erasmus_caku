@@ -4966,6 +4966,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [exportPeriodId, setExportPeriodId] = useState('all');
   const [exporting, setExporting] = useState(false);
 
+  // ── Belge Durum Raporu (XLSX) ──
+  // Komisyonun asıl sorusu "kim hangi belgeyi yüklemiş?" idi; mevcut dışa
+  // aktarım yalnız başvuru form alanlarını döküyordu. Bu rapor etap bazlı ya
+  // da tek tek seçilen öğrenciler için belge durumunu çıkarır.
+  const [raporEtapId, setRaporEtapId] = useState('');
+  const [raporSecili, setRaporSecili] = useState([]); // başvuru id listesi
+  const [raporHazirlaniyor, setRaporHazirlaniyor] = useState(false);
+
   // Dışa aktarımda kullanılacak etap ve başvuru kümeleri. Ergün ÇINAR için
   // bölüm filtresiz tüm fakülte; diğer roller için kendi bölümleri.
   const exportPeriods = isErgunCinar ? allFacultyPeriods : stajPeriods;
@@ -5125,6 +5133,71 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       alert('XLSX dışa aktarma hatası: ' + e.message);
     } finally {
       setExporting(false);
+    }
+  };
+
+  // ── Belge Durum Raporu: seçim ve XLSX üretimi ──
+  // Yetki: bölüm yetkilisi ya da staj komisyonu üyesi (admin de dahil).
+  const raporYetkisi = isAdmin || isDeptManager || isCommissionMember;
+
+  // Seçilen etaptaki başvurular; etap seçilmemişse listedeki tüm başvurular.
+  const raporAdaylari = useMemo(() => {
+    if (!raporEtapId) return allApplications;
+    return allApplications.filter((a) => a.stajEtapId === raporEtapId);
+  }, [allApplications, raporEtapId]);
+
+  const raporSeciliSet = useMemo(() => new Set(raporSecili), [raporSecili]);
+
+  const raporSecimDegistir = (appId) => {
+    setRaporSecili((prev) =>
+      prev.includes(appId) ? prev.filter((x) => x !== appId) : prev.concat([appId])
+    );
+  };
+  const raporTumunuSec = () => setRaporSecili(raporAdaylari.map((a) => a.id));
+  const raporSecimiTemizle = () => setRaporSecili([]);
+
+  const handleBelgeRaporuXLSX = async () => {
+    if (!raporYetkisi) {
+      alert('Bu raporu yalnızca bölüm yetkilisi veya staj komisyonu üyesi alabilir.');
+      return;
+    }
+    // Seçim yapılmadıysa etaptaki HERKES çıkar; seçim varsa yalnız seçilenler.
+    const secilenler =
+      raporSecili.length > 0
+        ? raporAdaylari.filter((a) => raporSeciliSet.has(a.id))
+        : raporAdaylari;
+    if (secilenler.length === 0) {
+      alert('Rapora eklenecek öğrenci bulunamadı.');
+      return;
+    }
+    setRaporHazirlaniyor(true);
+    try {
+      const tablo = window.stajRaporTablosu(secilenler, allUploads);
+      const XLSX = await loadSheetJS();
+      const ws = XLSX.utils.aoa_to_sheet(tablo);
+      // Sütun genişlikleri: kurum ve belge sütunları uzun metin taşır.
+      ws['!cols'] = tablo[0].map((baslik, i) => ({
+        wch: i === 3 ? 46 : Math.max(String(baslik).length + 4, 18),
+      }));
+      tablo[0].forEach((_, ci) => {
+        const ref = XLSX.utils.encode_cell({ r: 0, c: ci });
+        if (ws[ref]) ws[ref].s = { font: { bold: true } };
+      });
+      const etap = stajPeriods.find((p) => p.id === raporEtapId);
+      const etiket = raporSecili.length > 0 ? '' : etap?.label || '';
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Belge Durumu');
+      XLSX.writeFile(wb, window.stajRaporDosyaAdi(etiket));
+      if (window.audit)
+        window.audit('staj_belge_raporu', 'internship_applications', raporEtapId || 'secim', {
+          departmentId: effectiveDept,
+          meta: { ogrenciSayisi: secilenler.length, etap: etap?.label || '(seçim)' },
+        });
+    } catch (e) {
+      console.error('Belge raporu hatası:', e);
+      alert('Rapor oluşturulamadı: ' + (e && e.message ? e.message : e));
+    } finally {
+      setRaporHazirlaniyor(false);
     }
   };
 
@@ -8477,6 +8550,175 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         {exporting ? 'Hazırlanıyor...' : 'XLSX İndir'}
                       </button>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Belge Durum Raporu (bölüm yetkilisi / staj komisyonu) ── */}
+              {raporYetkisi && (
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%)',
+                    border: '1.5px solid #05966920',
+                    borderRadius: 14,
+                    padding: responsive.val(14, 18, 22),
+                    marginBottom: 20,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 8,
+                        background: '#059669',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <StajIcon
+                        path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        size={16}
+                        color="white"
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: STAJ.navy }}>
+                        Belge Durum Raporu (XLSX)
+                      </div>
+                      <div style={{ fontSize: 11, color: STAJ.textMuted }}>
+                        Etap, öğrenci ve staj yeri bilgisiyle birlikte her belgenin yüklenip
+                        yüklenmediği. EK-2 ve Not sütunları elle doldurulmak üzere boş gelir.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 10,
+                      alignItems: 'center',
+                      marginBottom: 12,
+                    }}
+                  >
+                    <select
+                      value={raporEtapId}
+                      onChange={(e) => {
+                        setRaporEtapId(e.target.value);
+                        setRaporSecili([]);
+                      }}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        border: '1.5px solid #05966940',
+                        background: 'white',
+                        fontSize: 13,
+                        color: STAJ.navy,
+                        minWidth: 220,
+                      }}
+                    >
+                      <option value="">Tüm etaplar</option>
+                      {stajPeriods.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={raporTumunuSec}
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        border: '1.5px solid #05966950',
+                        background: 'white',
+                        color: '#059669',
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Tümünü seç
+                    </button>
+                    <button
+                      onClick={raporSecimiTemizle}
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        border: `1.5px solid ${STAJ.border}`,
+                        background: 'white',
+                        color: STAJ.textMuted,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Seçimi temizle
+                    </button>
+                    <div style={{ flex: 1 }} />
+                    <button
+                      onClick={handleBelgeRaporuXLSX}
+                      disabled={raporHazirlaniyor}
+                      style={{
+                        padding: '9px 18px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: raporHazirlaniyor ? STAJ.textMuted : '#059669',
+                        color: 'white',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: raporHazirlaniyor ? 'default' : 'pointer',
+                      }}
+                    >
+                      {raporHazirlaniyor ? 'Hazırlanıyor…' : 'XLSX indir'}
+                    </button>
+                  </div>
+
+                  <div style={{ fontSize: 12, color: STAJ.textMuted, marginBottom: 8 }}>
+                    {raporSecili.length > 0
+                      ? `${raporSecili.length} öğrenci seçili — yalnız seçilenler çıkar.`
+                      : `Seçim yapılmadı — listedeki ${raporAdaylari.length} öğrencinin tamamı çıkar.`}
+                  </div>
+
+                  <div
+                    style={{
+                      maxHeight: 220,
+                      overflowY: 'auto',
+                      background: 'white',
+                      border: `1px solid ${STAJ.border}`,
+                      borderRadius: 8,
+                    }}
+                  >
+                    {raporAdaylari.length === 0 && (
+                      <div style={{ padding: 14, fontSize: 12.5, color: STAJ.textMuted }}>
+                        Bu etapta başvuru yok.
+                      </div>
+                    )}
+                    {raporAdaylari.map((a) => (
+                      <label
+                        key={a.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '8px 12px',
+                          borderBottom: `1px solid ${STAJ.border}`,
+                          cursor: 'pointer',
+                          fontSize: 12.5,
+                          color: STAJ.navy,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={raporSeciliSet.has(a.id)}
+                          onChange={() => raporSecimDegistir(a.id)}
+                        />
+                        <span style={{ fontWeight: 600, minWidth: 96 }}>{a.ogrenciNo || '—'}</span>
+                        <span style={{ flex: 1 }}>{a.adSoyad || '—'}</span>
+                        <span style={{ color: STAJ.textMuted }}>{a.stajEtapLabel || ''}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
               )}

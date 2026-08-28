@@ -223,6 +223,11 @@ import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
 import { ayniNumarali, kayitBirlestir, kayitKarari } from './lib/ogrenci-kayit.js';
 import {
+  raporTablosu as stajRaporTablosu,
+  raporDosyaAdi as stajRaporDosyaAdi,
+  BELGE_SUTUNLARI as STAJ_BELGE_SUTUNLARI,
+} from './lib/staj-belge-raporu.js';
+import {
   ogrenciMi as capOgrenciMi,
   ekBolumler as capEkBolumler,
   capOgrencisiMi,
@@ -14168,6 +14173,10 @@ window.capSilinebilirMi = capSilinebilirMi;
 window.ogrenciAyniNumarali = ayniNumarali;
 window.ogrenciKayitBirlestir = kayitBirlestir;
 window.ogrenciKayitKarari = kayitKarari;
+// Staj belge durum raporu (XLSX) — staj-modulu.jsx kullanır.
+window.stajRaporTablosu = stajRaporTablosu;
+window.stajRaporDosyaAdi = stajRaporDosyaAdi;
+window.STAJ_BELGE_SUTUNLARI = STAJ_BELGE_SUTUNLARI;
 // Yayın kapsamı (duyuru + anket ortak): yayımlayanın yetki alanı dışına çıkmaz.
 window.yayinKapsamCoz = yayinKapsamCoz;
 window.yayinKapsamYamasi = yayinKapsamYamasi;
