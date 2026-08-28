@@ -223,6 +223,18 @@ import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
 import { ayniNumarali, kayitBirlestir, kayitKarari } from './lib/ogrenci-kayit.js';
 import {
+  yuklemeIzniVar as capYuklemeIzniVar,
+  kilitliMi as capKilitliMi,
+  talepDurumu as capTalepDurumu,
+  talepEdebilirMi as capTalepEdebilirMi,
+  yuklemeDugmesi as capYuklemeDugmesi,
+  kilitAciklamasi as capKilitAciklamasi,
+  talepKaydi as capTalepKaydi,
+  kararYamasi as capKararYamasi,
+  adimDurumlari as capAdimDurumlari,
+  tamamlananAdim as capTamamlananAdim,
+} from './lib/cap-dilekce-kilit.js';
+import {
   yuklemeKarari as modulYuklemeKarari,
   damgayiSil as modulDamgayiSil,
   hataMetni as modulHataMetni,
@@ -14184,6 +14196,17 @@ window.ogrenciAyniNumarali = ayniNumarali;
 window.ogrenciKayitBirlestir = kayitBirlestir;
 window.ogrenciKayitKarari = kayitKarari;
 // Tembel modül yükleme — bayat parça (stale chunk) kurtarması.
+// ÇAP/Yandal imzalı dilekçe kilidi (cap-yandal-modulu.jsx kullanır).
+window.capYuklemeIzniVar = capYuklemeIzniVar;
+window.capKilitliMi = capKilitliMi;
+window.capTalepDurumu = capTalepDurumu;
+window.capTalepEdebilirMi = capTalepEdebilirMi;
+window.capYuklemeDugmesi = capYuklemeDugmesi;
+window.capKilitAciklamasi = capKilitAciklamasi;
+window.capTalepKaydi = capTalepKaydi;
+window.capKararYamasi = capKararYamasi;
+window.capAdimDurumlari = capAdimDurumlari;
+window.capTamamlananAdim = capTamamlananAdim;
 window.modulYuklemeKarari = modulYuklemeKarari;
 window.modulDamgayiSil = modulDamgayiSil;
 window.modulHataMetni = modulHataMetni;
