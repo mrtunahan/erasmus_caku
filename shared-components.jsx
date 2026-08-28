@@ -223,6 +223,11 @@ import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
 import { ayniNumarali, kayitBirlestir, kayitKarari } from './lib/ogrenci-kayit.js';
 import {
+  yuklemeKarari as modulYuklemeKarari,
+  damgayiSil as modulDamgayiSil,
+  hataMetni as modulHataMetni,
+} from './lib/modul-yukleme.js';
+import {
   raporTablosu as stajRaporTablosu,
   raporDosyaAdi as stajRaporDosyaAdi,
   raporSiralamasi as stajRaporSiralamasi,
@@ -14178,6 +14183,10 @@ window.capSilinebilirMi = capSilinebilirMi;
 window.ogrenciAyniNumarali = ayniNumarali;
 window.ogrenciKayitBirlestir = kayitBirlestir;
 window.ogrenciKayitKarari = kayitKarari;
+// Tembel modül yükleme — bayat parça (stale chunk) kurtarması.
+window.modulYuklemeKarari = modulYuklemeKarari;
+window.modulDamgayiSil = modulDamgayiSil;
+window.modulHataMetni = modulHataMetni;
 // Staj belge durum raporu (XLSX) — staj-modulu.jsx kullanır.
 window.stajRaporTablosu = stajRaporTablosu;
 window.stajRaporDosyaAdi = stajRaporDosyaAdi;
