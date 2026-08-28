@@ -221,6 +221,7 @@ import {
 import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './lib/zengin-metin.js';
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
+import { bantGosterilsinMi } from './lib/api-hata.js';
 import { ayniNumarali, kayitBirlestir, kayitKarari } from './lib/ogrenci-kayit.js';
 import {
   yuklemeIzniVar as capYuklemeIzniVar,
@@ -2507,7 +2508,11 @@ async function __apiReadRaw(collection, params = {}) {
   const response = await fetchWithRetry(url.toString(), { headers, credentials: 'include' });
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: 'Okuma hatası' }));
-    throw new Error(err.error || `HTTP ${response.status}`);
+    const hata = new Error(err.error || `HTTP ${response.status}`);
+    // Durum kodu ÇAĞIRANA taşınır: yetki reddi (401/403) ile sunucu arızası
+    // (500/502) aynı şey değildir ve aynı şekilde bildirilmemeli.
+    hata.status = response.status;
+    throw hata;
   }
   return response.json();
 }
@@ -2528,6 +2533,15 @@ async function apiRead(collection, params = {}) {
     .catch((err) => {
       __apiInflight.delete(key);
       console.warn(`apiRead(${collection}) failed:`, err.message);
+      // ⚠ YETKİ REDDİ ARIZA DEĞİLDİR. Bazı koleksiyonlar bazı rollere
+      // BİLEREK kapalı (ör. öğrenci `taban_puanlar` okuyamaz — kendi
+      // başvurusunun eşiğini önceden görmesin diye). Bu 403'ler de bannerı
+      // tetikleyince, kural gereği çalışan sayfalarda öğrenciye
+      // "Sunucudan veri alınamıyor" yazıyordu; yatay geçiş modülünde her
+      // açılışta görülen uyarının sebebi buydu. Banner sunucu ARIZASI
+      // içindir; yetki reddi sessizce geçilir.
+      // Kural lib/api-hata.js'te (test altında).
+      if (!bantGosterilsinMi(err)) return [];
       __notifyApiError(collection, err); // kullanıcıya görünür uyarı (banner)
       return []; // 502/500 veya diğer hatalarda çökmek yerine boş dizi dön
     });

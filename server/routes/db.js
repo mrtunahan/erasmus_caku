@@ -1515,7 +1515,17 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
 
     return res.json({ success: true, ids: addedIds });
   } catch (error) {
-    console.error('mongoWrite error:', error);
+    // BENZERSİZLİK İHLALİ BİR ARIZA DEĞİLDİR: indeks işini yapmıştır.
+    // Tam yığın izini basmak günlüğü dolduruyordu (istemci 500'ü üç kez
+    // yeniden denediği için her denemede bir kez daha) ve gerçek arızaları
+    // gömüyordu. Tek satırlık, okunur bir kayıt yeter.
+    if (mukerrerHataMi(error)) {
+      const a = Object.keys(error.keyValue || error.keyPattern || {})[0] || '?';
+      const d = error.keyValue ? error.keyValue[a] : '';
+      console.warn(`[write] mükerrer kayıt reddedildi — ${a}: ${d}`);
+    } else {
+      console.error('mongoWrite error:', error);
+    }
     // BENZERSİZLİK İHLALİ ayrı anlatılır. Eskiden bu da genel "hata oluştu"
     // metnine düşüyordu: aynı öğrenci numarasıyla ikinci kayıt açmaya çalışan
     // yetkili, sebebi hiçbir yerde göremiyordu — kaydın zaten var olduğunu
