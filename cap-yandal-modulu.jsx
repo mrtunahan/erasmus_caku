@@ -600,6 +600,8 @@ function CyBasvuruKarti({
   onDecision,
   onDilekce,
   onUploadSigned,
+  onDegisiklikTalebi,
+  onTalepKarar,
   busyId,
   currentUser,
   onSilindi,
@@ -607,13 +609,53 @@ function CyBasvuruKarti({
   const [open, setOpen] = useState(false);
   const [signing, setSigning] = useState(false);
   const st = CY_DURUMLAR[rec.status || 'pending'] || CY_DURUMLAR.pending;
+  const [talepAcik, setTalepAcik] = useState(false);
+  const [talepGerekce, setTalepGerekce] = useState('');
+  const [talepGonderiliyor, setTalepGonderiliyor] = useState(false);
+
+  // Alan/değer çifti — etiket üstte küçük, değer altta belirgin. Eskiden
+  // "Etiket: değer" tek satırdaydı ve on iki alan yan yana dizilince
+  // okunmuyordu.
   const satir = (k, v) =>
     v ? (
-      <div key={k} style={{ fontSize: 12.5 }}>
-        <span style={{ color: CY.textMuted }}>{k}: </span>
-        <b style={{ color: CY.text }}>{v}</b>
+      <div key={k}>
+        <div style={{ fontSize: 10.5, color: CY.textMuted, letterSpacing: 0.2 }}>{k}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: CY.text, marginTop: 1 }}>{v}</div>
       </div>
     ) : null;
+
+  // Alanları anlam gruplarına ayırır; grup başlığı ince bir ayraçtır.
+  const grup = (baslik, alanlar) => {
+    const dolu = alanlar.filter(Boolean);
+    if (dolu.length === 0) return null;
+    return (
+      <div key={baslik} style={{ marginBottom: 14 }}>
+        <div
+          style={{
+            fontSize: 10.5,
+            fontWeight: 700,
+            color: CY.textMuted,
+            textTransform: 'uppercase',
+            letterSpacing: 0.6,
+            paddingBottom: 6,
+            marginBottom: 8,
+            borderBottom: '1px solid ' + CY.border,
+          }}
+        >
+          {baslik}
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))',
+            gap: 12,
+          }}
+        >
+          {dolu}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ ...cyCard, padding: 0, overflow: 'hidden' }}>
@@ -645,46 +687,54 @@ function CyBasvuruKarti({
 
       {open && (
         <div style={{ padding: '0 18px 16px', borderTop: '1px solid ' + CY.border }}>
+          <div style={{ margin: '14px 0 4px' }}>
+            {grup('Kimlik', [satir('Uyruk', rec.uyruk), satir('Doğum Tarihi', rec.dogumTarihi)])}
+            {grup('İletişim', [
+              satir('GSM', rec.telCep),
+              satir('Ev Tel.', rec.telEv),
+              satir('E-posta', rec.eposta),
+              satir('Adres', rec.adres),
+            ])}
+            {grup('Öğrenim Durumu', [
+              satir('Fakülte', rec.fakulte),
+              satir('Bölüm', rec.bolum),
+              satir('Bitirdiği Sınıf', rec.bitirdigiSinif),
+              satir('AGNO', rec.genelNotOrt),
+              satir('Okuduğu Dönem', rec.okudugiDonem),
+            ])}
+            {grup('Tercihler', [
+              satir(
+                '1. Tercih',
+                [rec.tercih1, rec.tercih1Fakulte && '(' + rec.tercih1Fakulte + ')']
+                  .filter(Boolean)
+                  .join(' ')
+              ),
+              satir(
+                '2. Tercih',
+                [rec.tercih2, rec.tercih2Fakulte && '(' + rec.tercih2Fakulte + ')']
+                  .filter(Boolean)
+                  .join(' ')
+              ),
+            ])}
+          </div>
+
+          {/* Ekler — yüklenen ve eksik olan AYRI görünür (eskiden ikisi de
+              aynı yeşil rozetteydi, eksik belge fark edilmiyordu). */}
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))',
-              gap: 8,
-              margin: '14px 0',
+              fontSize: 10.5,
+              fontWeight: 700,
+              color: CY.textMuted,
+              textTransform: 'uppercase',
+              letterSpacing: 0.6,
+              paddingBottom: 6,
+              marginBottom: 8,
+              borderBottom: '1px solid ' + CY.border,
             }}
           >
-            {satir('Uyruk', rec.uyruk)}
-            {satir('Doğum Tarihi', rec.dogumTarihi)}
-            {satir('GSM', rec.telCep)}
-            {satir('Ev Tel.', rec.telEv)}
-            {satir('E-posta', rec.eposta)}
-            {satir('Fakülte', rec.fakulte)}
-            {satir('Bölüm', rec.bolum)}
-            {satir('Bitirdiği Sınıf', rec.bitirdigiSinif)}
-            {satir('AGNO', rec.genelNotOrt)}
-            {satir('Okuduğu Dönem', rec.okudugiDonem)}
-            {satir(
-              '1. Tercih',
-              [rec.tercih1, rec.tercih1Fakulte && '(' + rec.tercih1Fakulte + ')']
-                .filter(Boolean)
-                .join(' ')
-            )}
-            {satir(
-              '2. Tercih',
-              [rec.tercih2, rec.tercih2Fakulte && '(' + rec.tercih2Fakulte + ')']
-                .filter(Boolean)
-                .join(' ')
-            )}
+            Ekler
           </div>
-          {rec.adres && (
-            <div style={{ fontSize: 12.5, marginBottom: 12 }}>
-              <span style={{ color: CY.textMuted }}>Adres: </span>
-              <b style={{ color: CY.text }}>{rec.adres}</b>
-            </div>
-          )}
-
-          {/* Ekler */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
             {(tur?.ekler || []).map((ek) => {
               const f = (rec.ekler || {})[ek.id];
               return f ? (
@@ -724,20 +774,20 @@ function CyBasvuruKarti({
               const ekAdlari =
                 (tur?.ekler || []).map((e) => e.title).join(', ') || 'gerekli belgeler';
 
-              // Adım durumu: 'ok' tamam · 'now' sıradaki · 'wait' henüz sırası değil
-              const durum = (i) => {
-                if (reddedildi) return i === 0 ? 'ok' : 'wait';
-                if (i === 0) return 'ok';
-                if (i === 1) return onaylandi ? 'ok' : 'now';
-                if (i === 2) return !onaylandi ? 'wait' : dilekceHazir ? 'ok' : 'now';
-                if (i === 3) return !onaylandi ? 'wait' : imzaliVar ? 'ok' : 'now';
-                return !imzaliVar ? 'wait' : 'now';
-              };
+              // Adım durumları lib/cap-dilekce-kilit.js'te (test altında).
+              // Orada düzeltilen bir hata vardı: onay verilip dilekçe henüz
+              // üretilmemişken 3. ve 4. adım aynı anda "Şimdi" görünüyordu.
+              const adimlar = window.capAdimDurumlari
+                ? window.capAdimDurumlari(rec)
+                : ['ok', 'ok', 'ok', 'ok', 'ok'];
+              const durum = (i) => adimlar[i] || 'wait';
+              const tamamlanan = window.capTamamlananAdim ? window.capTamamlananAdim(rec) : 0;
 
               const RENK = {
                 ok: { c: CY.green, b: CY.greenLight, t: 'Tamamlandı' },
                 now: { c: CY.amber, b: CY.amberLight, t: 'Şimdi' },
                 wait: { c: CY.textMuted, b: CY.bg, t: 'Sırada' },
+                stop: { c: CY.red, b: CY.redLight, t: 'Durdu' },
               };
 
               const Adim = ({ i, baslik, aciklama, children }) => {
@@ -817,12 +867,53 @@ function CyBasvuruKarti({
                       padding: '10px 14px',
                       background: CY.bg,
                       borderBottom: '1px solid ' + CY.border,
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                      color: CY.navy,
                     }}
                   >
-                    Başvuru Süreciniz
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 10,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: CY.navy }}>
+                        Başvuru Süreciniz
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: CY.textMuted }}>
+                        {reddedildi ? 'Süreç durdu' : tamamlanan + ' / 5 adım tamamlandı'}
+                      </span>
+                    </div>
+                    {/* İlerleme çubuğu: kaç adım bitti, tek bakışta. */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: 4,
+                        height: 4,
+                        borderRadius: 2,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <div
+                          key={i}
+                          style={{
+                            flex: 1,
+                            background: reddedildi
+                              ? i === 0
+                                ? CY.green
+                                : CY.redLight
+                              : durum(i) === 'ok'
+                                ? CY.green
+                                : durum(i) === 'now'
+                                  ? CY.amber
+                                  : CY.border,
+                            borderRadius: 2,
+                          }}
+                        />
+                      ))}
+                    </div>
                   </div>
 
                   <Adim
@@ -901,63 +992,201 @@ function CyBasvuruKarti({
                   <Adim
                     i={3}
                     baslik="İmzalı dilekçeyi yükleyin"
-                    aciklama="İmzaladığınız dilekçeyi tarayıp veya fotoğraflayıp sisteme yükleyin."
+                    aciklama="İmzaladığınız dilekçeyi tarayıp veya fotoğraflayıp sisteme yükleyin. Yükledikten sonra dosya kilitlenir."
                   >
-                    <div
-                      style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}
-                    >
-                      {imzaliVar && (
-                        <a
-                          href={cyFileHref(rec.imzaliDilekceUrl)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ fontSize: 12, color: CY.accent, fontWeight: 600 }}
-                        >
-                          {rec.imzaliDilekceAd || 'Yüklediğiniz dosya'}
-                        </a>
-                      )}
-                      {!onaylandi ? (
-                        <span
-                          style={{
-                            ...cyBtn(false),
-                            cursor: 'not-allowed',
-                            color: CY.textMuted,
-                            borderStyle: 'dashed',
-                          }}
-                        >
-                          Onay sonrası yüklenebilir
-                        </span>
-                      ) : (
-                        <label
-                          style={{
-                            ...cyBtn(false),
-                            cursor: signing ? 'wait' : 'pointer',
-                            color: CY.navy,
-                          }}
-                        >
-                          <input
-                            type="file"
-                            style={{ display: 'none' }}
-                            onChange={async (e) => {
-                              const f = (e.target.files && e.target.files[0]) || null;
-                              e.target.value = '';
-                              if (!f) return;
-                              setSigning(true);
-                              try {
-                                await onUploadSigned(rec, f);
-                              } finally {
-                                setSigning(false);
-                              }
+                    {(() => {
+                      // ⚠ 4. ADIMDAN SONRA DEĞİŞİKLİK KAPALI. Akademisyenin
+                      // gördüğü belge ile sekretere teslim edilen ıslak imzalı
+                      // kâğıt aynı olmalı. Kural lib/cap-dilekce-kilit.js'te ve
+                      // ayrıca SUNUCUDA uygulanıyor — düğmeyi pasifleştirmek
+                      // tek başına koruma değildir.
+                      const dgm = window.capYuklemeDugmesi
+                        ? window.capYuklemeDugmesi(rec)
+                        : { etkin: onaylandi, etiket: 'İmzalı Dilekçe Yükle' };
+                      const kilitli = window.capKilitliMi ? window.capKilitliMi(rec) : false;
+                      const tDurum = window.capTalepDurumu ? window.capTalepDurumu(rec) : 'yok';
+                      const isteyebilir = window.capTalepEdebilirMi
+                        ? window.capTalepEdebilirMi(rec)
+                        : false;
+                      const aciklama = window.capKilitAciklamasi
+                        ? window.capKilitAciklamasi(rec)
+                        : '';
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              gap: 10,
+                              flexWrap: 'wrap',
+                              alignItems: 'center',
                             }}
-                          />
-                          {signing
-                            ? 'Yükleniyor…'
-                            : imzaliVar
-                              ? 'Değiştir'
-                              : 'İmzalı Dilekçe Yükle'}
-                        </label>
-                      )}
-                    </div>
+                          >
+                            {imzaliVar && (
+                              <a
+                                href={cyFileHref(rec.imzaliDilekceUrl)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ fontSize: 12, color: CY.accent, fontWeight: 600 }}
+                              >
+                                {rec.imzaliDilekceAd || 'Yüklediğiniz dosya'}
+                              </a>
+                            )}
+                            {dgm.etkin ? (
+                              <label
+                                style={{
+                                  ...cyBtn(false),
+                                  cursor: signing ? 'wait' : 'pointer',
+                                  color: CY.navy,
+                                }}
+                              >
+                                <input
+                                  type="file"
+                                  style={{ display: 'none' }}
+                                  onChange={async (e) => {
+                                    const f = (e.target.files && e.target.files[0]) || null;
+                                    e.target.value = '';
+                                    if (!f) return;
+                                    setSigning(true);
+                                    try {
+                                      await onUploadSigned(rec, f);
+                                    } finally {
+                                      setSigning(false);
+                                    }
+                                  }}
+                                />
+                                {signing ? 'Yükleniyor…' : dgm.etiket}
+                              </label>
+                            ) : (
+                              <span
+                                style={{
+                                  ...cyBtn(false),
+                                  cursor: 'not-allowed',
+                                  color: CY.textMuted,
+                                  borderStyle: 'dashed',
+                                }}
+                                title={aciklama}
+                              >
+                                {reddedildi ? 'Başvuru reddedildi' : dgm.etiket}
+                              </span>
+                            )}
+                            {isteyebilir && !talepAcik && (
+                              <button
+                                type="button"
+                                onClick={() => setTalepAcik(true)}
+                                style={{
+                                  ...cyBtn(false),
+                                  color: CY.accent,
+                                  borderColor: CY.accent,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Değişiklik izni iste
+                              </button>
+                            )}
+                          </div>
+
+                          {aciklama && (
+                            <div
+                              style={{
+                                fontSize: 11.5,
+                                lineHeight: 1.55,
+                                color: tDurum === 'acik' ? CY.green : CY.textMuted,
+                                background:
+                                  tDurum === 'acik'
+                                    ? CY.greenLight + '66'
+                                    : tDurum === 'bekliyor'
+                                      ? CY.amberLight + '66'
+                                      : CY.bg,
+                                border:
+                                  '1px solid ' +
+                                  (tDurum === 'acik'
+                                    ? CY.green + '44'
+                                    : tDurum === 'bekliyor'
+                                      ? CY.amber + '44'
+                                      : CY.border),
+                                borderRadius: 8,
+                                padding: '8px 10px',
+                              }}
+                            >
+                              {aciklama}
+                            </div>
+                          )}
+
+                          {talepAcik && kilitli && (
+                            <div
+                              style={{
+                                border: '1px solid ' + CY.border,
+                                borderRadius: 8,
+                                padding: 10,
+                                background: CY.bg,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  color: CY.navy,
+                                  marginBottom: 6,
+                                }}
+                              >
+                                Neden değiştirmeniz gerekiyor?
+                              </div>
+                              <textarea
+                                value={talepGerekce}
+                                onChange={(e) => setTalepGerekce(e.target.value)}
+                                rows={2}
+                                placeholder="Örn. yanlış sayfayı yükledim, belge okunaksız çıktı…"
+                                style={{
+                                  width: '100%',
+                                  boxSizing: 'border-box',
+                                  border: '1px solid ' + CY.border,
+                                  borderRadius: 6,
+                                  padding: '7px 9px',
+                                  fontSize: 12.5,
+                                  fontFamily: 'inherit',
+                                  color: CY.text,
+                                  resize: 'vertical',
+                                }}
+                              />
+                              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                <button
+                                  type="button"
+                                  disabled={talepGonderiliyor || !talepGerekce.trim()}
+                                  onClick={async () => {
+                                    setTalepGonderiliyor(true);
+                                    try {
+                                      await onDegisiklikTalebi(rec, talepGerekce.trim());
+                                      setTalepAcik(false);
+                                      setTalepGerekce('');
+                                    } finally {
+                                      setTalepGonderiliyor(false);
+                                    }
+                                  }}
+                                  style={{
+                                    ...cyBtn(true),
+                                    cursor:
+                                      talepGonderiliyor || !talepGerekce.trim()
+                                        ? 'not-allowed'
+                                        : 'pointer',
+                                    opacity: talepGerekce.trim() ? 1 : 0.6,
+                                  }}
+                                >
+                                  {talepGonderiliyor ? 'Gönderiliyor…' : 'Talebi gönder'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setTalepAcik(false)}
+                                  style={{ ...cyBtn(false), cursor: 'pointer' }}
+                                >
+                                  Vazgeç
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </Adim>
 
                   <Adim
@@ -1062,6 +1291,63 @@ function CyBasvuruKarti({
                     facultyId: rec.facultyId || '',
                   },
                 })}
+
+              {/* ── Öğrencinin değişiklik izni talebi ── */}
+              {window.capTalepDurumu && window.capTalepDurumu(rec) === 'bekliyor' && (
+                <div
+                  style={{
+                    flexBasis: '100%',
+                    border: '1px solid ' + CY.amber + '55',
+                    background: CY.amberLight + '66',
+                    borderRadius: 8,
+                    padding: 10,
+                    marginBottom: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700, color: CY.navy }}>
+                    Öğrenci imzalı dilekçesini değiştirmek istiyor
+                  </div>
+                  <div style={{ fontSize: 12, color: CY.text, margin: '4px 0 8px' }}>
+                    Gerekçe: {(rec.degisiklikTalebi && rec.degisiklikTalebi.gerekce) || '—'}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      disabled={busyId === rec.id}
+                      onClick={() => onTalepKarar(rec, 'onayla')}
+                      style={{ ...cyBtn(false), color: CY.green, borderColor: CY.green }}
+                    >
+                      İzin ver (tek seferlik)
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId === rec.id}
+                      onClick={() => onTalepKarar(rec, 'reddet')}
+                      style={{ ...cyBtn(false), color: CY.red, borderColor: CY.red }}
+                    >
+                      Reddet
+                    </button>
+                  </div>
+                </div>
+              )}
+              {/* İzin açıkken akademisyene de görünsün: öğrenci bir kez
+                  yükleyebilir, sonra kilit kendiliğinden geri kapanır. */}
+              {window.capTalepDurumu && window.capTalepDurumu(rec) === 'acik' && (
+                <div
+                  style={{
+                    flexBasis: '100%',
+                    fontSize: 11.5,
+                    color: CY.green,
+                    background: CY.greenLight + '66',
+                    border: '1px solid ' + CY.green + '44',
+                    borderRadius: 8,
+                    padding: '7px 10px',
+                    marginBottom: 8,
+                  }}
+                >
+                  Değişiklik izni açık — öğrenci bir kez yeni dosya yükleyebilir.
+                </div>
+              )}
 
               {(rec.status || 'pending') === 'pending' && (
                 <>
@@ -1188,6 +1474,51 @@ function CapYandalApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
+  // ── Öğrenci: imzalı dilekçe için değişiklik izni talebi ──
+  // Talep her zaman 'bekliyor' durumunda açılır; öğrenci kendi iznini veremez
+  // (sunucu da bunu ayrıca uyguluyor — bkz. server/routes/db.js).
+  const degisiklikTalebi = async (rec, gerekce) => {
+    try {
+      const talep = window.capTalepKaydi
+        ? window.capTalepKaydi(gerekce, currentUser)
+        : { durum: 'bekliyor', gerekce: String(gerekce || '') };
+      await window.DBWrite.update('cap_yandal_basvurular', String(rec.id), {
+        degisiklikTalebi: talep,
+      });
+      await load();
+      setMsg('Değişiklik talebiniz akademisyene iletildi.');
+      setTimeout(() => setMsg(''), 4000);
+    } catch (e) {
+      alert('Talep gönderilemedi: ' + e.message);
+    }
+  };
+
+  // ── Akademisyen: değişiklik talebine karar ──
+  const talebeKarar = async (rec, karar) => {
+    let redNedeni = '';
+    if (karar === 'reddet') {
+      redNedeni = prompt('Red gerekçesi (öğrenciye gösterilir):', '') || '';
+    }
+    setBusyId(rec.id);
+    try {
+      const yama = window.capKararYamasi
+        ? window.capKararYamasi(karar, currentUser, redNedeni)
+        : {};
+      await window.DBWrite.update('cap_yandal_basvurular', String(rec.id), yama);
+      if (window.audit)
+        window.audit('cap_dilekce_izin', 'cap_yandal_basvurular', String(rec.id), {
+          meta: { karar, ogrenciNo: rec.ogrenciNo || '' },
+        });
+      await load();
+      setMsg(karar === 'onayla' ? 'Değişiklik izni verildi.' : 'Talep reddedildi.');
+      setTimeout(() => setMsg(''), 3000);
+    } catch (e) {
+      alert('Kaydedilemedi: ' + e.message);
+    } finally {
+      setBusyId('');
+    }
+  };
+
   // Dilekçe üretimi — Şablonlar → ÇAP/Yandal türüne yüklü .docx doldurulur.
   const makeDilekce = async (rec) => {
     setBusyId(rec.id);
@@ -1303,6 +1634,8 @@ function CapYandalApp({ currentUser, activeDepartment, departmentInfo }) {
             onDecision={setDecision}
             onDilekce={makeDilekce}
             onUploadSigned={uploadSigned}
+            onDegisiklikTalebi={degisiklikTalebi}
+            onTalepKarar={talebeKarar}
             busyId={busyId}
             currentUser={currentUser}
             onSilindi={load}

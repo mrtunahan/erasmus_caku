@@ -940,6 +940,67 @@ async function enforceWritePolicies(db, op, user) {
       delete op.data.duzenlenmeZamani;
     }
 
+    // ── ÇAP / YANDAL: İMZALI DİLEKÇE KİLİDİ ──
+    //
+    // İmzalı dilekçe yüklendikten sonra öğrenci dosyayı DEĞİŞTİREMEZ:
+    // akademisyenin gördüğü belge ile sekretere teslim edilen ıslak imzalı
+    // kâğıt aynı olmalı. İstemci düğmeyi pasifleştiriyor; kural burada da
+    // uygulanır, çünkü istemciye güvenilmez.
+    //
+    // Değişiklik yalnız akademisyenin TEK SEFERLİK izniyle olur. Öğrenci
+    // izni kendisi veremez (`duzenlemeAcik` ve talebin KARAR alanları
+    // düşürülür); yalnız 'bekliyor' durumunda talep açabilir.
+    if (
+      op.collection === 'cap_yandal_basvurular' &&
+      op.data &&
+      typeof op.data === 'object' &&
+      (op.type === 'set' || op.type === 'update')
+    ) {
+      // Öğrenci kendi kilidini açamaz.
+      delete op.data.duzenlemeAcik;
+      delete op.data.duzenlemeAcanKisi;
+      delete op.data.duzenlemeAcilmaTarihi;
+      // Karar alanları akademisyenindir; öğrenci yalnız talep açar.
+      if (op.data.degisiklikTalebi && typeof op.data.degisiklikTalebi === 'object') {
+        const t = op.data.degisiklikTalebi;
+        op.data.degisiklikTalebi = {
+          durum: 'bekliyor',
+          gerekce: String(t.gerekce || '').slice(0, 500),
+          isteyen: ident,
+          istekAt: new Date().toISOString(),
+        };
+      }
+      // Onay/ret kararı ve üretilmiş dilekçe de öğrencinin yazacağı alan değil.
+      delete op.data.status;
+      delete op.data.redNedeni;
+      delete op.data.dilekceUrl;
+
+      const mevcutBasvuru = await findExistingDoc(db, op);
+      if (mevcutBasvuru) {
+        const imzaliVar = !!String(mevcutBasvuru.imzaliDilekceUrl || '').trim();
+        const izinAcik = mevcutBasvuru.duzenlemeAcik === true;
+        const imzaYaziyor =
+          'imzaliDilekceUrl' in op.data ||
+          'imzaliDilekceAd' in op.data ||
+          'imzaliDilekceAt' in op.data;
+        if (imzaliVar && !izinAcik && imzaYaziyor) {
+          return {
+            allow: false,
+            status: 403,
+            error:
+              'İmzalı dilekçeniz kilitli. Değiştirmek için akademisyeninizden ' +
+              'değişiklik izni isteyin.',
+          };
+        }
+        // İzin TEK SEFERLİKTİR: yükleme yapıldıysa kilit hemen geri kapanır.
+        // Aksi hâlde bir kez açılan izin kalıcı olur, kilit fiilen kalkardı.
+        if (izinAcik && imzaYaziyor) {
+          op.data.duzenlemeAcik = false;
+          op.data.duzenlemeKapanmaTarihi = new Date().toISOString();
+        }
+      }
+    }
+
     // SUNUM TAKVİMİ ÖĞRENCİYE KAPALI.
     //
     // Staj sunum tarihi ve saati komisyonun kararıdır; başvuru kaydında
