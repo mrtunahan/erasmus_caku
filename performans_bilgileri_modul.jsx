@@ -928,10 +928,10 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                 )}
 
                 <ScrollWrap>
-                  {mergedGostergeler.map((kat, ki) => (
+                  {/* Tüm kategoriler TEK tabloda: ay başlığı bir kez yazılır. */}
+                  {
                     <GostergeTable
-                      key={ki}
-                      kat={kat}
+                      kategoriler={mergedGostergeler}
                       aylar={AYLAR}
                       getValue={(gId, ay) =>
                         akademisyenData[selectedAkademisyen]?.[pKey(selectedYil, gId, ay)] || ''
@@ -950,7 +950,7 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                       onDeleteQuestion={capDept ? deleteQuestion : undefined}
                       onEditQuestion={capDept ? startEditQuestion : undefined}
                     />
-                  ))}
+                  }
                 </ScrollWrap>
                 <SaveSubmitBar onSave={handleSave} onSubmit={handleSubmit} submitted={submitted} />
               </>
@@ -1124,39 +1124,48 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                             borderCollapse: 'collapse',
                             fontSize: 12,
                             minWidth: 1100,
+                            tableLayout: 'fixed',
                           }}
                         >
-                          <thead>
-                            <tr>
-                              <th style={{ ...th, minWidth: 220 }}>Gösterge</th>
-                              <th style={{ ...th, width: 50, textAlign: 'center' }}>Birim</th>
-                              <th style={{ ...th, width: 75, textAlign: 'center' }}>Kural</th>
-                              {AYLAR.map((a) => (
-                                <th key={a} style={{ ...th, width: 62, textAlign: 'center' }}>
-                                  {a.slice(0, 3)}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
+                          {/* ⚠ colgroup ŞART. Başlık yalnız ilk kategoride
+                              yazıldığı için başlıksız tablolarda sütun
+                              genişliğini belirleyecek `th` yok; sabit düzen
+                              olmadan her tablo kendi içeriğine göre ölçülüp
+                              hizadan çıkıyordu. */}
+                          <colgroup>
+                            <col />
+                            <col style={{ width: 50 }} />
+                            <col style={{ width: 75 }} />
+                            {AYLAR.map((a) => (
+                              <col key={a} style={{ width: 62 }} />
+                            ))}
+                          </colgroup>
+                          {/* Ay başlığı YALNIZ İLK kategoride. Sütun
+                              genişlikleri sabit olduğu için alttaki tablolar
+                              da aynı raylara oturur; başlığı beş kez yazmak
+                              yalnız gürültü üretiyordu. */}
+                          {ki === 0 && (
+                            <thead>
+                              <tr>
+                                <th style={{ ...th, minWidth: 220 }}>Gösterge</th>
+                                <th style={{ ...th, width: 50, textAlign: 'center' }}>Birim</th>
+                                <th style={{ ...th, width: 75, textAlign: 'center' }}>Kural</th>
+                                {AYLAR.map((a) => (
+                                  <th key={a} style={{ ...th, width: 62, textAlign: 'center' }}>
+                                    {a.slice(0, 3)}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                          )}
                           <tbody>
                             {kat.gostergeler.map((g) => {
                               const currentAgg = getAggType(g.id, 'department', deptForSummary);
                               return (
                                 <tr key={g.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                                  <td style={{ ...td, paddingLeft: 8 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                      <span
-                                        style={{
-                                          width: 7,
-                                          height: 7,
-                                          borderRadius: 2,
-                                          background: C.yellow,
-                                          display: 'inline-block',
-                                          flexShrink: 0,
-                                        }}
-                                      />
-                                      {g.ad}
-                                    </div>
+                                  {/* Süsleme kare YOK (bkz. GostergeTable). */}
+                                  <td style={{ ...td, paddingLeft: 8, lineHeight: 1.35 }}>
+                                    {g.ad}
                                   </td>
                                   <td
                                     style={{
@@ -1270,19 +1279,31 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                             borderCollapse: 'collapse',
                             fontSize: 12,
                             minWidth: 1100,
+                            tableLayout: 'fixed',
                           }}
                         >
-                          <thead>
-                            <tr>
-                              <th style={{ ...th, minWidth: 220 }}>Gösterge</th>
-                              <th style={{ ...th, width: 75, textAlign: 'center' }}>Kural</th>
-                              {AYLAR.map((a) => (
-                                <th key={a} style={{ ...th, width: 62, textAlign: 'center' }}>
-                                  {a.slice(0, 3)}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
+                          {/* colgroup şart — gerekçesi bölüm özetinde. */}
+                          <colgroup>
+                            <col />
+                            <col style={{ width: 75 }} />
+                            {AYLAR.map((a) => (
+                              <col key={a} style={{ width: 62 }} />
+                            ))}
+                          </colgroup>
+                          {/* Ay başlığı yalnız ilk kategoride (bkz. bölüm özeti). */}
+                          {ki === 0 && (
+                            <thead>
+                              <tr>
+                                <th style={{ ...th, minWidth: 220 }}>Gösterge</th>
+                                <th style={{ ...th, width: 75, textAlign: 'center' }}>Kural</th>
+                                {AYLAR.map((a) => (
+                                  <th key={a} style={{ ...th, width: 62, textAlign: 'center' }}>
+                                    {a.slice(0, 3)}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                          )}
                           <tbody>
                             {kat.gostergeler.map((g) => {
                               const currentAgg = getAggType(g.id, 'faculty', facultyIdForSummary);
@@ -1911,7 +1932,7 @@ function StratejikPlanIzleme({
               fontFamily: F,
             }}
           >
-            {generating ? 'Üretiliyor…' : '📄 Belge Üret (tüm şablon)'}
+            {generating ? 'Üretiliyor…' : 'Belge Üret (tüm şablon)'}
           </button>
         )}
       </div>
@@ -1988,7 +2009,7 @@ function StratejikPlanIzleme({
                     ) : (
                       assignedAkad && (
                         <span style={{ fontSize: 11, color: C.success, fontWeight: 600 }}>
-                          👤 {assignedAkad.ad}
+                          {assignedAkad.ad}
                         </span>
                       )
                     )}
@@ -2017,7 +2038,7 @@ function StratejikPlanIzleme({
                           {it.desc.replace(/^PG\s*\d+\.\d+\.\d+\.?\s*/i, '')}
                           {it.unit && (
                             <div style={{ fontSize: 10.5, color: C.textDim, marginTop: 2 }}>
-                              🏛 {it.unit}
+                              {it.unit}
                             </div>
                           )}
                           {isManager && (
@@ -2037,7 +2058,7 @@ function StratejikPlanIzleme({
                                 color: C.text,
                               }}
                             >
-                              <option value="">🔗 Performans sorusu — (elle gir)</option>
+                              <option value="">Performans sorusu — (elle gir)</option>
                               {perfQuestions.map((q) => (
                                 <option key={q.id} value={q.id}>
                                   {q.ad}
@@ -2468,7 +2489,7 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
             fontFamily: F,
           }}
         >
-          {generating ? 'Üretiliyor…' : '📄 Toplu Belge Üret'}
+          {generating ? 'Üretiliyor…' : 'Toplu Belge Üret'}
         </button>
       </div>
 
@@ -2711,11 +2732,11 @@ function UcAylikCiktiBar({
         const un = res.unmatched || [];
         if (un.length) {
           flash(
-            `İndirildi ✓ ${res.matched?.length || 0} gösterge eşleşti. Performansta TANIMLI OLMAYAN (boş kalan) ${un.length} gösterge: ${un.slice(0, 4).join('; ')}${un.length > 4 ? '…' : ''} — bunları Verilerim'de "Soru Ekle" ile ekleyip veri girin.`
+            `İndirildi — ${res.matched?.length || 0} gösterge eşleşti. Performansta TANIMLI OLMAYAN (boş kalan) ${un.length} gösterge: ${un.slice(0, 4).join('; ')}${un.length > 4 ? '…' : ''} — bunları Verilerim'de "Soru Ekle" ile ekleyip veri girin.`
           );
         } else {
           flash(
-            `İndirildi ✓ ${res.matched?.length || 0} gösterge, ${res.filled} hücre dolduruldu.`
+            `İndirildi — ${res.matched?.length || 0} gösterge, ${res.filled} hücre dolduruldu.`
           );
         }
       }
@@ -2748,7 +2769,7 @@ function UcAylikCiktiBar({
         flexWrap: 'wrap',
       }}
     >
-      <span style={{ fontSize: 12, fontWeight: 700, color: C.accent }}>📊 Üç Aylık Çıktı:</span>
+      <span style={{ fontSize: 12, fontWeight: 700, color: C.accent }}>Üç Aylık Çıktı:</span>
       <select value={period} onChange={(e) => setPeriod(e.target.value)} style={selStyle}>
         {CEYREKLER.map((q) => (
           <option key={q.id} value={q.id}>
@@ -2947,21 +2968,15 @@ function InfoBar({ color, text }) {
         gap: 7,
         marginBottom: 16,
         padding: '9px 12px',
-        background: `${color}18`,
-        border: `1px solid ${color}40`,
+        background: `${color}12`,
+        border: `1px solid ${color}33`,
+        borderLeft: `3px solid ${color}`,
         borderRadius: 7,
       }}
     >
-      <span
-        style={{
-          width: 12,
-          height: 12,
-          borderRadius: 3,
-          background: color,
-          display: 'inline-block',
-          flexShrink: 0,
-        }}
-      />
+      {/* Renkli kare kaldırıldı: bilgi çubuğunun zaten kendi zemin ve
+          kenarlık rengi var, kare aynı şeyi ikinci kez söylüyordu. Bunun
+          yerine sol kenarda ince bir vurgu çizgisi. */}
       <span style={{ fontSize: 11.5, color, fontWeight: 600 }}>{text}</span>
     </div>
   );
@@ -2984,8 +2999,15 @@ function ScrollWrap({ children }) {
   );
 }
 
+// ── Gösterge tablosu ──
+// `kategoriler` verilirse TÜM kategoriler TEK tabloda çizilir: ay başlığı bir
+// kez yazılır, kategoriler satırın tamamını kaplayan bir bant olur.
+// Eskiden her kategori kendi tablosuydu ve 14 sütunluk ay başlığı beş kez
+// tekrarlanıyordu; sayfa aynı başlığı sürekli yeniden okutuyordu.
+// `kat` (tek kategori) biçimi compact görünüm için korunur.
 function GostergeTable({
   kat,
+  kategoriler,
   aylar,
   getValue,
   setValue,
@@ -2995,9 +3017,13 @@ function GostergeTable({
   onDeleteQuestion,
   onEditQuestion,
 }) {
+  // Tek kategori (compact) ya da tüm kategoriler (tek tablo) — aynı gövde.
+  const cokKategori = Array.isArray(kategoriler);
+  const liste = cokKategori ? kategoriler : [kat];
+
   return (
     <div style={{ marginBottom: compact ? 6 : 20 }}>
-      {!compact && (
+      {!compact && !cokKategori && (
         <div
           style={{
             background: C.accentGlow,
@@ -3040,11 +3066,26 @@ function GostergeTable({
         </colgroup>
         {!compact && (
           <thead>
+            {/* Tek tabloda başlık YAPIŞKAN: uzun listede aşağı inerken hangi
+                sütunun hangi ay olduğu görünür kalır. */}
             <tr>
-              <th style={th}>Gösterge</th>
-              <th style={{ ...th, textAlign: 'center' }}>Birim</th>
+              <th style={cokKategori ? { ...th, ...thYapiskan } : th}>Gösterge</th>
+              <th
+                style={{
+                  ...(cokKategori ? { ...th, ...thYapiskan } : th),
+                  textAlign: 'center',
+                }}
+              >
+                Birim
+              </th>
               {aylar.map((a) => (
-                <th key={a} style={{ ...th, textAlign: 'center' }}>
+                <th
+                  key={a}
+                  style={{
+                    ...(cokKategori ? { ...th, ...thYapiskan } : th),
+                    textAlign: 'center',
+                  }}
+                >
                   {a.slice(0, 3)}
                 </th>
               ))}
@@ -3052,95 +3093,139 @@ function GostergeTable({
           </thead>
         )}
         <tbody>
-          {kat.gostergeler.map((g) => (
-            <tr key={g.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-              <td
-                style={{
-                  ...td,
-                  paddingLeft: 8,
-                  fontSize: compact ? 11 : 12,
-                  overflow: 'hidden',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: 2,
-                      background: C.yellow,
-                      display: 'inline-block',
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span style={{ whiteSpace: 'normal', lineHeight: 1.3 }}>{g.ad}</span>
-                  {g._custom && onEditQuestion && (
-                    <button
-                      onClick={() => onEditQuestion(g)}
-                      title="Bu göstergeyi düzenle"
+          {liste.flatMap((k, ki) =>
+            [
+              // Kategori bandı: satırın tamamını kaplar, ay başlığı tekrar
+              // yazılmaz. Tek tabloda olduğu için sütunlar zaten hizalı.
+              cokKategori ? (
+                <tr key={'kat-' + ki}>
+                  <td
+                    colSpan={2 + aylar.length}
+                    style={{ padding: ki === 0 ? '2px 0 8px' : '20px 0 8px' }}
+                  >
+                    <div
                       style={{
-                        marginLeft: 'auto',
-                        border: 'none',
-                        background: 'transparent',
-                        color: C.accent,
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        lineHeight: 1,
-                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'baseline',
+                        gap: 10,
+                        flexWrap: 'wrap',
                       }}
                     >
-                      ✏️
-                    </button>
-                  )}
-                  {g._custom && onDeleteQuestion && (
-                    <button
-                      onClick={() => onDeleteQuestion(g.id)}
-                      title="Bu göstergeyi sil"
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: C.accent,
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                        }}
+                      >
+                        {k.kategori}
+                      </span>
+                      {k.hedef && (
+                        <span style={{ fontSize: 10.5, color: C.textMuted }}>{k.hedef}</span>
+                      )}
+                      <span
+                        style={{
+                          flex: 1,
+                          minWidth: 20,
+                          height: 1,
+                          background: C.border,
+                          alignSelf: 'center',
+                        }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ) : null,
+            ]
+              .filter(Boolean)
+              .concat(
+                k.gostergeler.map((g) => (
+                  <tr key={g.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td
                       style={{
-                        marginLeft: onEditQuestion ? 4 : 'auto',
-                        border: 'none',
-                        background: 'transparent',
-                        color: C.danger,
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        lineHeight: 1,
-                        flexShrink: 0,
+                        ...td,
+                        paddingLeft: 8,
+                        fontSize: compact ? 11 : 12,
+                        overflow: 'hidden',
                       }}
                     >
-                      ×
-                    </button>
-                  )}
-                </div>
-              </td>
-              {!compact && (
-                <td style={{ ...td, textAlign: 'center', color: C.textDim, fontSize: 10 }}>
-                  {g.birim}
-                </td>
-              )}
-              {aylar.map((a) => (
-                <td key={a} style={{ ...td, textAlign: 'center', padding: 3 }}>
-                  {editable ? (
-                    <input
-                      type="text"
-                      value={getValue(g.id, a)}
-                      onChange={(e) => setValue(g.id, a, e.target.value)}
-                      style={inputStyle || inp}
-                      placeholder="—"
-                    />
-                  ) : (
-                    <span
-                      style={{
-                        color: getValue(g.id, a) ? C.text : C.textDim,
-                        fontWeight: getValue(g.id, a) ? 600 : 400,
-                      }}
-                    >
-                      {getValue(g.id, a) || '—'}
-                    </span>
-                  )}
-                </td>
-              ))}
-            </tr>
-          ))}
+                      {/* Süsleme kare/işaret YOK: gösterge adı kendi başına okunur. */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ whiteSpace: 'normal', lineHeight: 1.35 }}>{g.ad}</span>
+                        {g._custom && onEditQuestion && (
+                          <button
+                            onClick={() => onEditQuestion(g)}
+                            title="Bu göstergeyi düzenle"
+                            style={{
+                              marginLeft: 'auto',
+                              border: 'none',
+                              background: 'transparent',
+                              color: C.accent,
+                              cursor: 'pointer',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              lineHeight: 1,
+                              flexShrink: 0,
+                              textDecoration: 'underline',
+                            }}
+                          >
+                            Düzenle
+                          </button>
+                        )}
+                        {g._custom && onDeleteQuestion && (
+                          <button
+                            onClick={() => onDeleteQuestion(g.id)}
+                            title="Bu göstergeyi sil"
+                            style={{
+                              marginLeft: onEditQuestion ? 4 : 'auto',
+                              border: 'none',
+                              background: 'transparent',
+                              color: C.danger,
+                              cursor: 'pointer',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              lineHeight: 1,
+                              flexShrink: 0,
+                              textDecoration: 'underline',
+                            }}
+                          >
+                            Sil
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    {!compact && (
+                      <td style={{ ...td, textAlign: 'center', color: C.textDim, fontSize: 10 }}>
+                        {g.birim}
+                      </td>
+                    )}
+                    {aylar.map((a) => (
+                      <td key={a} style={{ ...td, textAlign: 'center', padding: 3 }}>
+                        {editable ? (
+                          <input
+                            type="text"
+                            value={getValue(g.id, a)}
+                            onChange={(e) => setValue(g.id, a, e.target.value)}
+                            style={inputStyle || inp}
+                          />
+                        ) : (
+                          <span
+                            style={{
+                              color: getValue(g.id, a) ? C.text : C.textDim,
+                              fontWeight: getValue(g.id, a) ? 600 : 400,
+                            }}
+                          >
+                            {getValue(g.id, a) || '—'}
+                          </span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )
+          )}
         </tbody>
       </table>
     </div>
@@ -3197,8 +3282,11 @@ function YearSelector({ yil, setYil }) {
           ))}
         </select>
       </div>
-      <div style={{ marginLeft: 'auto', fontSize: 11, color: C.textDim, fontStyle: 'italic' }}>
-        12 aylık gösterge tablosu ({AYLAR.map((a) => a.slice(0, 3)).join(' • ')})
+      {/* Ay listesini burada TEKRAR yazmak gereksizdi: tablonun başlık satırı
+          zaten OCA…ARA sütunlarını gösteriyor. Yerine ne yapıldığını söyleyen
+          tek satır. */}
+      <div style={{ marginLeft: 'auto', fontSize: 11, color: C.textDim }}>
+        Veriler yıl bazında ve aylık girilir; her yıl ayrı kaydedilir.
       </div>
     </div>
   );
@@ -3271,6 +3359,7 @@ const th = {
   borderBottom: `2px solid ${C.border}`,
   background: C.surface,
 };
+const thYapiskan = { position: 'sticky', top: 0, zIndex: 2 };
 const td = { padding: '6px', fontSize: 12, color: C.text, lineHeight: 1.3 };
 const inp = {
   width: '100%',
