@@ -222,6 +222,12 @@ import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './l
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
 import { bantGosterilsinMi } from './lib/api-hata.js';
+import {
+  kararGecerliMi as muafiyetKararGecerliMi,
+  gerekceGecerliMi as muafiyetGerekceGecerliMi,
+  redBildirimi as muafiyetRedBildirimi,
+  EN_AZ_GEREKCE as MUAFIYET_EN_AZ_GEREKCE,
+} from './lib/muafiyet-red.js';
 import { ayniNumarali, kayitBirlestir, kayitKarari } from './lib/ogrenci-kayit.js';
 import {
   yuklemeIzniVar as capYuklemeIzniVar,
@@ -12170,6 +12176,15 @@ const StudentNotifier = {
     }
   },
   // Bir dersle ilgili proje grubu oluştuğunda o dersi almış öğrencilere bildirim yolla
+  /**
+   * TEK öğrenciye bildirim — açık API.
+   * `_addNotification` özel bir yardımcıydı; muafiyet reddi gibi tek kişiye
+   * giden bildirimler için dışarıdan çağrılabilir bir kapı gerekiyordu.
+   */
+  async notifyStudent(studentNumber, payload) {
+    if (!studentNumber) return;
+    await StudentNotifier._addNotification(String(studentNumber), payload || {});
+  },
   async notifyCourseStudents(departmentId, courseCode, payload) {
     try {
       var courses = await this._fetchCoursesByCode(departmentId, courseCode);
@@ -14221,6 +14236,11 @@ window.capTalepKaydi = capTalepKaydi;
 window.capKararYamasi = capKararYamasi;
 window.capAdimDurumlari = capAdimDurumlari;
 window.capTamamlananAdim = capTamamlananAdim;
+// Muafiyet reddi — gerekçe zorunluluğu ve öğrenci bildirimi.
+window.muafiyetKararGecerliMi = muafiyetKararGecerliMi;
+window.muafiyetGerekceGecerliMi = muafiyetGerekceGecerliMi;
+window.muafiyetRedBildirimi = muafiyetRedBildirimi;
+window.MUAFIYET_EN_AZ_GEREKCE = MUAFIYET_EN_AZ_GEREKCE;
 window.modulYuklemeKarari = modulYuklemeKarari;
 window.modulDamgayiSil = modulDamgayiSil;
 window.modulHataMetni = modulHataMetni;
