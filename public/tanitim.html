@@ -8,12 +8,16 @@
       name="description"
       content="Erasmus, ders programı, sınav otomasyonu, staj ve muafiyet süreçlerini tek yerde yürüten fakülte yönetim sistemi."
     />
-    <!-- Sayfa hiçbir dış kaynağa bağlanmaz: yazı tipi, betik, görsel — hepsi
-         kendi sunucusundan. Tanıtım sayfası uygulamadan bağımsız olduğu için
-         kendi güvenlik politikasını taşır. -->
+    <!-- Sayfa yazı tipini, betiğini ve görselini yalnız kendi sunucusundan
+         çeker. TEK istisna gömülü videodur: yetkili bir slayda YouTube
+         bağlantısı koyduğunda çerçeve o adresten gelir, bu yüzden `frame-src`
+         yalnız YouTube'a açıktır.
+         DİKKAT: bu satır olmadan video sessizce SİYAH bir kutu olarak
+         görünür — `frame-src` yazılmadığında tarayıcı `default-src`e düşer,
+         o da 'self' olduğu için çerçeveyi engeller. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none';"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src https://www.youtube-nocookie.com https://www.youtube.com; object-src 'none'; base-uri 'self'; form-action 'none';"
     />
     <link rel="icon" href="/marka.png" />
     <style>
@@ -122,6 +126,13 @@
         margin: 0;
         padding: 0;
       }
+      /* ── TEK EKRAN İSKELETİ ──
+         Sayfa dikey bir sütun: üst çubuk, kahraman, modül alanı, alt bilgi.
+         Modül alanı KALAN BOŞLUĞU alır (`flex: 1`), böylece iki şey birden
+         doğru olur: alt bilgi her zaman ekranın dibine oturur (kısa
+         içerikte havada asılı kalmaz) ve paneller ekran ne kadar uzunsa o
+         kadar büyür — video da onunla birlikte büyür, sabit bir kutuya
+         hapsolmaz. */
       body {
         font-family:
           'Inter var', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
@@ -130,6 +141,17 @@
         background: var(--zemin);
         -webkit-font-smoothing: antialiased;
         line-height: 1.6;
+        /* Yükseklik KESİN olmalı (min-height değil): otomatik yükseklikte
+           tarayıcı esnek alanları içeriklerine göre büyütür, `flex: 1`
+           hiçbir şeyi sıkıştırmaz ve sayfa yine kayardı. Kesin yükseklikle
+           alanlar kalan boşluğu paylaşır.
+           `overflow: auto` yalnız güvenlik ağı: ekran gerçekten çok kısaysa
+           içerik kırpılmak yerine kaydırılır. */
+        height: 100vh;
+        height: 100dvh;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
       }
       a {
         color: inherit;
@@ -150,7 +172,9 @@
       .ust-ic {
         max-width: 1240px;
         margin: 0 auto;
-        padding: 24px 20px;
+        /* Dolgu kısaldı: kazanılan yükseklik doğrudan modül panolarına
+           (ve videoya) gidiyor. */
+        padding: 12px 20px;
         display: flex;
         align-items: center;
         gap: 12px;
@@ -161,14 +185,21 @@
         gap: 12px;
         min-width: 0;
       }
-      /* Marka işareti ÇIPLAK durur: arkasındaki bej kutu, logoyu bir
-         düğmeye benzetiyor ve işaretin kendi biçimini gizliyordu. Kutu ve
-         dolgu kaldırıldı — logo doğrudan sayfa zemininde, çizim gibi. */
+      /* ── MARKA İŞARETİ KUTUSUZ DURUR ──
+         CSS'teki bej kutu daha önce kaldırılmıştı ama sarı/krem kare
+         gitmedi: KUTU LOGONUN KENDİSİNDE. logo.png saydam değil, beyaz-krem
+         zeminli kare bir görsel; bej alt bant üstünde o kare bir "box" gibi
+         okunuyor.
+         `mix-blend-mode: multiply` açık zemin pikselini zeminle çarpar —
+         beyaz nötrdür, yani kare kaybolur, yalnız çizgiler kalır. Logo
+         böylece SVG gibi, doğrudan zeminin üstünde durur. Saydam bir
+         marka.png konduğunda da davranış bozulmaz. */
       .marka img {
-        width: 58px;
-        height: 58px;
+        width: 76px;
+        height: 76px;
         object-fit: contain;
         flex-shrink: 0;
+        mix-blend-mode: multiply;
       }
       .marka-ad {
         font-family: 'Playfair Display var', Georgia, 'Times New Roman', serif;
@@ -228,7 +259,7 @@
         /* Sayfa TEK EKRANA sığmalı: 104/116 px'lik dolgu tek başına
            ekranın dörtte birini yiyordu ve altındaki modül anlatımı
            kaydırmadan görünmüyordu. */
-        padding: 24px 20px 22px;
+        padding: 18px 20px 16px;
         text-align: center;
         overflow: hidden;
         border-bottom-left-radius: 2rem;
@@ -269,7 +300,7 @@
         letter-spacing: 0.09em;
         text-transform: uppercase;
         color: var(--orman);
-        margin-bottom: 14px;
+        margin-bottom: 10px;
       }
       .rozet .benek {
         width: 9px;
@@ -280,7 +311,7 @@
       }
       .kahraman h1 {
         font-family: 'Playfair Display var', Georgia, 'Times New Roman', serif;
-        margin: 0 auto 12px;
+        margin: 0 auto 8px;
         max-width: 860px;
         font-size: clamp(30px, 3.6vw, 40px);
         line-height: 1.14;
@@ -294,41 +325,31 @@
         font-style: italic;
         font-weight: 400;
       }
+      /* Paragraf genişledi: aynı cümle üç satır yerine iki satırda bitiyor,
+         kazanılan satır panolara gidiyor. */
       .kahraman p {
         margin: 0 auto;
-        max-width: 640px;
+        max-width: 820px;
         font-size: 15.5px;
         line-height: 1.6;
         color: var(--metin-soluk);
       }
-      .bolum-ustbaslik {
-        text-align: center;
-        margin: 0 0 10px;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        color: var(--adacayi);
-      }
-      .bolum-baslik {
-        font-family: 'Playfair Display var', Georgia, 'Times New Roman', serif;
-        text-align: center;
-        margin: 0 0 38px;
-        font-size: 34px;
-        font-weight: 600;
-        letter-spacing: -0.02em;
-        color: var(--orman);
-      }
-
       /* ══ SEKMELER ══
          Modül sayısı çok; hepsini kart olarak dizmek envanter listesine
          dönüyordu. Sekme, ziyaretçinin ilgilendiğini seçip okumasını sağlar. */
+      /* Sekme şeridi kendi kartında durur: seçim alanı ile okuma alanı
+         birbirinden ayrılsın. */
       .sekme-serit {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
         justify-content: center;
-        margin-bottom: 16px;
+        margin: 0;
+        padding: 12px;
+        background: var(--yuzey);
+        border: 1px solid var(--kenar);
+        border-radius: 1.15rem;
+        box-shadow: 0 4px 14px rgba(44, 49, 45, 0.05);
       }
       .sekme {
         border: 1px solid rgba(90, 125, 101, 0.24);
@@ -338,7 +359,7 @@
         font-size: 12.5px;
         font-weight: 600;
         letter-spacing: 0.04em;
-        padding: 12px 22px;
+        padding: 9px 18px;
         border-radius: 999px;
         cursor: pointer;
         transition: all 0.28s;
@@ -361,28 +382,45 @@
          sırasına dayandığı için bir sayfa değişimi sessizce görünmez
          kalabiliyordu. Burada iki panel de doğrudan etkin slayttan çizilir;
          geçiş yalnız yumuşak bir belirme. */
+      /* Modül alanı artık bej bir KUTU DEĞİL: sekmeler, paneller ve sayfa
+         gezinmesi tek bir zeminin içinde erimişti, hangi alanın nerede
+         bittiği belli olmuyordu. Taşıyıcı saydam; her alan kendi kartını
+         taşır. */
       .kitap-alan {
-        background: var(--bej);
-        padding: 20px 20px 16px;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
         color: var(--metin);
-        border-radius: 2rem;
         max-width: 1240px;
         width: calc(100% - 32px);
-        margin: 0 auto 18px;
+        margin: 14px auto;
       }
       .panolar {
         display: grid;
         grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-        gap: 18px;
+        gap: 12px;
         align-items: stretch;
-        max-width: 1140px;
-        margin: 0 auto;
+        width: 100%;
+        margin: 0;
+        flex: 1;
+        /* Taban: paneller bundan aşağı SIKIŞTIRILMAZ. Sıfır bıraktığımızda
+           kısa ekranda ızgara 31 px'e iniyor, içindeki panolar taşıp
+           gezinme çubuğunun üstüne biniyordu. Taban aşılırsa sayfa
+           kaydırılır (gövdedeki `overflow: auto`) — üst üste binmez. */
+        min-height: 190px;
       }
       .pano {
         background: var(--kagit);
+        border: 1px solid var(--kenar);
         border-radius: 1.15rem;
-        box-shadow: 0 6px 18px rgba(44, 49, 45, 0.09);
-        min-height: 268px;
+        box-shadow: 0 4px 14px rgba(44, 49, 45, 0.05);
+        /* Yükseklik sabit değil: pano, ekranda kalan boşluğu doldurur.
+           268 px'lik sabit boy uzun ekranda altta boşluk, kısa ekranda
+           taşma üretiyordu. */
+        min-height: 190px;
+        overflow: hidden;
         animation: belir 0.28s ease both;
       }
       @keyframes belir {
@@ -397,16 +435,19 @@
         flex-direction: column;
         justify-content: center;
       }
+      /* --yesil ve --serif bu sayfada tanımlı DEĞİL (tema değişkenleri
+         --adacayi / --orman). Tanımsız değişken sessizce miras alınan
+         değere düşüyor, sayfa numarası koyu ve başlık düz yazı çıkıyordu. */
       .pano-metin .no {
         font-size: 0.72rem;
         font-weight: 700;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: var(--yesil);
+        color: var(--adacayi);
         margin-bottom: 10px;
       }
       .pano-metin h3 {
-        font-family: var(--serif);
+        font-family: 'Playfair Display var', Georgia, 'Times New Roman', serif;
         font-size: clamp(1.3rem, 2.2vw, 1.72rem);
         line-height: 1.2;
         margin: 0 0 10px;
@@ -425,6 +466,15 @@
         gap: 10px;
         grid-template-columns: 1fr;
         align-content: stretch;
+        min-height: 0;
+      }
+      /* Video tek çocuktur: ızgara yerine ortalayan bir kutu. Yüksekliği
+         panodan alır, genişliği orandan — bu yüzden pano ne kadar boşsa
+         video o kadar büyür. */
+      .pano-medya[data-tur='video'] {
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       .pano-medya[data-adet='2'],
       .pano-medya[data-adet='4'] {
@@ -444,29 +494,28 @@
         background-size: cover;
         background-position: center;
         cursor: zoom-in;
-        min-height: 92px;
+        /* Taban düşük: kareler panonun yüksekliğini paylaşır, kısa ekranda
+           panodan taşmasınlar. */
+        min-height: 62px;
         width: 100%;
       }
       .kare:focus-visible {
         outline: 3px solid var(--yesil);
         outline-offset: 2px;
       }
-      /* Video: 16:9 oranı korunur, panonun tamamını kaplar. */
-      /* Video 16:9 oranını korur ama panoyu BÜYÜTMEZ: oranı serbest
-         bıraktığımızda video slaydı sayfayı ekran boyunun dışına taşıyordu
-         (görsel slaytları sığarken yalnız o kaydırma istiyordu). Yükseklik
-         panoyla sınırlanır, genişlik orana göre daralır. */
+      /* Video 16:9 oranını korur ve panoya sığar. Yükseklik artık sabit bir
+         240 px tavanla değil, PANONUN kendisiyle sınırlı: pano ekranla
+         birlikte büyüdüğü için video da büyür, ama hiçbir ekranda sayfayı
+         kaydırmaya zorlamaz. */
       .video-cerceve {
         position: relative;
-        width: 100%;
+        height: 100%;
+        width: auto;
+        max-width: 100%;
         aspect-ratio: 16 / 9;
-        max-height: 240px;
-        max-width: calc(240px * 16 / 9);
-        margin: 0 auto;
         border-radius: 0.8rem;
         overflow: hidden;
-        background: #000;
-        align-self: center;
+        background: #0c0f0d;
       }
       .video-cerceve iframe {
         position: absolute;
@@ -484,8 +533,9 @@
         background: var(--bej);
       }
       .gorsel-yok img {
-        width: 88px;
-        opacity: 0.5;
+        width: 120px;
+        opacity: 0.45;
+        mix-blend-mode: multiply;
       }
 
       @media (max-width: 900px) {
@@ -497,16 +547,27 @@
         }
       }
 
+      /* Gezinme kendi satırında: panonun içine bakan bir parçası değil,
+         panoları değiştiren ayrı bir alan. */
       .kitap-kontrol {
-        max-width: 1240px;
-        margin: 30px auto 0;
+        width: 100%;
+        margin: 0;
+        padding: 8px 12px;
         display: flex;
         align-items: center;
         gap: 14px;
+        background: var(--yuzey);
+        border: 1px solid var(--kenar);
+        border-radius: 999px;
+        box-shadow: 0 4px 14px rgba(44, 49, 45, 0.05);
+        flex-shrink: 0;
       }
       .kitap-btn {
-        width: 48px;
-        height: 48px;
+        flex-shrink: 0;
+      }
+      .kitap-btn {
+        width: 38px;
+        height: 38px;
         border-radius: 50%;
         border: 1px solid rgba(90, 125, 101, 0.28);
         background: var(--yuzey);
@@ -567,12 +628,16 @@
 
       /* ── Alt bilgi ── */
       /* Alt bant tek satır: 72 px'lik dolgu, hiçbir şey söylemeyen bir
-         boşluğu sayfanın dibine ekliyordu. */
+         boşluğu sayfanın dibine ekliyordu.
+         `margin-top: auto` bandı EKRANIN DİBİNE indirir: içerik kısa
+         kaldığında altta boşluk bırakıp havada asılı kalmasın. */
       .alt {
         background: var(--bej);
         color: var(--metin-soluk);
-        padding: 12px 20px;
+        padding: 8px 20px;
         border-top: 1px solid rgba(90, 125, 101, 0.14);
+        margin-top: auto;
+        flex-shrink: 0;
       }
       .alt-ic {
         max-width: 1240px;
@@ -589,157 +654,160 @@
         gap: 12px;
       }
       .alt-marka img {
-        width: 34px;
-        height: 34px;
+        width: 54px;
+        height: 54px;
         object-fit: contain;
+        /* Üstteki ile aynı gerekçe: görselin krem karesi bej bandın içinde
+           kutu gibi görünmesin. */
+        mix-blend-mode: multiply;
       }
       .alt-ic strong {
         color: var(--orman);
         font-weight: 700;
       }
 
-      @media (max-width: 760px) {
+      /* ── KISA EKRAN ──
+         Dizüstülerin çoğu 768–800 px yüksekliğinde. Masaüstü ölçüleriyle
+         sabit alanlar (üst çubuk + kahraman + sekmeler + gezinme + alt
+         bant) o ekranlarda panolara yer bırakmıyor ve sayfa kayıyordu.
+         Burada YALNIZ sabit alanlar kısalır; panolar ve video aynı kalır. */
+      @media (max-height: 860px) {
+        .ust-ic {
+          padding: 9px 20px;
+        }
+        .marka img {
+          width: 60px;
+          height: 60px;
+        }
+        .marka-ad {
+          font-size: 21px;
+        }
         .kahraman {
-          padding: 68px 18px 76px;
-          border-bottom-left-radius: var(--yay-dev);
-          border-bottom-right-radius: var(--yay-dev);
+          padding: 12px 20px 12px;
+        }
+        .rozet {
+          margin-bottom: 7px;
+          padding: 7px 16px;
         }
         .kahraman h1 {
-          font-size: 32px;
+          font-size: clamp(24px, 2.9vw, 32px);
+          margin-bottom: 6px;
+        }
+        .kahraman p {
+          font-size: 14px;
+          line-height: 1.5;
+        }
+        .sekme-serit {
+          padding: 9px;
+          gap: 6px;
+        }
+        .sekme {
+          padding: 7px 15px;
+          font-size: 12px;
+        }
+        .kitap-alan {
+          margin: 10px auto;
+          gap: 10px;
+        }
+        .kitap-btn {
+          width: 32px;
+          height: 32px;
+        }
+        .kitap-kontrol {
+          padding: 6px 10px;
+        }
+        .alt-marka img {
+          width: 42px;
+          height: 42px;
+        }
+        .alt {
+          padding: 6px 20px;
+        }
+      }
+
+      /* ── TELEFON ──
+         İki pano yan yana sığmaz: alt alta akar ve sayfa NORMAL kaydırılır.
+         Masaüstündeki "tek ekran" kuralı burada geçerli değil; gövdenin
+         kesin yüksekliği geri alınır, yoksa içerik gövdenin içinde
+         sıkışırdı. */
+      @media (max-width: 760px) {
+        body {
+          height: auto;
+          min-height: 100vh;
+          min-height: 100dvh;
+          overflow: visible;
+        }
+        .kahraman {
+          padding: 26px 18px 24px;
+          border-bottom-left-radius: var(--yay-orta);
+          border-bottom-right-radius: var(--yay-orta);
+        }
+        .kahraman h1 {
+          font-size: 28px;
           line-height: 1.2;
         }
         .kahraman p {
-          font-size: 16px;
+          font-size: 15px;
         }
         .marka-alt {
           display: none;
         }
         .marka-ad {
-          font-size: 17px;
+          font-size: 18px;
         }
         /* Üst çubuk masaüstünde uzadı; telefonda o boy taşmaya yol açıyor. */
         .ust-ic {
-          padding: 14px 16px;
+          padding: 10px 16px;
           gap: 10px;
         }
         .marka {
           gap: 10px;
         }
         .marka img {
-          width: 44px;
-          height: 44px;
+          width: 52px;
+          height: 52px;
         }
         .giris-btn {
           padding: 10px 16px;
           font-size: 12.5px;
         }
         .alt {
-          padding: 48px 18px;
+          padding: 10px 18px;
         }
         .alt-marka img {
-          width: 44px;
-          height: 44px;
-        }
-        .bolum-baslik {
-          font-size: 26px;
+          width: 42px;
+          height: 42px;
         }
         .kitap-alan {
-          padding: 52px 16px 58px;
-          border-radius: var(--yay-dev);
-          margin-bottom: 48px;
+          margin: 12px auto;
+          gap: 10px;
         }
-        /* ── DAR EKRANDA KİTAP AÇILMAZ ──
-           İki sayfayı yan yana sığdırmaya çalışmak her ikisini de okunmaz
-           kılıyor. Telefonda yaprak çevirme kapanır; sayfalar alt alta,
-           tek sütun akar. Hikâye aynı, taşıyıcı değişir.
-
-           ── SIRA NASIL DOĞRU ÇIKIYOR ──
-           Kitap DOM'u masaüstü için dizilmiş: sabit sol yarı (1. metin),
-           sabit sağ yarı (SON görsel), sonra yapraklar. Yaprak[i] = ön yüz
-           görsel[i], arka yüz metin[i+1]. Bu sırayı olduğu gibi akıtınca
-           metin1, görsel1, metin2, görsel2… çıkar — istenen tam olarak bu.
-           Tek fazlalık sabit sağ yarı: son görseli ikinci kez basıyor,
-           gizlenir. Son yaprağın arka yüzü boştur, o da gizlenir.
-
-           Önceden burada `.yari.sol` ve `.yuz.arka` gizleniyordu; sonuç
-           telefonda BÜTÜN metinlerin kaybolmasıydı, ziyaretçi yalnız
-           görselleri görüyordu. */
-        .kitap {
-          height: auto;
-          filter: none;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
+        .panolar {
+          grid-template-columns: 1fr;
+          min-height: 0;
         }
-        .cilt {
-          display: none;
+        .pano {
+          min-height: 0;
         }
-        .yari,
-        .yaprak {
-          position: static;
+        .pano-metin {
+          padding: 20px 20px;
+        }
+        /* Videonun yüksekliği telefonda panodan gelemez (pano artık
+           esnemiyor): oran genişlikten hesaplanır. */
+        .video-cerceve {
           width: 100%;
-          transform: none !important;
-          transition: none;
+          height: auto;
+          max-width: 100%;
         }
-        .yaprak {
-          transform-style: flat;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .yari.sol {
-          border-radius: var(--yay-orta);
-        }
-        /* Son görselin ikinci kopyası. */
-        .yari.sag {
-          display: none;
-        }
-        .yuz {
-          position: static;
-          backface-visibility: visible;
-          -webkit-backface-visibility: visible;
-          border-radius: var(--yay-orta);
-        }
-        /* Arka yüz masaüstünde baştan çevrilmiş durur; burada yaprak
-           dönmediği için o çevirme geri alınmazsa metin AYNA görüntüsü
-           hâlinde basılıyor. */
-        .yuz.arka {
-          transform: none;
-        }
-        /* Son yaprağın arkasında sayfa yok. */
-        .yuz.arka:empty {
-          display: none;
-        }
-        /* Cilt gölgesi tek sütunda anlamsız. */
-        .yuz.on::after,
-        .yuz.arka::after,
-        .yari.sol::after,
-        .yari.sag::after {
-          display: none;
-        }
-        .yari,
-        .yuz {
-          box-shadow: 0 10px 24px rgba(44, 49, 45, 0.08);
-        }
-        /* Bütün sayfalar zaten alt alta görünüyor; sayfa çevirme
-           düğmeleri burada yanıltıcı olurdu. */
-        .kitap-kontrol {
-          display: none;
-        }
-        .metin-sayfa {
-          padding: 30px 24px;
-        }
-        .metin-sayfa h3 {
-          font-size: 24px;
-        }
-        .gorsel-sayfa {
-          min-height: 220px;
+        .pano-medya {
+          min-height: 190px;
         }
       }
-      /* Hareketi azaltılmış tercihine saygı: sayfa çevirme animasyonu kapanır. */
+
+      /* Hareketi azaltılmış tercihine saygı: belirme ve kalkma efektleri kapanır. */
       @media (prefers-reduced-motion: reduce) {
-        .yaprak {
-          transition: none;
+        .pano {
+          animation: none;
         }
         .sekme:hover,
         .kitap-btn:hover:not(:disabled),
@@ -980,9 +1048,12 @@
         function medyayiCiz(s) {
           panoMedya.textContent = '';
           panoMedya.removeAttribute('data-adet');
+          panoMedya.removeAttribute('data-tur');
 
           var src = gommeAdresi(s && s.video);
           if (src) {
+            // İşaret CSS için: video panosu ızgara değil, ortalayan kutudur.
+            panoMedya.setAttribute('data-tur', 'video');
             var cerceve = el('div', 'video-cerceve');
             var f = document.createElement('iframe');
             f.src = src;
@@ -1227,8 +1298,13 @@
         // getirirdi.
         function modulYokGoster() {
           serit.textContent = '';
-          document.querySelector('.kitap-sahne').style.display = 'none';
-          document.querySelector('.kitap-kontrol').style.display = 'none';
+          // Eskiden burada `.kitap-sahne` aranıyordu; 3B kitapla birlikte o
+          // düğüm kalktı, seçici null dönüyor ve bu işlev hata atıyordu —
+          // yani hiç modül yokken sayfa boş kalıyordu.
+          var pn = document.querySelector('.panolar');
+          if (pn) pn.style.display = 'none';
+          var kt = document.querySelector('.kitap-kontrol');
+          if (kt) kt.style.display = 'none';
           var not = document.getElementById('modulYok');
           if (not) not.style.display = 'block';
         }

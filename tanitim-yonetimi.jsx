@@ -512,6 +512,40 @@ function TanitimYonetimiApp({ currentUser }) {
                     </div>
                   );
                 })()}
+                {/* ── ÖNİZLEME ──
+                    Bağlantının doğru videoyu gösterdiği ancak izlenerek
+                    anlaşılır: 11 haneli kimlikte tek harf hatası da
+                    "tanındı" der. Küçük bir çerçeve yanlış videoyu daha
+                    yayına almadan yakalar. */}
+                {(function () {
+                  var ham = String(duzenlenen.video || '').trim();
+                  if (!ham || !window.ytGommeAdresi) return null;
+                  var src = window.ytGommeAdresi(ham);
+                  if (!src) return null;
+                  return (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        width: 260,
+                        maxWidth: '100%',
+                        aspectRatio: '16 / 9',
+                        borderRadius: 10,
+                        overflow: 'hidden',
+                        background: '#0c0f0d',
+                        border: '1px solid ' + (C.border || '#E2E8F0'),
+                      }}
+                    >
+                      <iframe
+                        src={src}
+                        title="Video önizleme"
+                        loading="lazy"
+                        allow="encrypted-media; picture-in-picture"
+                        referrerPolicy="strict-origin-when-cross-origin"
+                        style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
+                      />
+                    </div>
+                  );
+                })()}
               </div>
               <div style={{ marginBottom: 12 }}>
                 <label style={etiket}>Görseller (video yoksa gösterilir)</label>
