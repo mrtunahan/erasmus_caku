@@ -161,16 +161,14 @@
         gap: 12px;
         min-width: 0;
       }
-      /* Marka işareti yumuşak köşeli bir kutuda durur; logonun kendi zemini
-         beyazsa da kutu onu sayfaya bağlar. */
+      /* Marka işareti ÇIPLAK durur: arkasındaki bej kutu, logoyu bir
+         düğmeye benzetiyor ve işaretin kendi biçimini gizliyordu. Kutu ve
+         dolgu kaldırıldı — logo doğrudan sayfa zemininde, çizim gibi. */
       .marka img {
-        width: 60px;
-        height: 60px;
+        width: 58px;
+        height: 58px;
         object-fit: contain;
         flex-shrink: 0;
-        background: var(--bej);
-        border-radius: var(--yay-kucuk);
-        padding: 3px;
       }
       .marka-ad {
         font-family: 'Playfair Display var', Georgia, 'Times New Roman', serif;
@@ -227,11 +225,14 @@
         background: var(--bej);
         /* Fotoğraf kaldırıldı; bölümü ayakta tutan tek şey yazı, boşluğu
            da o taşıyor. */
-        padding: 104px 20px 116px;
+        /* Sayfa TEK EKRANA sığmalı: 104/116 px'lik dolgu tek başına
+           ekranın dörtte birini yiyordu ve altındaki modül anlatımı
+           kaydırmadan görünmüyordu. */
+        padding: 24px 20px 22px;
         text-align: center;
         overflow: hidden;
-        border-bottom-left-radius: 4rem;
-        border-bottom-right-radius: 4rem;
+        border-bottom-left-radius: 2rem;
+        border-bottom-right-radius: 2rem;
       }
       /* Zeminde dağılan yeşil ışık — düz bejin tekdüzeliğini kırar. */
       .kahraman::before {
@@ -268,7 +269,7 @@
         letter-spacing: 0.09em;
         text-transform: uppercase;
         color: var(--orman);
-        margin-bottom: 26px;
+        margin-bottom: 14px;
       }
       .rozet .benek {
         width: 9px;
@@ -279,9 +280,9 @@
       }
       .kahraman h1 {
         font-family: 'Playfair Display var', Georgia, 'Times New Roman', serif;
-        margin: 0 auto 18px;
+        margin: 0 auto 12px;
         max-width: 860px;
-        font-size: 48px;
+        font-size: clamp(30px, 3.6vw, 40px);
         line-height: 1.14;
         font-weight: 700;
         letter-spacing: -0.02em;
@@ -296,8 +297,8 @@
       .kahraman p {
         margin: 0 auto;
         max-width: 640px;
-        font-size: 18px;
-        line-height: 1.65;
+        font-size: 15.5px;
+        line-height: 1.6;
         color: var(--metin-soluk);
       }
       .bolum-ustbaslik {
@@ -325,9 +326,9 @@
       .sekme-serit {
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
+        gap: 8px;
         justify-content: center;
-        margin-bottom: 34px;
+        margin-bottom: 16px;
       }
       .sekme {
         border: 1px solid rgba(90, 125, 101, 0.24);
@@ -355,304 +356,145 @@
         box-shadow: 0 10px 22px rgba(90, 125, 101, 0.26);
       }
 
-      /* ══════ GERÇEK KİTAP ══════
-         Açık bir kitap yayılımı: SOL sayfa metin, SAĞ sayfa görsel(ler).
-         Sayfa çevrilince sağdaki yaprak cilt çizgisinden sola döner ve
-         ARKA yüzü yeni sol sayfa olur; altından bir sonraki yayılımın sağ
-         sayfası açığa çıkar. Gerçek kitapta olan tam olarak budur.
-
-         Yaprak[i]: ön yüz = görsel[i] (sağda), arka yüz = metin[i+1].
-         Çevrilmiş yaprakların arka yüzü solda birikir; en son çevrilen
-         üstte kalır, yani solda daima etkin slaydın metni görünür.
-
-         `backface-visibility: hidden` şart: olmasaydı yaprak dönerken
-         ön yüzü ayna görüntüsü hâlinde okunurdu. */
+      /* ══════ İKİ PANEL ══════
+         Solda anlatım, sağda medya. 3B yaprak çevirme kaldırıldı: yığın
+         sırasına dayandığı için bir sayfa değişimi sessizce görünmez
+         kalabiliyordu. Burada iki panel de doğrudan etkin slayttan çizilir;
+         geçiş yalnız yumuşak bir belirme. */
       .kitap-alan {
         background: var(--bej);
-        padding: 72px 20px 80px;
+        padding: 20px 20px 16px;
         color: var(--metin);
-        border-radius: 4rem;
-        max-width: 1360px;
-        /* Yanlardan boşluk kalsın: köşe yuvarlaması ekran kenarına
-           dayanınca kesilmiş görünüyor. */
-        width: calc(100% - 40px);
-        margin: 0 auto 72px;
-      }
-      .kitap-sahne {
+        border-radius: 2rem;
         max-width: 1240px;
+        width: calc(100% - 32px);
+        margin: 0 auto 18px;
+      }
+      .panolar {
+        display: grid;
+        grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+        gap: 18px;
+        align-items: stretch;
+        max-width: 1140px;
         margin: 0 auto;
-        perspective: 2800px;
       }
-      .kitap {
-        position: relative;
-        height: 620px;
-        transform-style: preserve-3d;
-        /* Kapak: kitabın altından taşan yumuşak gölge */
-        filter: drop-shadow(0 30px 55px rgba(44, 49, 45, 0.22));
-      }
-      /* Kitabın iki yarısı */
-      .yari {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        width: 50%;
+      .pano {
         background: var(--kagit);
-        overflow: hidden;
+        border-radius: 1.15rem;
+        box-shadow: 0 6px 18px rgba(44, 49, 45, 0.09);
+        min-height: 268px;
+        animation: belir 0.28s ease both;
       }
-      .yari.sol {
-        left: 0;
-        border-radius: var(--yay-orta) 0 0 var(--yay-orta);
+      @keyframes belir {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
       }
-      .yari.sag {
-        right: 0;
-        border-radius: 0 var(--yay-orta) var(--yay-orta) 0;
-      }
-      /* Cilt: ortadaki dikiş gölgesi. Kitabı iki ayrı karttan bir bütün
-         hâline getiren şey bu. */
-      .cilt {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 50%;
-        width: 42px;
-        transform: translateX(-50%);
-        z-index: 60;
-        pointer-events: none;
-        background: linear-gradient(
-          90deg,
-          rgba(58, 74, 64, 0) 0%,
-          rgba(58, 74, 64, 0.08) 28%,
-          rgba(58, 74, 64, 0.22) 50%,
-          rgba(58, 74, 64, 0.08) 72%,
-          rgba(58, 74, 64, 0) 100%
-        );
-      }
-
-      /* Yaprak: sağ yarıda durur, sol kenarından (cilt) döner. */
-      .yaprak {
-        position: absolute;
-        top: 0;
-        right: 0;
-        width: 50%;
-        height: 100%;
-        transform-origin: left center;
-        transform-style: preserve-3d;
-        transition: transform 0.95s cubic-bezier(0.3, 0.68, 0.32, 1);
-        transform: rotateY(0deg);
-      }
-      .yaprak[data-cevrildi='1'] {
-        transform: rotateY(-180deg);
-      }
-      .yuz {
-        position: absolute;
-        inset: 0;
-        background: var(--kagit);
-        backface-visibility: hidden;
-        -webkit-backface-visibility: hidden;
-        overflow: hidden;
-      }
-      .yuz.on {
-        border-radius: 0 var(--yay-orta) var(--yay-orta) 0;
-      }
-      /* Arka yüz baştan çevrilmiş durur; yaprak dönünce düz görünür. */
-      .yuz.arka {
-        transform: rotateY(180deg);
-        border-radius: var(--yay-orta) 0 0 var(--yay-orta);
-      }
-      /* Kağıt dokusu: cilde yakın taraf hafif koyulaşır. */
-      .yuz.on::after,
-      .yari.sag::after {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 40px;
-        background: linear-gradient(90deg, rgba(58, 74, 64, 0.1), rgba(58, 74, 64, 0));
-        pointer-events: none;
-      }
-      .yuz.arka::after,
-      .yari.sol::after {
-        content: '';
-        position: absolute;
-        right: 0;
-        top: 0;
-        bottom: 0;
-        width: 40px;
-        background: linear-gradient(270deg, rgba(58, 74, 64, 0.1), rgba(58, 74, 64, 0));
-        pointer-events: none;
-      }
-
-      /* ── Sayfa içerikleri ── */
-      .metin-sayfa {
-        height: 100%;
-        padding: 52px 46px 52px 54px;
+      .pano-metin {
+        padding: 26px 28px;
         display: flex;
         flex-direction: column;
         justify-content: center;
+      }
+      .pano-metin .no {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--yesil);
+        margin-bottom: 10px;
+      }
+      .pano-metin h3 {
+        font-family: var(--serif);
+        font-size: clamp(1.3rem, 2.2vw, 1.72rem);
+        line-height: 1.2;
+        margin: 0 0 10px;
         color: var(--metin);
       }
-      .metin-sayfa .no {
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.16em;
-        color: var(--adacayi);
-        text-transform: uppercase;
-        margin-bottom: 16px;
-      }
-      .metin-sayfa h3 {
-        font-family: 'Playfair Display var', Georgia, 'Times New Roman', serif;
-        margin: 0 0 18px;
-        font-size: 30px;
-        line-height: 1.2;
-        font-weight: 600;
-        letter-spacing: -0.02em;
-        color: var(--orman);
-      }
-      .metin-sayfa p {
-        margin: 0;
-        font-size: 15.5px;
-        line-height: 1.8;
+      .pano-metin p {
+        font-size: 0.95rem;
+        line-height: 1.62;
         color: var(--metin-soluk);
-        white-space: pre-line;
+        margin: 0;
       }
-
-      /* Görsel sayfası: bir, iki ya da daha çok görsel için ızgara. */
-      .gorsel-sayfa {
-        height: 100%;
-        padding: 24px;
+      /* Medya panosu: video ya da görsel ızgarası. */
+      .pano-medya {
+        padding: 14px;
         display: grid;
-        gap: 12px;
-      }
-      .gorsel-sayfa[data-adet='1'] {
+        gap: 10px;
         grid-template-columns: 1fr;
+        align-content: stretch;
       }
-      .gorsel-sayfa[data-adet='2'] {
-        grid-template-columns: 1fr;
-        grid-template-rows: 1fr 1fr;
-      }
-      .gorsel-sayfa[data-adet='3'] {
+      .pano-medya[data-adet='2'],
+      .pano-medya[data-adet='4'] {
         grid-template-columns: 1fr 1fr;
-        grid-template-rows: 1fr 1fr;
       }
-      .gorsel-sayfa[data-adet='3'] .kare:first-child {
+      .pano-medya[data-adet='3'] {
+        grid-template-columns: 1fr 1fr;
+      }
+      .pano-medya[data-adet='3'] .kare:first-child {
         grid-column: 1 / -1;
       }
-      .gorsel-sayfa[data-adet='4'] {
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: 1fr 1fr;
-      }
       .kare {
-        background: var(--adacayi-acik) center/cover no-repeat;
-        border-radius: var(--yay-orta);
-        min-height: 0;
-      }
-      /* Görseli olmayan slaytta sağ sayfa boş kalmasın: kurum işareti. */
-      .gorsel-yok {
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        opacity: 0.16;
-      }
-      .gorsel-yok img {
-        width: 150px;
-        height: 150px;
-        object-fit: contain;
-      }
-
-      /* ══ BÜYÜTEÇ ══
-         Sağ sayfadaki görseller küçük basılıyor; ayrıntısı için tıklanınca
-         tam ekran açılır. Büyüteç işareti karenin tıklanabilir olduğunu
-         söyler — yoksa kimse denemez. */
-      .kare {
-        position: relative;
-        cursor: zoom-in;
-        border: none;
+        border: 0;
         padding: 0;
-        display: block;
+        border-radius: 0.8rem;
+        background-color: #ece8e0;
+        background-size: cover;
+        background-position: center;
+        cursor: zoom-in;
+        min-height: 92px;
+        width: 100%;
+      }
+      .kare:focus-visible {
+        outline: 3px solid var(--yesil);
+        outline-offset: 2px;
+      }
+      /* Video: 16:9 oranı korunur, panonun tamamını kaplar. */
+      /* Video 16:9 oranını korur ama panoyu BÜYÜTMEZ: oranı serbest
+         bıraktığımızda video slaydı sayfayı ekran boyunun dışına taşıyordu
+         (görsel slaytları sığarken yalnız o kaydırma istiyordu). Yükseklik
+         panoyla sınırlanır, genişlik orana göre daralır. */
+      .video-cerceve {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        max-height: 240px;
+        max-width: calc(240px * 16 / 9);
+        margin: 0 auto;
+        border-radius: 0.8rem;
+        overflow: hidden;
+        background: #000;
+        align-self: center;
+      }
+      .video-cerceve iframe {
+        position: absolute;
+        inset: 0;
         width: 100%;
         height: 100%;
+        border: 0;
       }
-      .kare::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        border-radius: var(--yay-orta);
-        background-color: rgba(44, 49, 45, 0);
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.35-4.35M11 8v6M8 11h6'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: center;
-        opacity: 0;
-        transition:
-          opacity 0.18s,
-          background-color 0.18s;
+      /* Medyası olmayan slaytta pano boş kalmasın: kurum işareti. */
+      .gorsel-yok {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.8rem;
+        background: var(--bej);
       }
-      .kare:hover::after,
-      .kare:focus-visible::after {
-        opacity: 1;
-        background-color: rgba(44, 49, 45, 0.45);
+      .gorsel-yok img {
+        width: 88px;
+        opacity: 0.5;
       }
 
-      .buyutec {
-        position: fixed;
-        inset: 0;
-        z-index: 200;
-        background: rgba(30, 35, 31, 0.94);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 34px;
-        cursor: zoom-out;
-      }
-      .buyutec img {
-        max-width: 100%;
-        max-height: 100%;
-        object-fit: contain;
-        border-radius: var(--yay-orta);
-        box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
-      }
-      .buyutec-btn {
-        position: absolute;
-        border-radius: 50%;
-        border: 1px solid rgba(255, 255, 255, 0.25);
-        background: rgba(255, 255, 255, 0.1);
-        color: #fff;
-        cursor: pointer;
-        font-family: inherit;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .buyutec-btn.kapat {
-        top: 18px;
-        right: 20px;
-        width: 42px;
-        height: 42px;
-        font-size: 22px;
-        line-height: 1;
-      }
-      /* Birden çok görselde büyüteç içinde de gezinilir. */
-      .buyutec-btn.ok {
-        top: 50%;
-        transform: translateY(-50%);
-        width: 48px;
-        height: 48px;
-      }
-      .buyutec-btn.ok.sol {
-        left: 18px;
-      }
-      .buyutec-btn.ok.sag {
-        right: 18px;
-      }
-      .buyutec-sayac {
-        position: absolute;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: rgba(255, 255, 255, 0.72);
-        font-size: 12.5px;
-        font-weight: 600;
+      @media (max-width: 900px) {
+        .panolar {
+          grid-template-columns: 1fr;
+        }
+        .pano {
+          min-height: 0;
+        }
       }
 
       .kitap-kontrol {
@@ -724,10 +566,12 @@
       }
 
       /* ── Alt bilgi ── */
+      /* Alt bant tek satır: 72 px'lik dolgu, hiçbir şey söylemeyen bir
+         boşluğu sayfanın dibine ekliyordu. */
       .alt {
         background: var(--bej);
         color: var(--metin-soluk);
-        padding: 72px 20px;
+        padding: 12px 20px;
         border-top: 1px solid rgba(90, 125, 101, 0.14);
       }
       .alt-ic {
@@ -736,8 +580,8 @@
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 14px;
-        font-size: 13.5px;
+        gap: 12px;
+        font-size: 12.5px;
       }
       .alt-marka {
         display: flex;
@@ -745,12 +589,9 @@
         gap: 12px;
       }
       .alt-marka img {
-        width: 54px;
-        height: 54px;
+        width: 34px;
+        height: 34px;
         object-fit: contain;
-        background: var(--yuzey);
-        border-radius: var(--yay-kucuk);
-        padding: 3px;
       }
       .alt-ic strong {
         color: var(--orman);
@@ -976,21 +817,24 @@
          Sekme seçilir, kitap o modülün içeriğini gösterir. Modül başına
          sabit bir açıklama paneli yok: içeriği yetkili giriyor. -->
     <section class="kitap-alan">
-      <div class="bolum-ustbaslik">Özellikler</div>
-      <h2 class="bolum-baslik">Her şey tek bir yerde</h2>
-
       <div class="sekme-serit" role="tablist" id="sekmeler"></div>
 
       <!-- Hiç modül tanımlanmamışken görünür. Uydurma bir varsayılan liste
            göstermek, yetkilinin sildiği sekmeyi geri getirirdi. -->
       <div id="modulYok" class="modul-yok">Modül sekmeleri henüz tanımlanmadı.</div>
 
-      <div class="kitap-sahne">
-        <div class="kitap" id="kitap" aria-live="polite">
-          <div class="yari sol" id="sabitSol"></div>
-          <div class="yari sag" id="sabitSag"></div>
-          <div class="cilt"></div>
-        </div>
+      <!-- ══ İKİ PANEL ══
+           Eskiden burada 3B yaprak çeviren bir "kitap" vardı: sağ yarı SON
+           slaydın görselini, sol yarı İLK slaydın metnini sabit tutuyor,
+           aradaki yapraklar dönerek üstlerini örtüyordu. Yığın sırası tek bir
+           yerde bile şaşınca sayfa değişmiş gibi görünmüyordu — nitekim
+           görünmüyordu da: üçüncü sayfada sol panel hâlâ birinci sayfanın
+           metnini gösteriyordu.
+           Artık iki panel de DOĞRUDAN etkin slayttan çizilir. Hangi alanın ne
+           olduğu bellidir: solda anlatım, sağda görsel ya da video. -->
+      <div class="panolar" id="panolar" aria-live="polite">
+        <div class="pano pano-metin" id="panoMetin"></div>
+        <div class="pano pano-medya" id="panoMedya"></div>
       </div>
 
       <div class="kitap-kontrol">
@@ -1065,9 +909,9 @@
           e.preventDefault();
         });
 
-        var kitap = document.getElementById('kitap');
-        var sabitSol = document.getElementById('sabitSol');
-        var sabitSag = document.getElementById('sabitSag');
+        var panolar = document.getElementById('panolar');
+        var panoMetin = document.getElementById('panoMetin');
+        var panoMedya = document.getElementById('panoMedya');
         var noktalar = document.getElementById('noktalar');
         var btnGeri = document.getElementById('geri');
         var btnIleri = document.getElementById('ileri');
@@ -1082,15 +926,78 @@
           return /\.(jpe?g|png|webp|gif|avif)$/i.test(a);
         }
 
-        function metinSayfasi(s, no, toplam) {
-          var d = el('div', 'metin-sayfa');
-          d.appendChild(el('div', 'no', no + ' / ' + toplam));
-          if (s.baslik) d.appendChild(el('h3', null, s.baslik));
-          if (s.metin) d.appendChild(el('p', null, s.metin));
-          return d;
+        // ── YouTube bağlantısı → gömme adresi ──
+        // Kural ve testleri lib/youtube-gomme.js'te. Bu sayfa bilerek
+        // bağımlılıksız olduğu için aynı mantık burada da duruyor; ikisi
+        // birlikte değişmeli.
+        var YT_KIMLIK = /^[A-Za-z0-9_-]{11}$/;
+        function videoKimligi(baglanti) {
+          var ham = String(baglanti == null ? '' : baglanti).trim();
+          if (!ham) return '';
+          if (YT_KIMLIK.test(ham)) return ham;
+          var u;
+          try {
+            u = new URL(/^https?:\/\//i.test(ham) ? ham : 'https://' + ham);
+          } catch (e) {
+            return '';
+          }
+          var host = u.hostname.replace(/^www\./i, '').toLowerCase();
+          var yol = u.pathname.replace(/\/+$/, '');
+          if (host === 'youtu.be') {
+            var kk = yol.split('/')[1] || '';
+            return YT_KIMLIK.test(kk) ? kk : '';
+          }
+          if (host !== 'youtube.com' && host !== 'm.youtube.com' && host !== 'youtube-nocookie.com')
+            return '';
+          var v = u.searchParams.get('v');
+          if (v && YT_KIMLIK.test(v)) return v;
+          var par = yol.split('/').filter(Boolean);
+          if (['embed', 'shorts', 'live', 'v'].indexOf(par[0]) >= 0) {
+            var k2 = par[1] || '';
+            return YT_KIMLIK.test(k2) ? k2 : '';
+          }
+          return '';
+        }
+        function gommeAdresi(baglanti) {
+          var k = videoKimligi(baglanti);
+          return k
+            ? 'https://www.youtube-nocookie.com/embed/' + k + '?rel=0&modestbranding=1'
+            : '';
         }
 
-        function gorselSayfasi(s) {
+        // ── Anlatım panosu ──
+        function metniCiz(s, no, toplam) {
+          panoMetin.textContent = '';
+          panoMetin.appendChild(el('div', 'no', no + ' / ' + toplam));
+          if (s.baslik) panoMetin.appendChild(el('h3', null, s.baslik));
+          if (s.metin) panoMetin.appendChild(el('p', null, s.metin));
+        }
+
+        // ── Medya panosu ──
+        // Öncelik VİDEODA: bir slayda video konduysa görseller yerine o
+        // gösterilir. İkisini yan yana koymak panoyu ikiye böler ve ikisini de
+        // küçültürdü.
+        function medyayiCiz(s) {
+          panoMedya.textContent = '';
+          panoMedya.removeAttribute('data-adet');
+
+          var src = gommeAdresi(s && s.video);
+          if (src) {
+            var cerceve = el('div', 'video-cerceve');
+            var f = document.createElement('iframe');
+            f.src = src;
+            f.title = (s && s.baslik) || 'Tanıtım videosu';
+            f.loading = 'lazy';
+            f.allow =
+              'accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+            f.setAttribute('allowfullscreen', '');
+            // Gömülü çerçeve üst pencereye erişemesin.
+            f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+            cerceve.appendChild(f);
+            panoMedya.appendChild(cerceve);
+            return;
+          }
+
           var g = (s && s.gorseller) || [];
           if (!g.length) {
             var bos = el('div', 'gorsel-yok');
@@ -1102,60 +1009,29 @@
             };
             logo.alt = '';
             bos.appendChild(logo);
-            return bos;
+            panoMedya.appendChild(bos);
+            return;
           }
-          var d = el('div', 'gorsel-sayfa');
           // Dörtten çoğu ızgarayı okunmaz kılıyor; fazlası gösterilmez.
           var goster = g.slice(0, 4);
-          d.setAttribute('data-adet', String(goster.length));
+          panoMedya.setAttribute('data-adet', String(goster.length));
           goster.forEach(function (ad, gi) {
-            // Düğme, div değil: klavyeyle de odaklanıp açılabilsin.
             var k = el('button', 'kare');
             k.type = 'button';
             k.setAttribute('aria-label', 'Görseli büyüt');
             k.style.backgroundImage = "url('/api/tanitim/gorsel/" + encodeURIComponent(ad) + "')";
-            k.style.backgroundSize = 'cover';
-            k.style.backgroundPosition = 'center';
             k.addEventListener('click', function (e) {
-              // Yaprak çevirme dinleyicilerine sızmasın.
               e.stopPropagation();
               buyutecAc(goster, gi);
             });
-            d.appendChild(k);
+            panoMedya.appendChild(k);
           });
-          return d;
         }
 
         function kitabiKur(liste) {
           slaytlar = liste;
-          yapraklar = [];
           noktalar.textContent = '';
-          // Sabit yarılar: ilk yayılımın solu, son yayılımın sağı.
-          sabitSol.textContent = '';
-          sabitSag.textContent = '';
-          sabitSol.appendChild(metinSayfasi(liste[0], 1, liste.length));
-          sabitSag.appendChild(gorselSayfasi(liste[liste.length - 1]));
-          // Eski yaprakları temizle (sabit yarılar ve cilt kalsın).
-          Array.prototype.slice.call(kitap.querySelectorAll('.yaprak')).forEach(function (y) {
-            kitap.removeChild(y);
-          });
-
           liste.forEach(function (s, i) {
-            var y = el('div', 'yaprak');
-            y.setAttribute('data-i', String(i));
-
-            var on = el('div', 'yuz on');
-            on.appendChild(gorselSayfasi(s));
-            y.appendChild(on);
-
-            var arka = el('div', 'yuz arka');
-            // Yaprağın arkası bir SONRAKİ yayılımın sol sayfasıdır.
-            if (liste[i + 1]) arka.appendChild(metinSayfasi(liste[i + 1], i + 2, liste.length));
-            y.appendChild(arka);
-
-            kitap.appendChild(y);
-            yapraklar.push(y);
-
             var n = el('button', 'nokta');
             n.type = 'button';
             n.setAttribute('aria-label', i + 1 + '. sayfa');
@@ -1164,21 +1040,26 @@
             });
             noktalar.appendChild(n);
           });
-
           git(0);
         }
 
+        // Tek kaynak: her iki pano da DOĞRUDAN etkin slayttan çizilir.
+        // Eski kitapta paneller ayrı ayrı yığılmış yapraklardan geliyordu ve
+        // biri değişirken öteki eski slaytta kalabiliyordu.
         function git(i) {
           if (!slaytlar.length) return;
           etkinSlayt = Math.max(0, Math.min(i, slaytlar.length - 1));
-          yapraklar.forEach(function (y, j) {
-            var cevrildi = j < etkinSlayt;
-            y.setAttribute('data-cevrildi', cevrildi ? '1' : '0');
-            // Yığın sırası: çevrilmemişlerde küçük indeks üstte (etkin sayfa
-            // en üstte), çevrilmişlerde büyük indeks üstte (en son çevrilen
-            // solda görünür). Aksi hâlde eski sayfa yenisini örterdi.
-            y.style.zIndex = String(cevrildi ? 10 + j : 50 - j);
-            noktalar.children[j].setAttribute('aria-current', j === etkinSlayt ? 'true' : 'false');
+          var s = slaytlar[etkinSlayt];
+          metniCiz(s, etkinSlayt + 1, slaytlar.length);
+          medyayiCiz(s);
+          // Belirme animasyonu her geçişte yeniden çalışsın.
+          [panoMetin, panoMedya].forEach(function (pano) {
+            pano.style.animation = 'none';
+            void pano.offsetWidth;
+            pano.style.animation = '';
+          });
+          Array.prototype.forEach.call(noktalar.children, function (n, j) {
+            n.setAttribute('aria-current', j === etkinSlayt ? 'true' : 'false');
           });
           btnGeri.disabled = etkinSlayt === 0;
           btnIleri.disabled = etkinSlayt === slaytlar.length - 1;
@@ -1191,10 +1072,10 @@
           git(etkinSlayt + 1);
         });
 
-        // Klavye: kitap görünürken sol/sağ ok tuşları sayfa çevirir.
+        // Klavye: panolar görünürken sol/sağ ok tuşları sayfa çevirir.
         document.addEventListener('keydown', function (e) {
           if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-          var kutu = kitap.getBoundingClientRect();
+          var kutu = panolar.getBoundingClientRect();
           if (kutu.bottom < 0 || kutu.top > window.innerHeight) return;
           if (document.activeElement && document.activeElement.closest('.sekme-serit')) return;
           git(etkinSlayt + (e.key === 'ArrowRight' ? 1 : -1));
@@ -1202,14 +1083,14 @@
 
         // Dokunmatik: yatay kaydırma sayfayı çevirir.
         var dokunusX = null;
-        kitap.addEventListener(
+        panolar.addEventListener(
           'touchstart',
           function (e) {
             dokunusX = e.touches[0].clientX;
           },
           { passive: true }
         );
-        kitap.addEventListener(
+        panolar.addEventListener(
           'touchend',
           function (e) {
             if (dokunusX == null) return;
@@ -1221,7 +1102,7 @@
         );
 
         // ══ BÜYÜTEÇ ══
-        // Sağ sayfadaki görsel küçük basılıyor; tıklanınca tam ekran açılır.
+        // Medya panosundaki görsel küçük basılıyor; tıklanınca tam ekran açılır.
         // Görsel listesi taşınır ki büyüteç içinde de gezinilebilsin.
         var buyutecKatman = null;
 
@@ -1413,6 +1294,10 @@
                 baslik: String((k && k.baslik) || '').trim(),
                 metin: String((k && k.metin) || '').trim(),
                 gorseller: gorseller,
+                // YouTube bağlantısı — görsel yüklemeye alternatif. Adres
+                // burada DOĞRULANMAZ; medyayiCiz gömme adresini üretirken
+                // çözemezse görsellere düşer, boş iframe basılmaz.
+                video: String((k && (k.video || k.videoUrl)) || '').trim(),
                 modul: String((k && k.modul) || '').trim(),
                 sira: isFinite(sira) ? sira : 0,
                 yayinda: !(k && k.yayinda === false),
@@ -1421,7 +1306,9 @@
             // Modülü yazılmamış kayıt hiçbir sekmede gösterilmez: bir
             // slaydı bütün sekmelere koymak sekmenin anlamını bitirirdi.
             .filter(function (s) {
-              return s.yayinda && s.modul && (s.baslik || s.metin || s.gorseller.length);
+              return (
+                s.yayinda && s.modul && (s.baslik || s.metin || s.gorseller.length || s.video)
+              );
             })
             .sort(function (a, b) {
               return a.sira - b.sira || a.id.localeCompare(b.id, 'tr');

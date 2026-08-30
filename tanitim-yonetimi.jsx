@@ -113,6 +113,10 @@ function TanitimYonetimiApp({ currentUser }) {
       // Görseller DİZİ olarak yazılır. Eski tek alan (`gorsel`) yazılmaz:
       // okuma tarafı ikisini de kabul ediyor, yeni kayıtta tek biçim kalsın.
       gorseller: Array.isArray(d.gorseller) ? d.gorseller : d.gorsel ? [d.gorsel] : [],
+      // YouTube bağlantısı — girildiğinde tanıtım sayfasında görsellerin
+      // YERİNE video gösterilir. Adres burada doğrulanmaz; sayfa çözemezse
+      // sessizce görsellere düşer (boş iframe basılmaz).
+      video: String(d.video || '').trim(),
       sira: Number.isFinite(Number(d.sira)) ? Number(d.sira) : window.tanitimSonrakiSira(kayitlar),
       yayinda: d.yayinda !== false,
     };
@@ -421,6 +425,7 @@ function TanitimYonetimiApp({ currentUser }) {
                   yayinda: true,
                   modul: suzgec || '',
                   gorseller: [],
+                  video: '',
                 })
               }
               style={{ ...dugme(C.navy || '#1B2A4A'), marginBottom: 16 }}
@@ -467,8 +472,49 @@ function TanitimYonetimiApp({ currentUser }) {
                   placeholder="Slaytta görünecek açıklama"
                 />
               </div>
+              {/* ── YouTube videosu ──
+                  Ekran görüntüsü çekip yüklemek yerine, zaten YouTube'a
+                  konmuş tanıtım videosunun bağlantısı yapıştırılabilir.
+                  Video girildiğinde sağ panoda GÖRSELLERİN YERİNE o gösterilir:
+                  ikisini yan yana koymak panoyu bölüp ikisini de küçültürdü. */}
               <div style={{ marginBottom: 12 }}>
-                <label style={etiket}>Görseller (sağ sayfa)</label>
+                <label style={etiket}>YouTube videosu (isteğe bağlı)</label>
+                <input
+                  style={girdi}
+                  value={duzenlenen.video || ''}
+                  onChange={(e) => setDuzenlenen({ ...duzenlenen, video: e.target.value })}
+                  placeholder="https://youtu.be/… veya https://www.youtube.com/watch?v=…"
+                />
+                {(function () {
+                  var ham = String(duzenlenen.video || '').trim();
+                  if (!ham) {
+                    return (
+                      <div
+                        style={{ fontSize: 11.5, color: C.textMuted || '#64748B', marginTop: 4 }}
+                      >
+                        Bağlantı girilirse sağ panoda görseller yerine video görünür.
+                      </div>
+                    );
+                  }
+                  var gecerli = window.youtubeMu ? window.youtubeMu(ham) : true;
+                  return (
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        marginTop: 4,
+                        fontWeight: 600,
+                        color: gecerli ? '#059669' : '#DC2626',
+                      }}
+                    >
+                      {gecerli
+                        ? 'Bağlantı tanındı — sağ panoda video gösterilecek.'
+                        : 'Bu bir YouTube bağlantısı değil; sayfada görseller gösterilir.'}
+                    </div>
+                  );
+                })()}
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={etiket}>Görseller (video yoksa gösterilir)</label>
                 {/* Sağ sayfaya en çok dört görsel basılır; fazlası ızgarayı
                 okunmaz kılıyor. Sıralama eklenme sırasıdır. */}
                 {(duzenlenen.gorseller || []).length > 0 && (
