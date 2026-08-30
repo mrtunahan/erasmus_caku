@@ -222,6 +222,7 @@ import { zenginAyristir, zenginDuzMetin, zenginBosMu, ZENGIN_RENKLER } from './l
 import { akademikYilBul, donemEtiketi } from './lib/akademik-donem.js';
 import { bolumKisaAd } from './lib/bolum-ad.js';
 import { bantGosterilsinMi } from './lib/api-hata.js';
+import { youtubeMu, gommeAdresi as ytGommeAdresi } from './lib/youtube-gomme.js';
 import {
   kararGecerliMi as muafiyetKararGecerliMi,
   gerekceGecerliMi as muafiyetGerekceGecerliMi,
@@ -14241,6 +14242,9 @@ window.muafiyetKararGecerliMi = muafiyetKararGecerliMi;
 window.muafiyetGerekceGecerliMi = muafiyetGerekceGecerliMi;
 window.muafiyetRedBildirimi = muafiyetRedBildirimi;
 window.MUAFIYET_EN_AZ_GEREKCE = MUAFIYET_EN_AZ_GEREKCE;
+// Tanıtım sayfası video bağlantısı (tanitim-yonetimi.jsx doğrulama için).
+window.youtubeMu = youtubeMu;
+window.ytGommeAdresi = ytGommeAdresi;
 window.modulYuklemeKarari = modulYuklemeKarari;
 window.modulDamgayiSil = modulDamgayiSil;
 window.modulHataMetni = modulHataMetni;
