@@ -6067,6 +6067,14 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
 
 const ReviewPanel = ({ record, onDecision, readOnly }) => {
   const [reviewing, setReviewing] = useState(false);
+  // ── RED GEREKÇESİ ZORUNLU ──
+  // Red tek tıklamayla veriliyordu ve gerekçe alanı boş kalıyordu; öğrenci
+  // ekranında yalnız "Reddedildi" görünüyor, NEDEN reddedildiği hiçbir yerde
+  // yazmıyordu. Artık gerekçe kutusu açılır, boş ya da anlamsız kısa metinle
+  // kaydedilemez (kural lib/muafiyet-red.js'te) ve öğrenciye bildirim gider.
+  const [redIndeks, setRedIndeks] = useState(-1);
+  const [redGerekce, setRedGerekce] = useState('');
+  const [redHata, setRedHata] = useState('');
   const matches = record.matches || [];
   if (matches.length === 0) return null;
   const pendingCount = matches.filter(function (m) {
@@ -6303,16 +6311,17 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
                   </button>
                   <button
                     disabled={reviewing}
-                    onClick={async function () {
-                      setReviewing(true);
-                      await onDecision(record.id, idx, 'rejected');
-                      setReviewing(false);
+                    onClick={function () {
+                      // Doğrudan reddetmez: önce gerekçe ister.
+                      setRedIndeks(idx);
+                      setRedGerekce('');
+                      setRedHata('');
                     }}
                     style={{
                       padding: '7px 18px',
                       borderRadius: 8,
                       border: '1px solid ' + DS.red,
-                      background: 'white',
+                      background: redIndeks === idx ? DS.redLight : 'white',
                       color: DS.red,
                       fontSize: 13,
                       fontWeight: 700,
@@ -6327,6 +6336,153 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
                 chip(durum, dColor, dBg)
               )}
             </div>
+
+            {/* Verilmiş red gerekçesi — HER İKİ TARAFTA da görünür.
+                Gerekçe yalnız bildirime gitseydi, öğrenci bildirimi
+                okuduktan sonra kayda dönünce yine "Reddedildi"den başka bir
+                şey göremezdi. */}
+            {decided === 'rejected' && (m.adminNote || '').trim() && (
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: '9px 11px',
+                  borderRadius: 8,
+                  background: DS.redLight + '55',
+                  borderLeft: '3px solid ' + DS.red,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    letterSpacing: '0.05em',
+                    color: DS.red,
+                    textTransform: 'uppercase',
+                    marginBottom: 3,
+                  }}
+                >
+                  Red gerekçesi
+                </div>
+                <div style={{ fontSize: 12.5, color: DS.text, lineHeight: 1.55 }}>
+                  {m.adminNote}
+                </div>
+                {m.adminDecidedBy && (
+                  <div style={{ fontSize: 11, color: DS.textMuted, marginTop: 4 }}>
+                    {m.adminDecidedBy}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Red gerekçesi — zorunlu. Boş ya da anlamsız kısa metinle
+                kaydedilemez; kaydedilince öğrenciye bildirim gider. */}
+            {redIndeks === idx && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: DS.redLight + '55',
+                  border: '1px solid ' + DS.red + '40',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: DS.red,
+                    marginBottom: 6,
+                  }}
+                >
+                  Red gerekçesi (zorunlu)
+                </div>
+                <div style={{ fontSize: 11.5, color: DS.textMuted, marginBottom: 8 }}>
+                  Bu metin öğrenciye bildirim olarak gönderilir. Ne yapması gerektiğini anlayacak
+                  kadar açık yazın.
+                </div>
+                <textarea
+                  value={redGerekce}
+                  onChange={function (e) {
+                    setRedGerekce(e.target.value);
+                    if (redHata) setRedHata('');
+                  }}
+                  rows={3}
+                  placeholder="Örn. Ders içeriği uyumu %70'in altında; sunulan belge yalnız ders adını gösteriyor, haftalık içerik eksik."
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    border: '1px solid ' + (redHata ? DS.red : DS.border),
+                    fontSize: 13,
+                    fontFamily: 'inherit',
+                    color: DS.text,
+                    resize: 'vertical',
+                    outline: 'none',
+                  }}
+                />
+                {redHata && (
+                  <div style={{ fontSize: 11.5, color: DS.red, marginTop: 6, fontWeight: 600 }}>
+                    {redHata}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button
+                    disabled={reviewing}
+                    onClick={async function () {
+                      var kontrol = window.muafiyetGerekceGecerliMi
+                        ? window.muafiyetGerekceGecerliMi(redGerekce)
+                        : { gecerli: !!redGerekce.trim(), hata: 'Red gerekçesi zorunludur.' };
+                      if (!kontrol.gecerli) {
+                        setRedHata(kontrol.hata);
+                        return;
+                      }
+                      setReviewing(true);
+                      try {
+                        await onDecision(record.id, idx, 'rejected', redGerekce.trim());
+                        setRedIndeks(-1);
+                        setRedGerekce('');
+                      } finally {
+                        setReviewing(false);
+                      }
+                    }}
+                    style={{
+                      padding: '7px 18px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: DS.red,
+                      color: 'white',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: reviewing ? 'wait' : 'pointer',
+                      opacity: reviewing ? 0.6 : 1,
+                    }}
+                  >
+                    {reviewing ? 'Kaydediliyor…' : 'Reddet ve bildir'}
+                  </button>
+                  <button
+                    disabled={reviewing}
+                    onClick={function () {
+                      setRedIndeks(-1);
+                      setRedGerekce('');
+                      setRedHata('');
+                    }}
+                    style={{
+                      padding: '7px 16px',
+                      borderRadius: 8,
+                      border: '1px solid ' + DS.border,
+                      background: 'white',
+                      color: DS.textMuted,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Vazgeç
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
@@ -7128,8 +7284,9 @@ const ExemptionHistory = ({
                   <ReviewPanel
                     record={rec}
                     readOnly={!onUpdateDecision}
-                    onDecision={async function (recId, matchIdx, decision) {
-                      if (onUpdateDecision) await onUpdateDecision(recId, matchIdx, decision);
+                    onDecision={async function (recId, matchIdx, decision, gerekce) {
+                      if (onUpdateDecision)
+                        await onUpdateDecision(recId, matchIdx, decision, gerekce);
                     }}
                   />
                 </div>
@@ -9748,14 +9905,25 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
     }
   };
 
-  const handleUpdateDecision = async function (recordId, matchIndex, decision) {
+  const handleUpdateDecision = async function (recordId, matchIndex, decision, gerekce) {
+    // ── RED GEREKÇESİ ZORUNLU ──
+    // Kural burada da uygulanır: arayüz atlansa bile gerekçesiz red kaydı
+    // oluşmasın. (Kural ve metinler lib/muafiyet-red.js'te, test altında.)
+    var kontrol = window.muafiyetKararGecerliMi
+      ? window.muafiyetKararGecerliMi(decision, gerekce)
+      : { gecerli: true, hata: '' };
+    if (!kontrol.gecerli) {
+      alert(kontrol.hata);
+      return;
+    }
+    var karariVeren = currentUser?.name || currentUser?.identifier || '';
     try {
       var updatedMatches = await MuafiyetDB.updateMatchDecision(
         recordId,
         matchIndex,
         decision,
-        '',
-        currentUser?.name || currentUser?.identifier || ''
+        gerekce || '',
+        karariVeren
       );
       // Kayıtları güncelle
       setRecords(function (prev) {
@@ -9767,6 +9935,36 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
           return Object.assign({}, r, { matches: updatedMatches, pendingReviewCount: pendingLeft });
         });
       });
+
+      // ── ÖĞRENCİYE BİLDİRİM ──
+      // Red bir idari karardır; öğrenci gerekçesini kayıttan değil, kendi
+      // bildiriminden öğrenmeli. Bildirim yazımı BAŞARISIZ olsa bile karar
+      // kaydedilmiş sayılır — kararı geri almak daha kötü olurdu; yalnız
+      // uyarı verilir.
+      if (window.muafiyetRedBildirimi && decision === 'rejected') {
+        var kayit = records.find(function (r) {
+          return r.id === recordId;
+        });
+        var eslesme = (updatedMatches || [])[matchIndex] || {};
+        var kaynakDers = eslesme.sourceCourse || eslesme.source || {};
+        try {
+          var bildirim = window.muafiyetRedBildirimi({
+            ogrenciNo: (kayit && kayit.studentNo) || '',
+            ders: kaynakDers,
+            gerekce: gerekce || '',
+            karariVeren: karariVeren,
+            kayitId: recordId,
+            eslesmeIndeksi: matchIndex,
+            turEtiketi: turMeta?.label || 'Ders muafiyet',
+          });
+          if (bildirim.studentNumber && window.StudentNotifier?.notifyStudent) {
+            await window.StudentNotifier.notifyStudent(bildirim.studentNumber, bildirim);
+          }
+        } catch (bErr) {
+          console.warn('Red bildirimi gönderilemedi:', bErr);
+          alert('Karar kaydedildi ancak öğrenciye bildirim gönderilemedi.');
+        }
+      }
     } catch (err) {
       alert('Karar güncellenemedi: ' + err.message);
     }
