@@ -86,9 +86,14 @@ const SB_BICIM = {
   etkin: { fg: SB.vurgu, bg: '#FBF6EC', bd: '#E8D5A8' },
 };
 
-// Eşleme durumu şeridi.
+// Eşleme durumu çipi.
+//
+// İki durum AYNI ağırlıkta boyalıydı: turkuaz "eşlendi" ile amber "eşleme
+// gerekli". Şablonların çoğu eşli olduğu için ekran turkuaz çiple doluyor,
+// asıl iş isteyen amber çip aralarında kayboluyordu. Olağan durum sessiz
+// boyanır; dikkat isteyen tek durum renklidir.
 const SB_ESLEME = {
-  var: { bg: SB.birincilSolgun, fg: '#0E7490', bd: '#A5F0FA' },
+  var: { bg: SB.yuzey2, fg: SB.cipMetin, bd: SB.kenar },
   yok: { bg: SB.uyariSolgun, fg: '#92400E', bd: '#FDE68A' },
 };
 
@@ -150,6 +155,29 @@ const sbGiris = {
   borderRadius: SB.yaricapKucuk,
   fontSize: 13,
   fontFamily: 'inherit',
+};
+
+// Pencere formundaki açılır listeler. Aynı beş satırlık stil nesnesi dört
+// ayrı `select` içinde harfi harfine tekrarlanıyordu; biri elle değişince
+// diğerleri geride kalıyordu.
+const sbSecim = {
+  width: '100%',
+  padding: '10px 14px',
+  borderRadius: SB.yaricapKucuk,
+  border: '1px solid ' + SB.kenarGiris,
+  fontSize: 14,
+  fontFamily: "'Inter', sans-serif",
+  background: SB.yuzey,
+  color: SB.metin,
+  boxSizing: 'border-box',
+};
+
+// Formda yan yana duran iki alan. Dar pencerede tek çocuk kalırsa (ör. belge
+// türü olmayan modül) alan bütün genişliği alır, yarım kutu asılı kalmaz.
+const sbIkili = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(215px, 1fr))',
+  gap: 12,
 };
 
 /** Yuvarlak rozet — modül etiketi, kapsam, durum. */
@@ -266,6 +294,37 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
     });
   }, [templates, filter]);
 
+  // Modül modül bölünmüş liste ve sayaçlar — kural lib/sablon-gruplama.js'te,
+  // sınanabilir. Yardımcı yüklenmediyse ekran boş kalmasın diye tek gruba düşer.
+  const gruplar = useMemo(() => {
+    if (typeof window !== 'undefined' && window.sablonlariGrupla) {
+      return window.sablonlariGrupla(filtered, SB_MODULES);
+    }
+    return filtered.length
+      ? [
+          {
+            modul: 'tumu',
+            meta: { id: 'tumu', label: 'Şablonlar', color: SB.navy },
+            kayitlar: filtered,
+            toplam: filtered.length,
+            eksikEsleme: 0,
+            pasif: 0,
+          },
+        ]
+      : [];
+  }, [filtered]);
+
+  const bosluklar = useMemo(() => {
+    if (typeof window === 'undefined' || !window.sablonBosModuller) return [];
+    return window.sablonBosModuller(templates, SB_MODULES);
+  }, [templates]);
+
+  // Süzgeç şeridindeki "kaç tanesi eşleme bekliyor" sayısı.
+  const eksikEslemeSayisi = useMemo(
+    () => gruplar.reduce((t, g) => t + (g.eksikEsleme || 0), 0),
+    [gruplar]
+  );
+
   const handleDelete = async (tpl) => {
     if (!confirm('"' + tpl.name + '" şablonu silinsin mi?')) return;
     try {
@@ -374,9 +433,20 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
         onDuzenle={(tpl) => setEditTpl(tpl)}
       />
 
-      <SablonSuzgeci filter={filter} onChange={setFilter} sayi={filtered.length} />
+      <SablonSuzgeci
+        filter={filter}
+        onChange={setFilter}
+        sayi={filtered.length}
+        eksik={eksikEslemeSayisi}
+      />
 
-      {/* Liste */}
+      {/* ── LİSTE: MODÜL MODÜL ──
+          Eskiden on altı kart tek bir şerit hâlinde alt alta dizilirdi ve
+          modüller yalnız kartın solundaki dört piksellik renkle ayrılırdı;
+          "staj şablonları nerede" sorusunun cevabı listeyi baştan sona
+          okumaktı. Artık her modül KENDİ BÖLÜMÜNDE: başlığı, sayacı ve
+          rengiyle. Kartlar bölümün içinde ızgaraya girer, sayfa yarı yarıya
+          kısalır. */}
       {loading ? (
         <p style={{ padding: 24, textAlign: 'center', color: SB.soluk }}>Yükleniyor…</p>
       ) : filtered.length === 0 ? (
@@ -389,19 +459,51 @@ function SablonlarApp({ currentUser, activeDepartment, departmentInfo }) {
             color: SB.soluk,
           }}
         >
-          Henüz bir şablon eklenmedi. Yukarıdaki butonla başlayın.
+          {templates.length === 0
+            ? 'Henüz bir şablon eklenmedi. Yukarıdaki butonla başlayın.'
+            : 'Bu süzgece uyan şablon yok.'}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {filtered.map((t) => (
-            <SablonKarti
-              key={t._id}
-              tpl={t}
-              onEsle={() => setMapping({ tpl: t, file: null })}
-              onDuzenle={() => setEditTpl(t)}
-              onDegistir={(alan) => handleToggle(t, alan)}
-              onSil={() => handleDelete(t)}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {gruplar.map((grup) => (
+            <SablonBolumu
+              key={grup.modul}
+              grup={grup}
+              onEsle={(t) => setMapping({ tpl: t, file: null })}
+              onDuzenle={(t) => setEditTpl(t)}
+              onDegistir={(t, alan) => handleToggle(t, alan)}
+              onSil={(t) => handleDelete(t)}
             />
+          ))}
+        </div>
+      )}
+
+      {/* Hangi modülde şablon OLMADIĞI da bilgidir; on iki boş kutu çizmek
+          yerine tek satırda söylenir. */}
+      {!loading && bosluklar.length > 0 && (
+        <div
+          style={{
+            marginTop: 14,
+            fontSize: 12,
+            color: SB.soluk2,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flexWrap: 'wrap',
+            lineHeight: 1.7,
+          }}
+        >
+          <span style={{ color: SB.soluk, fontWeight: 600 }}>Şablonu olmayan modüller:</span>
+          {bosluklar.map((m) => (
+            <span
+              key={m.id}
+              style={{
+                ...sbRozet(SB.yuzey2, SB.cipMetin, 600),
+                border: '1px solid ' + SB.kenar,
+              }}
+            >
+              {m.label}
+            </span>
           ))}
         </div>
       )}
@@ -494,16 +596,36 @@ function DurumMesaji({ text, kind }) {
   );
 }
 
-/** Modüle göre daraltma + serbest arama. */
-function SablonSuzgeci({ filter, onChange, sayi }) {
+/**
+ * Modüle göre daraltma + serbest arama.
+ *
+ * Üç öğe sayfanın üstünde çıplak duruyordu; şimdi kendi şeridinde. Sayaç da
+ * yalnız "kaç şablon" demiyor: eşleme bekleyen sayısı ekranın en çok işe
+ * yarayan bilgisi, süzgeçle birlikte okunuyor.
+ */
+function SablonSuzgeci({ filter, onChange, sayi, eksik }) {
   return (
     <div
-      style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}
+      style={{
+        ...sbKart,
+        padding: 10,
+        marginBottom: 12,
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center',
+        flexWrap: 'wrap',
+      }}
     >
       <select
         value={filter.module}
         onChange={(e) => onChange({ ...filter, module: e.target.value })}
-        style={{ ...sbGiris, padding: '8px 10px', background: SB.yuzey, cursor: 'pointer' }}
+        style={{
+          ...sbGiris,
+          padding: '8px 10px',
+          background: SB.yuzey,
+          cursor: 'pointer',
+          minWidth: 170,
+        }}
       >
         <option value="all">Tüm Modüller</option>
         {SB_MODULES.map((m) => (
@@ -515,11 +637,110 @@ function SablonSuzgeci({ filter, onChange, sayi }) {
       <input
         value={filter.search}
         onChange={(e) => onChange({ ...filter, search: e.target.value })}
-        placeholder="Şablon ara..."
+        placeholder="Şablon ara…"
         style={{ ...sbGiris, flex: 1, minWidth: 180 }}
       />
-      <div style={{ fontSize: 12, color: SB.soluk }}>{sayi} şablon</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={sbRozet(SB.cipZemin, SB.cipMetin, 600)}>{sayi} şablon</span>
+        {eksik > 0 && (
+          <span
+            style={{
+              ...sbRozet(SB_ESLEME.yok.bg, SB_ESLEME.yok.fg),
+              border: '1px solid ' + SB_ESLEME.yok.bd,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+            }}
+          >
+            <SbIkon ad="uyari" boyut={11} />
+            {eksik} eşleme bekliyor
+          </span>
+        )}
+      </div>
     </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// MODÜL BÖLÜMÜ
+//
+// Bir modülün bütün şablonları: başlığı, rengi, sayacı ve kart ızgarası.
+// Renk YALNIZ burada geniş kullanılır — kartlar nötr kalır. Rengi hem
+// başlıkta hem her kartın kenarında taşımak listeyi alacalı gösteriyordu;
+// kimlik bölümün kendisinde durunca kartlar sakinleşiyor.
+// ══════════════════════════════════════════════════════════════
+function SablonBolumu({ grup, onEsle, onDuzenle, onDegistir, onSil }) {
+  const renk = (grup.meta && grup.meta.color) || SB.navy;
+  return (
+    <section>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
+          flexWrap: 'wrap',
+          padding: '9px 14px',
+          borderRadius: SB.yaricap,
+          background: renk + '0F',
+          border: '1px solid ' + renk + '33',
+          marginBottom: 10,
+        }}
+      >
+        <span
+          style={{ width: 9, height: 9, borderRadius: 3, background: renk, flexShrink: 0 }}
+          aria-hidden="true"
+        />
+        <span style={{ fontSize: 14, fontWeight: 700, color: SB.baslik }}>
+          {grup.meta ? grup.meta.label : grup.modul}
+        </span>
+        <span style={{ fontSize: 12, color: SB.soluk }}>{grup.toplam} şablon</span>
+        <div style={{ flex: 1 }} />
+        {grup.pasif > 0 && (
+          <span style={{ fontSize: 11.5, color: SB.soluk2, fontWeight: 600 }}>
+            {grup.pasif} pasif
+          </span>
+        )}
+        {grup.eksikEsleme > 0 && (
+          <span
+            style={{
+              ...sbRozet(SB_ESLEME.yok.bg, SB_ESLEME.yok.fg),
+              border: '1px solid ' + SB_ESLEME.yok.bd,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+            }}
+          >
+            <SbIkon ad="uyari" boyut={11} />
+            {grup.eksikEsleme} eşleme bekliyor
+          </span>
+        )}
+      </div>
+      {/* Kartlar ızgaraya girer: geniş ekranda iki sütun, dar ekranda tek.
+          Tek sütunlu şeritte kartın sağ yarısı boş kalıyordu.
+          Sütun tabanı 520 px: bundan darda altı eylem düğmesi ikinci satıra
+          kayıyor, kart bir anda yarım santim uzuyordu. `auto-fill` kullanılır
+          (auto-fit değil): tek şablonlu bir modülde kart bütün ekrana yayılıp
+          içi bomboş kalmasın, yarım sütunda dursun. */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(520px, 1fr))',
+          gap: 10,
+          alignItems: 'start',
+        }}
+      >
+        {grup.kayitlar.map((t) => (
+          <SablonKarti
+            key={t._id}
+            tpl={t}
+            onEsle={() => onEsle(t)}
+            onDuzenle={() => onDuzenle(t)}
+            onDegistir={(alan) => onDegistir(t, alan)}
+            onSil={() => onSil(t)}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -535,49 +756,114 @@ function SablonSuzgeci({ filter, onChange, sayi }) {
 // yalnız hangi eylemin istendiğini bildirir.
 // ══════════════════════════════════════════════════════════════
 function SablonKarti({ tpl, onEsle, onDuzenle, onDegistir, onSil }) {
-  const m = moduleMeta(tpl.module);
-  const eslenebilir = sbEslenebilir(tpl.file);
-  const eslenenSayisi = (tpl.fields || []).filter((f) => f.variable).length;
+  const durum =
+    typeof window !== 'undefined' && window.sablonDurumu
+      ? window.sablonDurumu(tpl)
+      : {
+          eslenebilir: sbEslenebilir(tpl.file),
+          eslenen: (tpl.fields || []).filter((f) => f && f.variable).length,
+        };
+  const eslenebilir = durum.eslenebilir;
+  const eslenenSayisi = durum.eslenen;
   const esleme = eslenenSayisi > 0 ? SB_ESLEME.var : SB_ESLEME.yok;
+  const cokTurlu = docTypesOf(tpl.module).length > 1;
 
   return (
-    <div
+    <article
       style={{
         ...sbKart,
-        borderLeft: '4px solid ' + m.color,
-        opacity: tpl.isActive ? 1 : 0.72,
+        padding: 13,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        // Pasif şablon çıktı üretmez; solgunluk bunu tek bakışta söyler.
+        opacity: tpl.isActive ? 1 : 0.68,
       }}
     >
-      {/* Üst satır: başlık + rozetler */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 15.5, fontWeight: 700, color: SB.baslik }}>{tpl.name}</span>
-        <span style={sbRozet(m.color + '18', m.color)}>{m.label}</span>
-        {/* Belge türü rozeti yalnız çok türlü modüllerde anlamlı. */}
-        {docTypesOf(tpl.module).length > 1 && (
+      {/* 1. satır — kimlik. Modül rozeti YOK: kart zaten o modülün
+          bölümünde duruyor, rozeti tekrarlamak her kartta aynı bilgiyi
+          ikinci kez yazmaktı. */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 14.5,
+              fontWeight: 700,
+              color: SB.baslik,
+              lineHeight: 1.35,
+              wordBreak: 'break-word',
+            }}
+          >
+            {tpl.name}
+          </div>
+          {tpl.description && (
+            <div style={{ fontSize: 12, color: SB.soluk, marginTop: 3, lineHeight: 1.45 }}>
+              {tpl.description}
+            </div>
+          )}
+        </div>
+        {/* Durum işaretleri sağ üstte toplanır: her kartta AYNI yerde
+            oldukları için listede göz gezdirilerek okunabiliyorlar. */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            flexShrink: 0,
+            flexWrap: 'wrap',
+            justifyContent: 'flex-end',
+          }}
+        >
+          {tpl.isDefault && (
+            <span
+              style={{ ...sbRozet('#FBF6EC', '#8A6A29'), display: 'inline-flex', gap: 4 }}
+              title="Bu modülde varsayılan olarak kullanılan şablon"
+            >
+              <SbIkon ad="yildiz" boyut={11} dolgu />
+              VARSAYILAN
+            </span>
+          )}
+          {!tpl.isActive && <span style={sbRozet(SB.kenar, SB.koyu)}>PASİF</span>}
+        </div>
+      </div>
+
+      {/* 2. satır — sınıflandırma ve eşleme durumu, tek şeritte çipler.
+          Eşleme durumu eskiden kartın enini kaplayan bir bant idi; on altı
+          kartta on altı kez tekrarlanınca ekranın en gürültülü öğesiydi.
+          Aynı bilgi tek çipte duruyor, uzun açıklama ipucuna taşındı. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        {cokTurlu && (
           <span style={sbRozet('#EEF2FF', '#4338CA')}>{docTypeLabel(tpl.module, tpl.docType)}</span>
         )}
         <span style={sbRozet(SB.cipZemin, SB.cipMetin, 600)}>
           {SB_SCOPE_LABEL[tpl.scope] || tpl.scope}
         </span>
-        {tpl.isDefault && (
-          <span style={{ ...sbRozet('#FBF6EC', '#8A6A29'), display: 'inline-flex', gap: 4 }}>
-            <SbIkon ad="yildiz" boyut={11} dolgu />
-            VARSAYILAN
+        {eslenebilir && (
+          <span
+            title={
+              eslenenSayisi > 0
+                ? eslenenSayisi + ' anahtar alan bir değişkene bağlı — belge üretimine hazır'
+                : 'Anahtar alanlar eşlenmeden bu şablondan çıktı üretilemez; modül yerleşik biçime döner'
+            }
+            style={{
+              ...sbRozet(esleme.bg, esleme.fg),
+              border: '1px solid ' + esleme.bd,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+            }}
+          >
+            <SbIkon ad={eslenenSayisi > 0 ? 'esleme' : 'uyari'} boyut={11} />
+            {eslenenSayisi > 0 ? eslenenSayisi + ' ALAN EŞLENDİ' : 'EŞLEME GEREKLİ'}
           </span>
         )}
-        {!tpl.isActive && <span style={sbRozet(SB.kenar, SB.koyu)}>PASİF</span>}
       </div>
 
-      {tpl.description && (
-        <div style={{ fontSize: 12.5, color: SB.soluk, marginTop: 5 }}>{tpl.description}</div>
-      )}
-
-      {/* Dosya + meta satırı */}
+      {/* 3. satır — dosya ve künye. */}
       <div
         style={{
-          fontSize: 12,
+          fontSize: 11.5,
           color: SB.soluk,
-          marginTop: 8,
           display: 'flex',
           gap: 8,
           alignItems: 'center',
@@ -593,14 +879,15 @@ function SablonKarti({ tpl, onEsle, onDuzenle, onDegistir, onSil }) {
               background: SB.yuzey2,
               border: '1px solid ' + SB.kenar,
               borderRadius: 7,
-              padding: '4px 10px',
+              padding: '3px 9px',
               maxWidth: '100%',
+              minWidth: 0,
             }}
           >
-            <SbIkon ad="dosya" boyut={14} />
+            <SbIkon ad="dosya" boyut={13} />
             <span
               style={{
-                maxWidth: 340,
+                maxWidth: 240,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -611,7 +898,7 @@ function SablonKarti({ tpl, onEsle, onDuzenle, onDegistir, onSil }) {
             >
               {tpl.file.originalName}
             </span>
-            <span style={{ color: SB.soluk2 }}>
+            <span style={{ color: SB.soluk2, whiteSpace: 'nowrap' }}>
               {(tpl.file.extension || '').toUpperCase()} · {fmtBytes(tpl.file.size)}
             </span>
           </span>
@@ -622,83 +909,67 @@ function SablonKarti({ tpl, onEsle, onDuzenle, onDegistir, onSil }) {
         </span>
       </div>
 
-      {/* Eşleme durum şeridi — yalnız doldurulabilir dosyalarda (.docx/.xlsx).
-          Eşleme yoksa şablon yüklü olsa bile çıktı üretilemez; bu yüzden
-          kartın üzerinde duruyor, aksiyonların arasında kaybolmuyor. */}
-      {eslenebilir && (
-        <div
-          style={{
-            marginTop: 10,
-            padding: '8px 12px',
-            borderRadius: SB.yaricapKucuk,
-            fontSize: 12,
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            background: esleme.bg,
-            color: esleme.fg,
-            border: '1px solid ' + esleme.bd,
-          }}
-        >
-          <SbIkon ad={eslenenSayisi > 0 ? 'esleme' : 'uyari'} boyut={14} />
-          <span>
-            {eslenenSayisi > 0
-              ? eslenenSayisi + ' anahtar alan eşlendi — belge üretimine hazır'
-              : 'Anahtar alanlar henüz eşlenmedi. Çıktı üretmek için eşleme gerekli.'}
-          </span>
-        </div>
-      )}
-
-      {/* Aksiyonlar */}
+      {/* 4. satır — eylemler. İki öbek: solda BELGEYLE yapılanlar, sağda
+          şablonun DURUMUNU değiştirenler. Altı düğme tek sırada eşit
+          ağırlıkta dizilince hangisinin ne yaptığı ancak okuyarak
+          anlaşılıyordu. */}
       <div
         style={{
-          marginTop: 12,
+          marginTop: 2,
+          paddingTop: 9,
+          borderTop: '1px solid ' + SB.kenar,
           display: 'flex',
-          gap: 8,
+          gap: 6,
           flexWrap: 'wrap',
-          justifyContent: 'flex-end',
+          alignItems: 'center',
         }}
       >
         {eslenebilir && (
           // Eşleme yapılmamışsa o kartta yapılması gereken iş budur; birincil
           // biçimle öne çıkar. Yapılmışsa sıradan bir düzenleme eylemidir.
           <button onClick={onEsle} style={textBtn(eslenenSayisi > 0 ? 'sessiz' : 'birincil')}>
-            <SbIkon ad="esleme" />
-            {eslenenSayisi > 0 ? 'Eşlemeyi Düzenle' : 'Alanları Eşle'}
+            <SbIkon ad="esleme" boyut={13} />
+            {eslenenSayisi > 0 ? 'Eşleme' : 'Alanları Eşle'}
           </button>
         )}
-        <button onClick={onDuzenle} style={textBtn('sessiz')}>
-          <SbIkon ad="duzenle" />
+        <button onClick={onDuzenle} style={textBtn('sessiz')} title="Şablon bilgilerini düzenle">
+          <SbIkon ad="duzenle" boyut={13} />
           Düzenle
         </button>
         <a
           href={'/api/templates/' + tpl._id + '/download'}
           style={{ ...textBtn('sessiz'), textDecoration: 'none' }}
+          title="Şablon dosyasını indir"
         >
-          <SbIkon ad="indir" />
+          <SbIkon ad="indir" boyut={13} />
           İndir
         </a>
+        <div style={{ flex: 1, minWidth: 0 }} />
         <button
           onClick={() => onDegistir('isDefault')}
           style={textBtn(tpl.isDefault ? 'etkin' : 'sessiz')}
+          title={tpl.isDefault ? 'Varsayılan işaretini kaldır' : 'Bu modülde varsayılan yap'}
         >
-          <SbIkon ad="yildiz" dolgu={!!tpl.isDefault} />
-          {tpl.isDefault ? 'Varsayılanı Kaldır' : 'Varsayılan Yap'}
+          <SbIkon ad="yildiz" boyut={13} dolgu={!!tpl.isDefault} />
+          Varsayılan
         </button>
+        {/* Şablonların neredeyse hepsi aktif; bu düğmeyi her kartta vurgu
+            rengiyle boyamak, bilgi vermeyen bir altın sütunu üretiyordu.
+            Durum ikon ve (pasifse) rozetle zaten okunuyor. */}
         <button
           onClick={() => onDegistir('isActive')}
-          style={textBtn(tpl.isActive ? 'etkin' : 'sessiz')}
+          style={textBtn('sessiz')}
+          title={tpl.isActive ? 'Pasifleştir — şablon kullanılmaz' : 'Aktifleştir'}
         >
-          <SbIkon ad={tpl.isActive ? 'onay' : 'daire'} />
+          <SbIkon ad={tpl.isActive ? 'onay' : 'daire'} boyut={13} />
           {tpl.isActive ? 'Aktif' : 'Pasif'}
         </button>
-        <button onClick={onSil} style={textBtn('tehlike')}>
-          <SbIkon ad="sil" />
+        <button onClick={onSil} style={textBtn('tehlike')} title="Şablonu sil">
+          <SbIkon ad="sil" boyut={13} />
           Sil
         </button>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -802,31 +1073,45 @@ function DersProgramiYuklemeAlanlari({ templates, onYukle, onDuzenle }) {
   Object.keys(adaylar).forEach((d) => (yuklu[d] = sbEtkinSablon(adaylar[d])));
   const renk = moduleMeta('dersprogrami').color;
 
+  const doluSayisi = DP_SABLON_ALANLARI.filter((a) => yuklu[a.docType]).length;
+
   return (
-    <div
-      style={{
-        background: 'white',
-        border: '1px solid #E5E7EB',
-        borderLeft: '4px solid ' + renk,
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 12,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: SB.baslik }}>
+    // Bu panel modül bölümleriyle AYNI dili konuşur: renkli başlık şeridi,
+    // altında ızgara. Farklı bir kart biçimi kullanmak, aynı ekranda iki ayrı
+    // tasarım gibi duruyordu.
+    <div style={{ marginBottom: 14 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
+          flexWrap: 'wrap',
+          padding: '9px 14px',
+          borderRadius: SB.yaricap,
+          background: renk + '0F',
+          border: '1px solid ' + renk + '33',
+          marginBottom: 10,
+        }}
+      >
+        <span
+          style={{ width: 9, height: 9, borderRadius: 3, background: renk, flexShrink: 0 }}
+          aria-hidden="true"
+        />
+        <span style={{ fontSize: 14, fontWeight: 700, color: SB.baslik }}>
           Ders Programı Şablonları
         </span>
         <span style={{ fontSize: 12, color: SB.soluk }}>
           Dört çıktı, dört ayrı dosya — hiçbiri zorunlu değil
         </span>
+        <div style={{ flex: 1 }} />
+        <span style={sbRozet(SB.cipZemin, SB.cipMetin, 600)}>{doluSayisi} / 4 yüklü</span>
       </div>
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
           gap: 10,
-          marginTop: 12,
+          alignItems: 'stretch',
         }}
       >
         {DP_SABLON_ALANLARI.map((alan) => {
@@ -1108,154 +1393,109 @@ function AddTemplateModal(props) {
             placeholder="Örn: Bilgisayar Müh. Erasmus Çıktı Şablonu"
           />
         </SB_FormField>
-        <SB_FormField label="Modül *">
-          <select
-            value={module_}
-            onChange={(e) => {
-              const mod = e.target.value;
-              setModule(mod);
-              // Modül değişince belge türünü o modülün ilk türüne çek
-              const types = docTypesOf(mod);
-              setDocType(types[0] ? types[0].id : 'default');
-            }}
-            style={{
-              width: '100%',
-              padding: '10px 14px',
-              borderRadius: 8,
-              border: '1px solid #D1D5DB',
-              fontSize: 14,
-              fontFamily: "'Inter', sans-serif",
-              boxSizing: 'border-box',
-            }}
-          >
-            {SB_MODULES.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </SB_FormField>
-        {docTypesOf(module_).length > 1 && (
-          <SB_FormField label="Belge Türü *">
+        {/* Modül ve belge türü aynı soruyu iki adımda soruyor ("hangi
+            modül, o modülün hangi belgesi"); alt alta konunca form uzuyor,
+            ikisi arasındaki bağ görünmüyordu. */}
+        <div style={sbIkili}>
+          <SB_FormField label="Modül *">
             <select
-              value={docType}
-              onChange={(e) => setDocType(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: 8,
-                border: '1px solid #D1D5DB',
-                fontSize: 14,
-                fontFamily: "'Inter', sans-serif",
-                boxSizing: 'border-box',
+              value={module_}
+              onChange={(e) => {
+                const mod = e.target.value;
+                setModule(mod);
+                // Modül değişince belge türünü o modülün ilk türüne çek
+                const types = docTypesOf(mod);
+                setDocType(types[0] ? types[0].id : 'default');
               }}
+              style={sbSecim}
             >
-              {docTypesOf(module_).map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.label}
+              {SB_MODULES.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
                 </option>
               ))}
             </select>
-            <div style={{ fontSize: 11.5, color: SB.soluk, marginTop: 4 }}>
-              Aynı modüle birden çok belge atanabilir (örn. Erasmus gidiş ve dönüş ayrı
-              belgelerdir). Her belge türü için ayrı şablon yükleyin.
-            </div>
           </SB_FormField>
-        )}
-        {(isUniAdmin || isFacMgr) && (
-          <SB_FormField label="Kapsam *">
-            <select
-              value={scope}
-              onChange={(e) => setScope(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: 8,
-                border: '1px solid #D1D5DB',
-                fontSize: 14,
-                boxSizing: 'border-box',
-              }}
-            >
-              {isUniAdmin && <option value="university">Üniversite Geneli</option>}
-              {(isUniAdmin || isFacMgr) && <option value="faculty">Fakülte Geneli</option>}
-              <option value="department">Bölüm</option>
-            </select>
-          </SB_FormField>
-        )}
-        {scope === 'department' && (
-          <SB_FormField label={isDeptMgr ? 'Bölüm (otomatik)' : 'Bölüm *'}>
-            {isDeptMgr ? (
-              <SB_Input
-                value={
-                  (departments.find((d) => (d._docId || d.id) === (activeDepartment || '')) || {})
-                    .name || activeDepartment
-                }
-                disabled
-              />
-            ) : (
-              <select
-                value={scopeDeptId}
-                onChange={(e) => setScopeDeptId(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1px solid #D1D5DB',
-                  fontSize: 14,
-                  boxSizing: 'border-box',
-                }}
-              >
-                <option value="">Bölüm seçin…</option>
-                {departments
-                  .filter((d) => !isFacMgr || d.facultyId === currentUser?.facultyId)
-                  .map((d) => (
-                    <option key={d._docId || d.id} value={d._docId || d.id}>
-                      {d.name}
-                    </option>
-                  ))}
+          {docTypesOf(module_).length > 1 && (
+            <SB_FormField label="Belge Türü *">
+              <select value={docType} onChange={(e) => setDocType(e.target.value)} style={sbSecim}>
+                {docTypesOf(module_).map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.label}
+                  </option>
+                ))}
               </select>
-            )}
-          </SB_FormField>
-        )}
-        {scope === 'faculty' && isUniAdmin && (
-          <SB_FormField label="Fakülte *">
-            <select
-              value={scopeFacId}
-              onChange={(e) => setScopeFacId(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: 8,
-                border: '1px solid #D1D5DB',
-                fontSize: 14,
-                boxSizing: 'border-box',
-              }}
-            >
-              <option value="">Fakülte seçin…</option>
-              {faculties.map((f) => (
-                <option key={f._docId || f.id} value={f._docId || f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </SB_FormField>
-        )}
+              <div style={{ fontSize: 11.5, color: SB.soluk, marginTop: 4 }}>
+                Aynı modüle birden çok belge atanabilir (örn. Erasmus gidiş ve dönüş ayrı
+                belgelerdir). Her belge türü için ayrı şablon yükleyin.
+              </div>
+            </SB_FormField>
+          )}
+        </div>
+        {/* Kapsam ile onun gerektirdiği seçim (bölüm ya da fakülte) aynı
+            satırda: biri diğerini belirliyor. */}
+        <div style={sbIkili}>
+          {(isUniAdmin || isFacMgr) && (
+            <SB_FormField label="Kapsam *">
+              <select value={scope} onChange={(e) => setScope(e.target.value)} style={sbSecim}>
+                {isUniAdmin && <option value="university">Üniversite Geneli</option>}
+                {(isUniAdmin || isFacMgr) && <option value="faculty">Fakülte Geneli</option>}
+                <option value="department">Bölüm</option>
+              </select>
+            </SB_FormField>
+          )}
+          {scope === 'department' && (
+            <SB_FormField label={isDeptMgr ? 'Bölüm (otomatik)' : 'Bölüm *'}>
+              {isDeptMgr ? (
+                <SB_Input
+                  value={
+                    (departments.find((d) => (d._docId || d.id) === (activeDepartment || '')) || {})
+                      .name || activeDepartment
+                  }
+                  disabled
+                />
+              ) : (
+                <select
+                  value={scopeDeptId}
+                  onChange={(e) => setScopeDeptId(e.target.value)}
+                  style={sbSecim}
+                >
+                  <option value="">Bölüm seçin…</option>
+                  {departments
+                    .filter((d) => !isFacMgr || d.facultyId === currentUser?.facultyId)
+                    .map((d) => (
+                      <option key={d._docId || d.id} value={d._docId || d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                </select>
+              )}
+            </SB_FormField>
+          )}
+          {scope === 'faculty' && isUniAdmin && (
+            <SB_FormField label="Fakülte *">
+              <select
+                value={scopeFacId}
+                onChange={(e) => setScopeFacId(e.target.value)}
+                style={sbSecim}
+              >
+                <option value="">Fakülte seçin…</option>
+                {faculties.map((f) => (
+                  <option key={f._docId || f.id} value={f._docId || f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </SB_FormField>
+          )}
+        </div>
         <SB_FormField label="Açıklama">
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
             placeholder="İsteğe bağlı kısa açıklama"
-            style={{
-              width: '100%',
-              padding: '10px 14px',
-              borderRadius: 8,
-              border: '1px solid #D1D5DB',
-              fontSize: 14,
-              fontFamily: "'Inter', sans-serif",
-              resize: 'vertical',
-              boxSizing: 'border-box',
-            }}
+            style={{ ...sbSecim, resize: 'vertical' }}
           />
         </SB_FormField>
         <SB_FormField
@@ -1638,24 +1878,44 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
   const eslenebilir = (fields || []).filter((f) => !yapisal(f.token));
   const mappedCount = eslenebilir.filter((f) => f.variable).length;
   const selStyle = {
-    width: '100%',
+    ...sbSecim,
     padding: '7px 10px',
     borderRadius: 7,
-    border: '1px solid #D1D5DB',
     fontSize: 12.5,
-    fontFamily: "'Inter', sans-serif",
-    boxSizing: 'border-box',
   };
 
   return (
     <SB_Modal open={true} onClose={onClose} title={'Alan Eşleme — ' + tpl.name} width={760}>
-      <p style={{ fontSize: 12.5, color: SB.soluk, margin: '0 0 12px', lineHeight: 1.6 }}>
-        Belgede tespit edilen yer tutucular aşağıda. Her birini{' '}
-        <b>{moduleMeta(tpl.module).label}</b> modülünün değişkenlerine eşleyin — çıktı üretilirken
-        bu alanlar gerçek verilerle doldurulur. <b>Satır değişkenleri</b> tablo satırındaki alanlar
-        içindir: o satır, ders sayısı kadar çoğaltılır. Eşlemek istemediklerinizi "Atla" bırakın;
-        sabit bir metin yazmak için "Sabit metin" seçin.
-      </p>
+      {/* Aynı bilgi altı satırlık tek bir paragraftı; içindeki üç ayrı kural
+          (eşle / satır değişkeni / atla) sürekli metnin içinde kayboluyordu.
+          Kurallar ayrı satırlara alındı — sıra sırayla okunuyor. */}
+      <div
+        style={{
+          fontSize: 12.5,
+          color: SB.soluk,
+          margin: '0 0 12px',
+          lineHeight: 1.55,
+          background: SB.yuzey2,
+          border: '1px solid ' + SB.kenar,
+          borderRadius: SB.yaricapKucuk,
+          padding: '10px 13px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+        }}
+      >
+        <div>
+          Belgede tespit edilen yer tutucuları <b>{moduleMeta(tpl.module).label}</b> modülünün
+          değişkenlerine eşleyin; çıktı üretilirken gerçek verilerle dolar.
+        </div>
+        <div>
+          <b>Satır değişkenleri</b> tablo satırı içindir: o satır, ders sayısı kadar çoğaltılır.
+        </div>
+        <div>
+          Eşlemek istemediğinizi <b>Atla</b> bırakın; sabit bir metin yazmak için <b>Sabit metin</b>{' '}
+          seçin.
+        </div>
+      </div>
 
       {autoCount > 0 && (
         <div
@@ -1668,10 +1928,17 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
             color: '#047857',
             fontSize: 12.5,
             fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            lineHeight: 1.5,
           }}
         >
-          ⚡ {autoCount} alan, yer tutucu adı değişken etiketiyle eşleştiği için otomatik eşlendi —
-          kontrol edip Kaydet'e basmanız yeterli.
+          <SbIkon ad="onay" boyut={14} />
+          <span>
+            {autoCount} alan, yer tutucu adı değişken etiketiyle eşleştiği için otomatik eşlendi —
+            kontrol edip Kaydet'e basmanız yeterli.
+          </span>
         </div>
       )}
 
