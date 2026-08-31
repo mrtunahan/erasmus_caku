@@ -127,6 +127,10 @@ const ALLOWED_COLLECTIONS = [
   'club_documents',
   'club_followers',
   'club_posts',
+  // Topluluk anketi oyları ve etkinlik katılım işaretleri. Gönderinin İÇİNE
+  // yazılmıyor: oy vermek için gönderiyi güncellemek gerekseydi, her
+  // öğrenciye başkasının paylaşımını yazma yetkisi vermek zorunda kalırdık.
+  'club_post_votes',
   'benim_ayarlar',
   'student_profiles',
   'surveys',
@@ -273,6 +277,8 @@ const STUDENT_WRITABLE = new Set([
   'club_documents',
   'club_followers',
   'club_posts',
+  // Öğrenci ankette oy verir / etkinliğe katılım işaretler.
+  'club_post_votes',
   'student_profiles',
   'projects',
   'unides_projects',
@@ -456,6 +462,9 @@ const STUDENT_OWNED_STRICT = new Set([
   'internship_applications',
   'muafiyet_records',
   'survey_responses',
+  // Oy kaydı sahibine bağlıdır: başkasının oyunu değiştiren bir istek,
+  // sahiplik alanı çözülemediğinde de reddedilmeli.
+  'club_post_votes',
 ]);
 // docId = staj başvuru id'si olan koleksiyonlar (sahip = başvurunun öğrencisi)
 const APP_OWNED = new Set(['internship_roadmap', 'internship_uploads']);
@@ -1048,6 +1057,20 @@ async function enforceWritePolicies(db, op, user) {
       typeof op.data === 'object' &&
       (op.type === 'add' || op.type === 'set' || op.type === 'update')
     ) {
+      op.data.studentNumber = ident;
+      op.data._owner = ident;
+    }
+
+    // club_post_votes: oy kaydında sahiplik JWT kimliğine sabitlenir —
+    // öğrenci başkası adına oy veremez, kimliğini gövdeye yazarak
+    // sayımı şişiremez. `voter` sayım anahtarıdır (lib/kulup-gonderi.js).
+    if (
+      op.collection === 'club_post_votes' &&
+      op.data &&
+      typeof op.data === 'object' &&
+      (op.type === 'add' || op.type === 'set' || op.type === 'update')
+    ) {
+      op.data.voter = ident;
       op.data.studentNumber = ident;
       op.data._owner = ident;
     }

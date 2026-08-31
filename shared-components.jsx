@@ -95,6 +95,26 @@ import {
   boyutMetni as kulupBoyutMetni,
 } from './lib/kulup-medya.js';
 import {
+  GONDERI_TURLERI as KULUP_GONDERI_TURLERI,
+  turBilgisi as kulupTurBilgisi,
+  etkinlikNormalle as kulupEtkinlikNormalle,
+  etkinlikGecerliMi as kulupEtkinlikGecerliMi,
+  etkinlikBaslangici as kulupEtkinlikBaslangici,
+  etkinlikDurumu as kulupEtkinlikDurumu,
+  yaklasanEtkinlikler as kulupYaklasanEtkinlikler,
+  icsBelgesi as kulupIcsBelgesi,
+  ANKET_EN_AZ as KULUP_ANKET_EN_AZ,
+  ANKET_EN_COK as KULUP_ANKET_EN_COK,
+  anketSecenekleri as kulupAnketSecenekleri,
+  anketKapandiMi as kulupAnketKapandiMi,
+  kullaniciOyu as kulupKullaniciOyu,
+  oyDagilimi as kulupOyDagilimi,
+  oyVerilebilirMi as kulupOyVerilebilirMi,
+  gonderiHazirMi as kulupGonderiHazirMi,
+  gonderileriSuz as kulupGonderileriSuz,
+  gonderiOzeti as kulupGonderiOzeti,
+} from './lib/kulup-gonderi.js';
+import {
   BU_DONEM as DERS_SECIM_BU_DONEM,
   TUM_DONEMLER as DERS_SECIM_TUM_DONEMLER,
   DONEMSIZ as DERS_SECIM_DONEMSIZ,
@@ -14013,6 +14033,30 @@ window.kulupBelgeEkleri = kulupBelgeEkleri;
 window.KULUP_FEED_KABUL = KULUP_FEED_KABUL;
 window.KULUP_EN_BUYUK_MB = KULUP_EN_BUYUK_MB;
 window.kulupBoyutMetni = kulupBoyutMetni;
+
+// Topluluk gönderi türleri: duyuru/etkinlik/anket artık yalnız bir etiket
+// değil. Etkinliğin tarihi ve takvim çıktısı, anketin seçenekleri ve oy
+// sayımı lib/kulup-gonderi.js'te — kural testli, ekran yalnız çiziyor.
+window.KULUP_GONDERI_TURLERI = KULUP_GONDERI_TURLERI;
+window.kulupTurBilgisi = kulupTurBilgisi;
+window.kulupEtkinlikNormalle = kulupEtkinlikNormalle;
+window.kulupEtkinlikGecerliMi = kulupEtkinlikGecerliMi;
+window.kulupEtkinlikBaslangici = kulupEtkinlikBaslangici;
+window.kulupEtkinlikDurumu = kulupEtkinlikDurumu;
+window.kulupYaklasanEtkinlikler = kulupYaklasanEtkinlikler;
+window.kulupIcsBelgesi = kulupIcsBelgesi;
+window.KULUP_ANKET_EN_AZ = KULUP_ANKET_EN_AZ;
+window.KULUP_ANKET_EN_COK = KULUP_ANKET_EN_COK;
+window.kulupAnketSecenekleri = kulupAnketSecenekleri;
+window.kulupAnketKapandiMi = kulupAnketKapandiMi;
+window.kulupKullaniciOyu = kulupKullaniciOyu;
+window.kulupOyDagilimi = kulupOyDagilimi;
+window.kulupOyVerilebilirMi = kulupOyVerilebilirMi;
+window.kulupGonderiHazirMi = kulupGonderiHazirMi;
+window.kulupGonderileriSuz = kulupGonderileriSuz;
+window.kulupGonderiOzeti = kulupGonderiOzeti;
+// Zengin metnin düz karşılığı — bildirim gövdesi HTML etiketiyle dolmasın.
+window.zenginDuzMetin = zenginDuzMetin;
 
 // Öğrenci ders seçimi dönem süzgeci — görünmez yarıyıl süzgeci başka
 // dönemin derslerini sessizce eliyordu; kural artık tek yerde ve testli.
