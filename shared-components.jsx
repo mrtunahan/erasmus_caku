@@ -133,6 +133,11 @@ import {
 } from './lib/komisyon-modul.js';
 import { eslesmeHaritasi, tokenCoz, ilkGecisIndeksi } from './lib/sablon-eslesme.js';
 import {
+  sablonlariGrupla,
+  bosModuller as sablonBosModuller,
+  sablonDurumu,
+} from './lib/sablon-gruplama.js';
+import {
   adAnahtari,
   akademisyenEsle,
   dersleriCoz,
@@ -14242,6 +14247,10 @@ window.muafiyetKararGecerliMi = muafiyetKararGecerliMi;
 window.muafiyetGerekceGecerliMi = muafiyetGerekceGecerliMi;
 window.muafiyetRedBildirimi = muafiyetRedBildirimi;
 window.MUAFIYET_EN_AZ_GEREKCE = MUAFIYET_EN_AZ_GEREKCE;
+// Şablon listesi modül modül bölünür (sablonlar-modulu.jsx çizer).
+window.sablonlariGrupla = sablonlariGrupla;
+window.sablonBosModuller = sablonBosModuller;
+window.sablonDurumu = sablonDurumu;
 // Tanıtım sayfası video bağlantısı (tanitim-yonetimi.jsx doğrulama için).
 window.youtubeMu = youtubeMu;
 window.ytGommeAdresi = ytGommeAdresi;
