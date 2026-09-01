@@ -7,6 +7,9 @@ const { ObjectId } = require('mongodb');
 const rateLimit = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
 const { zipYaz } = require('../lib/zip-yaz');
+// Dosya adı/adres dönüşümleri saf olduğu için ayrı dosyada: testleri bu
+// router'ı (ve express/multer/mongodb zincirini) yüklemek zorunda kalmasın.
+const { asciiIndirge, urlToRelPath } = require('../lib/dosya-adres');
 const { softAuth } = require('../middleware/softAuth');
 const { requireAuth } = require('../middleware/auth');
 
@@ -403,43 +406,6 @@ router.delete('/:folder/:filename', deleteLimiter, fileAuth, softAuthMiddleware,
 const MERGE_MAX_DOSYA = 60;
 const MERGE_MAX_BAYT = 80 * 1024 * 1024; // toplam ham girdi tavanı
 
-// Content-Disposition başlığı ASCII olmak zorunda; dosya adındaki Türkçe
-// harfler burada indirgenir. Belgelerin kendi içeriği etkilenmez.
-const TR_ASCII = {
-  ç: 'c',
-  Ç: 'C',
-  ğ: 'g',
-  Ğ: 'G',
-  ı: 'i',
-  İ: 'I',
-  ö: 'o',
-  Ö: 'O',
-  ş: 's',
-  Ş: 'S',
-  ü: 'u',
-  Ü: 'U',
-};
-const asciiIndirge = (s) =>
-  String(s || '')
-    .replace(/[çÇğĞıİöÖşŞüÜ]/g, (c) => TR_ASCII[c])
-
-    .replace(/[^\x20-\x7E]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-// '/api/files/download/muafiyet_belgeler/123_x.pdf' → 'muafiyet_belgeler/123_x.pdf'
-const urlToRelPath = (u) => {
-  const s = String(u || '').trim();
-  if (!s) return '';
-  const m = s.match(/\/api\/files\/(?:download|view)\/(.+)$/);
-  const rel = m ? m[1] : s.replace(/^\/+/, '');
-  try {
-    return decodeURIComponent(rel.split('?')[0]);
-  } catch (_e) {
-    return rel.split('?')[0];
-  }
-};
-
 // ── Birleştirmede öğrenci yetkisi ──
 //
 // Öğrenci bölüm sekreterliğine dilekçesiyle birlikte ONAYLI DERS İÇERİKLERİNİ
@@ -775,7 +741,5 @@ router.resolveUploadPath = resolveSafePath;
 
 // Testler için: birleştirme yardımcıları saf fonksiyonlardır, uç noktayı
 // ayağa kaldırmadan doğrulanabilsinler.
-router._urlToRelPath = urlToRelPath;
-router._asciiIndirge = asciiIndirge;
 
 module.exports = router;
