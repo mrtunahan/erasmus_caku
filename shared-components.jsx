@@ -94,6 +94,17 @@ import {
   EN_BUYUK_MB as KULUP_EN_BUYUK_MB,
   boyutMetni as kulupBoyutMetni,
 } from './lib/kulup-medya.js';
+import { cakuDersSecenekleri, secenekBul as cakuSecenekBul } from './lib/muafiyet-ders-secenek.js';
+import {
+  DUZENLENEBILIR_ALANLAR as MUAFIYET_DUZENLENEBILIR_ALANLAR,
+  duzenleyebilirMi as muafiyetDuzenleyebilirMi,
+  satirCikarilabilirMi as muafiyetSatirCikarilabilirMi,
+  degisiklikleriCoz as muafiyetDegisiklikleriCoz,
+  degisiklikGecerliMi as muafiyetDegisiklikGecerliMi,
+  eslesmeYamasi as muafiyetEslesmeYamasi,
+  duzenlemeOzeti as muafiyetDuzenlemeOzeti,
+  duzenlendiMi as muafiyetDuzenlendiMi,
+} from './lib/muafiyet-duzenleme.js';
 import {
   GONDERI_TURLERI as KULUP_GONDERI_TURLERI,
   turBilgisi as kulupTurBilgisi,
@@ -14286,6 +14297,22 @@ window.capTalepKaydi = capTalepKaydi;
 window.capKararYamasi = capKararYamasi;
 window.capAdimDurumlari = capAdimDurumlari;
 window.capTamamlananAdim = capTamamlananAdim;
+// Muafiyet talebini yetkili eliyle düzeltme: öğrenci yanlış müfredattan ders
+// seçtiğinde talebi reddedip geri göndermek yerine üniversite yetkilisi
+// bekleyen satırı yerinde düzeltir. Kim/ne zaman/hangi alan — hepsi testli.
+window.MUAFIYET_DUZENLENEBILIR_ALANLAR = MUAFIYET_DUZENLENEBILIR_ALANLAR;
+window.muafiyetDuzenleyebilirMi = muafiyetDuzenleyebilirMi;
+window.muafiyetSatirCikarilabilirMi = muafiyetSatirCikarilabilirMi;
+window.muafiyetDegisiklikleriCoz = muafiyetDegisiklikleriCoz;
+window.muafiyetDegisiklikGecerliMi = muafiyetDegisiklikGecerliMi;
+window.muafiyetEslesmeYamasi = muafiyetEslesmeYamasi;
+window.muafiyetDuzenlemeOzeti = muafiyetDuzenlemeOzeti;
+window.muafiyetDuzenlendiMi = muafiyetDuzenlendiMi;
+// ÇAKÜ ders seçenekleri — öğrenci formu ile yetkilinin düzeltme paneli AYNI
+// listeden seçsin diye tek kaynak (lib/muafiyet-ders-secenek.js).
+window.cakuDersSecenekleri = cakuDersSecenekleri;
+window.cakuSecenekBul = cakuSecenekBul;
+
 // Muafiyet reddi — gerekçe zorunluluğu ve öğrenci bildirimi.
 window.muafiyetKararGecerliMi = muafiyetKararGecerliMi;
 window.muafiyetGerekceGecerliMi = muafiyetGerekceGecerliMi;

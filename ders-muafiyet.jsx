@@ -1655,6 +1655,83 @@ var MuafiyetDB = {
     return matches;
   },
 
+  // ── ÜNİVERSİTE YETKİLİSİ: BEKLEYEN SATIRI YERİNDE DÜZELT ──
+  //
+  // Öğrenci ÇAKÜ dersini yanlış müfredattan seçmiş ya da karşı kurumun ders
+  // kodunu yanlış yazmışsa, talebi reddedip "yeniden gönder" demek günlerce
+  // süren bir gidiş-geliş üretiyordu. Yetkili satırı burada düzeltir.
+  //
+  // Kim/ne zaman/hangi alan kuralları lib/muafiyet-duzenleme.js'te ve testli.
+  // Bu katman yalnız kaydı yazar; izin kararını orası verir.
+  async updateMatchFields(recordId, matchIndex, istenen, kim) {
+    var result = await window.apiReadDoc('muafiyet_records', String(recordId));
+    if (!result.exists) throw new Error('Kayıt bulunamadı');
+    var data = result.data;
+    var matches = (data.matches || []).slice();
+    var mevcut = matches[matchIndex];
+    if (!mevcut) throw new Error('Eşleşme bulunamadı');
+
+    var izin = window.muafiyetDuzenleyebilirMi(kim, data, mevcut);
+    if (!izin.izin) throw new Error(izin.neden);
+
+    var degisiklikler = window.muafiyetDegisiklikleriCoz(mevcut, istenen);
+    var gecerli = window.muafiyetDegisiklikGecerliMi(degisiklikler);
+    if (!gecerli.gecerli) throw new Error(gecerli.hata);
+
+    matches[matchIndex] = window.muafiyetEslesmeYamasi(mevcut, degisiklikler, kim, new Date());
+    await window.DBWrite.update('muafiyet_records', String(recordId), {
+      matches: matches,
+      updatedAt: new Date().toISOString(),
+    });
+
+    if (window.audit)
+      window.audit('muafiyet_satir_duzelt', 'muafiyet_records', String(recordId), {
+        meta: {
+          matchIndex: matchIndex,
+          ozet: window.muafiyetDuzenlemeOzeti(degisiklikler),
+          ogrenci: data.studentNo || '',
+        },
+      });
+    return matches;
+  },
+
+  // Fazladan eklenmiş satırı çıkarır. Talebin TEK satırı çıkarılamaz —
+  // içi boşalan bir talep, reddedilmiş bir talepten daha anlaşılmaz olurdu.
+  async removeMatch(recordId, matchIndex, kim) {
+    var result = await window.apiReadDoc('muafiyet_records', String(recordId));
+    if (!result.exists) throw new Error('Kayıt bulunamadı');
+    var data = result.data;
+    var matches = (data.matches || []).slice();
+    var mevcut = matches[matchIndex];
+    var izin = window.muafiyetSatirCikarilabilirMi(kim, data, mevcut, matches.length);
+    if (!izin.izin) throw new Error(izin.neden);
+
+    var cikan = matches.splice(matchIndex, 1)[0] || {};
+    var pendingLeft = matches.filter(function (m) {
+      return m.tier === 'review' && !m.adminDecision;
+    }).length;
+    // Çıkarılan satır kaydın içinde iz olarak durur: sonradan "bu ders nerede"
+    // diye sorulduğunda cevabı olsun.
+    var cikarilanlar = (data.cikarilanEslesmeler || []).concat([
+      {
+        eslesme: cikan,
+        kim: (kim && (kim.name || kim.identifier)) || '',
+        tarih: new Date().toISOString(),
+      },
+    ]);
+    await window.DBWrite.update('muafiyet_records', String(recordId), {
+      matches: matches,
+      cikarilanEslesmeler: cikarilanlar,
+      pendingReviewCount: pendingLeft,
+      updatedAt: new Date().toISOString(),
+    });
+    if (window.audit)
+      window.audit('muafiyet_satir_cikar', 'muafiyet_records', String(recordId), {
+        meta: { matchIndex: matchIndex, ogrenci: data.studentNo || '' },
+      });
+    return matches;
+  },
+
   async fetchMuafiyetHistory() {
     try {
       return await window.apiRead('muafiyet_history', { orderBy: 'approvedAt:desc' });
@@ -6065,8 +6142,26 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   );
 };
 
-const ReviewPanel = ({ record, onDecision, readOnly }) => {
+const ReviewPanel = ({
+  record,
+  onDecision,
+  readOnly,
+  currentUser,
+  cakSecenekleri,
+  onMatchEdit,
+  onMatchRemove,
+}) => {
   const [reviewing, setReviewing] = useState(false);
+  // ── YETKİLİ DÜZELTMESİ ──
+  // Öğrenci ÇAKÜ dersini yanlış müfredattan seçtiğinde tek seçenek talebi
+  // reddetmekti; öğrenci yeniden gönderene kadar süreç duruyordu. Üniversite
+  // yetkilisi bekleyen satırı burada düzeltir. Kim/ne zaman/hangi alan
+  // kuralları lib/muafiyet-duzenleme.js'te ve testli.
+  const [duzenIndeks, setDuzenIndeks] = useState(-1);
+  const [duzenForm, setDuzenForm] = useState(null);
+  const [duzenHata, setDuzenHata] = useState('');
+  const [duzenMesaj, setDuzenMesaj] = useState('');
+  const [duzenKaydediyor, setDuzenKaydediyor] = useState(false);
   // ── RED GEREKÇESİ ZORUNLU ──
   // Red tek tıklamayla veriliyordu ve gerekçe alanı boş kalıyordu; öğrenci
   // ekranında yalnız "Reddedildi" görünüyor, NEDEN reddedildiği hiçbir yerde
@@ -6080,6 +6175,111 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
   const pendingCount = matches.filter(function (m) {
     return m.tier === 'review' && !m.adminDecision;
   }).length;
+
+  // Düzeltme yetkisi TEK yerde çözülür: panel salt-okunur değilse ve
+  // kullanıcı üniversite yetkilisiyse.
+  const duzeltebilir = function (m) {
+    if (readOnly || !onMatchEdit || !window.muafiyetDuzenleyebilirMi) return false;
+    return window.muafiyetDuzenleyebilirMi(currentUser, record, m).izin;
+  };
+
+  const duzenAc = function (idx, m) {
+    const yerel = m.localCourse || m.target || {};
+    const kaynak = m.sourceCourse || m.source || {};
+    setDuzenIndeks(idx);
+    setDuzenHata('');
+    setDuzenMesaj('');
+    setDuzenForm({
+      secim: '',
+      'localCourse.code': yerel.code || '',
+      'localCourse.name': yerel.name || '',
+      'localCourse.akts': yerel.akts || '',
+      'localCourse.statu': yerel.statu || '',
+      'localCourse.donem': yerel.donem || '',
+      'localCourse.weeklyContent': yerel.weeklyContent || yerel.content || '',
+      'localCourse.bolognaLink': yerel.bolognaLink || '',
+      'sourceCourse.code': kaynak.code || '',
+      'sourceCourse.name': kaynak.name || '',
+      'sourceCourse.akts': kaynak.akts || '',
+    });
+  };
+
+  const duzenKapat = function () {
+    setDuzenIndeks(-1);
+    setDuzenForm(null);
+    setDuzenHata('');
+  };
+
+  // Listeden ders seçimi ÇAKÜ alanlarını topluca doldurur — yetkili kodu,
+  // AKTS'yi ve içeriği elle kopyalamak zorunda kalmasın.
+  const dersSec = function (anahtar) {
+    const opt = window.cakuSecenekBul ? window.cakuSecenekBul(cakSecenekleri, anahtar) : null;
+    setDuzenForm(function (f) {
+      if (!opt) return Object.assign({}, f, { secim: anahtar });
+      return Object.assign({}, f, {
+        secim: anahtar,
+        'localCourse.code': opt.code || '',
+        'localCourse.name': opt.name || '',
+        'localCourse.akts': String(opt.akts || ''),
+        'localCourse.statu': opt.statu || '',
+        'localCourse.donem': opt.donem || '',
+        'localCourse.bolognaLink': opt.bolognaLink || '',
+        'localCourse.weeklyContent': opt.content || f['localCourse.weeklyContent'] || '',
+      });
+    });
+  };
+
+  const duzenKaydet = async function (idx) {
+    if (!duzenForm) return;
+    setDuzenKaydediyor(true);
+    setDuzenHata('');
+    const istenen = Object.assign({}, duzenForm);
+    delete istenen.secim;
+    const sonuc = await onMatchEdit(record.id, idx, istenen);
+    setDuzenKaydediyor(false);
+    if (!sonuc || sonuc.ok !== true) {
+      setDuzenHata((sonuc && sonuc.hata) || 'Düzeltme kaydedilemedi.');
+      return;
+    }
+    setDuzenMesaj('Düzeltme kaydedildi.');
+    setTimeout(function () {
+      setDuzenMesaj('');
+    }, 2500);
+    duzenKapat();
+  };
+
+  const satirCikar = async function (idx) {
+    if (!onMatchRemove) return;
+    if (!window.confirm('Bu ders satırı talepten çıkarılsın mı? Bu işlem kayda yazılır.')) return;
+    setDuzenKaydediyor(true);
+    const sonuc = await onMatchRemove(record.id, idx);
+    setDuzenKaydediyor(false);
+    if (!sonuc || sonuc.ok !== true) {
+      setDuzenHata((sonuc && sonuc.hata) || 'Satır çıkarılamadı.');
+      return;
+    }
+    duzenKapat();
+  };
+
+  const duzenGiris = {
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: '7px 9px',
+    fontSize: 12.5,
+    borderRadius: 6,
+    border: '1px solid ' + DS.border,
+    fontFamily: 'inherit',
+    background: 'white',
+    color: DS.text,
+  };
+  const duzenEtiket = {
+    display: 'block',
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.05em',
+    color: DS.textMuted,
+    marginBottom: 3,
+  };
 
   const label = {
     fontSize: 10,
@@ -6176,6 +6376,48 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
               background: 'white',
             }}
           >
+            {/* ── DÜZELTME İZİ ──
+                Kararı verecek akademisyen, önüne gelen satırın öğrencinin
+                gönderdiğinden farklı olduğunu GÖRMEK zorunda. Öğrenci de
+                kendi ekranında aynı izi salt-okunur görür. */}
+            {(function () {
+              const iz = window.muafiyetDuzenlendiMi ? window.muafiyetDuzenlendiMi(m) : null;
+              if (!iz) return null;
+              return (
+                <div
+                  style={{
+                    background: DS.amberLight,
+                    border: '1px solid ' + DS.amber + '55',
+                    borderRadius: DS.radiusSm,
+                    padding: '7px 10px',
+                    marginBottom: 10,
+                    fontSize: 11.5,
+                    color: '#8A5A00',
+                    lineHeight: 1.55,
+                  }}
+                >
+                  <b>Üniversite yetkilisi düzeltti</b>
+                  {iz.kim ? ' — ' + iz.kim : ''}
+                  {iz.tarih ? ' · ' + new Date(iz.tarih).toLocaleDateString('tr-TR') : ''}
+                  <div style={{ marginTop: 3 }}>
+                    {iz.kayitlar.map(function (d, di) {
+                      return (
+                        <div key={di}>
+                          {d.etiket || d.alan}: <s>{d.eski || '—'}</s> → <b>{d.yeni || '—'}</b>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {m.puanBayat && (
+                    <div style={{ marginTop: 4, fontWeight: 600 }}>
+                      Ders değiştiği için aşağıdaki içerik benzerlik puanı ESKİ eşleşmeye aittir;
+                      kararınızı ders içeriklerine bakarak verin.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Ders karşılaştırması: Karşı kurum ↔ ÇAKÜ */}
             <div
               style={{
@@ -6288,6 +6530,31 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
                 chip('Karar bekleniyor', DS.amber, DS.amberLight)
               ) : isPending ? (
                 <div style={{ display: 'flex', gap: 8 }}>
+                  {/* Düzelt YALNIZ üniversite yetkilisinde görünür. Kararı
+                      veren akademisyenin kararın konusunu da değiştirebilmesi,
+                      onayı anlamsız kılardı. */}
+                  {duzeltebilir(m) && (
+                    <button
+                      disabled={reviewing || duzenKaydediyor}
+                      onClick={function () {
+                        if (duzenIndeks === idx) duzenKapat();
+                        else duzenAc(idx, m);
+                      }}
+                      title="Öğrencinin gönderdiği satırı yerinde düzelt"
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        border: '1px solid ' + DS.navy,
+                        background: duzenIndeks === idx ? DS.navy : 'white',
+                        color: duzenIndeks === idx ? 'white' : DS.navy,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {duzenIndeks === idx ? 'Vazgeç' : 'Düzelt'}
+                    </button>
+                  )}
                   <button
                     disabled={reviewing}
                     onClick={async function () {
@@ -6371,6 +6638,231 @@ const ReviewPanel = ({ record, onDecision, readOnly }) => {
                     {m.adminDecidedBy}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ── DÜZELTME PANELİ (üniversite yetkilisi) ──
+                Öğrenciye "yanlış ders seçmişsin, yeniden gönder" demek
+                yerine satır burada düzeltilir. Başarı notu BİLEREK yok:
+                not transkriptten okunur ve harf notu dönüşümünün dayanağıdır;
+                elle değiştirilebilseydi yanlış sayı değil, yanlış KANIT
+                üretilirdi. */}
+            {duzenIndeks === idx && duzenForm && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: DS.bg,
+                  border: '1px solid ' + DS.border,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: DS.navy,
+                    marginBottom: 10,
+                  }}
+                >
+                  Satırı düzelt
+                  <span style={{ fontWeight: 500, color: DS.textMuted }}>
+                    {' '}
+                    — değişiklik kayda ve denetim günlüğüne yazılır, akademisyen görür
+                  </span>
+                </div>
+
+                {/* ÇAKÜ dersi: öğrencinin gördüğü listenin AYNISI. */}
+                <label style={{ display: 'block', marginBottom: 10 }}>
+                  <span style={duzenEtiket}>ÇAKÜ DERSİ (listeden seç)</span>
+                  <select
+                    value={duzenForm.secim}
+                    onChange={function (e) {
+                      dersSec(e.target.value);
+                    }}
+                    style={Object.assign({}, duzenGiris, { cursor: 'pointer' })}
+                  >
+                    <option value="">
+                      {(cakSecenekleri || []).length
+                        ? '— Ders seçin (ya da aşağıdan elle düzeltin) —'
+                        : 'Ders listesi yüklenemedi — aşağıdan elle düzeltin'}
+                    </option>
+                    {(cakSecenekleri || []).map(function (o) {
+                      return (
+                        <option key={o.key} value={o.key}>
+                          {(o.code ? o.code + ' — ' : '') + o.name}
+                          {o.akts ? ' (AKTS ' + o.akts + ')' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: 8,
+                    marginBottom: 10,
+                  }}
+                >
+                  <label style={{ display: 'block' }}>
+                    <span style={duzenEtiket}>ÇAKÜ KODU</span>
+                    <input
+                      value={duzenForm['localCourse.code']}
+                      onChange={function (e) {
+                        setDuzenForm(
+                          Object.assign({}, duzenForm, { 'localCourse.code': e.target.value })
+                        );
+                      }}
+                      style={duzenGiris}
+                    />
+                  </label>
+                  <label style={{ display: 'block' }}>
+                    <span style={duzenEtiket}>ÇAKÜ DERS ADI</span>
+                    <input
+                      value={duzenForm['localCourse.name']}
+                      onChange={function (e) {
+                        setDuzenForm(
+                          Object.assign({}, duzenForm, { 'localCourse.name': e.target.value })
+                        );
+                      }}
+                      style={duzenGiris}
+                    />
+                  </label>
+                  <label style={{ display: 'block' }}>
+                    <span style={duzenEtiket}>ÇAKÜ AKTS</span>
+                    <input
+                      value={duzenForm['localCourse.akts']}
+                      onChange={function (e) {
+                        setDuzenForm(
+                          Object.assign({}, duzenForm, { 'localCourse.akts': e.target.value })
+                        );
+                      }}
+                      style={duzenGiris}
+                    />
+                  </label>
+                  <label style={{ display: 'block' }}>
+                    <span style={duzenEtiket}>KARŞI KURUM KODU</span>
+                    <input
+                      value={duzenForm['sourceCourse.code']}
+                      onChange={function (e) {
+                        setDuzenForm(
+                          Object.assign({}, duzenForm, { 'sourceCourse.code': e.target.value })
+                        );
+                      }}
+                      style={duzenGiris}
+                    />
+                  </label>
+                  <label style={{ display: 'block' }}>
+                    <span style={duzenEtiket}>KARŞI KURUM DERS ADI</span>
+                    <input
+                      value={duzenForm['sourceCourse.name']}
+                      onChange={function (e) {
+                        setDuzenForm(
+                          Object.assign({}, duzenForm, { 'sourceCourse.name': e.target.value })
+                        );
+                      }}
+                      style={duzenGiris}
+                    />
+                  </label>
+                  <label style={{ display: 'block' }}>
+                    <span style={duzenEtiket}>KARŞI KURUM AKTS</span>
+                    <input
+                      value={duzenForm['sourceCourse.akts']}
+                      onChange={function (e) {
+                        setDuzenForm(
+                          Object.assign({}, duzenForm, { 'sourceCourse.akts': e.target.value })
+                        );
+                      }}
+                      style={duzenGiris}
+                    />
+                  </label>
+                </div>
+
+                <div style={{ fontSize: 11.5, color: DS.textMuted, marginBottom: 10 }}>
+                  Öğrencinin transkriptten okunan başarı notu (
+                  {(m.sourceCourse || m.source || {}).grade || '—'}) buradan değiştirilemez.
+                </div>
+
+                {duzenHata && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: DS.red,
+                      fontWeight: 600,
+                      marginBottom: 8,
+                    }}
+                  >
+                    {duzenHata}
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                  }}
+                >
+                  <button
+                    disabled={duzenKaydediyor}
+                    onClick={function () {
+                      duzenKaydet(idx);
+                    }}
+                    style={{
+                      padding: '7px 18px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: DS.navy,
+                      color: 'white',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: duzenKaydediyor ? 'wait' : 'pointer',
+                      opacity: duzenKaydediyor ? 0.6 : 1,
+                    }}
+                  >
+                    {duzenKaydediyor ? 'Kaydediliyor…' : 'Düzeltmeyi Kaydet'}
+                  </button>
+                  <button
+                    disabled={duzenKaydediyor}
+                    onClick={duzenKapat}
+                    style={{
+                      padding: '7px 16px',
+                      borderRadius: 8,
+                      border: '1px solid ' + DS.border,
+                      background: 'white',
+                      color: DS.text,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Vazgeç
+                  </button>
+                  {onMatchRemove && matches.length > 1 && (
+                    <button
+                      disabled={duzenKaydediyor}
+                      onClick={function () {
+                        satirCikar(idx);
+                      }}
+                      style={{
+                        marginLeft: 'auto',
+                        padding: '7px 14px',
+                        borderRadius: 8,
+                        border: '1px solid ' + DS.red,
+                        background: 'white',
+                        color: DS.red,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Bu satırı talepten çıkar
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -6752,6 +7244,10 @@ const ExemptionHistory = ({
   onStageChange,
   // Öğrenci transkript yükleme (tek seferlik)
   onUploadTranscript,
+  // Üniversite yetkilisinin bekleyen satırı yerinde düzeltmesi.
+  cakSecenekleri,
+  onMatchEdit,
+  onMatchRemove,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedReview, setExpandedReview] = useState(null);
@@ -7284,6 +7780,10 @@ const ExemptionHistory = ({
                   <ReviewPanel
                     record={rec}
                     readOnly={!onUpdateDecision}
+                    currentUser={currentUser}
+                    cakSecenekleri={cakSecenekleri}
+                    onMatchEdit={onMatchEdit}
+                    onMatchRemove={onMatchRemove}
                     onDecision={async function (recId, matchIdx, decision, gerekce) {
                       if (onUpdateDecision)
                         await onUpdateDecision(recId, matchIdx, decision, gerekce);
@@ -9494,6 +9994,11 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
   const [activeTab, setActiveTab] = useState(isStudent ? 'yeni' : 'onay');
   const [basvuruTuru, setBasvuruTuru] = useState(sabitTur || 'muafiyet');
   const [courseContents, setCourseContents] = useState([]);
+  // Bölümün ders listesi — üniversite yetkilisinin düzeltme panelindeki ÇAKÜ
+  // ders seçicisi bunu kullanır. Öğrenci formuyla AYNI birleştirme kuralından
+  // geçer (lib/muafiyet-ders-secenek.js), yoksa yetkili öğrencinin
+  // göremediği bir dersi seçebilirdi.
+  const [deptCourseList, setDeptCourseList] = useState([]);
   const [records, setRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
   // Üretilen belgenin önizlemesi: { blob, filename, baslik, belge }
@@ -9543,6 +10048,51 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
       loadData();
     },
     [activeDepartment, isStudent, currentUser?.studentNumber]
+  );
+
+  // Bölümün dersleri — yalnız personel tarafında gerekir (düzeltme paneli).
+  useEffect(
+    function () {
+      if (isStudent) return undefined;
+      var alive = true;
+      (async function () {
+        try {
+          // Bölümün TÜM kimlik biçimleri denenir: aynı bölüm kimi kayıtta
+          // slug, kimi kayıtta ObjectId taşıyor.
+          var variants = [activeDepartment];
+          if (activeDepartment && window.deptIdVariants) {
+            try {
+              variants = await window.deptIdVariants(activeDepartment);
+            } catch (_) {
+              variants = [activeDepartment];
+            }
+          }
+          var vset = new Set((variants || [activeDepartment]).filter(Boolean).map(String));
+          var all = await window.apiRead('sinav_dersler');
+          if (!alive) return;
+          setDeptCourseList(
+            (all || []).filter(function (c) {
+              return vset.size === 0 || vset.has(String(c.departmentId || ''));
+            })
+          );
+        } catch (_) {
+          /* ders listesi okunamadı — düzeltme paneli elle girişe düşer */
+        }
+      })();
+      return function () {
+        alive = false;
+      };
+    },
+    [activeDepartment, isStudent]
+  );
+
+  const cakSecenekleri = useMemo(
+    function () {
+      return window.cakuDersSecenekleri
+        ? window.cakuDersSecenekleri(deptCourseList, courseContents)
+        : [];
+    },
+    [deptCourseList, courseContents]
   );
 
   // Seçili başvuru türüne göre kayıtlar (eski kayıtlar 'muafiyet' sayılır)
@@ -9905,6 +10455,41 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
     }
   };
 
+  // ── ÜNİVERSİTE YETKİLİSİ DÜZELTMESİ ──
+  // Bekleyen bir satırdaki ÇAKÜ/karşı ders bilgisi yerinde düzeltilir; talep
+  // reddedilip öğrenciye geri gönderilmez. Yetki kuralı lib tarafında.
+  const handleMatchEdit = async function (recordId, matchIndex, istenen) {
+    try {
+      var updated = await MuafiyetDB.updateMatchFields(recordId, matchIndex, istenen, currentUser);
+      setRecords(function (prev) {
+        return prev.map(function (r) {
+          return r.id === recordId ? Object.assign({}, r, { matches: updated }) : r;
+        });
+      });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, hata: e.message || 'Düzeltme kaydedilemedi.' };
+    }
+  };
+
+  const handleMatchRemove = async function (recordId, matchIndex) {
+    try {
+      var updated = await MuafiyetDB.removeMatch(recordId, matchIndex, currentUser);
+      setRecords(function (prev) {
+        return prev.map(function (r) {
+          if (r.id !== recordId) return r;
+          var pendingLeft = updated.filter(function (m) {
+            return m.tier === 'review' && !m.adminDecision;
+          }).length;
+          return Object.assign({}, r, { matches: updated, pendingReviewCount: pendingLeft });
+        });
+      });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, hata: e.message || 'Satır çıkarılamadı.' };
+    }
+  };
+
   const handleUpdateDecision = async function (recordId, matchIndex, decision, gerekce) {
     // ── RED GEREKÇESİ ZORUNLU ──
     // Kural burada da uygulanır: arayüz atlansa bile gerekçesiz red kaydı
@@ -10226,6 +10811,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
             onStageChange={handleStageChange}
             currentUser={currentUser}
             isStudent={isStudent}
+            cakSecenekleri={cakSecenekleri}
+            onMatchEdit={handleMatchEdit}
+            onMatchRemove={handleMatchRemove}
             expandAll
             emptyText="Onay bekleyen talep yok. Öğrenciler yeni talep gönderdiğinde burada listelenir."
           />
@@ -10241,6 +10829,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
             onUploadTranscript={handleUploadTranscript}
             currentUser={currentUser}
             isStudent={isStudent}
+            cakSecenekleri={cakSecenekleri}
+            onMatchEdit={isStudent ? null : handleMatchEdit}
+            onMatchRemove={isStudent ? null : handleMatchRemove}
             emptyText={
               isStudent
                 ? '"' +
@@ -10715,50 +11306,15 @@ const ManualExemptionForm = ({
     };
   }, [baglamBolumId]);
 
-  const cakOptions = useMemo(() => {
-    const normCode = (c) =>
-      String(c || '')
-        .replace(/\s/g, '')
-        .toLocaleUpperCase('tr');
-    // Katalog kayıtlarını koda göre indeksle (AKTS + statü + içerik kaynağı)
-    const catalogByCode = new Map();
-    (courseContents || []).forEach((c) => {
-      const k = normCode(c.code);
-      if (k) catalogByCode.set(k, c);
-    });
-    const merged = new Map(); // normCode → seçenek
-    const put = (course, cat) => {
-      const code = course.code || '';
-      const name = course.name || '';
-      const k = normCode(code) || 'N:' + name;
-      if (merged.has(k)) return;
-      merged.set(k, {
-        code,
-        name,
-        // ÖNCELİK: dersin kendi alanları (Ders Yönetimi'nde akademisyen
-        // AKTS + Z/S + Bologna girer); eksikse katalogdan tamamlanır
-        akts: course.akts || (cat && cat.akts) || '',
-        statu: course.statu || (course.sinif === 5 ? 'S' : '') || (cat && cat.status) || '',
-        bolognaLink: course.bolognaLink || '',
-        content: (cat && (cat.weeklyContent || cat.content)) || '',
-        // Dersin yarıyılı (Güz/Bahar) Ders Yönetimi'nde tanımlı. Belgedeki
-        // {{çakü_ders_dönemi}} yer tutucusu bugüne kadar hep boş çıkıyordu:
-        // değişken listede vardı ama hiçbir yerde doldurulmuyordu.
-        donem: course.donem || '',
-      });
-    };
-    // 1) Bölüm dersleri — Ders Yönetimi kaynağı (AKTS + Z/S + Bologna linki)
-    deptCourses.forEach((c) => {
-      if (c.name) put(c, catalogByCode.get(normCode(c.code)));
-    });
-    // 2) Yalnızca katalogda olan dersler
-    (courseContents || []).forEach((c) => {
-      if (c.name) put({ code: c.code, name: c.name, akts: c.akts, statu: c.status }, c);
-    });
-    return [...merged.values()]
-      .map((c) => ({ ...c, key: (c.code || '') + '::' + c.name }))
-      .sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, 'tr'));
-  }, [courseContents, deptCourses]);
+  // ÇAKÜ ders listesi = bölüm dersleri ∪ muafiyet kataloğu. Birleştirme
+  // kuralı lib/muafiyet-ders-secenek.js'te: üniversite yetkilisinin düzeltme
+  // paneli de AYNI listeden seçiyor — iki yerde iki ayrı liste olsaydı
+  // yetkili, öğrencinin göremediği bir dersi seçebilirdi.
+  const cakOptions = useMemo(
+    () =>
+      window.cakuDersSecenekleri ? window.cakuDersSecenekleri(deptCourses, courseContents) : [],
+    [courseContents, deptCourses]
+  );
 
   // Dropdown'dan ders seçimi: kod + AKTS + statü otomatik dolar;
   // katalogda yeterli içerik varsa içerik dosyası da otomatik doldurulur.
