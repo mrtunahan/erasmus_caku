@@ -7,14 +7,18 @@
 //   2) Ayraç sayfası başlığındaki Türkçe harfler. pdf-lib'in StandardFonts'u
 //      WinAnsi kodlar; ş/ğ/İ/ı gömülemez ve drawText HATA FIRLATIR — yani
 //      tek bir Türkçe ders adı bütün birleştirmeyi düşürür.
+//
+// NOT: bu testler eskiden `server/routes/files.js`'i require ediyordu. O dosya
+// bir express router'ı olduğu için yüklenmesi express/multer/mongodb'yi de
+// yüklüyor; bu paketler `server/package.json`'da olduğundan kökten çalışan
+// vitest suiti HİÇ toplayamıyor ve CI'da sürekli kırmızı kalıyordu. Saf
+// yardımcılar artık `server/lib/dosya-adres.js`'te ve test onu okuyor.
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
+import { asciiIndirge, urlToRelPath } from '../server/lib/dosya-adres.js';
 
 const require = createRequire(import.meta.url);
 const crypto = require('crypto');
-const filesRouter = require('../server/routes/files.js');
-const urlToRelPath = filesRouter._urlToRelPath;
-const asciiIndirge = filesRouter._asciiIndirge;
 
 describe('urlToRelPath', () => {
   it('download URL’inden göreli yolu çıkarır', () => {

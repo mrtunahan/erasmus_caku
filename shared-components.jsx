@@ -94,6 +94,37 @@ import {
   EN_BUYUK_MB as KULUP_EN_BUYUK_MB,
   boyutMetni as kulupBoyutMetni,
 } from './lib/kulup-medya.js';
+import { cakuDersSecenekleri, secenekBul as cakuSecenekBul } from './lib/muafiyet-ders-secenek.js';
+import {
+  DUZENLENEBILIR_ALANLAR as MUAFIYET_DUZENLENEBILIR_ALANLAR,
+  duzenleyebilirMi as muafiyetDuzenleyebilirMi,
+  satirCikarilabilirMi as muafiyetSatirCikarilabilirMi,
+  degisiklikleriCoz as muafiyetDegisiklikleriCoz,
+  degisiklikGecerliMi as muafiyetDegisiklikGecerliMi,
+  eslesmeYamasi as muafiyetEslesmeYamasi,
+  duzenlemeOzeti as muafiyetDuzenlemeOzeti,
+  duzenlendiMi as muafiyetDuzenlendiMi,
+} from './lib/muafiyet-duzenleme.js';
+import {
+  GONDERI_TURLERI as KULUP_GONDERI_TURLERI,
+  turBilgisi as kulupTurBilgisi,
+  etkinlikNormalle as kulupEtkinlikNormalle,
+  etkinlikGecerliMi as kulupEtkinlikGecerliMi,
+  etkinlikBaslangici as kulupEtkinlikBaslangici,
+  etkinlikDurumu as kulupEtkinlikDurumu,
+  yaklasanEtkinlikler as kulupYaklasanEtkinlikler,
+  icsBelgesi as kulupIcsBelgesi,
+  ANKET_EN_AZ as KULUP_ANKET_EN_AZ,
+  ANKET_EN_COK as KULUP_ANKET_EN_COK,
+  anketSecenekleri as kulupAnketSecenekleri,
+  anketKapandiMi as kulupAnketKapandiMi,
+  kullaniciOyu as kulupKullaniciOyu,
+  oyDagilimi as kulupOyDagilimi,
+  oyVerilebilirMi as kulupOyVerilebilirMi,
+  gonderiHazirMi as kulupGonderiHazirMi,
+  gonderileriSuz as kulupGonderileriSuz,
+  gonderiOzeti as kulupGonderiOzeti,
+} from './lib/kulup-gonderi.js';
 import {
   BU_DONEM as DERS_SECIM_BU_DONEM,
   TUM_DONEMLER as DERS_SECIM_TUM_DONEMLER,
@@ -14014,6 +14045,30 @@ window.KULUP_FEED_KABUL = KULUP_FEED_KABUL;
 window.KULUP_EN_BUYUK_MB = KULUP_EN_BUYUK_MB;
 window.kulupBoyutMetni = kulupBoyutMetni;
 
+// Topluluk gönderi türleri: duyuru/etkinlik/anket artık yalnız bir etiket
+// değil. Etkinliğin tarihi ve takvim çıktısı, anketin seçenekleri ve oy
+// sayımı lib/kulup-gonderi.js'te — kural testli, ekran yalnız çiziyor.
+window.KULUP_GONDERI_TURLERI = KULUP_GONDERI_TURLERI;
+window.kulupTurBilgisi = kulupTurBilgisi;
+window.kulupEtkinlikNormalle = kulupEtkinlikNormalle;
+window.kulupEtkinlikGecerliMi = kulupEtkinlikGecerliMi;
+window.kulupEtkinlikBaslangici = kulupEtkinlikBaslangici;
+window.kulupEtkinlikDurumu = kulupEtkinlikDurumu;
+window.kulupYaklasanEtkinlikler = kulupYaklasanEtkinlikler;
+window.kulupIcsBelgesi = kulupIcsBelgesi;
+window.KULUP_ANKET_EN_AZ = KULUP_ANKET_EN_AZ;
+window.KULUP_ANKET_EN_COK = KULUP_ANKET_EN_COK;
+window.kulupAnketSecenekleri = kulupAnketSecenekleri;
+window.kulupAnketKapandiMi = kulupAnketKapandiMi;
+window.kulupKullaniciOyu = kulupKullaniciOyu;
+window.kulupOyDagilimi = kulupOyDagilimi;
+window.kulupOyVerilebilirMi = kulupOyVerilebilirMi;
+window.kulupGonderiHazirMi = kulupGonderiHazirMi;
+window.kulupGonderileriSuz = kulupGonderileriSuz;
+window.kulupGonderiOzeti = kulupGonderiOzeti;
+// Zengin metnin düz karşılığı — bildirim gövdesi HTML etiketiyle dolmasın.
+window.zenginDuzMetin = zenginDuzMetin;
+
 // Öğrenci ders seçimi dönem süzgeci — görünmez yarıyıl süzgeci başka
 // dönemin derslerini sessizce eliyordu; kural artık tek yerde ve testli.
 window.DERS_SECIM_BU_DONEM = DERS_SECIM_BU_DONEM;
@@ -14242,6 +14297,22 @@ window.capTalepKaydi = capTalepKaydi;
 window.capKararYamasi = capKararYamasi;
 window.capAdimDurumlari = capAdimDurumlari;
 window.capTamamlananAdim = capTamamlananAdim;
+// Muafiyet talebini yetkili eliyle düzeltme: öğrenci yanlış müfredattan ders
+// seçtiğinde talebi reddedip geri göndermek yerine üniversite yetkilisi
+// bekleyen satırı yerinde düzeltir. Kim/ne zaman/hangi alan — hepsi testli.
+window.MUAFIYET_DUZENLENEBILIR_ALANLAR = MUAFIYET_DUZENLENEBILIR_ALANLAR;
+window.muafiyetDuzenleyebilirMi = muafiyetDuzenleyebilirMi;
+window.muafiyetSatirCikarilabilirMi = muafiyetSatirCikarilabilirMi;
+window.muafiyetDegisiklikleriCoz = muafiyetDegisiklikleriCoz;
+window.muafiyetDegisiklikGecerliMi = muafiyetDegisiklikGecerliMi;
+window.muafiyetEslesmeYamasi = muafiyetEslesmeYamasi;
+window.muafiyetDuzenlemeOzeti = muafiyetDuzenlemeOzeti;
+window.muafiyetDuzenlendiMi = muafiyetDuzenlendiMi;
+// ÇAKÜ ders seçenekleri — öğrenci formu ile yetkilinin düzeltme paneli AYNI
+// listeden seçsin diye tek kaynak (lib/muafiyet-ders-secenek.js).
+window.cakuDersSecenekleri = cakuDersSecenekleri;
+window.cakuSecenekBul = cakuSecenekBul;
+
 // Muafiyet reddi — gerekçe zorunluluğu ve öğrenci bildirimi.
 window.muafiyetKararGecerliMi = muafiyetKararGecerliMi;
 window.muafiyetGerekceGecerliMi = muafiyetGerekceGecerliMi;

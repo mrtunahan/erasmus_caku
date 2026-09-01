@@ -879,14 +879,274 @@ const FormField = ({ label, children }) => (
 );
 
 // ══════════════════════════════════════════════════════════════
-// DocumentsPanel — Genel dökümanlar (yetkililer ekler, herkes okur)
+// ÜÇ PANO — DUYURULAR · ETKİNLİKLER · HIZLI ERİŞİM
+//
+// Modülün girişi topluluk kartlarından ibaretti: hangi toplulukta ne
+// olduğunu görmek için kartlara tek tek girmek gerekiyordu. Oysa öğrencinin
+// aradığı şey topluluk değil, o toplulukların ÜRETTİĞİ şey — duyuru,
+// etkinlik, belge.
+//
+// Düzen üniversitenin SKS sayfasıyla aynı dili konuşur: solda duyurular,
+// ortada etkinlikler, sağda hızlı erişim. Renkler uygulamanın kendi
+// paletinden; site kopyalanmıyor, düzeni örnek alınıyor.
 // ══════════════════════════════════════════════════════════════
+const klpPano = {
+  background: KLP.card,
+  border: `1px solid ${KLP.border}`,
+  borderRadius: 12,
+  display: 'flex',
+  flexDirection: 'column',
+  minWidth: 0,
+};
+
+const klpPanoBaslik = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 9,
+  padding: '12px 14px',
+  borderBottom: `1px solid ${KLP.border}`,
+  flexWrap: 'wrap',
+};
+
+function PanoBaslik({ ikon, ad, renk, sag }) {
+  return (
+    <div style={klpPanoBaslik}>
+      <span
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: 8,
+          background: renk + '18',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <KlpIcon path={ikon} size={15} color={renk} />
+      </span>
+      <span style={{ fontSize: 14.5, fontWeight: 700, color: KLP.primary }}>{ad}</span>
+      {sag && <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>{sag}</div>}
+    </div>
+  );
+}
+
+const klpBosPano = {
+  padding: '22px 14px',
+  textAlign: 'center',
+  color: KLP.textMuted,
+  fontSize: 12.5,
+};
+
+/** Duyuru panosu — bütün toplulukların son duyuruları. */
+function DuyuruPanosu({ gonderiler, kulupAdi, onAc }) {
+  const liste = (gonderiler || []).filter((p) => (p.type || 'duyuru') === 'duyuru').slice(0, 6);
+  return (
+    <section style={klpPano}>
+      <PanoBaslik
+        ikon="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"
+        ad="Duyurular"
+        renk={KLP.blue}
+      />
+      {liste.length === 0 ? (
+        <div style={klpBosPano}>Henüz duyuru paylaşılmadı.</div>
+      ) : (
+        <div style={{ padding: '6px 0' }}>
+          {liste.map((p) => {
+            const duz = window.zenginDuzMetin ? window.zenginDuzMetin(p.content || '') : '';
+            const baslik = (duz.split('\n').find((x) => x.trim()) || '').trim();
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onAc(p)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  display: 'flex',
+                  gap: 10,
+                  padding: '9px 14px',
+                  border: 'none',
+                  borderTop: `1px solid ${KLP.border}`,
+                  background: 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: KLP.blue,
+                    marginTop: 6,
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 11,
+                      color: KLP.textMuted,
+                      marginBottom: 2,
+                    }}
+                  >
+                    {fmtFeedDate(p.createdAt)} · {kulupAdi(p)}
+                  </span>
+                  <span
+                    style={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      color: KLP.text,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {baslik || (p.files || []).length + ' dosya paylaşıldı'}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Etkinlik panosu — en yakın tarih başta (bkz. lib/kulup-gonderi.js). */
+function EtkinlikPanosu({ gonderiler, kulupAdi, onAc }) {
+  const liste = window.kulupYaklasanEtkinlikler
+    ? window.kulupYaklasanEtkinlikler(gonderiler, new Date(), 6)
+    : [];
+  return (
+    <section style={klpPano}>
+      <PanoBaslik
+        ikon="M8 7V3m8 4V3M3 11h18M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"
+        ad="Etkinlikler"
+        renk={KLP.green}
+      />
+      {liste.length === 0 ? (
+        <div style={klpBosPano}>Yaklaşan etkinlik yok.</div>
+      ) : (
+        <div style={{ padding: '6px 0' }}>
+          {liste.map((p) => {
+            const bas = window.kulupEtkinlikBaslangici(p.etkinlik);
+            const e = window.kulupEtkinlikNormalle(p.etkinlik);
+            const bugun = window.kulupEtkinlikDurumu(p.etkinlik, new Date()) === 'bugun';
+            const duz = window.zenginDuzMetin ? window.zenginDuzMetin(p.content || '') : '';
+            const baslik = (duz.split('\n').find((x) => x.trim()) || '').trim();
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onAc(p)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'center',
+                  padding: '9px 14px',
+                  border: 'none',
+                  borderTop: `1px solid ${KLP.border}`,
+                  background: 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                <span
+                  style={{
+                    width: 42,
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    border: `1px solid ${bugun ? '#A7F3D0' : KLP.border}`,
+                    textAlign: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'block',
+                      background: bugun ? KLP.green : KLP.textMuted,
+                      color: '#fff',
+                      fontSize: 9,
+                      fontWeight: 800,
+                      padding: '2px 0',
+                    }}
+                  >
+                    {AY_KISA[bas.getMonth()]}
+                  </span>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 16,
+                      fontWeight: 800,
+                      color: KLP.text,
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {bas.getDate()}
+                  </span>
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      color: KLP.text,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {baslik || 'Etkinlik'}
+                  </span>
+                  <span style={{ display: 'block', fontSize: 11, color: KLP.textMuted }}>
+                    {[e.baslangic, e.yer, kulupAdi(p)].filter(Boolean).join(' · ')}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// HIZLI ERİŞİM (dökümanlar)
+//
+// Belgeler daha önce ekranın enini kaplayan bir kutuda, hepsi aynı gri
+// satırda duruyordu: yönetmelik ile başvuru formu arasındaki fark ancak
+// başlık okunarak anlaşılıyordu. Artık dosya/bağlantı ayrımı ikonla ve
+// biçimle görünür, arama kutusu uzun listeyi taranabilir kılar.
+// ══════════════════════════════════════════════════════════════
+const BELGE_IKON = {
+  pdf: 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z',
+  link: 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1',
+  dosya:
+    'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+};
+
+function belgeUzantisi(d) {
+  const kaynak = String((d && (d.fileName || d.url || d.title)) || '');
+  const m = kaynak.split('?')[0].match(/\.([a-zA-Z0-9]{1,5})$/);
+  return m ? m[1].toLowerCase() : '';
+}
+
 function DocumentsPanel({ documents, canEdit, onUpload, onAddLink, onDelete }) {
   const fileInputRef = useRef(null);
   const [linkMode, setLinkMode] = useState(false);
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [ara, setAra] = useState('');
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -918,137 +1178,101 @@ function DocumentsPanel({ documents, canEdit, onUpload, onAddLink, onDelete }) {
     setLinkMode(false);
   };
 
+  const q = ara.trim().toLocaleLowerCase('tr');
+  const suzulmus = q
+    ? (documents || []).filter((d) =>
+        String(d.title || '')
+          .toLocaleLowerCase('tr')
+          .includes(q)
+      )
+    : documents || [];
+
+  const kucukBtn = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    padding: '5px 10px',
+    borderRadius: 7,
+    border: `1px solid ${KLP.border}`,
+    background: '#fff',
+    color: KLP.primary,
+    fontSize: 11.5,
+    fontWeight: 600,
+    cursor: 'pointer',
+  };
+
   return (
-    <div
-      style={{
-        background: 'white',
-        borderRadius: 12,
-        padding: 20,
-        border: '1px solid ' + KLP.border,
-        marginBottom: 24,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 14,
-          flexWrap: 'wrap',
-          gap: 8,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <KlpIcon
-            path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            size={20}
-            color={KLP.primary}
-          />
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: KLP.primary, margin: 0 }}>
-            Dökümanlar{' '}
-            <span style={{ color: KLP.textMuted, fontWeight: 500, fontSize: 13 }}>
-              ({documents.length})
-            </span>
-          </h2>
-        </div>
-        {canEdit && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              style={{
-                padding: '8px 14px',
-                borderRadius: 8,
-                border: '1px solid ' + KLP.border,
-                background: 'white',
-                color: KLP.primary,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: uploading ? 'wait' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <KlpIcon
-                path="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                size={14}
+    <section style={klpPano}>
+      <PanoBaslik
+        ikon="M13 10V3L4 14h7v7l9-11h-7z"
+        ad="Hızlı Erişim"
+        renk={KLP.accent}
+        sag={
+          canEdit ? (
+            <>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                style={{ ...kucukBtn, cursor: uploading ? 'wait' : 'pointer' }}
+                title="Belge yükle"
+              >
+                <KlpIcon
+                  path="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"
+                  size={13}
+                />
+                {uploading ? 'Yükleniyor…' : 'Belge'}
+              </button>
+              <button
+                onClick={() => setLinkMode(!linkMode)}
+                style={{ ...kucukBtn, background: linkMode ? KLP.accentLight : '#fff' }}
+                title="Bağlantı ekle"
+              >
+                <KlpIcon path={BELGE_IKON.link} size={13} />
+                Bağlantı
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                style={{ display: 'none' }}
+                onChange={handleFile}
               />
-              {uploading ? 'Yükleniyor…' : 'Dosya Yükle'}
-            </button>
-            <button
-              onClick={() => setLinkMode(!linkMode)}
-              style={{
-                padding: '8px 14px',
-                borderRadius: 8,
-                border: '1px solid ' + KLP.border,
-                background: linkMode ? KLP.accentLight : 'white',
-                color: KLP.primary,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <KlpIcon
-                path="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                size={14}
-              />
-              Link Ekle
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              style={{ display: 'none' }}
-              onChange={handleFile}
-            />
-          </div>
-        )}
-      </div>
+            </>
+          ) : null
+        }
+      />
 
       {canEdit && linkMode && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 7,
+            padding: '10px 14px',
+            borderBottom: `1px solid ${KLP.border}`,
+            flexWrap: 'wrap',
+            background: '#FCFCFD',
+          }}
+        >
           <input
             value={linkTitle}
             onChange={(e) => setLinkTitle(e.target.value)}
             placeholder="Belge başlığı"
-            style={{
-              flex: '1 1 200px',
-              minWidth: 0,
-              padding: '9px 12px',
-              borderRadius: 8,
-              border: '1px solid ' + KLP.border,
-              fontSize: 13,
-              outline: 'none',
-              fontFamily: "'Inter', sans-serif",
-            }}
+            style={{ ...klpGiris, flex: '1 1 140px', width: 'auto' }}
           />
           <input
             value={linkUrl}
             onChange={(e) => setLinkUrl(e.target.value)}
-            placeholder="https://..."
-            style={{
-              flex: '2 1 280px',
-              minWidth: 0,
-              padding: '9px 12px',
-              borderRadius: 8,
-              border: '1px solid ' + KLP.border,
-              fontSize: 13,
-              outline: 'none',
-              fontFamily: "'Inter', sans-serif",
-            }}
+            placeholder="https://…"
+            style={{ ...klpGiris, flex: '2 1 200px', width: 'auto' }}
           />
           <button
             onClick={submitLink}
             style={{
-              padding: '9px 16px',
+              padding: '8px 14px',
               borderRadius: 8,
               border: 'none',
               background: KLP.primary,
-              color: 'white',
-              fontSize: 13,
+              color: '#fff',
+              fontSize: 12.5,
               fontWeight: 600,
               cursor: 'pointer',
             }}
@@ -1058,81 +1282,121 @@ function DocumentsPanel({ documents, canEdit, onUpload, onAddLink, onDelete }) {
         </div>
       )}
 
-      {documents.length === 0 ? (
-        <div style={{ padding: '24px 0', textAlign: 'center', color: KLP.textMuted, fontSize: 13 }}>
-          Henüz döküman eklenmemiş.
+      {/* Arama yalnız liste uzunken görünür: üç belgede arama kutusu
+          yer kaplamaktan başka bir şey yapmıyor. */}
+      {(documents || []).length > 6 && (
+        <div style={{ padding: '10px 14px 0' }}>
+          <input
+            value={ara}
+            onChange={(e) => setAra(e.target.value)}
+            placeholder="Belge ara…"
+            style={klpGiris}
+          />
+        </div>
+      )}
+
+      {suzulmus.length === 0 ? (
+        <div style={klpBosPano}>
+          {(documents || []).length === 0 ? 'Henüz belge eklenmedi.' : 'Aramaya uyan belge yok.'}
         </div>
       ) : (
         <div
           style={{
+            padding: 10,
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-            gap: 10,
+            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+            gap: 8,
+            alignContent: 'start',
           }}
         >
-          {documents.map((d) => (
-            <div
-              key={d.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 12px',
-                border: '1px solid ' + KLP.border,
-                borderRadius: 8,
-                background: '#FAFAFA',
-              }}
-            >
-              <KlpIcon
-                path={
-                  d.kind === 'link'
-                    ? 'M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1'
-                    : 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
-                }
-                size={16}
-                color={KLP.primary}
-              />
-              <a
-                href={d.url}
-                target="_blank"
-                rel="noopener noreferrer"
+          {suzulmus.map((d) => {
+            const bag = d.kind === 'link';
+            const uz = belgeUzantisi(d);
+            return (
+              <div
+                key={d.id}
                 style={{
-                  flex: 1,
-                  fontSize: 12.5,
-                  color: KLP.text,
-                  textDecoration: 'none',
-                  fontWeight: 500,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
+                  position: 'relative',
+                  border: `1px solid ${KLP.border}`,
+                  borderRadius: 10,
+                  background: '#fff',
                 }}
-                title={d.title}
               >
-                {d.title}
-              </a>
-              {canEdit && (
-                <button
-                  onClick={() => onDelete(d)}
-                  title="Sil"
+                <a
+                  href={d.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={d.title}
                   style={{
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    padding: 4,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    padding: '10px 11px',
+                    textDecoration: 'none',
+                    color: KLP.text,
                   }}
                 >
-                  <KlpIcon
-                    path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
-                    size={13}
-                    color={KLP.red}
-                  />
-                </button>
-              )}
-            </div>
-          ))}
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 10,
+                      fontWeight: 800,
+                      letterSpacing: '0.05em',
+                      color: bag ? KLP.blue : KLP.accent,
+                    }}
+                  >
+                    <KlpIcon
+                      path={bag ? BELGE_IKON.link : BELGE_IKON.dosya}
+                      size={13}
+                      color={bag ? KLP.blue : KLP.accent}
+                    />
+                    {bag ? 'BAĞLANTI' : uz ? uz.toUpperCase() : 'BELGE'}
+                  </span>
+                  <span
+                    style={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      lineHeight: 1.35,
+                      minHeight: 34,
+                    }}
+                  >
+                    {d.title}
+                  </span>
+                </a>
+                {canEdit && (
+                  <button
+                    onClick={() => onDelete(d)}
+                    title="Sil"
+                    style={{
+                      position: 'absolute',
+                      top: 6,
+                      right: 6,
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      padding: 2,
+                      display: 'flex',
+                    }}
+                  >
+                    <KlpIcon
+                      path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
+                      size={12}
+                      color={KLP.red}
+                    />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -1328,6 +1592,587 @@ function MedyaBuyutec({ liste, indeks, onKapat, onGit }) {
   );
 }
 
+// ══════════════════════════════════════════════════════════════
+// TÜRE ÖZEL ALANLAR — DÜZENLEYİCİDE
+//
+// Tür seçmek eskiden yalnız renkli bir etiket seçmekti. Etkinlik seçilince
+// tarih/saat/yer, anket seçilince seçenekler burada sorulur; kural ve
+// doğrulama lib/kulup-gonderi.js'te.
+// ══════════════════════════════════════════════════════════════
+const klpAlanEtiketi = {
+  display: 'block',
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: '0.05em',
+  textTransform: 'uppercase',
+  color: KLP.textMuted,
+  marginBottom: 5,
+};
+
+// Etiket ile alanın bağı: `label` girdiyi SARAR. Ayrı duran bir etiket
+// ekran okuyucuda alanla ilişkilenmiyor, tıklanınca da odaklanmıyordu.
+function KlpAlan({ etiket, children, stil }) {
+  return (
+    <label style={{ display: 'block', ...(stil || {}) }}>
+      <span style={klpAlanEtiketi}>{etiket}</span>
+      {children}
+    </label>
+  );
+}
+
+const klpGiris = {
+  width: '100%',
+  // Etiketin büyük-harf/aralık biçimi sarmalayıcı label'dan miras kalmasın.
+  textTransform: 'none',
+  letterSpacing: 'normal',
+  boxSizing: 'border-box',
+  padding: '9px 11px',
+  borderRadius: 9,
+  border: `1px solid ${KLP.border}`,
+  fontSize: 13,
+  fontFamily: "'Inter', sans-serif",
+  outline: 'none',
+  background: '#fff',
+  color: KLP.text,
+};
+
+function EtkinlikAlanlari({ deger, onChange }) {
+  const d = deger || {};
+  const yaz = (k, v) => onChange({ ...d, [k]: v });
+  return (
+    <div
+      style={{
+        border: `1px solid ${KLP.border}`,
+        borderRadius: 10,
+        padding: 12,
+        background: '#F8FAFC',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+        gap: 10,
+        marginBottom: 10,
+      }}
+    >
+      <KlpAlan etiket="Tarih *">
+        <input
+          type="date"
+          value={d.tarih || ''}
+          onChange={(e) => yaz('tarih', e.target.value)}
+          style={klpGiris}
+        />
+      </KlpAlan>
+      <KlpAlan etiket="Başlangıç">
+        <input
+          type="time"
+          value={d.baslangic || ''}
+          onChange={(e) => yaz('baslangic', e.target.value)}
+          style={klpGiris}
+        />
+      </KlpAlan>
+      <KlpAlan etiket="Bitiş">
+        <input
+          type="time"
+          value={d.bitis || ''}
+          onChange={(e) => yaz('bitis', e.target.value)}
+          style={klpGiris}
+        />
+      </KlpAlan>
+      <KlpAlan etiket="Yer" stil={{ gridColumn: '1 / -1' }}>
+        <input
+          value={d.yer || ''}
+          onChange={(e) => yaz('yer', e.target.value)}
+          placeholder="Konferans Salonu, Merkez Kampüs…"
+          style={klpGiris}
+        />
+      </KlpAlan>
+    </div>
+  );
+}
+
+function AnketAlanlari({ deger, onChange }) {
+  const d = deger || {};
+  const secenekler = Array.isArray(d.secenekler) ? d.secenekler : ['', ''];
+  const enCok = window.KULUP_ANKET_EN_COK || 6;
+  const enAz = window.KULUP_ANKET_EN_AZ || 2;
+  const yaz = (liste) => onChange({ ...d, secenekler: liste });
+  return (
+    <div
+      style={{
+        border: `1px solid ${KLP.border}`,
+        borderRadius: 10,
+        padding: 12,
+        background: '#F8FAFC',
+        marginBottom: 10,
+      }}
+    >
+      {/* Bu etiket TEK bir alanı değil, numaralı seçenek satırlarının
+          tamamını adlandırır; her satırın kendi yer tutucusu var. */}
+      <div style={klpAlanEtiketi}>
+        Seçenekler ({enAz}–{enCok})
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {secenekler.map((s, i) => (
+          <div key={i} style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+            <span
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: '50%',
+                background: '#EDE9FE',
+                color: '#6D28D9',
+                fontSize: 11,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {i + 1}
+            </span>
+            <input
+              value={s}
+              onChange={(e) => yaz(secenekler.map((x, j) => (j === i ? e.target.value : x)))}
+              placeholder={'Seçenek ' + (i + 1)}
+              style={klpGiris}
+            />
+            {secenekler.length > enAz && (
+              <button
+                type="button"
+                onClick={() => yaz(secenekler.filter((_, j) => j !== i))}
+                title="Seçeneği kaldır"
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  padding: 4,
+                  display: 'flex',
+                  flexShrink: 0,
+                }}
+              >
+                <KlpIcon path="M18 6L6 18M6 6l12 12" size={14} color={KLP.textMuted} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          alignItems: 'flex-end',
+          flexWrap: 'wrap',
+          marginTop: 10,
+        }}
+      >
+        {secenekler.length < enCok && (
+          <button
+            type="button"
+            onClick={() => yaz([...secenekler, ''])}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 12px',
+              borderRadius: 8,
+              border: `1px dashed ${KLP.border}`,
+              background: '#fff',
+              color: KLP.primary,
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <KlpIcon path="M12 5v14M5 12h14" size={13} color={KLP.primary} />
+            Seçenek ekle
+          </button>
+        )}
+        <KlpAlan etiket="Bitiş tarihi (isteğe bağlı)" stil={{ marginLeft: 'auto' }}>
+          <input
+            type="date"
+            value={d.bitis || ''}
+            onChange={(e) => onChange({ ...d, bitis: e.target.value })}
+            style={{ ...klpGiris, width: 170 }}
+          />
+        </KlpAlan>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// ETKİNLİK KUTUSU — akıştaki gönderinin üstünde
+//
+// Tarih ekranın en solunda takvim yaprağı gibi durur: akışta gezerken
+// "ne zaman" sorusunun cevabı metni okumadan görünür.
+// ══════════════════════════════════════════════════════════════
+const AY_KISA = [
+  'OCA',
+  'ŞUB',
+  'MAR',
+  'NİS',
+  'MAY',
+  'HAZ',
+  'TEM',
+  'AĞU',
+  'EYL',
+  'EKİ',
+  'KAS',
+  'ARA',
+];
+
+function EtkinlikKutusu({ post, club, katilim, katildim, onKatil, kimlikVar }) {
+  const e = window.kulupEtkinlikNormalle
+    ? window.kulupEtkinlikNormalle(post.etkinlik)
+    : post.etkinlik || {};
+  const bas = window.kulupEtkinlikBaslangici ? window.kulupEtkinlikBaslangici(e) : null;
+  if (!bas) return null;
+  const durum = window.kulupEtkinlikDurumu ? window.kulupEtkinlikDurumu(e, new Date()) : 'yaklasan';
+  const gecmis = durum === 'gecmis';
+  const saat = e.baslangic ? e.baslangic + (e.bitis ? ' – ' + e.bitis : '') : 'Saat belirtilmedi';
+
+  const takvimeEkle = () => {
+    if (!window.kulupIcsBelgesi) return;
+    const duz = window.zenginDuzMetin ? window.zenginDuzMetin(post.content || '') : '';
+    const baslik = (duz.split('\n')[0] || '').trim().slice(0, 80);
+    const ics = window.kulupIcsBelgesi(post, club.name || '', baslik);
+    if (!ics) return;
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'etkinlik.ics';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 12,
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        padding: 12,
+        borderRadius: 12,
+        border: `1px solid ${gecmis ? KLP.border : '#A7F3D0'}`,
+        background: gecmis ? '#F8FAFC' : '#ECFDF5',
+        marginBottom: 10,
+      }}
+    >
+      {/* Takvim yaprağı */}
+      <div
+        style={{
+          width: 54,
+          borderRadius: 10,
+          overflow: 'hidden',
+          border: `1px solid ${gecmis ? KLP.border : '#A7F3D0'}`,
+          background: '#fff',
+          textAlign: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            background: gecmis ? KLP.textMuted : '#059669',
+            color: '#fff',
+            fontSize: 10,
+            fontWeight: 800,
+            letterSpacing: '0.06em',
+            padding: '3px 0',
+          }}
+        >
+          {AY_KISA[bas.getMonth()]}
+        </div>
+        <div style={{ fontSize: 21, fontWeight: 800, color: KLP.text, lineHeight: 1.25 }}>
+          {bas.getDate()}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, minWidth: 140 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: KLP.text }}>{saat}</span>
+          {durum === 'bugun' && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 800,
+                letterSpacing: '0.06em',
+                padding: '2px 8px',
+                borderRadius: 999,
+                background: '#059669',
+                color: '#fff',
+              }}
+            >
+              BUGÜN
+            </span>
+          )}
+          {gecmis && (
+            <span style={{ fontSize: 11, fontWeight: 600, color: KLP.textMuted }}>Tamamlandı</span>
+          )}
+        </div>
+        {e.yer && (
+          <div
+            style={{
+              fontSize: 12.5,
+              color: KLP.textMuted,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              marginTop: 2,
+            }}
+          >
+            <KlpIcon
+              path="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 7a3 3 0 100 6 3 3 0 000-6z"
+              size={13}
+              color={KLP.textMuted}
+            />
+            {e.yer}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}>
+        {katilim > 0 && (
+          <span style={{ fontSize: 12, color: KLP.textMuted, fontWeight: 600 }}>
+            {katilim} kişi katılacak
+          </span>
+        )}
+        {/* Katılım işareti oy koleksiyonuna yazılır; kimliksiz kullanıcı
+            (ör. yetkili hesabı olmayan) yalnız görür. */}
+        {!gecmis && kimlikVar && (
+          <button
+            type="button"
+            onClick={onKatil}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 13px',
+              borderRadius: 999,
+              border: `1px solid ${katildim ? '#059669' : KLP.border}`,
+              background: katildim ? '#059669' : '#fff',
+              color: katildim ? '#fff' : KLP.text,
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <KlpIcon path="M20 6L9 17l-5-5" size={13} color={katildim ? '#fff' : KLP.textMuted} />
+            {katildim ? 'Katılıyorum' : 'Katılacağım'}
+          </button>
+        )}
+        {!gecmis && (
+          <button
+            type="button"
+            onClick={takvimeEkle}
+            title="Takvimime ekle (.ics)"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 13px',
+              borderRadius: 999,
+              border: `1px solid ${KLP.border}`,
+              background: '#fff',
+              color: KLP.text,
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <KlpIcon
+              path="M8 7V3m8 4V3M3 11h18M5 5h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z"
+              size={13}
+              color={KLP.textMuted}
+            />
+            Takvime ekle
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// ANKET KUTUSU
+//
+// Oy verilmeden önce seçenekler düğmedir; oy verdikten (ya da anket
+// kapandıktan) sonra sonuç çubuğuna dönüşür. Sonucu baştan göstermek
+// oyları sürükler — ilk oylar sonrakileri belirlerdi.
+// ══════════════════════════════════════════════════════════════
+function AnketKutusu({ post, oylar, kimlik, onOyVer }) {
+  const anket = post.anket || {};
+  const secenekler = window.kulupAnketSecenekleri
+    ? window.kulupAnketSecenekleri(anket.secenekler)
+    : [];
+  if (!secenekler.length) return null;
+  const kapandi = window.kulupAnketKapandiMi
+    ? window.kulupAnketKapandiMi(anket, new Date())
+    : false;
+  const benimOyum = window.kulupKullaniciOyu ? window.kulupKullaniciOyu(oylar, kimlik) : null;
+  const verilebilir = window.kulupOyVerilebilirMi
+    ? window.kulupOyVerilebilirMi(anket, kimlik, new Date())
+    : false;
+  const dagilim = window.kulupOyDagilimi
+    ? window.kulupOyDagilimi(anket, oylar)
+    : { toplam: 0, satirlar: [] };
+  const sonucGoster = !!benimOyum || kapandi;
+
+  return (
+    <div
+      style={{
+        border: '1px solid #DDD6FE',
+        background: '#FAF9FF',
+        borderRadius: 12,
+        padding: 12,
+        marginTop: 10,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+          marginBottom: 9,
+          flexWrap: 'wrap',
+        }}
+      >
+        <KlpIcon path="M18 20V10M12 20V4M6 20v-6" size={14} color="#6D28D9" />
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#5B21B6' }}>
+          {kapandi ? 'Anket kapandı' : benimOyum ? 'Oyunuz alındı' : 'Oyunuzu verin'}
+        </span>
+        <span style={{ fontSize: 11.5, color: KLP.textMuted, marginLeft: 'auto' }}>
+          {dagilim.toplam} oy
+          {anket.bitis && !kapandi ? ' · son ' + fmtGunAy(anket.bitis) : ''}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {dagilim.satirlar.map((s) => {
+          const benim = benimOyum && String(benimOyum.optionId) === s.id;
+          if (!sonucGoster) {
+            return (
+              <button
+                key={s.id}
+                type="button"
+                disabled={!verilebilir}
+                onClick={() => onOyVer(s.id)}
+                style={{
+                  textAlign: 'left',
+                  padding: '10px 13px',
+                  borderRadius: 10,
+                  border: '1px solid #DDD6FE',
+                  background: '#fff',
+                  color: KLP.text,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: verilebilir ? 'pointer' : 'not-allowed',
+                  opacity: verilebilir ? 1 : 0.6,
+                }}
+              >
+                {s.metin}
+              </button>
+            );
+          }
+          // Sonuç görünürken de oy değiştirilebilir: satırın KENDİSİ düğme
+          // olur. Altına ayrı bir "oyunu değiştir" çip sırası koymak aynı
+          // seçenekleri ikinci kez yazmaktı.
+          const Sarmal = verilebilir ? 'button' : 'div';
+          return (
+            <Sarmal
+              key={s.id}
+              type={verilebilir ? 'button' : undefined}
+              onClick={verilebilir ? () => onOyVer(s.id) : undefined}
+              title={verilebilir ? 'Oyunuzu bu seçeneğe taşıyın' : undefined}
+              style={{
+                position: 'relative',
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: 0,
+                borderRadius: 10,
+                border: '1px solid ' + (benim ? '#A78BFA' : '#E9E5FF'),
+                background: '#fff',
+                overflow: 'hidden',
+                cursor: verilebilir ? 'pointer' : 'default',
+                font: 'inherit',
+              }}
+            >
+              {/* Sonuç çubuğu metnin ARKASINDA: yan yana koyunca uzun
+                  seçenek metni çubuğu ezip yüzdeyi okunmaz kılıyordu. */}
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: s.yuzde + '%',
+                  background: benim ? '#DDD6FE' : '#F1EDFF',
+                  transition: 'width .3s',
+                }}
+              />
+              <div
+                style={{
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '9px 13px',
+                }}
+              >
+                {benim && <KlpIcon path="M20 6L9 17l-5-5" size={13} color="#5B21B6" />}
+                <span style={{ fontSize: 13, fontWeight: 600, color: KLP.text }}>{s.metin}</span>
+                <span
+                  style={{
+                    marginLeft: 'auto',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: '#5B21B6',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  %{s.yuzde} · {s.sayi}
+                </span>
+              </div>
+            </Sarmal>
+          );
+        })}
+      </div>
+
+      {benimOyum && !kapandi && (
+        <div style={{ fontSize: 11.5, color: KLP.textMuted, marginTop: 8 }}>
+          Seçeneğe yeniden basarak oyunuzu değiştirebilirsiniz. Oy kullananlar topluluk yöneticileri
+          tarafından görülebilir.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function fmtGunAy(iso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) return '';
+  const [y, a, g] = String(iso).split('-').map(Number);
+  return (
+    g +
+    ' ' +
+    [
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık',
+    ][a - 1] +
+    ' ' +
+    y
+  );
+}
+
 function fmtFeedDate(iso) {
   try {
     const d = new Date(iso);
@@ -1339,43 +2184,62 @@ function fmtFeedDate(iso) {
 
 function ClubFeed({ club, canPost, canManage, currentUser, followers }) {
   const myAuthor = currentUser?.name || currentUser?.identifier || '';
+  // Oy/katılım kaydının anahtarı. Öğrencide numara, personelde kimlik.
+  const kimlik = String(currentUser?.studentNumber || currentUser?.identifier || '').trim();
   const [posts, setPosts] = useState([]);
+  const [oylar, setOylar] = useState([]);
   const [loading, setLoading] = useState(true);
   const [type, setType] = useState('duyuru');
+  const [metin, setMetin] = useState('');
+  const [etkinlik, setEtkinlik] = useState({ tarih: '', baslangic: '', bitis: '', yer: '' });
+  const [anket, setAnket] = useState({ secenekler: ['', ''], bitis: '' });
   const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [hata, setHata] = useState('');
+  const [sekme, setSekme] = useState('tumu');
   // Büyüteçte gösterilen görsel listesi ve sırası.
   const [buyutec, setBuyutec] = useState(null); // { liste, indeks }
-  const editorRef = useRef(null);
   const fileRef = useRef(null);
   const kabul = window.KULUP_FEED_KABUL || FEED_ACCEPT_YEDEK;
   const belgeler = window.kulupBelgeEkleri || ((l) => l || []);
   const enBuyukMB = window.KULUP_EN_BUYUK_MB || 50;
   const boyut = window.kulupBoyutMetni || (() => '');
+  const turler = window.KULUP_GONDERI_TURLERI || FEED_TYPES;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const all = await window.apiRead('club_posts', { where: 'clubId:eq:s:' + club.id });
+      // Gönderiler ve oylar birlikte çekilir: oylar ayrı bir koleksiyonda
+      // (bkz. lib/kulup-gonderi.js) ve akış onlarsız yarım görünürdü.
+      const [all, oy] = await Promise.all([
+        window.apiRead('club_posts', { where: 'clubId:eq:s:' + club.id }),
+        window.apiRead('club_post_votes', { where: 'clubId:eq:s:' + club.id }).catch(() => []),
+      ]);
       const mine = (all || []).filter((p) => String(p.clubId) === String(club.id));
       mine.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
       setPosts(mine);
+      setOylar((oy || []).filter((o) => String(o.clubId) === String(club.id)));
     } catch (_) {
       setPosts([]);
+      setOylar([]);
     } finally {
       setLoading(false);
+    }
+  }, [club.id]);
+
+  const oylariYenile = useCallback(async () => {
+    try {
+      const oy = await window.apiRead('club_post_votes', { where: 'clubId:eq:s:' + club.id });
+      setOylar((oy || []).filter((o) => String(o.clubId) === String(club.id)));
+    } catch (_) {
+      /* sessiz: sayım bir sonraki yüklemede tazelenir */
     }
   }, [club.id]);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  const exec = (cmd) => {
-    document.execCommand(cmd, false, null);
-    if (editorRef.current) editorRef.current.focus();
-  };
 
   const handleFiles = async (e) => {
     const list = Array.from(e.target.files || []);
@@ -1429,33 +2293,74 @@ function ClubFeed({ club, canPost, canManage, currentUser, followers }) {
 
   const removeFile = (i) => setFiles((p) => p.filter((_, idx) => idx !== i));
 
+  // Düzenleyici sıfırlanır — tür de duyuruya döner, yoksa bir sonraki
+  // paylaşım sessizce "etkinlik" olarak gidiyordu.
+  const temizle = () => {
+    setMetin('');
+    setFiles([]);
+    setEtkinlik({ tarih: '', baslangic: '', bitis: '', yer: '' });
+    setAnket({ secenekler: ['', ''], bitis: '' });
+    setType('duyuru');
+    setHata('');
+  };
+
+  const duzMetin = window.zenginDuzMetin ? window.zenginDuzMetin(metin) : metin;
+  const metinBos = window.zenginBosMu ? window.zenginBosMu(metin) : !String(duzMetin || '').trim();
+
   const submit = async () => {
-    const content = editorRef.current ? editorRef.current.innerHTML.trim() : '';
-    const plain = editorRef.current ? (editorRef.current.textContent || '').trim() : '';
-    if (!plain && files.length === 0) {
-      alert('Bir metin yazın veya dosya ekleyin.');
+    const karar = window.kulupGonderiHazirMi
+      ? window.kulupGonderiHazirMi(type, {
+          metinBos,
+          dosyaSayisi: files.length,
+          etkinlik,
+          anket,
+        })
+      : { tamam: !metinBos || files.length > 0, hata: 'Bir metin yazın veya dosya ekleyin.' };
+    if (!karar.tamam) {
+      setHata(karar.hata);
       return;
     }
+    setHata('');
     setPosting(true);
     try {
-      await window.DBWrite.add('club_posts', {
+      const kayit = {
         clubId: club.id,
         clubName: club.name || '',
         type,
-        content,
+        content: metin,
         contentFormat: 'html',
         files,
         authorName: currentUser?.name || currentUser?.identifier || 'Topluluk',
         authorRole: currentUser?.role || '',
         createdAt: new Date().toISOString(),
-      });
+      };
+      if (type === 'etkinlik') {
+        kayit.etkinlik = window.kulupEtkinlikNormalle
+          ? window.kulupEtkinlikNormalle(etkinlik)
+          : etkinlik;
+      }
+      if (type === 'anket') {
+        kayit.anket = {
+          secenekler: window.kulupAnketSecenekleri
+            ? window.kulupAnketSecenekleri(anket.secenekler)
+            : anket.secenekler,
+          bitis: String(anket.bitis || ''),
+        };
+      }
+      await window.DBWrite.add('club_posts', kayit);
 
       // Takipçilere otomatik bildirim: yeni paylaşım çan menüsüne düşer.
       try {
-        const typeLabel = (FEED_TYPES.find((x) => x.id === type) || {}).label || 'paylaşım';
-        const snippet = plain.length > 90 ? plain.slice(0, 90) + '…' : plain;
-        const body =
-          snippet || (files.length ? files.length + ' dosya paylaşıldı' : 'Yeni paylaşım');
+        const typeLabel =
+          (turler.find((x) => x.id === type) || {}).ad ||
+          (turler.find((x) => x.id === type) || {}).label ||
+          'paylaşım';
+        // Gövde türe göre yazılır: etkinlikte tarih/yer, ankette seçenek
+        // sayısı. "Yeni paylaşım" demek bildirimi açmadan hiçbir şey
+        // söylemiyordu (bkz. lib/kulup-gonderi.js).
+        const body = window.kulupGonderiOzeti
+          ? window.kulupGonderiOzeti(kayit, duzMetin)
+          : duzMetin.slice(0, 90);
         const list = Array.isArray(followers) ? followers : [];
         for (const f of list) {
           if (!f.studentNumber) continue;
@@ -1486,9 +2391,7 @@ function ClubFeed({ club, canPost, canManage, currentUser, followers }) {
         /* bildirim opsiyonel — gönderi zaten kaydedildi */
       }
 
-      if (editorRef.current) editorRef.current.innerHTML = '';
-      setFiles([]);
-      setType('duyuru');
+      temizle();
       await load();
     } catch (e) {
       alert('Gönderilemedi: ' + e.message);
@@ -1507,27 +2410,183 @@ function ClubFeed({ club, canPost, canManage, currentUser, followers }) {
     }
   };
 
-  const tbBtn = {
-    width: 30,
-    height: 30,
-    borderRadius: 6,
-    border: '1px solid ' + KLP.border,
-    background: '#fff',
-    cursor: 'pointer',
-    fontSize: 14,
-    fontWeight: 700,
-    color: KLP.text,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+  // ── OY VE KATILIM ──
+  // Kayıt kimliği (gönderi + kişi + tür) SABİTTİR: aynı kişi ikinci kez oy
+  // verdiğinde yeni satır açılmaz, mevcut satır güncellenir. Sunucu ayrıca
+  // sahipliği JWT kimliğine sabitliyor (server/routes/db.js).
+  const oyKaydi = (post, kind) => post.id + '__' + kind + '__' + kimlik;
+
+  const oyVer = async (post, optionId) => {
+    if (!kimlik) return;
+    try {
+      await window.DBWrite.set(
+        'club_post_votes',
+        oyKaydi(post, 'anket'),
+        {
+          postId: post.id,
+          clubId: club.id,
+          kind: 'anket',
+          optionId,
+          voter: kimlik,
+          createdAt: new Date().toISOString(),
+        },
+        true
+      );
+      await oylariYenile();
+    } catch (e) {
+      alert('Oy kaydedilemedi: ' + e.message);
+    }
   };
+
+  const katilimDegistir = async (post, katildim) => {
+    if (!kimlik) return;
+    try {
+      if (katildim) {
+        await window.DBWrite.remove('club_post_votes', oyKaydi(post, 'katilim'));
+      } else {
+        await window.DBWrite.set(
+          'club_post_votes',
+          oyKaydi(post, 'katilim'),
+          {
+            postId: post.id,
+            clubId: club.id,
+            kind: 'katilim',
+            optionId: 'katilim',
+            voter: kimlik,
+            createdAt: new Date().toISOString(),
+          },
+          true
+        );
+      }
+      await oylariYenile();
+    } catch (e) {
+      alert('Katılım kaydedilemedi: ' + e.message);
+    }
+  };
+
+  const oylarinin = (postId, kind) =>
+    oylar.filter((o) => String(o.postId) === String(postId) && (o.kind || 'anket') === kind);
+
+  // Sekmeye göre süzülmüş akış ve yaklaşan etkinlikler.
+  const gorunen = window.kulupGonderileriSuz
+    ? window.kulupGonderileriSuz(posts, sekme)
+    : posts.filter((p) => sekme === 'tumu' || (p.type || 'duyuru') === sekme);
+  const yaklasan = window.kulupYaklasanEtkinlikler
+    ? window.kulupYaklasanEtkinlikler(posts, new Date(), 3)
+    : [];
+
+  const sayac = (id) =>
+    id === 'tumu' ? posts.length : posts.filter((p) => (p.type || 'duyuru') === id).length;
+
+  const sekmeler = [{ id: 'tumu', ad: 'Tümü' }].concat(
+    turler.map((t) => ({ id: t.id, ad: (t.ad || t.label) + (t.id === 'duyuru' ? 'lar' : 'ler') }))
+  );
 
   return (
     <div style={{ marginTop: 20, borderTop: `1px solid ${KLP.border}`, paddingTop: 16 }}>
-      <style>{`[contenteditable][data-placeholder]:empty:before{content:attr(data-placeholder);color:#9CA3AF;pointer-events:none;}`}</style>
-      <div style={{ fontSize: 14, fontWeight: 700, color: KLP.primary, marginBottom: 12 }}>
-        Topluluk Akışı
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 700, color: KLP.primary }}>Topluluk Akışı</div>
+        {/* Tür sekmeleri: bir topluluğun etkinliklerini görmek için duyuru
+            ve anketlerin arasından geçmek gerekmiyor. */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginLeft: 'auto' }}>
+          {sekmeler.map((s) => {
+            const on = sekme === s.id;
+            const n = sayac(s.id);
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setSekme(s.id)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 999,
+                  border: `1px solid ${on ? KLP.primary : KLP.border}`,
+                  background: on ? KLP.primary : '#fff',
+                  color: on ? '#fff' : KLP.textMuted,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {s.ad}
+                {n > 0 ? ' · ' + n : ''}
+              </button>
+            );
+          })}
+        </div>
       </div>
+
+      {/* Yaklaşan etkinlikler — akış tersine kronolojik olduğu için
+          yarınki etkinlik onuncu sırada kalabiliyordu. */}
+      {yaklasan.length > 0 && sekme === 'tumu' && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: 8,
+            marginBottom: 14,
+          }}
+        >
+          {yaklasan.map((p) => {
+            const bas = window.kulupEtkinlikBaslangici(p.etkinlik);
+            const e = window.kulupEtkinlikNormalle(p.etkinlik);
+            const duz = window.zenginDuzMetin ? window.zenginDuzMetin(p.content || '') : '';
+            const baslik = (duz.split('\n')[0] || '').trim() || 'Etkinlik';
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setSekme('etkinlik')}
+                style={{
+                  textAlign: 'left',
+                  display: 'flex',
+                  gap: 9,
+                  alignItems: 'center',
+                  padding: 10,
+                  borderRadius: 10,
+                  border: '1px solid #A7F3D0',
+                  background: '#ECFDF5',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, color: '#059669' }}>
+                    {AY_KISA[bas.getMonth()]}
+                  </div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: KLP.text, lineHeight: 1.1 }}>
+                    {bas.getDate()}
+                  </div>
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      color: KLP.text,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {baslik}
+                  </div>
+                  <div style={{ fontSize: 11, color: KLP.textMuted }}>
+                    {[e.baslangic, e.yer].filter(Boolean).join(' · ') || 'Saat belirtilmedi'}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Düzenleyici — sahip akademisyen (danışman) veya topluluk başkanı */}
       {canPost && (
@@ -1542,64 +2601,63 @@ function ClubFeed({ club, canPost, canManage, currentUser, followers }) {
         >
           {/* Tür seçimi (ilk satır) */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-            {FEED_TYPES.map((t) => {
+            {turler.map((t) => {
               const on = type === t.id;
+              const renk = t.renk || t.color;
+              const zemin = t.zemin || t.bg;
               return (
                 <button
                   key={t.id}
-                  onClick={() => setType(t.id)}
+                  onClick={() => {
+                    setType(t.id);
+                    setHata('');
+                  }}
                   style={{
                     padding: '6px 14px',
                     borderRadius: 20,
-                    border: '1px solid ' + (on ? t.color : KLP.border),
-                    background: on ? t.bg : '#fff',
-                    color: on ? t.color : KLP.textMuted,
+                    border: '1px solid ' + (on ? renk : KLP.border),
+                    background: on ? zemin : '#fff',
+                    color: on ? renk : KLP.textMuted,
                     fontSize: 12.5,
                     fontWeight: 600,
                     cursor: 'pointer',
                   }}
                 >
-                  {t.label}
+                  {t.ad || t.label}
                 </button>
               );
             })}
           </div>
 
-          {/* Metin düzenleyici */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-            <button
-              onClick={() => exec('bold')}
-              title="Kalın"
-              style={{ ...tbBtn, fontStyle: 'normal' }}
-            >
-              B
-            </button>
-            <button
-              onClick={() => exec('italic')}
-              title="İtalik"
-              style={{ ...tbBtn, fontStyle: 'italic' }}
-            >
-              I
-            </button>
-            <button onClick={() => exec('insertUnorderedList')} title="Liste" style={tbBtn}>
-              ☰
-            </button>
-          </div>
-          <div
-            ref={editorRef}
-            contentEditable
-            data-placeholder="Paylaşmak istediklerinizi yazın…"
-            style={{
-              minHeight: 80,
-              border: `1px solid ${KLP.border}`,
-              borderRadius: 8,
-              padding: '10px 12px',
-              fontSize: 13.5,
-              outline: 'none',
-              background: '#fff',
-              lineHeight: 1.5,
-            }}
-          />
+          {/* Türe özel alanlar */}
+          {type === 'etkinlik' && <EtkinlikAlanlari deger={etkinlik} onChange={setEtkinlik} />}
+          {type === 'anket' && <AnketAlanlari deger={anket} onChange={setAnket} />}
+
+          {/* Zengin metin — duyuru editörüyle aynı Quill. Eski üç düğmeli
+              (kalın/italik/liste) contentEditable alanı başlık, hizalama,
+              renk, bağlantı ve alıntı tanımıyordu. */}
+          {window.QuillEditoru ? (
+            <window.QuillEditoru
+              deger={metin}
+              onChange={setMetin}
+              yukseklik={type === 'duyuru' ? 150 : 110}
+              yerTutucu={
+                type === 'anket'
+                  ? 'Anket sorusunu yazın…'
+                  : type === 'etkinlik'
+                    ? 'Etkinliği anlatın…'
+                    : 'Paylaşmak istediklerinizi yazın…'
+              }
+            />
+          ) : (
+            <textarea
+              value={metin}
+              onChange={(e) => setMetin(e.target.value)}
+              rows={4}
+              placeholder="Paylaşmak istediklerinizi yazın…"
+              style={{ ...klpGiris, resize: 'vertical' }}
+            />
+          )}
 
           {/* Eklenen dosyalar — paylaşmadan ÖNCE ne eklendiği görünür.
               Eskiden yalnız dosya adı yazıyordu; yanlış afişi eklediğini
@@ -1700,6 +2758,25 @@ function ClubFeed({ club, canPost, canManage, currentUser, followers }) {
             </div>
           )}
 
+          {/* Eksik alan uyarısı düğmenin YANINDA değil üstünde: tıklayıp
+              hiçbir şey olmamasının nedeni görünür olmalı. */}
+          {hata && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: '8px 12px',
+                borderRadius: 8,
+                background: '#FEF2F2',
+                border: '1px solid #FECACA',
+                color: '#991B1B',
+                fontSize: 12.5,
+                fontWeight: 600,
+              }}
+            >
+              {hata}
+            </div>
+          )}
+
           {/* Dosya ekle + paylaş */}
           <div
             style={{
@@ -1767,12 +2844,20 @@ function ClubFeed({ club, canPost, canManage, currentUser, followers }) {
       {/* Akış listesi */}
       {loading ? (
         <p style={{ fontSize: 12.5, color: KLP.textMuted, margin: 0 }}>Yükleniyor…</p>
-      ) : posts.length === 0 ? (
-        <p style={{ fontSize: 12.5, color: KLP.textMuted, margin: 0 }}>Henüz paylaşım yok.</p>
+      ) : gorunen.length === 0 ? (
+        <p style={{ fontSize: 12.5, color: KLP.textMuted, margin: 0 }}>
+          {posts.length === 0 ? 'Henüz paylaşım yok.' : 'Bu türde paylaşım yok.'}
+        </p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {posts.map((p) => {
-            const t = FEED_TYPES.find((x) => x.id === p.type) || FEED_TYPES[0];
+          {gorunen.map((p) => {
+            const t = window.kulupTurBilgisi
+              ? window.kulupTurBilgisi(p.type)
+              : FEED_TYPES.find((x) => x.id === p.type) || FEED_TYPES[0];
+            const katilimlar = oylarinin(p.id, 'katilim');
+            const katildim = !!(window.kulupKullaniciOyu
+              ? window.kulupKullaniciOyu(katilimlar, kimlik)
+              : null);
             return (
               <div
                 key={p.id}
@@ -1791,13 +2876,13 @@ function ClubFeed({ club, canPost, canManage, currentUser, followers }) {
                     style={{
                       padding: '2px 9px',
                       borderRadius: 10,
-                      background: t.bg,
-                      color: t.color,
+                      background: t.zemin || t.bg,
+                      color: t.renk || t.color,
                       fontSize: 11,
                       fontWeight: 700,
                     }}
                   >
-                    {t.label}
+                    {t.ad || t.label}
                   </span>
                   <span style={{ fontSize: 12, color: KLP.textMuted }}>{p.authorName}</span>
                   <span style={{ fontSize: 11.5, color: KLP.textMuted }}>
@@ -1824,12 +2909,45 @@ function ClubFeed({ club, canPost, canManage, currentUser, followers }) {
                     </button>
                   )}
                 </div>
-                {p.content && (
-                  <div
-                    style={{ fontSize: 13.5, color: KLP.text, lineHeight: 1.55 }}
-                    dangerouslySetInnerHTML={{ __html: p.content }}
+
+                {/* Etkinlik künyesi metnin ÜSTÜNDE: ne zaman/nerede sorusu
+                    açıklamayı okumadan cevaplanmalı. */}
+                {p.type === 'etkinlik' && (
+                  <EtkinlikKutusu
+                    post={p}
+                    club={club}
+                    katilim={katilimlar.length}
+                    katildim={katildim}
+                    kimlikVar={!!kimlik}
+                    onKatil={() => katilimDegistir(p, katildim)}
                   />
                 )}
+
+                {/* İçerik HTML olarak saklanıyor ve yazan kişi topluluk
+                    başkanı da olabiliyor. innerHTML yerine ayrıştırıcıdan
+                    geçirilir: tanınmayan etiket düz metne düşer, betik
+                    hiçbir durumda çalışmaz (lib/zengin-metin.js). */}
+                {p.content &&
+                  (window.ZenginMetin ? (
+                    <window.ZenginMetin
+                      html={p.content}
+                      stil={{ fontSize: 13.5, color: KLP.text, lineHeight: 1.55 }}
+                    />
+                  ) : (
+                    <div style={{ fontSize: 13.5, color: KLP.text, lineHeight: 1.55 }}>
+                      {window.zenginDuzMetin ? window.zenginDuzMetin(p.content) : ''}
+                    </div>
+                  ))}
+
+                {p.type === 'anket' && (
+                  <AnketKutusu
+                    post={p}
+                    oylar={oylarinin(p.id, 'anket')}
+                    kimlik={kimlik}
+                    onOyVer={(secenekId) => oyVer(p, secenekId)}
+                  />
+                )}
+
                 {/* Görsel ve video yerinde; belgeler bağlantı olarak. */}
                 <MedyaIzgarasi
                   dosyalar={p.files}
@@ -2378,6 +3496,7 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
   const [professors, setProfessors] = useState([]);
   const [students, setStudents] = useState([]);
   const [followers, setFollowers] = useState([]);
+  const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterDept, setFilterDept] = useState('');
@@ -2432,12 +3551,16 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [c, d, p, s, f] = await Promise.all([
+      // Gönderiler de burada okunur: giriş ekranındaki duyuru ve etkinlik
+      // panoları BÜTÜN toplulukların paylaşımlarını gösterir — öğrencinin
+      // aradığı şey topluluk değil, toplulukların ürettiği şeydir.
+      const [c, d, p, s, f, g] = await Promise.all([
         window.apiRead('student_clubs'),
         window.apiRead('club_documents'),
         window.apiRead('professors'),
         window.apiRead('students'),
         window.apiRead('club_followers').catch(() => []),
+        window.apiRead('club_posts').catch(() => []),
       ]);
       setClubs((c || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr')));
       setDocuments(
@@ -2446,6 +3569,11 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
       setProfessors(p || []);
       setStudents(s || []);
       setFollowers(f || []);
+      setPosts(
+        (g || [])
+          .slice()
+          .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+      );
     } catch (e) {
       console.error('Kulüpler yüklenemedi:', e);
       showMsg('Veriler yüklenirken hata oluştu.', 'error');
@@ -2465,7 +3593,8 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
       if (
         cols.includes('student_clubs') ||
         cols.includes('club_documents') ||
-        cols.includes('club_followers')
+        cols.includes('club_followers') ||
+        cols.includes('club_posts')
       ) {
         loadAll();
       }
@@ -2473,10 +3602,12 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
     window.addEventListener('realtime:student_clubs', onWrite);
     window.addEventListener('realtime:club_documents', onWrite);
     window.addEventListener('realtime:club_followers', onWrite);
+    window.addEventListener('realtime:club_posts', onWrite);
     return () => {
       window.removeEventListener('realtime:student_clubs', onWrite);
       window.removeEventListener('realtime:club_documents', onWrite);
       window.removeEventListener('realtime:club_followers', onWrite);
+      window.removeEventListener('realtime:club_posts', onWrite);
     };
   }, []);
 
@@ -2694,6 +3825,16 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
     }
   };
 
+  // Panodaki bir satıra basınca o topluluğun sayfası açılır: duyuruyu
+  // görüp topluluğu aramak zorunda kalmamalı.
+  const acKulup = (clubId) => {
+    const k = clubs.find((c) => String(c.id) === String(clubId));
+    if (k) setDetailClub(k);
+  };
+  // Gönderi kaydında kulüp adı var; yoksa listeden çözülür (eski kayıtlar).
+  const kulupAdiOf = (p) =>
+    p.clubName || (clubs.find((c) => String(c.id) === String(p.clubId)) || {}).name || 'Topluluk';
+
   // Stil: kart-grid (her satırda 5 kart — masaüstü; tablet 3; mobil 1)
   const gridCols = responsive.val('1fr', 'repeat(3, 1fr)', 'repeat(5, 1fr)');
 
@@ -2757,14 +3898,31 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
         </div>
       )}
 
-      {/* Dökümanlar paneli */}
-      <DocumentsPanel
-        documents={documents}
-        canEdit={canEditDocuments}
-        onUpload={handleDocUpload}
-        onAddLink={handleDocAddLink}
-        onDelete={handleDocDelete}
-      />
+      {/* ── ÜÇ PANO ──
+          Duyurular · Etkinlikler · Hızlı Erişim. Üçü de bütün toplulukları
+          kapsar; bir duyuruya basınca o topluluğun sayfası açılır. Dar
+          ekranda alt alta akar. */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: responsive.val('1fr', '1fr', 'repeat(3, 1fr)'),
+          gap: 14,
+          marginBottom: 20,
+          // Üç pano eşit yükseklikte durur: içerikleri farklı uzunlukta
+          // olduğu için kenarları kırık bir merdivene dönüyordu.
+          alignItems: 'stretch',
+        }}
+      >
+        <DuyuruPanosu gonderiler={posts} kulupAdi={kulupAdiOf} onAc={(p) => acKulup(p.clubId)} />
+        <EtkinlikPanosu gonderiler={posts} kulupAdi={kulupAdiOf} onAc={(p) => acKulup(p.clubId)} />
+        <DocumentsPanel
+          documents={documents}
+          canEdit={canEditDocuments}
+          onUpload={handleDocUpload}
+          onAddLink={handleDocAddLink}
+          onDelete={handleDocDelete}
+        />
+      </div>
 
       {/* Filtre + Arama + Yeni butonu */}
       <div
