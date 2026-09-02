@@ -7311,10 +7311,27 @@ const BirlesikIcerikPdf = ({ record }) => {
 
 // Muafiyet kaydı transkript alanı — öğrenci TEK SEFERLİK PDF yükler; yüklenince
 // yalnız görüntüleme linki kalır. Personel (isStudent=false) yalnız görüntüler.
-const TranscriptControl = ({ record, isStudent, onUploadTranscript }) => {
+// ── TRANSKRİPT SATIRI ──
+//
+// Satır KAYDIN HER HÂLİNDE çizilir: süreç bitmiş olsun ya da olmasın,
+// transkript yüklü olsun ya da olmasın. Eskiden yalnız "yükleme yetkisi
+// varsa ya da dosya varsa" çiziliyordu; dosyası olmayan bitmiş bir kayıtta
+// satır tamamen kayboluyor ve "transkript yok mu, yoksa gösterilmiyor mu"
+// sorusunun cevabı ekranda olmuyordu. Eksik olduğunu SÖYLEMEK, hiçbir şey
+// yazmamaktan iyidir.
+//
+// Yükleme: öğrenci kendi kaydına tek seferlik yükler (süreç bittikten sonra
+// da — geriye dönük eksik kayıtlar bu yolla tamamlanıyor). Üniversite
+// yetkilisi de öğrenci adına ekleyebilir: bitmiş bir kayıtta öğrenciye
+// ulaşmak her zaman mümkün olmuyor.
+const TranscriptControl = ({ record, isStudent, onUploadTranscript, yetkiliYukleyebilir }) => {
   const [busy, setBusy] = useState(false);
   const url = record.transcriptUrl || '';
   const viewHref = url ? '/api/files/view/' + String(url).replace('/api/files/download/', '') : '';
+  const yukleyebilir = !url && !!onUploadTranscript && (isStudent || yetkiliYukleyebilir);
+  const yuklemeTarihi = record.transcriptUploadedAt
+    ? new Date(record.transcriptUploadedAt).toLocaleDateString('tr-TR')
+    : '';
   const pick = async (e) => {
     const f = (e.target.files && e.target.files[0]) || null;
     e.target.value = '';
@@ -7354,7 +7371,10 @@ const TranscriptControl = ({ record, isStudent, onUploadTranscript }) => {
       ) : (
         <span style={{ color: DS.textMuted }}>Yüklenmedi</span>
       )}
-      {isStudent && !url && onUploadTranscript && (
+      {url && yuklemeTarihi && (
+        <span style={{ color: DS.textMuted, fontSize: 11.5 }}>· {yuklemeTarihi}</span>
+      )}
+      {yukleyebilir && (
         <label style={{ cursor: busy ? 'wait' : 'pointer' }}>
           <input
             type="file"
@@ -7371,12 +7391,19 @@ const TranscriptControl = ({ record, isStudent, onUploadTranscript }) => {
               opacity: busy ? 0.6 : 1,
             }}
           >
-            {busy ? 'Yükleniyor…' : 'Transkript Yükle (PDF)'}
+            {busy
+              ? 'Yükleniyor…'
+              : isStudent
+                ? 'Transkript Yükle (PDF)'
+                : 'Öğrenci adına transkript yükle (PDF)'}
           </span>
         </label>
       )}
       {isStudent && url && (
         <span style={{ color: DS.textMuted, fontSize: 11.5 }}>· tek seferlik yüklendi</span>
+      )}
+      {!url && !yukleyebilir && (
+        <span style={{ color: DS.textMuted, fontSize: 11.5 }}>· kayıtta transkript yok</span>
       )}
     </div>
   );
@@ -7759,14 +7786,17 @@ const ExemptionHistory = ({
                 </div>
               </div>
 
-              {/* Transkript — öğrenci tek seferlik yükler; herkes görüntüler.
-                  Yaz intibakında transkript istenmez. */}
-              {rec.basvuruTuru !== 'intibak' && (onUploadTranscript || rec.transcriptUrl) && (
+              {/* Transkript — öğrenci tek seferlik yükler; HERKES her aşamada
+                  görüntüler. Satır artık koşulsuz çizilir: onay süreci bitmiş
+                  bir kayıtta da transkript görünür, yoksa "yok" yazar.
+                  Yaz intibakında transkript istenmez (belge Faz-2'de gelir). */}
+              {(rec.basvuruTuru || 'muafiyet') !== 'intibak' && (
                 <div style={{ padding: '0 20px 12px' }}>
                   <TranscriptControl
                     record={rec}
                     isStudent={isStudent}
                     onUploadTranscript={onUploadTranscript}
+                    yetkiliYukleyebilir={!!(currentUser && currentUser.isUniversityAdmin)}
                   />
                 </div>
               )}
@@ -10316,6 +10346,11 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
       transcriptUploadedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    // Öğrenci kendi kaydına yüklerse damga gereksiz; yetkili öğrenci ADINA
+    // yüklediyse bunu kayıt söylemeli.
+    if (!isStudent) {
+      patch.transcriptUploadedBy = currentUser?.name || currentUser?.identifier || '';
+    }
     try {
       await window.DBWrite.update('muafiyet_records', String(recordId), patch);
       setRecords(function (prev) {
@@ -10983,6 +11018,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
             onUpdateDecision={handleUpdateDecision}
             onGenerateDoc={handleGenerateDoc}
             onStageChange={handleStageChange}
+            onUploadTranscript={handleUploadTranscript}
             currentUser={currentUser}
             isStudent={isStudent}
             cakSecenekleri={cakSecenekleri}
