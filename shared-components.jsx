@@ -386,6 +386,7 @@ import {
   belgeBolumu,
   belgeGizliMi,
   gelenKutusu,
+  memuraGonderildiMi,
   memurBelgeModulleri,
   memurBelgeyiGorurMu,
 } from './lib/memur-belge-erisim.js';
@@ -14242,6 +14243,8 @@ window.memurStajYetkilisiMi = memurStajYetkilisiMi;
 window.belgeBolumu = belgeBolumu;
 window.memurBelgeModulleri = memurBelgeModulleri;
 window.memurBelgeyiGorurMu = memurBelgeyiGorurMu;
+// Gönderilmemiş belge memur tarafında görünmez — üretim tek başına yetmez.
+window.memuraGonderildiMi = memuraGonderildiMi;
 
 window.DUYURU_TURLERI = DUYURU_TURLERI;
 window.DUYURU_HEDEF_ROLLER = DUYURU_HEDEF_ROLLER;

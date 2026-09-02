@@ -7,6 +7,7 @@ const { profilBul } = require('../lib/akademisyen-kimlik');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
 const { aramaKapsami, desenKacir, aramaAdlari } = require('../lib/ogrenci-arama');
 const { mukerrerAtlanabilirMi, mukerrerHataMi } = require('../lib/yazma-mukerrer');
+const { memurBelgeleriniSuz, memurunBelgesiMi } = require('../lib/memur-kapsam');
 const { duyuruyaDokunabilir } = require('../lib/duyuru-sahip');
 const { auditWrites } = require('../middleware/auditLog');
 const { softAuth } = require('../middleware/softAuth');
@@ -1251,6 +1252,70 @@ async function enforceWritePolicies(db, op, user) {
   return { allow: true };
 }
 
+// ══════════════════════════════════════════════════════════════
+// MEMUR OKUMA KAPSAMI
+//
+// `memur_outputs` personelin tamamına açıktı ve süzme yalnız tarayıcıda
+// yapılıyordu: /api/db/memur_outputs'a doğrudan istek atan bir memur, hiç
+// atanmadığı bölümlerin belgelerini de çekebiliyordu. Kural (bkz.
+// server/lib/memur-kapsam.js) artık burada da uygulanır.
+//
+// Jeton yalnız { role:'professor', identifier } taşır; memur olup olmadığı ve
+// kimliği `professors` kaydından çözülür. İki küçük önbellek okuma başına
+// ekstra sorguyu engeller (TTL 60 sn — atama değişikliği en geç bir dakikada
+// yürürlüğe girer).
+// ══════════════════════════════════════════════════════════════
+const MEMUR_ATAMA_KOLEKSIYONU = 'memur_bolum_modulleri';
+const memurKimlikCache = new Map(); // identifier -> { kimlik, ts }
+let memurAtamaCache = null; // { liste, ts }
+
+async function memurKimligi(db, user) {
+  if (!user || user.role !== 'professor' || !user.identifier) return null;
+  const hit = memurKimlikCache.get(user.identifier);
+  if (hit && Date.now() - hit.ts < 60 * 1000) return hit.kimlik;
+  let kimlik = null;
+  try {
+    const prof = await profilBul(db, user.identifier);
+    if (prof && prof.isMemur) {
+      kimlik = {
+        memurId: String(prof._docId || (prof._id && prof._id.toString()) || ''),
+        departmentId: String(prof.departmentId || ''),
+        facultyId: String(prof.facultyId || ''),
+        memurModules: Array.isArray(prof.memurModules) ? prof.memurModules : [],
+        // Staj yetkisi fakülte çapındadır (SGK onayı tek elden) — bölüm
+        // ataması aranmaz, bkz. server/lib/memur-kapsam.js.
+        isStajCoordinator: !!prof.isStajCoordinator,
+      };
+    }
+  } catch (_e) {
+    // Profil okunamazsa memur SAYILMAZ: bu dal yalnız daraltma yapar,
+    // yanlış tarafa düşmek fazladan veri açmaz.
+    kimlik = null;
+  }
+  memurKimlikCache.set(user.identifier, { kimlik, ts: Date.now() });
+  return kimlik;
+}
+
+async function memurAtamalari(db) {
+  if (memurAtamaCache && Date.now() - memurAtamaCache.ts < 60 * 1000) {
+    return memurAtamaCache.liste;
+  }
+  let liste = [];
+  try {
+    const docs = await db.collection(MEMUR_ATAMA_KOLEKSIYONU).find({}).toArray();
+    liste = docs.map((d) => ({
+      departmentId: d.departmentId,
+      memurId: d.memurId,
+      modules: d.modules,
+    }));
+  } catch (_e) {
+    // Atamalar okunamazsa memur hiçbir belge göremez (fail-closed).
+    liste = [];
+  }
+  memurAtamaCache = { liste, ts: Date.now() };
+  return liste;
+}
+
 // isUniversityAdmin bayrağı JWT'de yok (role: 'professor') — audit_logs gibi
 // hassas okumalar için professors koleksiyonundan bakılır, 60 sn cache'lenir.
 const uniAdminCache = new Map(); // identifier -> { ok, ts }
@@ -1762,7 +1827,14 @@ router.get('/:collection', async (req, res) => {
     const limitVal = req.query.limit ? parseInt(req.query.limit, 10) : 0;
     cursor = cursor.limit(limitVal > 0 ? Math.min(limitVal, MAX_READ_LIMIT) : MAX_READ_LIMIT);
 
-    const docs = await cursor.toArray();
+    let docs = await cursor.toArray();
+
+    // Memur kapsamı: belge memura GÖNDERİLMİŞ ve memur o bölümde ilgili
+    // modüle ATANMIŞ olmalı. İstemcideki süzgecin sunucu tarafı karşılığı.
+    if (DB_AUTH_ENFORCED && collection === 'memur_outputs' && user) {
+      const memur = await memurKimligi(db, user);
+      if (memur) docs = memurBelgeleriniSuz(docs, memur, await memurAtamalari(db));
+    }
 
     const result = docs.map((doc) => {
       const { _id, _docId, ...rest } = doc;
@@ -1852,6 +1924,15 @@ router.get('/:collection/:docId', async (req, res) => {
 
     if (!doc) {
       return res.json({ exists: false, data: null });
+    }
+
+    // Memur: tek doküman okuması da aynı kapsama tabi — liste süzülüp bu uç
+    // açık kalırsa kimlik tahmin ederek belge çekilebilirdi.
+    if (DB_AUTH_ENFORCED && collection === 'memur_outputs' && user) {
+      const memur = await memurKimligi(db, user);
+      if (memur && !memurunBelgesiMi(doc, memur, await memurAtamalari(db))) {
+        return res.status(403).json({ error: 'Bu belgeye erişim yetkiniz yok.' });
+      }
     }
 
     // Öğrenci: hassas tek-doküman okuması yalnız KENDİ kaydı için.
