@@ -96,6 +96,11 @@ import {
 } from './lib/kulup-medya.js';
 import { cakuDersSecenekleri, secenekBul as cakuSecenekBul } from './lib/muafiyet-ders-secenek.js';
 import {
+  belgeNotlari as muafiyetBelgeNotlari,
+  notsuzSatirlar as muafiyetNotsuzSatirlar,
+  ogrenciNotu as muafiyetOgrenciNotu,
+} from './lib/muafiyet-belge-notu.js';
+import {
   DUZENLENEBILIR_ALANLAR as MUAFIYET_DUZENLENEBILIR_ALANLAR,
   duzenleyebilirMi as muafiyetDuzenleyebilirMi,
   satirCikarilabilirMi as muafiyetSatirCikarilabilirMi,
@@ -14314,6 +14319,11 @@ window.muafiyetNotTurevleri = muafiyetNotTurevleri;
 // listeden seçsin diye tek kaynak (lib/muafiyet-ders-secenek.js).
 window.cakuDersSecenekleri = cakuDersSecenekleri;
 window.cakuSecenekBul = cakuSecenekBul;
+// Memur yazısındaki iki not sütununun kaynağı tek yerde: belge üretimi ile
+// ekran aynı işi çağırsın, "ekranda var belgede yok" durumu oluşmasın.
+window.muafiyetBelgeNotlari = muafiyetBelgeNotlari;
+window.muafiyetNotsuzSatirlar = muafiyetNotsuzSatirlar;
+window.muafiyetOgrenciNotu = muafiyetOgrenciNotu;
 
 // Muafiyet reddi — gerekçe zorunluluğu ve öğrenci bildirimi.
 window.muafiyetKararGecerliMi = muafiyetKararGecerliMi;
