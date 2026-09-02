@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DUZENLENEBILIR_ALANLAR,
   YASAK_ALANLAR,
+  notTurevleri,
   alanEtiketi,
   duzenleyebilirMi,
   satirCikarilabilirMi,
@@ -46,14 +47,25 @@ describe('duzenleyebilirMi', () => {
     expect(duzenleyebilirMi(null, {}, eslesme()).izin).toBe(false);
   });
 
-  it('karar verilmiş satır değiştirilemez', () => {
+  it('karar verilmiş satır da düzeltilebilir ama işaretlenir', () => {
     const k = duzenleyebilirMi(UNI, {}, eslesme({ adminDecision: 'confirmed' }));
-    expect(k.izin).toBe(false);
-    expect(k.neden).toMatch(/Karar verilmiş/);
+    expect(k.izin).toBe(true);
+    expect(k.kararli).toBe(true);
+    expect(k.uyari).toMatch(/geçmişine de işlenir/);
   });
 
-  it('reddedilmiş satır da değiştirilemez', () => {
-    expect(duzenleyebilirMi(UNI, {}, eslesme({ adminDecision: 'rejected' })).izin).toBe(false);
+  it('reddedilmiş satır da kararlı sayılır', () => {
+    expect(duzenleyebilirMi(UNI, {}, eslesme({ adminDecision: 'rejected' })).kararli).toBe(true);
+  });
+
+  it('karar verilmemiş satırda uyarı yoktur', () => {
+    const k = duzenleyebilirMi(UNI, {}, eslesme());
+    expect(k.kararli).toBe(false);
+    expect(k.uyari).toBe('');
+  });
+
+  it('kararı verilmiş satırı akademisyen yine düzeltemez', () => {
+    expect(duzenleyebilirMi(HOCA, {}, eslesme({ adminDecision: 'confirmed' })).izin).toBe(false);
   });
 
   it('iptal edilmiş talep düzeltilemez', () => {
@@ -99,8 +111,34 @@ describe('degisiklikleriCoz', () => {
     expect(degisiklikleriCoz(eslesme(), { 'localCourse.code': '  BM201  ' })).toEqual([]);
   });
 
-  it('başarı notu değiştirilemez — istek düşer', () => {
-    expect(degisiklikleriCoz(eslesme(), { 'sourceCourse.grade': 'AA' })).toEqual([]);
+  it('başarı notu yetkili tarafından düzeltilebilir', () => {
+    const d = degisiklikleriCoz(eslesme(), { 'sourceCourse.grade': 'AA' });
+    expect(d).toHaveLength(1);
+    expect(d[0]).toMatchObject({ yol: 'sourceCourse.grade', eski: 'BA', yeni: 'AA' });
+  });
+
+  it('harf/puan alanları doğrudan yazılamaz — nottan türetilir', () => {
+    expect(
+      degisiklikleriCoz(eslesme(), {
+        'sourceCourse.gradeHarf': 'AA',
+        'sourceCourse.gradePuan': '90',
+      })
+    ).toEqual([]);
+  });
+
+  it('not küçük yazılsa da büyük harfe çevrilir', () => {
+    const d = degisiklikleriCoz(eslesme(), { 'sourceCourse.grade': 'aa' });
+    expect(d[0].yeni).toBe('AA');
+  });
+
+  it('yalnız harf büyüklüğü değişmişse düzeltme sayılmaz', () => {
+    expect(degisiklikleriCoz(eslesme(), { 'sourceCourse.grade': 'ba' })).toEqual([]);
+  });
+
+  it('ÇAKÜ karşılığı tek parçalı yolla düzeltilir', () => {
+    const d = degisiklikleriCoz(eslesme({ convertedGrade: 'BB' }), { convertedGrade: 'BA' });
+    expect(d).toHaveLength(1);
+    expect(d[0]).toMatchObject({ yol: 'convertedGrade', eski: 'BB', yeni: 'BA' });
   });
 
   it('karar alanları değiştirilemez — istek düşer', () => {
@@ -108,9 +146,10 @@ describe('degisiklikleriCoz', () => {
     expect(d).toEqual([]);
   });
 
-  it('yasak alan listesi notu ve kararı kapsar', () => {
-    expect(YASAK_ALANLAR).toContain('sourceCourse.grade');
+  it('yasak alan listesi türev not alanlarını ve kararı kapsar', () => {
+    expect(YASAK_ALANLAR).toContain('sourceCourse.gradeHarf');
     expect(YASAK_ALANLAR).toContain('adminDecision');
+    expect(YASAK_ALANLAR).not.toContain('sourceCourse.grade');
   });
 
   it('bilinmeyen alan yok sayılır', () => {
@@ -225,7 +264,55 @@ describe('eslesmeYamasi', () => {
     expect(y.adminDecision).toBeUndefined();
   });
 
-  it('başarı notu yamada da korunur', () => {
+  it('not yazılınca harf/puan alanları da tutarlı gider', () => {
+    const e = eslesme();
+    const y = eslesmeYamasi(
+      e,
+      degisiklikleriCoz(e, { 'sourceCourse.grade': 'AA' }),
+      UNI,
+      new Date('2026-03-15T10:00:00Z')
+    );
+    expect(y.sourceCourse.grade).toBe('AA');
+    expect(y.sourceCourse.gradeHarf).toBe('AA');
+    expect(y.sourceCourse.gradePuan).toBe('');
+  });
+
+  it('sayısal not puan alanına yazılır', () => {
+    const e = eslesme();
+    const y = eslesmeYamasi(
+      e,
+      degisiklikleriCoz(e, { 'sourceCourse.grade': '87' }),
+      UNI,
+      new Date('2026-03-15T10:00:00Z')
+    );
+    expect(y.sourceCourse.gradePuan).toBe('87');
+    expect(y.sourceCourse.gradeHarf).toBe('');
+  });
+
+  it('ÇAKÜ karşılığı satırın kendi alanına yazılır', () => {
+    const e = eslesme();
+    const y = eslesmeYamasi(
+      e,
+      degisiklikleriCoz(e, { convertedGrade: 'BA' }),
+      UNI,
+      new Date('2026-03-15T10:00:00Z')
+    );
+    expect(y.convertedGrade).toBe('BA');
+    expect(y.localCourse.code).toBe('BM201');
+  });
+
+  it('not değişikliği içerik puanını bayat yapmaz', () => {
+    const e = eslesme();
+    const y = eslesmeYamasi(
+      e,
+      degisiklikleriCoz(e, { 'sourceCourse.grade': 'AA' }),
+      UNI,
+      new Date('2026-03-15T10:00:00Z')
+    );
+    expect(y.puanBayat).toBeUndefined();
+  });
+
+  it('eski kaydın notu düzeltilmemişse korunur', () => {
     const e = eslesme();
     const y = eslesmeYamasi(e, degisiklikleriCoz(e, { 'sourceCourse.code': 'CS999' }), UNI, simdi);
     expect(y.sourceCourse.grade).toBe('BA');
@@ -267,15 +354,30 @@ describe('duzenlendiMi', () => {
   });
 });
 
+describe('notTurevleri', () => {
+  it('harf notu harf alanına düşer', () => {
+    expect(notTurevleri('ba')).toEqual({ grade: 'BA', gradeHarf: 'BA', gradePuan: '' });
+  });
+
+  it('sayısal not puan alanına düşer', () => {
+    expect(notTurevleri(' 87 ')).toEqual({ grade: '87', gradeHarf: '', gradePuan: '87' });
+  });
+
+  it('boş not üç alanı da boşaltır', () => {
+    expect(notTurevleri('')).toEqual({ grade: '', gradeHarf: '', gradePuan: '' });
+  });
+});
+
 describe('alan listesi', () => {
   it('etiketler çözülür', () => {
     expect(alanEtiketi('localCourse.code')).toBe('ÇAKÜ ders kodu');
     expect(alanEtiketi('bilinmeyen')).toBe('bilinmeyen');
   });
 
-  it('düzenlenebilir alanlar notu içermez', () => {
+  it('düzenlenebilir alanlar iki not sütununu da kapsar', () => {
     const yollar = DUZENLENEBILIR_ALANLAR.map((a) => a.yol);
-    expect(yollar).not.toContain('sourceCourse.grade');
+    expect(yollar).toContain('sourceCourse.grade');
+    expect(yollar).toContain('convertedGrade');
     expect(yollar).toContain('localCourse.code');
   });
 });
