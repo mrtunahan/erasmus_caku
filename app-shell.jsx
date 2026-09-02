@@ -543,7 +543,8 @@ const Sidebar = ({
         if (!window.belgeGelenKutusu || !window.apiRead) return;
         const list = await window.apiRead('memur_outputs');
         if (!alive) return;
-        const gelen = window.belgeGelenKutusu(list || [], currentUser) || [];
+        const gelen =
+          window.belgeGelenKutusu(list || [], currentUser, { aktifBolum: activeDepartment }) || [];
         setGelenBelgeSayisi(gelen.filter((i) => i.gonderim.durum === 'bekliyor').length);
       } catch (_e) {
         /* sayaç kritik değil */
@@ -555,7 +556,8 @@ const Sidebar = ({
       alive = false;
       clearInterval(t);
     };
-  }, [currentUser, currentRoute]);
+    // Aktif bölüm rozetin kapsamıdır: memur bölüm değiştirince sayı da değişir.
+  }, [currentUser, currentRoute, activeDepartment]);
 
   const isErgunCinar = isErgunCinarUser(currentUser);
   // Memur — yalnız atandığı modülleri görür; Ortak/Yönetim bölümleri gizli.
@@ -1611,7 +1613,7 @@ function MemurIcerikBtn({ dosyalar, etiket, dosyaAdi }) {
   );
 }
 
-function MemurModuleOutputs({ route, currentUser }) {
+function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) {
   const moduleLabel = (DEPARTMENT_MODULES.find((m) => m.id === route) || {}).label || route;
   const [items, setItems] = useState(null); // null = yükleniyor
   const [busy, setBusy] = useState(false);
@@ -1653,9 +1655,23 @@ function MemurModuleOutputs({ route, currentUser }) {
     }
   };
 
-  const scopeDeptIds = useMemo(
-    () => new Set(computeAvailableDepts(currentUser).map((d) => d.id)),
-    [currentUser]
+  // Kapsam artık atamaya bağlı: memur, SEÇİLİ bölümde bu modüle atanmamışsa
+  // o bölümün çıktılarını göremez. Eskiden "aynı fakülte" yetiyordu ve
+  // atamasız memur fakültenin bütün belgelerini görüyordu.
+  const gorunurMu = useCallback(
+    (kayit) =>
+      window.memurBelgeyiGorurMu
+        ? window.memurBelgeyiGorurMu({
+            doc: kayit,
+            kullanici: currentUser,
+            atamalar: atamalar || window.__memurAtamalari || [],
+            aktifBolum: activeDepartment,
+            modul: route,
+          })
+        : false,
+    // `atamalar` AppShell'de asenkron yükleniyor: prop olarak geçmezsek liste
+    // gelmeden hesaplanan kapsam dondurulur ve memur boş ekranda kalır.
+    [currentUser, activeDepartment, route, atamalar]
   );
 
   useEffect(() => {
@@ -1671,16 +1687,10 @@ function MemurModuleOutputs({ route, currentUser }) {
           .replace('/api/files/download/', '')
           .replace('/api/files/view/', '');
       const toDownload = (u) => (rel(u) ? '/api/files/download/' + rel(u) + '?download=true' : '#');
-      const memurFacultyId = currentUser?.facultyId || '';
-      // Ortak kapsam eşleşmesi: kaydın fakültesi memurun fakültesiyle aynıysa,
-      // ya da bölümü memurun kapsamındaysa, ya da kapsamsız (genel) ise göster.
       const inScope = (rec) => {
         // Memur belgeyi kendi listesinden kaldırdıysa artık görünmez.
         if (window.belgeGizliMi && window.belgeGizliMi(rec, currentUser)) return false;
-        if (rec.facultyId && memurFacultyId && rec.facultyId === memurFacultyId) return true;
-        if (rec.departmentId && scopeDeptIds.has(rec.departmentId)) return true;
-        if (!rec.facultyId && !rec.departmentId) return true;
-        return false;
+        return gorunurMu(rec);
       };
       // 1) Ortak memur_outputs koleksiyonu (tüm modüller — snapshot'lar).
       const outs = await window
@@ -1760,9 +1770,7 @@ function MemurModuleOutputs({ route, currentUser }) {
         (recs || [])
           .filter((r) => r.dilekceUrl && !seen.has(String(r.id)))
           .filter((r) => !(window.belgeGizliMi && window.belgeGizliMi(r, currentUser)))
-          .filter(
-            (r) => !r.departmentId || scopeDeptIds.size === 0 || scopeDeptIds.has(r.departmentId)
-          )
+          .filter(gorunurMu)
           .forEach((r) => {
             list.push({
               id: r.id,
@@ -1790,7 +1798,7 @@ function MemurModuleOutputs({ route, currentUser }) {
     return () => {
       alive = false;
     };
-  }, [route, scopeDeptIds, currentUser, yenile]);
+  }, [route, gorunurMu, currentUser, yenile]);
 
   // Türkçe-duyarlı arama: İ/I önce eşlenir, yoksa "ISMAIL" yazan memur
   // "İsmail" kaydını bulamıyor (JS'in küçültmesi bu iki harfi ayırıyor).
@@ -2957,7 +2965,14 @@ function AppShell() {
     // çıktılarının SALT-OKUNUR görünümü (MemurModuleOutputs).
     const _isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
     if (_isMemur && route !== 'staj' && route !== 'gelenbelgeler') {
-      return <MemurModuleOutputs route={route} currentUser={currentUser} />;
+      return (
+        <MemurModuleOutputs
+          route={route}
+          currentUser={currentUser}
+          activeDepartment={activeDepartment}
+          atamalar={memurAtamalari}
+        />
+      );
     }
 
     // Lazy loading

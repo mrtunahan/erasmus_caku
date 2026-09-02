@@ -383,6 +383,13 @@ import {
   memurStajYetkilisiMi,
 } from './lib/memur-atama.js';
 import {
+  belgeBolumu,
+  belgeGizliMi,
+  gelenKutusu,
+  memurBelgeModulleri,
+  memurBelgeyiGorurMu,
+} from './lib/memur-belge-erisim.js';
+import {
   PROGRAM_GUNLERI,
   PROGRAM_SAATLERI,
   akademisyenKayitlari,
@@ -6638,10 +6645,7 @@ window.belgeListedenKaldir = async function (koleksiyon, docId) {
 
 // Bu kullanıcı belgeyi kendi listesinden kaldırmış mı?
 window.belgeGizliMi = function (doc, user) {
-  const u = user || window.__currentUser || {};
-  const kim = String(u.identifier || u.name || '');
-  if (!kim || !doc) return false;
-  return (doc.gizleyenler || []).indexOf(kim) >= 0;
+  return belgeGizliMi(doc, user || window.__currentUser || {});
 };
 
 // Alıcı durum günceller: 'goruldu' | 'islemde' | 'tamamlandi'
@@ -6670,42 +6674,16 @@ window.belgeDurumGuncelle = async function (docId, gonderimIndex, durum) {
 
 // Kullanıcıya gelen belgeleri süz (rol + kapsam eşleşmesi). Tek yerden karar
 // verilir ki Gelen Belgeler ekranı ve bildirim rozeti aynı mantığı kullansın.
-window.belgeGelenKutusu = function (list, user) {
-  const u = user || window.__currentUser || {};
-  const isStudent = u.role === 'student';
-  const myNo = String(u.studentNumber || u.identifier || '');
-  const myDept = String(u.departmentId || '');
-  const myFac = String(u.facultyId || '');
-  const isMemur = u.role === 'memur' || !!u.isMemur;
-  const memurModules = Array.isArray(u.memurModules) ? u.memurModules : [];
-  const out = [];
-  (list || []).forEach((doc) => {
-    // Kullanıcı bu belgeyi kendi listesinden kaldırdıysa gösterilmez.
-    if (window.belgeGizliMi && window.belgeGizliMi(doc, u)) return;
-    (doc.gonderimler || []).forEach((g, idx) => {
-      let uygun = false;
-      if (g.hedefRol === 'ogrenci') {
-        uygun = isStudent && String(g.kapsamId || '') === myNo;
-      } else if (isStudent) {
-        uygun = false;
-      } else if (g.hedefRol === 'memur') {
-        uygun =
-          isMemur &&
-          (memurModules.length === 0 || memurModules.indexOf(doc.module) >= 0) &&
-          (String(g.kapsamId) === myDept || String(g.kapsamId) === myFac || !g.kapsamId);
-      } else if (g.hedefRol === 'bolum_yetkilisi') {
-        uygun = !!u.isDeptManager && (String(g.kapsamId) === myDept || !g.kapsamId);
-      } else if (g.hedefRol === 'akademisyen') {
-        uygun = !isMemur && (String(g.kapsamId) === myDept || !g.kapsamId);
-      }
-      if (uygun) out.push({ doc, gonderim: g, index: idx });
-    });
+//
+// Kural lib/memur-belge-erisim.js'de ve testlidir: memur, belgeyi ancak
+// SEÇİLİ bölümde o modüle ATANMIŞSA görür. Atamalar oturum açılışında
+// okunup `window.__memurAtamalari`ya konur; çağıran aktif bölümü verir.
+window.belgeGelenKutusu = function (list, user, secenekler) {
+  const s = secenekler || {};
+  return gelenKutusu(list, user || window.__currentUser || {}, {
+    atamalar: s.atamalar || window.__memurAtamalari || [],
+    aktifBolum: s.aktifBolum || '',
   });
-  return out.sort((a, b) =>
-    String(b.gonderim.gonderilmeTarihi || '').localeCompare(
-      String(a.gonderim.gonderilmeTarihi || '')
-    )
-  );
 };
 
 window.recordMemurOutput = async function (o) {
@@ -14260,6 +14238,10 @@ window.memurAtamaKaydi = memurAtamaKaydi;
 window.memurBolumleri = memurBolumleri;
 window.memurModulleri = memurModulleri;
 window.memurStajYetkilisiMi = memurStajYetkilisiMi;
+// Belge görünürlüğü: atanmadığı bölümün/modülün belgesi memura düşmez.
+window.belgeBolumu = belgeBolumu;
+window.memurBelgeModulleri = memurBelgeModulleri;
+window.memurBelgeyiGorurMu = memurBelgeyiGorurMu;
 
 window.DUYURU_TURLERI = DUYURU_TURLERI;
 window.DUYURU_HEDEF_ROLLER = DUYURU_HEDEF_ROLLER;
