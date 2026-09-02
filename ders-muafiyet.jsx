@@ -6187,8 +6187,24 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
         </div>
       )}
 
-      {stage === 'tamamlandi' &&
-        chip('Tamamlandı — notlar ÇAKÜ sistemine işlendi', DS.green, DS.greenBg)}
+      {stage === 'tamamlandi' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {chip('Tamamlandı — notlar ÇAKÜ sistemine işlendi', DS.green, DS.greenBg)}
+          {/* Tamamlanmış kayıtta da DAYANAK görünür: notların hangi dönüşüm
+              tablosuyla çevrildiği. Belgenin kendisi kaydın üstündeki belge
+              satırında duruyor; burada tekrarlanmaz. */}
+          {record.kullanilanNotTablosu && (
+            <span style={{ fontSize: 11.5, color: DS.textMuted }}>
+              Kullanılan dönüşüm tablosu:{' '}
+              {record.kullanilanNotTablosu.kurumAdi ||
+                (record.kullanilanNotTablosu.kaynak === 'caku-olcek' ? 'ÇAKÜ not ölçeği' : '—')}
+              {record.kullanilanNotTablosu.gecerlilikYili
+                ? ' · ' + record.kullanilanNotTablosu.gecerlilikYili
+                : ''}
+            </span>
+          )}
+        </div>
+      )}
       {stage === 'on_red' && (
         <div style={{ fontSize: 12.5, color: DS.textSecondary }}>
           Ön onay reddedildi (ÇAKÜ yaz okulunda aynı ders açık veya AKTS/içerik uyumsuz olabilir).
@@ -7332,6 +7348,11 @@ const TranscriptControl = ({ record, isStudent, onUploadTranscript, yetkiliYukle
   const yuklemeTarihi = record.transcriptUploadedAt
     ? new Date(record.transcriptUploadedAt).toLocaleDateString('tr-TR')
     : '';
+  // Yaz intibakında öğrencinin Faz-2'de yüklediği BAŞARI BELGESİ, o başvurunun
+  // transkript karşılığıdır. Aşamaya bağlı panelde gösteriliyordu; kayıt
+  // tamamlanınca panel kapanıyor ve belge ekrandan siliniyordu.
+  const basari = record.basariBelgesiUrl || '';
+  const basariAdi = record.basariBelgesiAdi || '';
   const pick = async (e) => {
     const f = (e.target.files && e.target.files[0]) || null;
     e.target.value = '';
@@ -7404,6 +7425,30 @@ const TranscriptControl = ({ record, isStudent, onUploadTranscript, yetkiliYukle
       )}
       {!url && !yukleyebilir && (
         <span style={{ color: DS.textMuted, fontSize: 11.5 }}>· kayıtta transkript yok</span>
+      )}
+      {basari && (
+        <>
+          <span style={{ color: DS.border }}>|</span>
+          <span style={{ fontWeight: 600 }}>Başarı belgesi:</span>
+          <a
+            href={basari}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontWeight: 600, color: DS.accent }}
+          >
+            {basariAdi || 'Belgeyi aç'}
+          </a>
+        </>
+      )}
+      {record.notDonusumLink && (
+        <a
+          href={record.notDonusumLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontWeight: 600, color: DS.accent }}
+        >
+          Karşı üniversite not sistemi
+        </a>
       )}
     </div>
   );
@@ -7786,20 +7831,21 @@ const ExemptionHistory = ({
                 </div>
               </div>
 
-              {/* Transkript — öğrenci tek seferlik yükler; HERKES her aşamada
-                  görüntüler. Satır artık koşulsuz çizilir: onay süreci bitmiş
-                  bir kayıtta da transkript görünür, yoksa "yok" yazar.
-                  Yaz intibakında transkript istenmez (belge Faz-2'de gelir). */}
-              {(rec.basvuruTuru || 'muafiyet') !== 'intibak' && (
-                <div style={{ padding: '0 20px 12px' }}>
-                  <TranscriptControl
-                    record={rec}
-                    isStudent={isStudent}
-                    onUploadTranscript={onUploadTranscript}
-                    yetkiliYukleyebilir={!!(currentUser && currentUser.isUniversityAdmin)}
-                  />
-                </div>
-              )}
+              {/* Öğrencinin belgeleri — transkript ve (yaz intibakında)
+                  başarı belgesi. Satır KAYDIN HER TÜRÜNDE ve HER AŞAMASINDA
+                  çizilir. Eskiden yaz intibakı bu satırın tamamen dışındaydı:
+                  intibakta transkript istenmiyor diye satır hiç basılmıyor,
+                  öğrencinin yüklediği başarı belgesi de yalnız "Belge" fazında
+                  görünüyordu — kayıt tamamlanınca ikisi de ekrandan siliniyor
+                  ve geçmiş kayıtta hiçbir belge kalmıyordu. */}
+              <div style={{ padding: '0 20px 12px' }}>
+                <TranscriptControl
+                  record={rec}
+                  isStudent={isStudent}
+                  onUploadTranscript={onUploadTranscript}
+                  yetkiliYukleyebilir={!!(currentUser && currentUser.isUniversityAdmin)}
+                />
+              </div>
 
               {/* Öğrencinin yüklediği ders içerikleri — tek PDF olarak.
                   Akademisyen 20 ayrı sekme açmak zorunda kalmasın diye;
