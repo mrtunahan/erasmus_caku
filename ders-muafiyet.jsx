@@ -1678,11 +1678,26 @@ var MuafiyetDB = {
     var gecerli = window.muafiyetDegisiklikGecerliMi(degisiklikler);
     if (!gecerli.gecerli) throw new Error(gecerli.hata);
 
-    matches[matchIndex] = window.muafiyetEslesmeYamasi(mevcut, degisiklikler, kim, new Date());
+    var yeniSatir = window.muafiyetEslesmeYamasi(mevcut, degisiklikler, kim, new Date());
+    matches[matchIndex] = yeniSatir;
     await window.DBWrite.update('muafiyet_records', String(recordId), {
       matches: matches,
       updatedAt: new Date().toISOString(),
     });
+
+    // ── ONAYLANMIŞ SATIRIN GEÇMİŞİ DE TAZELENİR ──
+    // Onaylanan eşleştirme muafiyet_history'ye ayrıca yazılıyor. Yalnız
+    // talebi düzeltseydik geçmişte ESKİ ders kodu kalır, iki kayıt
+    // birbirini tutmazdı: "hangisi doğru" sorusunun cevabı olmazdı.
+    if (mevcut.adminDecision === 'confirmed') {
+      try {
+        await MuafiyetDB.gecmisiTazele(String(recordId), data, mevcut, yeniSatir);
+      } catch (e) {
+        // Geçmiş yazılamadıysa talebin düzeltmesi geri alınmaz; yetkiliye
+        // söylenir, çünkü iki kayıt arasında fark kalmış olur.
+        console.error('Muafiyet geçmişi tazelenemedi:', e);
+      }
+    }
 
     if (window.audit)
       window.audit('muafiyet_satir_duzelt', 'muafiyet_records', String(recordId), {
@@ -1690,9 +1705,50 @@ var MuafiyetDB = {
           matchIndex: matchIndex,
           ozet: window.muafiyetDuzenlemeOzeti(degisiklikler),
           ogrenci: data.studentNo || '',
+          kararli: !!mevcut.adminDecision,
         },
       });
-    return matches;
+    return { matches: matches, degisiklikler: degisiklikler, kayit: data };
+  },
+
+  // Onaylanmış bir eşleştirmenin geçmiş kaydını yeni değerlerle günceller.
+  // Anahtar (sigKey) ders kodlarından türediği için o da yeniden hesaplanır.
+  async gecmisiTazele(recordId, kayit, eskiSatir, yeniSatir) {
+    var anahtar = function (m) {
+      var src = m.sourceCourse || m.source || {};
+      var cak = m.localCourse || m.target || {};
+      return (
+        (kayit.studentNo || '') +
+        '|' +
+        (src.code || src.name || '') +
+        '|' +
+        (cak.code || cak.name || '')
+      );
+    };
+    var eskiAnahtar = anahtar(eskiSatir);
+    var hepsi = await window.apiRead('muafiyet_history').catch(function () {
+      return [];
+    });
+    var kayitlar = (hepsi || []).filter(function (h) {
+      return String(h.recordId) === String(recordId) && String(h.sigKey) === eskiAnahtar;
+    });
+    if (!kayitlar.length) return;
+    var src = yeniSatir.sourceCourse || yeniSatir.source || {};
+    var cak = yeniSatir.localCourse || yeniSatir.target || {};
+    for (var i = 0; i < kayitlar.length; i += 1) {
+      await window.DBWrite.update('muafiyet_history', String(kayitlar[i].id), {
+        sigKey: anahtar(yeniSatir),
+        sourceCourse: {
+          code: src.code || '',
+          name: src.name || '',
+          akts: src.akts || '',
+          grade: src.grade || '',
+        },
+        cakuCourse: { code: cak.code || '', name: cak.name || '', akts: cak.akts || '' },
+        duzeltildi: true,
+        duzeltmeTarihi: new Date().toISOString(),
+      });
+    }
   },
 
   // Fazladan eklenmiş satırı çıkarır. Talebin TEK satırı çıkarılamaz —
@@ -6201,6 +6257,9 @@ const ReviewPanel = ({
       'sourceCourse.code': kaynak.code || '',
       'sourceCourse.name': kaynak.name || '',
       'sourceCourse.akts': kaynak.akts || '',
+      // Memur yazısının iki not sütunu bu iki alandan doluyor.
+      'sourceCourse.grade': kaynak.grade || '',
+      convertedGrade: m.convertedGrade || yerel.grade || '',
     });
   };
 
@@ -6600,7 +6659,36 @@ const ReviewPanel = ({
                   </button>
                 </div>
               ) : (
-                chip(durum, dColor, dBg)
+                // ── KARARI VERİLMİŞ SATIR ──
+                // Durum rozeti kalır; üniversite yetkilisi yanına düzeltme
+                // düğmesini alır. Sahada yanlış ders kodlu, süreci bitmiş
+                // kayıtlar var ve bunları düzeltmenin tek yolu öğrenciye
+                // yeni talep açtırmaktı.
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {chip(durum, dColor, dBg)}
+                  {duzeltebilir(m) && (
+                    <button
+                      disabled={duzenKaydediyor}
+                      onClick={function () {
+                        if (duzenIndeks === idx) duzenKapat();
+                        else duzenAc(idx, m);
+                      }}
+                      title="Karar verilmiş satırı düzelt — geçmişe de işlenir"
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: 8,
+                        border: '1px solid ' + DS.navy,
+                        background: duzenIndeks === idx ? DS.navy : 'white',
+                        color: duzenIndeks === idx ? 'white' : DS.navy,
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {duzenIndeks === idx ? 'Vazgeç' : 'Düzelt'}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
@@ -6668,9 +6756,31 @@ const ReviewPanel = ({
                   Satırı düzelt
                   <span style={{ fontWeight: 500, color: DS.textMuted }}>
                     {' '}
-                    — değişiklik kayda ve denetim günlüğüne yazılır, akademisyen görür
+                    — değişiklik kayda ve denetim günlüğüne yazılır, akademisyen ve öğrenci görür
                   </span>
                 </div>
+
+                {/* Karar verilmiş satırda düzeltmenin iki sonucu daha var:
+                    muafiyet geçmişi tazelenir ve öğrenciye bildirim gider. */}
+                {m.adminDecision && (
+                  <div
+                    style={{
+                      marginBottom: 10,
+                      padding: '8px 11px',
+                      borderRadius: 8,
+                      background: DS.amberLight,
+                      border: '1px solid ' + DS.amber + '55',
+                      color: '#8A5A00',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Bu satırın kararı verilmiş
+                    {m.adminDecision === 'confirmed' ? ' (onaylandı)' : ' (reddedildi)'}. Düzeltme
+                    muafiyet geçmişine de işlenir ve öğrenciye bildirim gider.
+                  </div>
+                )}
 
                 {/* ÇAKÜ dersi: öğrencinin gördüğü listenin AYNISI. */}
                 <label style={{ display: 'block', marginBottom: 10 }}>
@@ -6780,9 +6890,52 @@ const ReviewPanel = ({
                   </label>
                 </div>
 
+                {/* ── BAŞARI NOTLARI ──
+                    Memur yazısındaki iki not sütunu buradan doluyor. Not
+                    normalde transkript okunurken geliyor; öğrenci dersleri
+                    ELLE girdiyse ya da okuma o satırı bulamadıysa kayıtta not
+                    olmuyor ve yazıdaki sütunlar boş çıkıyordu. Öğrenci bu
+                    alanlara dokunamaz; yazan kişi kayda ve denetim günlüğüne
+                    işlenir. */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: 8,
+                    marginBottom: 10,
+                  }}
+                >
+                  <label style={{ display: 'block' }}>
+                    <span style={duzenEtiket}>KARŞI KURUM BAŞARI NOTU</span>
+                    <input
+                      value={duzenForm['sourceCourse.grade']}
+                      onChange={function (e) {
+                        setDuzenForm(
+                          Object.assign({}, duzenForm, { 'sourceCourse.grade': e.target.value })
+                        );
+                      }}
+                      placeholder="AA / BB / 87"
+                      style={duzenGiris}
+                    />
+                  </label>
+                  <label style={{ display: 'block' }}>
+                    <span style={duzenEtiket}>ÇAKÜ KARŞILIĞI (HARF)</span>
+                    <input
+                      value={duzenForm.convertedGrade}
+                      onChange={function (e) {
+                        setDuzenForm(
+                          Object.assign({}, duzenForm, { convertedGrade: e.target.value })
+                        );
+                      }}
+                      placeholder="Not dönüşüm tablosundaki karşılık"
+                      style={duzenGiris}
+                    />
+                  </label>
+                </div>
+
                 <div style={{ fontSize: 11.5, color: DS.textMuted, marginBottom: 10 }}>
-                  Öğrencinin transkriptten okunan başarı notu (
-                  {(m.sourceCourse || m.source || {}).grade || '—'}) buradan değiştirilemez.
+                  Notlar memur yazısındaki “karşı başarı notu” ve “ÇAKÜ başarı notu” sütunlarına
+                  yazılır. Öğrenci bu alanları değiştiremez.
                 </div>
 
                 {duzenHata && (
@@ -10460,12 +10613,33 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
   // reddedilip öğrenciye geri gönderilmez. Yetki kuralı lib tarafında.
   const handleMatchEdit = async function (recordId, matchIndex, istenen) {
     try {
-      var updated = await MuafiyetDB.updateMatchFields(recordId, matchIndex, istenen, currentUser);
+      var sonuc = await MuafiyetDB.updateMatchFields(recordId, matchIndex, istenen, currentUser);
+      var updated = sonuc.matches;
       setRecords(function (prev) {
         return prev.map(function (r) {
           return r.id === recordId ? Object.assign({}, r, { matches: updated }) : r;
         });
       });
+
+      // ── ÖĞRENCİYE BİLDİRİM ──
+      // Talebinin içeriği değişti; bunu kaydı açıp kendiliğinden fark
+      // etmesi beklenemez. NE değiştiği bildirimin gövdesinde yazar —
+      // öğrenci memur yazısına giden hâli görmüş olur.
+      try {
+        var kayit = sonuc.kayit || {};
+        var ogrNo = kayit.studentNo || '';
+        var ozet = window.muafiyetDuzenlemeOzeti(sonuc.degisiklikler || []);
+        if (ogrNo && ozet && window.StudentNotifier && window.StudentNotifier.notifyStudent) {
+          await window.StudentNotifier.notifyStudent(ogrNo, {
+            module: 'muafiyet',
+            type: 'bilgi',
+            title: 'Muafiyet talebinizde düzeltme yapıldı',
+            body: ozet,
+          });
+        }
+      } catch (_) {
+        /* bildirim opsiyonel — düzeltme zaten kaydedildi */
+      }
       return { ok: true };
     } catch (e) {
       return { ok: false, hata: e.message || 'Düzeltme kaydedilemedi.' };

@@ -104,6 +104,7 @@ import {
   eslesmeYamasi as muafiyetEslesmeYamasi,
   duzenlemeOzeti as muafiyetDuzenlemeOzeti,
   duzenlendiMi as muafiyetDuzenlendiMi,
+  notTurevleri as muafiyetNotTurevleri,
 } from './lib/muafiyet-duzenleme.js';
 import {
   GONDERI_TURLERI as KULUP_GONDERI_TURLERI,
@@ -14308,6 +14309,7 @@ window.muafiyetDegisiklikGecerliMi = muafiyetDegisiklikGecerliMi;
 window.muafiyetEslesmeYamasi = muafiyetEslesmeYamasi;
 window.muafiyetDuzenlemeOzeti = muafiyetDuzenlemeOzeti;
 window.muafiyetDuzenlendiMi = muafiyetDuzenlendiMi;
+window.muafiyetNotTurevleri = muafiyetNotTurevleri;
 // ÇAKÜ ders seçenekleri — öğrenci formu ile yetkilinin düzeltme paneli AYNI
 // listeden seçsin diye tek kaynak (lib/muafiyet-ders-secenek.js).
 window.cakuDersSecenekleri = cakuDersSecenekleri;
