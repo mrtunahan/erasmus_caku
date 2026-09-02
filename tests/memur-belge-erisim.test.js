@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   belgeBolumu,
+  memuraGonderildiMi,
+  memurYonlendirmeleri,
   belgeGizliMi,
   gelenKutusu,
   memurBelgeModulleri,
@@ -290,5 +292,167 @@ describe('gelenKutusu', () => {
 
   it('boş girdi çökmez', () => {
     expect(gelenKutusu(null, null, null)).toEqual([]);
+  });
+});
+
+describe('memuraGonderildiMi', () => {
+  const gonderilmis = {
+    id: 'muafiyet__3',
+    module: 'muafiyet',
+    departmentId: 'bilgisayar',
+    facultyId: 'muhendislik',
+    gonderimler: [{ hedefRol: 'memur', kapsamId: 'bilgisayar', durum: 'bekliyor' }],
+  };
+
+  it('yönlendirmeleri ayıklar', () => {
+    const d = {
+      gonderimler: [
+        { hedefRol: 'ogrenci', kapsamId: '123' },
+        { hedefRol: 'memur', kapsamId: 'bilgisayar' },
+      ],
+    };
+    expect(memurYonlendirmeleri(d).length).toBe(1);
+    expect(memurYonlendirmeleri({}).length).toBe(0);
+    expect(memurYonlendirmeleri(null).length).toBe(0);
+  });
+
+  it('BİLDİRİLEN HATA: gönderilmemiş belge memura görünmez', () => {
+    // recordMemurOutput anlık görüntüsü: üretilmiş ama yönlendirilmemiş.
+    const uretilmis = { ...gonderilmis, gonderimler: [] };
+    expect(
+      memuraGonderildiMi(uretilmis, {
+        kullanici: NIYAZI,
+        atamalar: ATAMALAR,
+        aktifBolum: 'bilgisayar',
+      })
+    ).toBe(false);
+  });
+
+  it('gönderilmiş belge görünür', () => {
+    expect(
+      memuraGonderildiMi(gonderilmis, {
+        kullanici: NIYAZI,
+        atamalar: ATAMALAR,
+        aktifBolum: 'bilgisayar',
+      })
+    ).toBe(true);
+  });
+
+  it('yalnız öğrenciye gönderilmiş belge memura düşmez', () => {
+    const ogrenciye = { ...gonderilmis, gonderimler: [{ hedefRol: 'ogrenci', kapsamId: '123' }] };
+    expect(
+      memuraGonderildiMi(ogrenciye, {
+        kullanici: NIYAZI,
+        atamalar: ATAMALAR,
+        aktifBolum: 'bilgisayar',
+      })
+    ).toBe(false);
+  });
+
+  it('gönderilmiş olsa da atanmadığı bölümde görünmez', () => {
+    const kimyaya = {
+      ...gonderilmis,
+      departmentId: 'kimya',
+      gonderimler: [{ hedefRol: 'memur', kapsamId: 'kimya' }],
+    };
+    expect(
+      memuraGonderildiMi(kimyaya, { kullanici: NIYAZI, atamalar: ATAMALAR, aktifBolum: 'kimya' })
+    ).toBe(false);
+  });
+
+  it('modul parametresi module alanının yerine geçer', () => {
+    const modulsuz = { ...gonderilmis, module: '' };
+    expect(
+      memuraGonderildiMi(modulsuz, {
+        kullanici: NIYAZI,
+        atamalar: ATAMALAR,
+        aktifBolum: 'bilgisayar',
+        modul: 'muafiyet',
+      })
+    ).toBe(true);
+  });
+});
+
+describe('staj istisnası (fakülte çapında)', () => {
+  // SGK onayı tek elden verilir: staj yetkilisi, bölüm ataması olmayan
+  // bölümlerin staj belgelerini de görür (bkz. lib/memur-atama.js).
+  const ERGUN = {
+    id: 'm-ergun',
+    identifier: 'ergun',
+    role: 'memur',
+    facultyId: 'muhendislik',
+    departmentId: '',
+    isStajCoordinator: true,
+  };
+
+  const stajBelgesi = {
+    module: 'staj',
+    departmentId: 'kimya',
+    facultyId: 'muhendislik',
+    gonderimler: [{ hedefRol: 'memur', kapsamId: 'kimya' }],
+  };
+
+  it('bayrakla: atamasız bölümün staj belgesini görür', () => {
+    expect(
+      memurBelgeyiGorurMu({
+        doc: stajBelgesi,
+        gonderim: stajBelgesi.gonderimler[0],
+        kullanici: ERGUN,
+        atamalar: [],
+        aktifBolum: 'bilgisayar',
+      })
+    ).toBe(true);
+  });
+
+  it('atama ile: herhangi bir bölümde staj ataması yeter', () => {
+    const memur = { ...ERGUN, isStajCoordinator: false };
+    const atamalar = [{ departmentId: 'bilgisayar', memurId: 'm-ergun', modules: ['staj'] }];
+    expect(
+      memurBelgeyiGorurMu({
+        doc: stajBelgesi,
+        gonderim: stajBelgesi.gonderimler[0],
+        kullanici: memur,
+        atamalar,
+        aktifBolum: 'bilgisayar',
+      })
+    ).toBe(true);
+  });
+
+  it('BAŞKA fakültenin staj belgesini görmez', () => {
+    const d = { ...stajBelgesi, facultyId: 'fen' };
+    expect(
+      memurBelgeyiGorurMu({
+        doc: d,
+        gonderim: d.gonderimler[0],
+        kullanici: ERGUN,
+        atamalar: [],
+        aktifBolum: 'bilgisayar',
+      })
+    ).toBe(false);
+  });
+
+  it('istisna yalnız staja özeldir — muafiyette geçmez', () => {
+    const d = { ...stajBelgesi, module: 'muafiyet' };
+    expect(
+      memurBelgeyiGorurMu({
+        doc: d,
+        gonderim: d.gonderimler[0],
+        kullanici: ERGUN,
+        atamalar: [],
+        aktifBolum: 'kimya',
+      })
+    ).toBe(false);
+  });
+
+  it('staj yetkilisi olmayan memur için istisna yok', () => {
+    expect(
+      memurBelgeyiGorurMu({
+        doc: stajBelgesi,
+        gonderim: stajBelgesi.gonderimler[0],
+        kullanici: NIYAZI,
+        atamalar: ATAMALAR,
+        aktifBolum: 'kimya',
+      })
+    ).toBe(false);
   });
 });

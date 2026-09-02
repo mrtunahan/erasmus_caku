@@ -1655,14 +1655,17 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
     }
   };
 
-  // Kapsam artık atamaya bağlı: memur, SEÇİLİ bölümde bu modüle atanmamışsa
-  // o bölümün çıktılarını göremez. Eskiden "aynı fakülte" yetiyordu ve
-  // atamasız memur fakültenin bütün belgelerini görüyordu.
+  // İki koşul birden: belge memura GÖNDERİLMİŞ olmalı ve memur SEÇİLİ
+  // bölümde bu modüle ATANMIŞ olmalı.
+  //   • Eskiden "aynı fakülte" yetiyordu; atamasız memur fakültenin bütün
+  //     belgelerini görüyordu.
+  //   • Eskiden gönderim de aranmıyordu: akademisyen belgeyi üretir üretmez
+  //     (recordMemurOutput anlık görüntüsü) memur tarafında beliriyordu.
+  //     Artık "Gönder" denmeden görünmez.
   const gorunurMu = useCallback(
     (kayit) =>
-      window.memurBelgeyiGorurMu
-        ? window.memurBelgeyiGorurMu({
-            doc: kayit,
+      window.memuraGonderildiMi
+        ? window.memuraGonderildiMi(kayit, {
             kullanici: currentUser,
             atamalar: atamalar || window.__memurAtamalari || [],
             aktifBolum: activeDepartment,
@@ -1766,32 +1769,13 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
           });
         };
         list.forEach((it) => evrakBagla(it, kayitById[it.kaynakId]));
-        const seen = new Set((outs || []).map((o) => String(o.sourceId)));
-        (recs || [])
-          .filter((r) => r.dilekceUrl && !seen.has(String(r.id)))
-          .filter((r) => !(window.belgeGizliMi && window.belgeGizliMi(r, currentUser)))
-          .filter(gorunurMu)
-          .forEach((r) => {
-            list.push({
-              id: r.id,
-              docId: String(r.id),
-              kaynakId: String(r.id),
-              // Bu kayıt memur_outputs'tan değil doğrudan muafiyet kaydından
-              // geliyor — silme davranışı farklı (yalnız belge bağlantısı).
-              kaynak: 'muafiyet_record',
-              tur: r.basvuruTuru || 'muafiyet',
-              durum: '',
-              tarih: r.updatedAt || r.createdAt || '',
-              ekler: [],
-              icerikler: [],
-              title:
-                (window.formatCaseTr ? window.formatCaseTr(r.studentName, 'name') : r.studentName) +
-                (r.studentNo ? '  ·  ' + r.studentNo : ''),
-              sub: [r.otherUniversity || r.otherUni, r.localDept].filter(Boolean).join('  →  '),
-              files: [{ label: 'Dilekçe', download: toDownload(r.dilekceUrl), url: r.dilekceUrl }],
-            });
-            evrakBagla(list[list.length - 1], r);
-          });
+        // ⚠ Burada bir zamanlar İKİNCİ bir kaynak vardı: `dilekceUrl` taşıyan
+        // muafiyet kayıtları, memur_outputs'a yazılmamış olsalar bile listeye
+        // ekleniyordu. O kayıtlarda hiçbir yönlendirme yok — yani belge
+        // memura GÖNDERİLMEDEN memur tarafında görünüyordu. Kaldırıldı:
+        // memurun ekranına yalnız "Gönder" denmiş belge düşer. Kayıtlar
+        // yukarıda hâlâ okunuyor, ama sadece gönderilmiş belgeye transkript
+        // ve ders içeriklerini eklemek için.
       }
       if (alive) setItems(list);
     })();
