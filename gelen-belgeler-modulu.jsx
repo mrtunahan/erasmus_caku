@@ -308,8 +308,13 @@ function GbGonderdigimKart({ doc }) {
 }
 
 // ══════════════════════════════════════════════════════════════
-function GelenBelgelerApp({ currentUser }) {
+function GelenBelgelerApp({ currentUser, activeDepartment }) {
   const [docs, setDocs] = useState([]);
+  // Memur atamaları (bölüm, memur) başına tutulur; gelen kutusu hangi belgenin
+  // görüneceğine buna bakarak karar verir. AppShell oturum açılışında okuyup
+  // global'e koyuyor — burada da okunur ki ekran doğrudan açıldığında
+  // (yenileme, derin bağlantı) atamalar gelmeden liste yanlış kurulmasın.
+  const [atamalar, setAtamalar] = useState(() => window.__memurAtamalari || []);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('gelen');
@@ -343,6 +348,26 @@ function GelenBelgelerApp({ currentUser }) {
     };
   }, [load]);
 
+  const isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
+  useEffect(() => {
+    if (!isMemur || !window.apiRead) return;
+    let iptal = false;
+    window
+      .apiRead(window.MEMUR_ATAMA_KOLEKSIYONU || 'memur_bolum_modulleri')
+      .then((list) => {
+        if (iptal) return;
+        const arr = Array.isArray(list) ? list : [];
+        window.__memurAtamalari = arr;
+        setAtamalar(arr);
+      })
+      .catch(() => {
+        /* okunamazsa global'deki liste kullanılır */
+      });
+    return () => {
+      iptal = true;
+    };
+  }, [isMemur]);
+
   // Tüm gelen belgeler (sekme sayaçları bunun üzerinden hesaplanır)
   // Belge türü alt sekmesi (yalnız muafiyet / ÇAP-Yandal'da anlamlı)
   const [turFiltre, setTurFiltre] = useState('hepsi');
@@ -351,8 +376,11 @@ function GelenBelgelerApp({ currentUser }) {
   }, [modulFiltre]);
 
   const gelenTum = useMemo(
-    () => (window.belgeGelenKutusu ? window.belgeGelenKutusu(docs, currentUser) : []),
-    [docs, currentUser]
+    () =>
+      window.belgeGelenKutusu
+        ? window.belgeGelenKutusu(docs, currentUser, { atamalar, aktifBolum: activeDepartment })
+        : [],
+    [docs, currentUser, atamalar, activeDepartment]
   );
   // Modül bazlı sekmeler — hangi modüllerden belge gelmişse o sekme çıkar
   const modulSekmeleri = useMemo(() => {
@@ -442,11 +470,24 @@ function GelenBelgelerApp({ currentUser }) {
       const gs = d.gonderimler || [];
       if (gs.length === 0) return false;
       if (gs.some((g) => String(g.gonderen || '') === myId)) return true;
+      // Memur bu ekranda belge üretmez; kendi gönderdikleri dışında ancak
+      // GÖREBİLDİĞİ belgeleri takip eder. Kayıtlı bölümü çoğu memurda boş
+      // olduğu için eski kural fakültenin kapsamsız belgelerini açıyordu.
+      if (isMemur) {
+        return window.memurBelgeyiGorurMu
+          ? window.memurBelgeyiGorurMu({
+              doc: d,
+              kullanici: currentUser,
+              atamalar,
+              aktifBolum: activeDepartment,
+            })
+          : false;
+      }
       if (myDept && String(d.departmentId || '') === myDept) return true;
       if (myFac && !d.departmentId && String(d.facultyId || '') === myFac) return true;
       return false;
     });
-  }, [docs, myId, currentUser, isStudent]);
+  }, [docs, myId, currentUser, isStudent, isMemur, atamalar, activeDepartment]);
 
   const setDurum = async (docId, idx, durum) => {
     setBusy(true);
@@ -501,6 +542,11 @@ function GelenBelgelerApp({ currentUser }) {
   }
 
   const bekleyen = gelen.filter((i) => i.gonderim.durum === 'bekliyor').length;
+  // Memur seçili bölümde hiçbir modüle atanmamışsa liste zorunlu olarak boştur.
+  const atamasizBolum =
+    isMemur &&
+    !!window.memurBelgeModulleri &&
+    window.memurBelgeModulleri(atamalar, activeDepartment, currentUser).length === 0;
   const tabs = isStudent
     ? [{ id: 'gelen', label: 'Gelen Belgeler' }]
     : [
@@ -738,9 +784,17 @@ function GelenBelgelerApp({ currentUser }) {
       {tab === 'gelen' &&
         (gelen.length === 0 ? (
           bosKutu(
-            filtre === 'acik'
-              ? 'Bekleyen belgeniz yok. Tamamlananları görmek için sağ üstteki düğmeyi kullanın.'
-              : 'Size yönlendirilmiş belge bulunmuyor.'
+            // Atamasız memur boş listenin SEBEBİNİ görsün: eskiden yetkisi
+            // olmadığı bölümün belgeleri listeleniyordu, şimdi liste boş
+            // kalıyor — nedeni söylenmezse "belge kayboldu" sanılır.
+            atamasizBolum
+              ? 'Bu bölümde size atanmış modül yok. Bölüm yetkilisi sizi ' +
+                  'Bölüm Yönetimi → Memurlar ekranından ilgili modüle atadığında ' +
+                  'belgeler burada görünür. Başka bir bölüme atandıysanız sağ ' +
+                  'taraftan o bölümü seçin.'
+              : filtre === 'acik'
+                ? 'Bekleyen belgeniz yok. Tamamlananları görmek için sağ üstteki düğmeyi kullanın.'
+                : 'Size yönlendirilmiş belge bulunmuyor.'
           )
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
