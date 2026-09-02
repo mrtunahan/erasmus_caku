@@ -6439,6 +6439,11 @@ const ReviewPanel = ({
           dBg = DS.amberLight;
         }
 
+        // Belgeye yazılacak iki not — ekran da aynı kaynaktan okur.
+        const satirNotlari = window.muafiyetBelgeNotlari
+          ? window.muafiyetBelgeNotlari(record, m)
+          : { karsi: (m.sourceCourse || m.source || {}).grade || '', caku: m.convertedGrade || '' };
+
         return (
           <div
             key={idx}
@@ -6511,13 +6516,17 @@ const ReviewPanel = ({
                 <div style={{ fontSize: 12, color: DS.textSecondary, marginTop: 2 }}>
                   AKTS {src.akts || '—'}
                   {src.statu ? ' · ' + (src.statu === 'S' ? 'Seçmeli' : 'Zorunlu') : ''}
-                  {/* Transkriptten okunan başarı notu. Belgeye de bu yazılır;
-                      akademisyen ekli transkriptle karşılaştırabilsin diye
-                      kararın verildiği yerde görünüyor. */}
-                  {src.grade ? (
+                  {/* Başarı notu — BELGEYE YAZILACAK DEĞERİN AYNISI.
+                      Ekran doğrudan `src.grade`e bakıyordu; yaz intibakında
+                      not orada değil, öğrencinin yüklediği belgeden okunup
+                      `ogrenciNotlari`ya yazılıyor. Ekran ile belge farklı
+                      yerden okuyunca "ekranda yok ama belgede olmalı"
+                      (ve tersi) durumu çıkıyordu; ikisi de artık aynı işi
+                      çağırıyor (lib/muafiyet-belge-notu.js). */}
+                  {satirNotlari.karsi ? (
                     <>
                       {' · '}
-                      <b style={{ color: DS.navy }}>Not {src.grade}</b>
+                      <b style={{ color: DS.navy }}>Not {satirNotlari.karsi}</b>
                       {src.gradeHarf && src.gradePuan ? ' (' + src.gradePuan + ')' : ''}
                     </>
                   ) : (
@@ -6541,6 +6550,16 @@ const ReviewPanel = ({
                     <div style={{ fontSize: 12, color: DS.textSecondary, marginTop: 2 }}>
                       AKTS {tgt.akts || '—'}
                       {tgt.statu ? ' · ' + (tgt.statu === 'S' ? 'Seçmeli' : 'Zorunlu') : ''}
+                      {/* ÇAKÜ karşılığı da belgeye giden değerdir; iki not
+                          yan yana görünsün ki dönüşüm denetlenebilsin. */}
+                      {satirNotlari.caku ? (
+                        <>
+                          {' · '}
+                          <b style={{ color: DS.navy }}>Not {satirNotlari.caku}</b>
+                        </>
+                      ) : (
+                        ''
+                      )}
                     </div>
                   </>
                 ) : (
@@ -10463,10 +10482,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         return isNaN(n) ? 0 : n;
       };
       // Yaz intibakında başarı notlarını ÖĞRENCİ girer (2. adım) ve
-      // `ogrenciNotlari` alanında tutulur. Belgedeki {{karşı_başarı_notu}} /
-      // {{çakü_başarı_notu}} yer tutucuları öncelikle bu değerlerle dolar;
-      // akademisyen ayrıca not dönüşümü girdiyse (convertedGrade) o kazanır.
-      const ogrNot = rec.ogrenciNotlari || {};
+      // `ogrenciNotlari` alanında tutulur; muafiyette not talebin içinde
+      // saklanır. İki sütunun hangi kaynaktan geleceği ve girdinin anahtarı
+      // lib/muafiyet-belge-notu.js'te — aşağıda satır satır çözülüyor.
       // Ders yarıyılı: kayıtlarda 'guz'/'bahar' kodu, belgede "Güz"/"Bahar"
       // okunur hâli beklenir. Değeri OLMAYAN derste alan boş bırakılır —
       // başvurunun dönemini ders dönemi diye yazmak, dersin gerçekte hangi
@@ -10481,29 +10499,60 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         if (t === 'yaz') return 'Yaz';
         return String(v).trim();
       };
-      const rows = rowsSrc.map(function (m, i) {
+      const rows = rowsSrc.map(function (m) {
         const src = m.sourceCourse || m.source || {};
         const cak = m.localCourse || m.target || {};
         const kAkts = aktsNum(src.akts);
         const cAkts = aktsNum(cak.akts);
-        const notAnahtar = String(m.id != null ? m.id : i);
-        const ogr = ogrNot[notAnahtar] || {};
+        // ── İKİ NOT SÜTUNU ──
+        // Kaynak sırası ve anahtar çözümü lib/muafiyet-belge-notu.js'te ve
+        // testli. Burada elle yazıldığında iki hata oluşmuştu: belgeden
+        // YALNIZ HARF okunan notlar (yaz intibakında olağan durum) hiç
+        // yazılmıyordu ve reddedilen bir satır sonraki derslerin not
+        // numarasını kaydırıyordu.
+        const notlar = window.muafiyetBelgeNotlari
+          ? window.muafiyetBelgeNotlari(rec, m)
+          : { karsi: '', caku: '' };
         return {
           kDersKod: src.code || '',
           kDersAd: src.name || '',
           kDersAkts: kAkts ? String(kAkts) : '',
           kDersDonem: donemYaz(src.donem || src.yariyil),
-          kDersNot: src.grade || ogr.kaynakNot || '',
+          kDersNot: notlar.karsi,
           cDersKod: cak.code || '',
           cDersAd: cak.name || '',
           cDersAkts: cAkts ? String(cAkts) : '',
           cDersDonem: donemYaz(cak.donem || cak.yariyil),
-          cDersNot: m.convertedGrade || cak.grade || ogr.cakuNot || '',
+          cDersNot: notlar.caku,
           cDersStatu: cak.statu || '',
           _kAkts: kAkts,
           _cAkts: cAkts,
         };
       });
+      // ── NOTU OLMAYAN SATIR SESSİZ KALMASIN ──
+      // Muafiyette not eşleme adımı bu denetimi zaten yapıyor; yaz
+      // intibakında araya böyle bir adım girmiyordu ve belge, boş not
+      // sütunlarıyla üretilip memura gidiyordu. Engellemiyoruz — bazı
+      // durumlarda belge notsuz da istenebilir — ama söylüyoruz.
+      if (!dilekceModu && kayitTuru === 'intibak') {
+        const notsuz = rows.filter(function (r) {
+          return !r.kDersNot;
+        });
+        if (notsuz.length > 0) {
+          const devam = window.confirm(
+            notsuz.length +
+              ' dersin karşı kurum başarı notu kayıtta yok:\n' +
+              notsuz
+                .map(function (r) {
+                  return '• ' + (r.kDersKod || r.kDersAd || 'Ders');
+                })
+                .join('\n') +
+              '\n\nBelge o sütunlar BOŞ üretilecek. Devam edilsin mi?'
+          );
+          if (!devam) return;
+        }
+      }
+
       const sumBy = function (key) {
         return rows.reduce(function (a, r) {
           return a + (r[key] || 0);
