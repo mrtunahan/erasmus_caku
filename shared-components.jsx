@@ -382,6 +382,7 @@ import {
   memurModulleri,
   memurStajYetkilisiMi,
 } from './lib/memur-atama.js';
+import { aiIstekHataMetni } from './lib/ai-istek-hatasi.js';
 import {
   belgeBolumu,
   belgeGizliMi,
@@ -5140,7 +5141,7 @@ window.aiAlanDoldur = async function (opt) {
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Belge işlenemedi (HTTP ' + res.status + ')');
+  if (!res.ok) throw new Error(aiIstekHataMetni(res.status, data, 'Belge işlenemedi'));
   return data;
 };
 
@@ -5162,7 +5163,7 @@ window.aiWebDogrula = async function (opt) {
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Doğrulanamadı (HTTP ' + res.status + ')');
+  if (!res.ok) throw new Error(aiIstekHataMetni(res.status, data, 'Doğrulanamadı'));
   return data;
 };
 
@@ -5260,7 +5261,7 @@ window.aiKarsilastir = async function (opt) {
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Kıyaslanamadı (HTTP ' + res.status + ')');
+  if (!res.ok) throw new Error(aiIstekHataMetni(res.status, data, 'Kıyaslanamadı'));
   return data;
 };
 
@@ -5286,8 +5287,7 @@ window.aiDersEslestir = async function (ciftler) {
     body: JSON.stringify({ ciftler: Array.isArray(ciftler) ? ciftler : [] }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok)
-    throw new Error(data.error || 'Ders içerikleri kıyaslanamadı (HTTP ' + res.status + ')');
+  if (!res.ok) throw new Error(aiIstekHataMetni(res.status, data, 'Ders içerikleri kıyaslanamadı'));
   return data;
 };
 
@@ -5429,7 +5429,7 @@ window.aiSatirCikar = async function (opt) {
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Satırlar okunamadı (HTTP ' + res.status + ')');
+  if (!res.ok) throw new Error(aiIstekHataMetni(res.status, data, 'Satırlar okunamadı'));
   return data;
 };
 
@@ -14245,6 +14245,8 @@ window.memurBelgeModulleri = memurBelgeModulleri;
 window.memurBelgeyiGorurMu = memurBelgeyiGorurMu;
 // Gönderilmemiş belge memur tarafında görünmez — üretim tek başına yetmez.
 window.memuraGonderildiMi = memuraGonderildiMi;
+// Belge okuma isteğinin hata metni — gövdesiz 504'te de bir şey söyler.
+window.aiIstekHataMetni = aiIstekHataMetni;
 
 window.DUYURU_TURLERI = DUYURU_TURLERI;
 window.DUYURU_HEDEF_ROLLER = DUYURU_HEDEF_ROLLER;
