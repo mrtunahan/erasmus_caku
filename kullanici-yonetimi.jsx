@@ -459,6 +459,59 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     }
   };
 
+  // Numara bağını koparır. Kayıtlara başka hiçbir şekilde dokunmaz: iki
+  // program da yerinde kalır, yalnız "aynı kişi" bilgisi silinir.
+  const handleNumaraBaginiKopar = async (student) => {
+    const nolar = window.capBagliNolar ? window.capBagliNolar(student) : [];
+    if (nolar.length === 0) return;
+    const ad = `${student.firstName || ''} ${student.lastName || ''}`.trim();
+    if (
+      !confirm(
+        ad +
+          ' için numara bağı kaldırılacak:\n\n  ' +
+          student.studentNumber +
+          '  ✕  ' +
+          nolar.join(', ') +
+          '\n\nİki kayıt da yerinde kalır; öğrenci bundan sonra her programa ' +
+          'AYRI numarayla giriş yapar.\n\nDevam edilsin mi?'
+      )
+    )
+      return;
+    const sid = student.id || student._docId;
+    setCapSaving(sid);
+    try {
+      const tumu = capTumOgrenciler.length > 0 ? capTumOgrenciler : await DB.fetchStudents();
+      const kayitBul = (no) =>
+        (tumu || []).find((x) => String(x.studentNumber || '') === String(no));
+      for (const no of nolar) {
+        const diger = kayitBul(no);
+        if (!diger) continue;
+        // Koparma da KARŞILIKLIDIR; tek yönlü bırakılırsa bağ öbür yönden
+        // yaşamaya devam eder ve okuma kapsamı kapanmaz.
+        const yamalar = window.capKoparmaYamalari(student, diger);
+        for (const y of yamalar) {
+          const k = kayitBul(y.no);
+          if (!k) continue;
+          await DB.updateStudent(k.id || k._docId, {
+            ...k,
+            bagliOgrenciNolar: y.bagliOgrenciNolar,
+          });
+        }
+      }
+      if (window.audit)
+        window.audit('student_cap_koparma', 'students', sid, {
+          meta: { numara: student.studentNumber, kopanlar: nolar },
+        });
+      await loadData();
+      alert('Numara bağı kaldırıldı.');
+    } catch (e) {
+      console.error('ÇAP numara koparma hatası:', e);
+      alert('Kaldırılamadı: ' + e.message);
+    } finally {
+      setCapSaving('');
+    }
+  };
+
   const handleAddCapStudent = async (student) => {
     const sid = student.id || student._docId;
     // ⚠ Aynı kişinin bu bölümde ZATEN kaydı varsa `additionalDepartments`
@@ -1116,6 +1169,28 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                             >
                               <EditIcon />
                             </button>
+                            {/* Çift numaralı ÇAP: bağı koparma. Kayıtlara
+                                dokunmaz, yalnız "aynı kişi" bilgisini siler. */}
+                            {window.capBagliNolar && window.capBagliNolar(student).length > 0 && (
+                              <button
+                                onClick={() => handleNumaraBaginiKopar(student)}
+                                disabled={capSaving === (student.id || student._docId)}
+                                style={{
+                                  padding: '6px 10px',
+                                  border: `1px solid ${C.border}`,
+                                  borderRadius: 6,
+                                  background: 'white',
+                                  cursor: 'pointer',
+                                  color: '#5B21B6',
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title="Numara bağını kaldırır; iki kayıt da yerinde kalır"
+                              >
+                                Numara bağını kaldır
+                              </button>
+                            )}
                             {/* ÇAP satırında SİLME YOKTUR: kayıt öğrencinin ana
                                 bölümüne aittir, buradan silmek onu oradan da
                                 yok ederdi (bkz. lib/cap-ogrenci.js). */}
