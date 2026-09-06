@@ -309,6 +309,7 @@ import {
   capSatiriMi,
   capBolumundenCikar,
   capSilinebilirMi,
+  ogrenciAktifBolumu,
 } from './lib/cap-ogrenci.js';
 import {
   dersKodEtiketi,
@@ -14293,6 +14294,9 @@ window.capOgrenciMi = capOgrenciMi;
 window.capEkBolumler = capEkBolumler;
 window.capOgrencisiMi = capOgrencisiMi;
 window.capOgrenciBolumleri = capOgrenciBolumleri;
+// Öğrencinin ŞU AN baktığı programın bölümü — ekranlar bunu kullanır;
+// `departmentId` her zaman ANA programdır ve kimlik alanı olarak kalır.
+window.ogrenciAktifBolumu = ogrenciAktifBolumu;
 window.capEkBolumdeMi = capEkBolumdeMi;
 window.caprazKisitli = caprazKisitli;
 window.capSatiriMi = capSatiriMi;

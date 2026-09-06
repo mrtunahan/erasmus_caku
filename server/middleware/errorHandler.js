@@ -15,14 +15,22 @@ function errorHandler(err, req, res, next) {
   const status = err.status || err.statusCode || 500;
   const isProd = process.env.NODE_ENV === 'production';
 
-  // Sunucu tarafında her zaman tam loglanır
-  console.error('[API ERROR]', {
-    method: req.method,
-    path: req.path,
-    status,
-    message: err.message,
-    stack: err.stack,
-  });
+  // ⚠ Eskiden HER hata tam yığın iziyle loglanıyordu. Ham IP'den gelen her
+  // tarama CORS'a takılıyor ve loglar 15 satırlık Express yığın izleriyle
+  // doluyordu — oysa o istek bir arıza değil, doğru çalışan bir reddir.
+  // Beklenen 4xx'ler tek satır; yığın izi yalnız gerçek sunucu hatalarında.
+  const beklenen = err.beklenen === true || status < 500;
+  if (beklenen) {
+    console.warn(`[API ${status}] ${req.method} ${req.path} — ${err.message}`);
+  } else {
+    console.error('[API ERROR]', {
+      method: req.method,
+      path: req.path,
+      status,
+      message: err.message,
+      stack: err.stack,
+    });
+  }
 
   const body = { error: isProd && status >= 500 ? 'Sunucu hatası.' : err.message || 'Hata.' };
   if (!isProd && err.stack) body.stack = err.stack;

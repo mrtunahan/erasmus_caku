@@ -56,6 +56,17 @@ function apiRateLimiter() {
   });
 }
 
+// CORS reddi bir SUNUCU HATASI DEĞİLDİR: istek bilinmeyen bir origin'den
+// gelmiştir ve doğru davranış onu geri çevirmektir. Ama hata nesnesine durum
+// konmadığı için merkezi yakalayıcı 500 sayıyor ve her ham-IP taraması
+// loglara tam yığın iziyle düşüyordu. Durum artık 403.
+function corsReddi(mesaj) {
+  const hata = new Error(mesaj);
+  hata.status = 403;
+  hata.beklenen = true; // yığın izi basılmaz (bkz. middleware/errorHandler.js)
+  return hata;
+}
+
 // ── CORS origin çözümleyici ────────────────────────────────────
 // ALLOWED_ORIGINS env'i virgüllü liste alır; boşsa eski davranış
 // (request origin'i yansıt) korunur — mevcut kurulumları kırmaz.
@@ -68,7 +79,7 @@ function corsOrigin() {
     if (process.env.NODE_ENV === 'production') {
       return (origin, cb) => {
         if (!origin) return cb(null, true);
-        return cb(new Error('CORS reddedildi: ALLOWED_ORIGINS tanımlı değil'));
+        return cb(corsReddi('CORS reddedildi: ALLOWED_ORIGINS tanımlı değil'));
       };
     }
     return true; // dev: eski davranış (request origin'i yansıt)
@@ -81,7 +92,7 @@ function corsOrigin() {
     // origin yoksa same-origin/curl/health probe — izin ver
     if (!origin) return cb(null, true);
     if (allowed.includes(origin)) return cb(null, true);
-    return cb(new Error(`CORS reddedildi: ${origin}`));
+    return cb(corsReddi(`CORS reddedildi: ${origin}`));
   };
 }
 

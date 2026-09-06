@@ -7783,7 +7783,7 @@ const ModeratorPanel = ({ moderators, onAdd, onRemove }) => {
 // ANA MODÜL BİLEŞENİ
 // ══════════════════════════════════════════════════════════════
 
-function OgrenciPortaliApp({ currentUser }) {
+function OgrenciPortaliApp({ currentUser, activeDepartment }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('tumu');
@@ -8285,8 +8285,15 @@ function OgrenciPortaliApp({ currentUser }) {
       }
       // Bölüm görünürlüğü: bölüme özel gönderiyi yalnız o bölüm öğrencileri görür.
       // (Herkese açık gönderi = departmentId boş; yazar ve moderatör/yönetici her zaman görür.)
-      var myDeptId =
-        currentUser && currentUser.departmentId ? String(currentUser.departmentId) : '';
+      // ÇAP öğrencisi iki programın da öğrencisidir; hangi programdaysa o
+      // programın bölüm gönderilerini görür. `departmentId` her zaman ANA
+      // programdır, tek başına okunursa öğrenci ikinci programına geçtiğinde
+      // yine birinci programın gönderilerini görürdü (bkz. lib/cap-ogrenci.js).
+      var myDeptId = window.ogrenciAktifBolumu
+        ? String(window.ogrenciAktifBolumu(currentUser, activeDepartment) || '')
+        : currentUser && currentUser.departmentId
+          ? String(currentUser.departmentId)
+          : '';
       result = result.filter(function (p) {
         if (!p.departmentId) return true;
         if (isModOrAdmin) return true;

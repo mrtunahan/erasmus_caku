@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   stajYetkilisiMi,
+  memurMuafiyetKaydiniGorurMu,
+  memurMuafiyetKayitlariniSuz,
+  memuraGonderilenMuafiyetKayitlari,
   memurBolumModulleri,
   memurYonlendirmeleri,
   memurunBelgesiMi,
@@ -198,5 +201,112 @@ describe('staj istisnası (fakülte çapında)', () => {
 
   it('istisna yalnız staja özeldir', () => {
     expect(memurunBelgesiMi({ ...stajBelgesi, module: 'muafiyet' }, ERGUN, [])).toBe(false);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// MUAFİYET KAYITLARI — memur_outputs kapatıldı ama başvuru kayıtları
+// personelin tamamına açıktı: memur, arayüzde göremediği bir başvurunun
+// dilekçesine /api/db üzerinden ulaşabiliyordu.
+// ══════════════════════════════════════════════════════════════
+describe('memurMuafiyetKaydiniGorurMu', () => {
+  const kayit = (ek) => Object.assign({ _docId: 'r1', departmentId: 'bilgisayar' }, ek);
+
+  it('atandığı bölümün kaydını görür', () => {
+    expect(memurMuafiyetKaydiniGorurMu(kayit(), NIYAZI, ATAMALAR, new Set())).toBe(true);
+  });
+
+  it('ATANMADIĞI bölümün kaydını görmez', () => {
+    expect(
+      memurMuafiyetKaydiniGorurMu(kayit({ departmentId: 'kimya' }), NIYAZI, ATAMALAR, new Set())
+    ).toBe(false);
+  });
+
+  it('atandığı bölümde muafiyet modülü yoksa görmez', () => {
+    const baskaModul = [{ departmentId: 'bilgisayar', memurId: 'm-niyazi', modules: ['staj'] }];
+    expect(memurMuafiyetKaydiniGorurMu(kayit(), NIYAZI, baskaModul, new Set())).toBe(false);
+  });
+
+  it('GÖNDERİLMİŞ belgenin kaynağıysa bölümü olmasa da görür', () => {
+    // Yönlendirmenin kapsamı gönderenin bölümünden gelebiliyor; bu dal
+    // olmadan gönderilmiş belgenin transkript/ders içerikleri kaybolurdu.
+    const bolumsuz = kayit({ departmentId: '', _docId: 'r9' });
+    expect(memurMuafiyetKaydiniGorurMu(bolumsuz, NIYAZI, ATAMALAR, new Set(['r9']))).toBe(true);
+  });
+
+  it('gönderilmemiş ve kapsam dışı kayıt görünmez', () => {
+    const yabanci = kayit({ departmentId: 'kimya', _docId: 'r9' });
+    expect(memurMuafiyetKaydiniGorurMu(yabanci, NIYAZI, ATAMALAR, new Set(['baska']))).toBe(false);
+  });
+
+  it('kimliği çözülemeyen kayıt görünmez', () => {
+    expect(
+      memurMuafiyetKaydiniGorurMu({ departmentId: 'kimya' }, NIYAZI, ATAMALAR, new Set(['r1']))
+    ).toBe(false);
+  });
+
+  it('id alanı da okunur', () => {
+    const r = { id: 'r5', departmentId: 'kimya' };
+    expect(memurMuafiyetKaydiniGorurMu(r, NIYAZI, ATAMALAR, new Set(['r5']))).toBe(true);
+  });
+
+  it('boş girdi çökmez', () => {
+    expect(memurMuafiyetKaydiniGorurMu(null, NIYAZI, ATAMALAR, new Set())).toBe(false);
+    expect(memurMuafiyetKaydiniGorurMu(kayit(), null, ATAMALAR, new Set())).toBe(false);
+    expect(memurMuafiyetKaydiniGorurMu(kayit({ departmentId: 'kimya' }), NIYAZI, ATAMALAR)).toBe(
+      false
+    );
+  });
+});
+
+describe('memuraGonderilenMuafiyetKayitlari', () => {
+  it('yalnız memura GÖNDERİLMİŞ muafiyet belgelerinin kaynaklarını alır', () => {
+    const belgeler = [
+      {
+        module: 'muafiyet',
+        sourceId: 'r1',
+        departmentId: 'bilgisayar',
+        facultyId: 'muhendislik',
+        gonderimler: [{ hedefRol: 'memur', kapsamId: 'bilgisayar' }],
+      },
+      // gönderilmemiş
+      { module: 'muafiyet', sourceId: 'r2', departmentId: 'bilgisayar', gonderimler: [] },
+      // başka bölüme gönderilmiş
+      {
+        module: 'muafiyet',
+        sourceId: 'r3',
+        departmentId: 'kimya',
+        gonderimler: [{ hedefRol: 'memur', kapsamId: 'kimya' }],
+      },
+      // başka modül
+      {
+        module: 'staj',
+        sourceId: 'r4',
+        departmentId: 'bilgisayar',
+        gonderimler: [{ hedefRol: 'memur', kapsamId: 'bilgisayar' }],
+      },
+    ];
+    const kume = memuraGonderilenMuafiyetKayitlari(belgeler, NIYAZI, ATAMALAR);
+    expect([...kume]).toEqual(['r1']);
+  });
+
+  it('boş girdi çökmez', () => {
+    expect([...memuraGonderilenMuafiyetKayitlari(null, NIYAZI, ATAMALAR)]).toEqual([]);
+  });
+});
+
+describe('memurMuafiyetKayitlariniSuz', () => {
+  it('kapsam dışı kayıtlar düşer', () => {
+    const kayitlar = [
+      { _docId: 'a', departmentId: 'bilgisayar' },
+      { _docId: 'b', departmentId: 'kimya' },
+      { _docId: 'c', departmentId: '' },
+    ];
+    const kalan = memurMuafiyetKayitlariniSuz(kayitlar, NIYAZI, ATAMALAR, new Set(['c']));
+    expect(kalan.map((x) => x._docId)).toEqual(['a', 'c']);
+  });
+
+  it('boş liste çökmez', () => {
+    expect(memurMuafiyetKayitlariniSuz(null, NIYAZI, ATAMALAR, new Set())).toEqual([]);
   });
 });

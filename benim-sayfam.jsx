@@ -244,7 +244,15 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const bsCalLayout = { isWide: _bsResp.width > 880 };
 
   const isStudent = currentUser?.role === 'student';
-  const studentDeptId = currentUser?.departmentId || activeDepartment;
+  // ⚠ EskiDEN `currentUser.departmentId` okunuyordu; o alan HER ZAMAN ana
+  // programdır. Çift numaralı ÇAP öğrencisi ikinci programına geçtiğinde
+  // öğrenci numarası değişiyor ama bölüm değişmiyordu: bu ekran ikinci
+  // programın öğrenci kaydını, birinci programın duyuru/etkinlik/ders
+  // planını gösteriyordu. Artık seçili program esas alınır — ama yalnız
+  // öğrencinin KENDİ programlarından biriyse (bkz. lib/cap-ogrenci.js).
+  const studentDeptId = window.ogrenciAktifBolumu
+    ? window.ogrenciAktifBolumu(currentUser, activeDepartment)
+    : currentUser?.departmentId || activeDepartment;
 
   const loadData = useCallback(async () => {
     if (!isStudent) {
