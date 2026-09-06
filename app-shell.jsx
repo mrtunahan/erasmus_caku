@@ -72,20 +72,14 @@ function computeAvailableDepts(currentUser, adminScope, memurAtamalari) {
   // iki programın öğrencisidir; ikinci bölümünün ders programını, sınavlarını,
   // duyurularını ve projelerini görmesi gerekir (bkz. lib/cap-ogrenci.js).
   if (isStudent) {
-    // Çift numaralı ÇAP: ikinci program AYRI bir `students` kaydıdır ve
-    // giriş yanıtında `capProgramlari` olarak gelir. Aynı numaralı ÇAP'ta
-    // liste `additionalDepartments`ten kurulur — ikisi de desteklenir,
-    // çünkü kayıtlarda ikisi de var (bkz. lib/cap-numara-baglama.js).
-    const programBolumleri = Array.isArray(currentUser.capProgramlari)
-      ? currentUser.capProgramlari.map((p) => p && p.departmentId).filter(Boolean)
-      : [];
+    // Liste iki ÇAP biçimini birden kapsar: AYNI numarayla
+    // (`additionalDepartments`) ve ÇİFT numarayla (`capProgramlari`).
+    // Birleştirme lib/cap-ogrenci.js → ogrenciBolumleri içindedir; burada
+    // tekrarlanmaz ki iki taraf ayrışmasın.
     const ogrBolumleri = window.capOgrenciBolumleri
       ? window.capOgrenciBolumleri(currentUser)
       : [mainDept].concat(extras).filter(Boolean);
-    const hepsi = programBolumleri.concat(
-      ogrBolumleri.filter((d) => !programBolumleri.includes(d))
-    );
-    return allDepts.filter((d) => hepsi.includes(d.id));
+    return allDepts.filter((d) => ogrBolumleri.includes(d.id));
   }
 
   // Bölüm listesi birleştirici (id'ye göre tekilleştir)

@@ -96,8 +96,64 @@ function memurBelgeleriniSuz(belgeler, memur, atamalar) {
   return (belgeler || []).filter((b) => memurunBelgesiMi(b, memur, atamalar));
 }
 
+/**
+ * Memurun görebileceği MUAFİYET KAYITLARI.
+ *
+ * `memur_outputs` kapatıldı ama muafiyet kayıtları personelin tamamına
+ * açıktı: memur, arayüzde göremediği bir başvurunun dilekçesine /api/db
+ * üzerinden ulaşabiliyordu.
+ *
+ * Kayıt iki koşuldan BİRİYLE görünür:
+ *   1) Kaydın bölümünde memur 'muafiyet' modülüne atanmışsa — o bölümün
+ *      işlerini zaten yürütüyor.
+ *   2) Kayıt, memura GÖNDERİLMİŞ bir belgenin kaynağıysa. Bu şart gerekli:
+ *      belge yönlendirmesinin kapsamı gönderenin bölümünden de gelebiliyor,
+ *      yani kaydın kendi bölümü boş olsa bile belge memura düşmüş olabilir.
+ *      Bu dal olmadan gönderilmiş belgenin transkript ve ders içerikleri
+ *      sessizce kaybolurdu.
+ *
+ * @param {Set|Array} gonderilenKayitIdleri memura gönderilmiş muafiyet
+ *   belgelerinin `sourceId` değerleri
+ */
+function memurMuafiyetKaydiniGorurMu(kayit, memur, atamalar, gonderilenKayitIdleri) {
+  if (!kayit || !memur) return false;
+  const bolum = metin(kayit.departmentId);
+  if (bolum && memurBolumModulleri(atamalar, bolum, memur).indexOf('muafiyet') >= 0) return true;
+  const kimlik = metin(kayit._docId || kayit.id || (kayit._id && kayit._id.toString()));
+  if (!kimlik) return false;
+  const kume = gonderilenKayitIdleri;
+  if (!kume) return false;
+  return typeof kume.has === 'function' ? kume.has(kimlik) : dizi(kume).indexOf(kimlik) >= 0;
+}
+
+/** Muafiyet kayıtlarını memurun kapsamına indirger. */
+function memurMuafiyetKayitlariniSuz(kayitlar, memur, atamalar, gonderilenKayitIdleri) {
+  return (kayitlar || []).filter((k) =>
+    memurMuafiyetKaydiniGorurMu(k, memur, atamalar, gonderilenKayitIdleri)
+  );
+}
+
+/**
+ * Memura gönderilmiş muafiyet belgelerinin kaynak kayıt kimlikleri.
+ * `memur_outputs` dokümanlarından çıkarılır — yani gönderim şartı burada da
+ * geçerlidir.
+ */
+function memuraGonderilenMuafiyetKayitlari(belgeler, memur, atamalar) {
+  const out = new Set();
+  (belgeler || []).forEach((b) => {
+    if (!b || metin(b.module) !== 'muafiyet') return;
+    if (!memurunBelgesiMi(b, memur, atamalar)) return;
+    const kaynak = metin(b.sourceId);
+    if (kaynak) out.add(kaynak);
+  });
+  return out;
+}
+
 module.exports = {
   stajYetkilisiMi,
+  memurMuafiyetKaydiniGorurMu,
+  memurMuafiyetKayitlariniSuz,
+  memuraGonderilenMuafiyetKayitlari,
   memurBolumModulleri,
   memurYonlendirmeleri,
   memurunBelgesiMi,

@@ -17,6 +17,8 @@ import {
   capSatiriMi,
   capBolumundenCikar,
   capSilinebilirMi,
+  capProgramBolumleri,
+  ogrenciAktifBolumu,
 } from '../lib/cap-ogrenci.js';
 
 const cap = {
@@ -158,5 +160,118 @@ describe('capSilinebilirMi', () => {
   });
   it('tek bölümlü öğrenci kendi bölümünden silinebilir', () => {
     expect(capSilinebilirMi(duz, 'bilgisayar')).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// ÇİFT NUMARALI ÇAP — AKTİF PROGRAMIN BÖLÜMÜ
+//
+// Ekranlar bölümü `departmentId`den okuyordu; o alan her zaman ANA
+// programdır. İkinci programa geçen öğrenci, ikinci programın öğrenci
+// kaydını ama birinci programın duyurularını görüyordu.
+// ══════════════════════════════════════════════════════════════
+describe('capProgramBolumleri', () => {
+  it('bağlı programların bölümlerini verir', () => {
+    const u = {
+      role: 'student',
+      capProgramlari: [
+        { departmentId: 'bilgisayar', no: '1', ana: true },
+        { departmentId: 'elektrik', no: '2' },
+      ],
+    };
+    expect(capProgramBolumleri(u)).toEqual(['bilgisayar', 'elektrik']);
+  });
+
+  it('tekrarlar ve boşlar atılır', () => {
+    const u = {
+      capProgramlari: [{ departmentId: 'a' }, { departmentId: 'a' }, { departmentId: '' }, null],
+    };
+    expect(capProgramBolumleri(u)).toEqual(['a']);
+  });
+
+  it('alan yoksa boş', () => {
+    expect(capProgramBolumleri({})).toEqual([]);
+    expect(capProgramBolumleri(null)).toEqual([]);
+  });
+});
+
+describe('ogrenciBolumleri — iki ÇAP biçimi birden', () => {
+  it('çift numaralı programlar da listeye girer', () => {
+    const u = {
+      role: 'student',
+      departmentId: 'bilgisayar',
+      capProgramlari: [{ departmentId: 'bilgisayar' }, { departmentId: 'elektrik' }],
+    };
+    expect(ogrenciBolumleri(u)).toEqual(['bilgisayar', 'elektrik']);
+  });
+
+  it('aynı numaralı ÇAP eskisi gibi çalışır', () => {
+    const u = { role: 'student', departmentId: 'bilgisayar', additionalDepartments: ['elektrik'] };
+    expect(ogrenciBolumleri(u)).toEqual(['bilgisayar', 'elektrik']);
+  });
+
+  it('iki biçim bir arada tekrarsız birleşir', () => {
+    const u = {
+      role: 'student',
+      departmentId: 'bilgisayar',
+      additionalDepartments: ['makine'],
+      capProgramlari: [{ departmentId: 'bilgisayar' }, { departmentId: 'elektrik' }],
+    };
+    expect(ogrenciBolumleri(u)).toEqual(['bilgisayar', 'makine', 'elektrik']);
+  });
+
+  it('ana bölüm her zaman başta', () => {
+    const u = { role: 'student', departmentId: 'bilgisayar', additionalDepartments: ['elektrik'] };
+    expect(ogrenciBolumleri(u)[0]).toBe('bilgisayar');
+  });
+});
+
+describe('ogrenciAktifBolumu', () => {
+  const CIFT = {
+    role: 'student',
+    departmentId: 'bilgisayar',
+    capProgramlari: [
+      { departmentId: 'bilgisayar', no: '240905055', ana: true },
+      { departmentId: 'elektrik', no: '250903001' },
+    ],
+  };
+  const AYNI = { role: 'student', departmentId: 'bilgisayar', additionalDepartments: ['elektrik'] };
+  const DUZ = { role: 'student', departmentId: 'bilgisayar' };
+
+  it('BİLDİRİLEN HATA: ikinci programa geçince bölüm de değişir', () => {
+    expect(ogrenciAktifBolumu(CIFT, 'elektrik')).toBe('elektrik');
+    expect(ogrenciAktifBolumu(CIFT, 'bilgisayar')).toBe('bilgisayar');
+  });
+
+  it('aynı numaralı ÇAP için de geçerli', () => {
+    expect(ogrenciAktifBolumu(AYNI, 'elektrik')).toBe('elektrik');
+  });
+
+  it('ÖĞRENCİNİN OLMAYAN bölüm seçiliyse ana bölüme düşer', () => {
+    // Kapsam genişlemesi değil: yalnız kendi programları arasında geçiş.
+    expect(ogrenciAktifBolumu(CIFT, 'makine')).toBe('bilgisayar');
+    expect(ogrenciAktifBolumu(DUZ, 'elektrik')).toBe('bilgisayar');
+  });
+
+  it('ÇAP olmayan öğrencide davranış değişmez', () => {
+    expect(ogrenciAktifBolumu(DUZ, 'bilgisayar')).toBe('bilgisayar');
+  });
+
+  it('aktif bölüm boşsa ana bölüm', () => {
+    expect(ogrenciAktifBolumu(CIFT, '')).toBe('bilgisayar');
+  });
+
+  it('ana bölümü olmayan öğrencide aktif bölüme düşer', () => {
+    expect(ogrenciAktifBolumu({ role: 'student' }, 'elektrik')).toBe('elektrik');
+  });
+
+  it('öğrenci olmayan kullanıcıda eski ifadeyle aynı', () => {
+    const akd = { role: 'professor', departmentId: 'kimya' };
+    expect(ogrenciAktifBolumu(akd, 'elektrik')).toBe('kimya');
+    expect(ogrenciAktifBolumu({ role: 'professor' }, 'elektrik')).toBe('elektrik');
+  });
+
+  it('boş girdi çökmez', () => {
+    expect(ogrenciAktifBolumu(null, '')).toBe('');
   });
 });

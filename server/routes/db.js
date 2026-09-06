@@ -7,7 +7,13 @@ const { profilBul } = require('../lib/akademisyen-kimlik');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
 const { aramaKapsami, desenKacir, aramaAdlari } = require('../lib/ogrenci-arama');
 const { mukerrerAtlanabilirMi, mukerrerHataMi } = require('../lib/yazma-mukerrer');
-const { memurBelgeleriniSuz, memurunBelgesiMi } = require('../lib/memur-kapsam');
+const {
+  memurBelgeleriniSuz,
+  memurunBelgesiMi,
+  memurMuafiyetKaydiniGorurMu,
+  memurMuafiyetKayitlariniSuz,
+  memuraGonderilenMuafiyetKayitlari,
+} = require('../lib/memur-kapsam');
 const { kapsamNumaralari } = require('../lib/ogrenci-baglanti');
 const { duyuruyaDokunabilir } = require('../lib/duyuru-sahip');
 const { auditWrites } = require('../middleware/auditLog');
@@ -1358,6 +1364,34 @@ async function ogrenciKapsami(db, no) {
   return kapsam;
 }
 
+// Memura gönderilmiş muafiyet belgelerinin kaynak kayıt kimlikleri.
+// Kaydın kendi bölümü boş olsa bile belge memura düşmüş olabilir (yönlendirme
+// kapsamı gönderenin bölümünden gelir); bu küme olmadan gönderilmiş belgenin
+// transkript ve ders içerikleri sessizce kaybolurdu.
+const memurMuafiyetCache = new Map(); // memurId -> { kume, ts }
+
+async function memurunMuafiyetKayitlari(db, memur, atamalar) {
+  const anahtar = String((memur && memur.memurId) || '');
+  const hit = memurMuafiyetCache.get(anahtar);
+  if (hit && Date.now() - hit.ts < 60 * 1000) return hit.kume;
+  let kume = new Set();
+  try {
+    const belgeler = await db
+      .collection('memur_outputs')
+      .find(
+        { module: 'muafiyet' },
+        { projection: { sourceId: 1, module: 1, departmentId: 1, facultyId: 1, gonderimler: 1 } }
+      )
+      .toArray();
+    kume = memuraGonderilenMuafiyetKayitlari(belgeler, memur, atamalar);
+  } catch (_e) {
+    // Okunamazsa yalnız bölüm ataması geçerli olur (fail-closed).
+    kume = new Set();
+  }
+  memurMuafiyetCache.set(anahtar, { kume, ts: Date.now() });
+  return kume;
+}
+
 // isUniversityAdmin bayrağı JWT'de yok (role: 'professor') — audit_logs gibi
 // hassas okumalar için professors koleksiyonundan bakılır, 60 sn cache'lenir.
 const uniAdminCache = new Map(); // identifier -> { ok, ts }
@@ -1880,6 +1914,21 @@ router.get('/:collection', async (req, res) => {
       const memur = await memurKimligi(db, user);
       if (memur) docs = memurBelgeleriniSuz(docs, memur, await memurAtamalari(db));
     }
+    // Muafiyet başvuruları: memur yalnız ATANDIĞI bölümün kayıtlarını ve
+    // kendisine GÖNDERİLMİŞ belgelerin kaynak kayıtlarını okur. Ekranda
+    // kapatılmıştı ama /api/db üzerinden dilekçeye erişilebiliyordu.
+    if (DB_AUTH_ENFORCED && collection === 'muafiyet_records' && user) {
+      const memur = await memurKimligi(db, user);
+      if (memur) {
+        const atamalar = await memurAtamalari(db);
+        docs = memurMuafiyetKayitlariniSuz(
+          docs,
+          memur,
+          atamalar,
+          await memurunMuafiyetKayitlari(db, memur, atamalar)
+        );
+      }
+    }
 
     const result = docs.map((doc) => {
       const { _id, _docId, ...rest } = doc;
@@ -1977,6 +2026,19 @@ router.get('/:collection/:docId', async (req, res) => {
       const memur = await memurKimligi(db, user);
       if (memur && !memurunBelgesiMi(doc, memur, await memurAtamalari(db))) {
         return res.status(403).json({ error: 'Bu belgeye erişim yetkiniz yok.' });
+      }
+    }
+    if (DB_AUTH_ENFORCED && collection === 'muafiyet_records' && user) {
+      const memur = await memurKimligi(db, user);
+      if (memur) {
+        const atamalar = await memurAtamalari(db);
+        const gorur = memurMuafiyetKaydiniGorurMu(
+          doc,
+          memur,
+          atamalar,
+          await memurunMuafiyetKayitlari(db, memur, atamalar)
+        );
+        if (!gorur) return res.status(403).json({ error: 'Bu kayda erişim yetkiniz yok.' });
       }
     }
 
