@@ -8,6 +8,7 @@ const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
 const { aramaKapsami, desenKacir, aramaAdlari } = require('../lib/ogrenci-arama');
 const { mukerrerAtlanabilirMi, mukerrerHataMi } = require('../lib/yazma-mukerrer');
 const { memurBelgeleriniSuz, memurunBelgesiMi } = require('../lib/memur-kapsam');
+const { kapsamNumaralari } = require('../lib/ogrenci-baglanti');
 const { duyuruyaDokunabilir } = require('../lib/duyuru-sahip');
 const { auditWrites } = require('../middleware/auditLog');
 const { softAuth } = require('../middleware/softAuth');
@@ -415,6 +416,13 @@ const STUDENT_SELF_PROTECTED = new Set([
   'duzenlemeAcilmaTarihi',
   'roles',
   'isMemur',
+  // ── ÇAP NUMARA BAĞI ──
+  // Çift numaralı ÇAP öğrencisinin iki kaydı bu alanla bağlanır ve bağ,
+  // sunucudaki okuma kapsamını genişletir (bkz. lib/ogrenci-baglanti.js).
+  // Öğrenci kendi kaydında bunu yazabilseydi, numarasını bir başkasınınkine
+  // bağlayıp o kişinin muafiyet/staj kayıtlarını okuyabilirdi. Bağı yalnız
+  // personel kurar.
+  'bagliOgrenciNolar',
   '_owner',
   '_docId',
   'createdAt',
@@ -1316,6 +1324,40 @@ async function memurAtamalari(db) {
   return liste;
 }
 
+// ── ÇAP: bağlı öğrenci numaraları ──
+// Çift numaralı ÇAP öğrencisinin ikinci programı AYRI bir `students` kaydıdır
+// ve bağ karşılıklı `bagliOgrenciNolar` alanıyla kurulur. Öğrenci okumaları
+// jetondaki tek numaraya daraltıldığı için, bağ burada çözülmezse öğrenci
+// ikinci programına geçtiğinde ekran ikinci programı gösterir ama veri
+// birinci programdan gelirdi. 60 sn önbellek: bağ değişikliği en geç bir
+// dakikada yürürlüğe girer.
+const ogrenciKapsamCache = new Map(); // numara -> { kapsam, ts }
+
+async function ogrenciKapsami(db, no) {
+  const numara = String(no || '');
+  if (!numara) return [];
+  const hit = ogrenciKapsamCache.get(numara);
+  if (hit && Date.now() - hit.ts < 60 * 1000) return hit.kapsam;
+  let kapsam = [numara];
+  try {
+    // Yalnız bağı olan kayıtlar okunur; bağsız öğrencide (çoğunluk) liste
+    // küçük kalır ve kapsam zaten tek numaradır.
+    const bagliKayitlar = await db
+      .collection('students')
+      .find(
+        { bagliOgrenciNolar: { $exists: true, $ne: [] } },
+        { projection: { studentNumber: 1, bagliOgrenciNolar: 1 } }
+      )
+      .toArray();
+    kapsam = kapsamNumaralari(bagliKayitlar, numara);
+  } catch (_e) {
+    // Bağ okunamazsa kapsam yalnız kendi numarasıdır (fail-closed).
+    kapsam = [numara];
+  }
+  ogrenciKapsamCache.set(numara, { kapsam, ts: Date.now() });
+  return kapsam;
+}
+
 // isUniversityAdmin bayrağı JWT'de yok (role: 'professor') — audit_logs gibi
 // hassas okumalar için professors koleksiyonundan bakılır, 60 sn cache'lenir.
 const uniAdminCache = new Map(); // identifier -> { ok, ts }
@@ -1805,12 +1847,15 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
-    // Öğrenci: hassas koleksiyonlarda filtre KENDİ kaydına zorlanır
-    // (istemcinin where'i ne derse desin sunucu daraltır).
+    // Öğrenci: hassas koleksiyonlarda filtre KENDİ kayıtlarına zorlanır
+    // (istemcinin where'i ne derse desin sunucu daraltır). Çift numaralı ÇAP
+    // öğrencisinde kapsam, BAĞLI numaraları da içerir — ikinci programın
+    // kayıtları ayrı numaranın altındadır.
     if (DB_AUTH_ENFORCED && user && user.role === 'student') {
       const scopeField = STUDENT_READ_SCOPED[collection];
       if (scopeField) {
-        filter[scopeField] = { $eq: String(user.identifier || '') };
+        const kapsam = await ogrenciKapsami(db, user.identifier);
+        filter[scopeField] = kapsam.length > 1 ? { $in: kapsam } : { $eq: kapsam[0] || '' };
       }
     }
 
@@ -1940,8 +1985,11 @@ router.get('/:collection/:docId', async (req, res) => {
     if (isStudentReq) {
       const ident = String(user.identifier || '');
       const scopeField = STUDENT_READ_SCOPED[collection];
-      if (scopeField && String(doc[scopeField] || '') !== ident) {
-        return res.status(403).json({ error: 'Bu kayda erişim yetkiniz yok.' });
+      if (scopeField) {
+        const kapsam = await ogrenciKapsami(db, ident);
+        if (kapsam.indexOf(String(doc[scopeField] || '')) < 0) {
+          return res.status(403).json({ error: 'Bu kayda erişim yetkiniz yok.' });
+        }
       }
       if (APP_OWNED.has(collection) && !(await ownsInternshipApp(db, docId, ident))) {
         return res.status(403).json({ error: 'Bu kayda erişim yetkiniz yok.' });

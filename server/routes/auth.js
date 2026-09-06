@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const { getDbSafe } = require('../config/database');
 const { profilBul } = require('../lib/akademisyen-kimlik');
+const { kapsamNumaralari } = require('../lib/ogrenci-baglanti');
 const {
   generateToken,
   requireAuth,
@@ -186,6 +187,10 @@ router.post('/student', async (req, res) => {
       }
       let departmentId = 'bilgisayar';
       let additionalDepartments = [];
+      // ÇAP programları: her satır {departmentId, no, ana}. Çift numaralı ÇAP
+      // öğrencisinin ikinci programı AYRI bir kayıttır ve kendi numarasını
+      // taşır; istemci bölüm şeridini ve etkin numarayı buradan kurar.
+      let capProgramlari = [];
       try {
         const db = await getDbSafe();
         const studentDoc = await db.collection('students').findOne({ studentNumber: trimmedId });
@@ -193,12 +198,19 @@ router.post('/student', async (req, res) => {
         if (studentDoc && Array.isArray(studentDoc.additionalDepartments)) {
           additionalDepartments = studentDoc.additionalDepartments;
         }
+        capProgramlari = await capProgramlariniCoz(db, trimmedId, studentDoc);
       } catch (e) {
         console.warn('Student departmentId lookup error:', e.message);
       }
       const token = generateToken({ role: 'student', identifier: trimmedId, departmentId });
       setTokenCookie(res, token);
-      return res.json({ success: true, token, departmentId, additionalDepartments });
+      return res.json({
+        success: true,
+        token,
+        departmentId,
+        additionalDepartments,
+        capProgramlari,
+      });
     } else {
       recordAttempt(rateLimitKey);
       return res.json({ success: false, error: 'Giriş bilgileri hatalı!' });
@@ -327,6 +339,49 @@ router.post('/professor', async (req, res) => {
 
 // Akademisyenin DB profilini çek — flag'leri ve hiyerarşi alanlarını döndürür.
 // LoginModal client'a verir; istemci buna göre effectiveRole hesaplar.
+// ── ÇAP programları ──
+// Çift numaralı ÇAP'ta öğrencinin iki `students` kaydı vardır ve bağ
+// karşılıklı `bagliOgrenciNolar` alanıyla kurulur (bkz.
+// lib/cap-numara-baglama.js). Giriş yanıtı yalnız tek bölüm döndürdüğü
+// sürece öğrenci ikinci programını hiç göremiyordu: iki kayıt sistem için
+// iki ayrı kişiydi. Giriş yapılan program listede BAŞTA durur.
+async function capProgramlariniCoz(db, girisNo, girisKaydi) {
+  const kendi = String(girisNo || '');
+  if (!kendi) return [];
+  const out = [];
+  const ekle = (bolum, no, ana) => {
+    const b = String(bolum || '');
+    if (!b || out.some((p) => p.departmentId === b)) return;
+    out.push({ departmentId: b, no: String(no || ''), ana: !!ana });
+  };
+  const ekBolumler = (k) =>
+    k && Array.isArray(k.additionalDepartments) ? k.additionalDepartments : [];
+  if (girisKaydi) {
+    ekle(girisKaydi.departmentId, kendi, true);
+    ekBolumler(girisKaydi).forEach((b) => ekle(b, kendi, false));
+  }
+  try {
+    const bagliKayitlar = await db
+      .collection('students')
+      .find({ bagliOgrenciNolar: { $exists: true, $ne: [] } })
+      .toArray();
+    const kapsam = kapsamNumaralari(bagliKayitlar, kendi);
+    if (kapsam.length <= 1) return out;
+    const digerleri = await db
+      .collection('students')
+      .find({ studentNumber: { $in: kapsam.filter((n) => n !== kendi) } })
+      .toArray();
+    digerleri.forEach((k) => {
+      ekle(k.departmentId, k.studentNumber, false);
+      ekBolumler(k).forEach((b) => ekle(b, k.studentNumber, false));
+    });
+  } catch (e) {
+    // Bağ okunamazsa öğrenci en azından kendi programını görür.
+    console.warn('ÇAP bağı çözülemedi:', e.message);
+  }
+  return out;
+}
+
 async function fetchProfessorProfile(professorName) {
   try {
     const db = await getDbSafe();

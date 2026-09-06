@@ -384,6 +384,15 @@ import {
 } from './lib/memur-atama.js';
 import { aiIstekHataMetni } from './lib/ai-istek-hatasi.js';
 import {
+  baglamaGecerliMi,
+  baglamaYamalari,
+  bagliNolar,
+  cakisanKayit,
+  etkinNumara,
+  kisininProgramlari,
+  koparmaYamalari,
+} from './lib/cap-numara-baglama.js';
+import {
   belgeBolumu,
   belgeGizliMi,
   gelenKutusu,
@@ -8796,6 +8805,13 @@ const LoginModal = ({ onLogin }) => {
       const loginResult = await DB.verifyStudentLogin(trimmedId, password);
 
       if (loginResult.success) {
+        // ÇAP programları giriş yanıtından gelir: çift numaralı ÇAP'ta ikinci
+        // program AYRI bir kayıttır ve kendi numarasını taşır. Oturumda
+        // taşınmazsa öğrenci ikinci programını hiç göremez
+        // (bkz. lib/cap-numara-baglama.js).
+        if (Array.isArray(loginResult.capProgramlari) && loginResult.capProgramlari.length > 0) {
+          user.capProgramlari = loginResult.capProgramlari;
+        }
         if (password.length < 6) {
           setPendingUser(user);
           setSetupPasswordMode(true);
@@ -14247,6 +14263,14 @@ window.memurBelgeyiGorurMu = memurBelgeyiGorurMu;
 window.memuraGonderildiMi = memuraGonderildiMi;
 // Belge okuma isteğinin hata metni — gövdesiz 504'te de bir şey söyler.
 window.aiIstekHataMetni = aiIstekHataMetni;
+// ÇAP numara bağı — çift numaralı öğrencinin iki kaydı tek kişi sayılır.
+window.capBagliNolar = bagliNolar;
+window.capBaglamaGecerliMi = baglamaGecerliMi;
+window.capBaglamaYamalari = baglamaYamalari;
+window.capKoparmaYamalari = koparmaYamalari;
+window.capKisininProgramlari = kisininProgramlari;
+window.capEtkinNumara = etkinNumara;
+window.capCakisanKayit = cakisanKayit;
 
 window.DUYURU_TURLERI = DUYURU_TURLERI;
 window.DUYURU_HEDEF_ROLLER = DUYURU_HEDEF_ROLLER;

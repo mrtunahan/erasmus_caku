@@ -72,10 +72,20 @@ function computeAvailableDepts(currentUser, adminScope, memurAtamalari) {
   // iki programın öğrencisidir; ikinci bölümünün ders programını, sınavlarını,
   // duyurularını ve projelerini görmesi gerekir (bkz. lib/cap-ogrenci.js).
   if (isStudent) {
+    // Çift numaralı ÇAP: ikinci program AYRI bir `students` kaydıdır ve
+    // giriş yanıtında `capProgramlari` olarak gelir. Aynı numaralı ÇAP'ta
+    // liste `additionalDepartments`ten kurulur — ikisi de desteklenir,
+    // çünkü kayıtlarda ikisi de var (bkz. lib/cap-numara-baglama.js).
+    const programBolumleri = Array.isArray(currentUser.capProgramlari)
+      ? currentUser.capProgramlari.map((p) => p && p.departmentId).filter(Boolean)
+      : [];
     const ogrBolumleri = window.capOgrenciBolumleri
       ? window.capOgrenciBolumleri(currentUser)
       : [mainDept].concat(extras).filter(Boolean);
-    return allDepts.filter((d) => ogrBolumleri.includes(d.id));
+    const hepsi = programBolumleri.concat(
+      ogrBolumleri.filter((d) => !programBolumleri.includes(d))
+    );
+    return allDepts.filter((d) => hepsi.includes(d.id));
   }
 
   // Bölüm listesi birleştirici (id'ye göre tekilleştir)
@@ -2338,6 +2348,29 @@ function AppShell() {
     if (cozulen.join('|') === mevcut.join('|')) return;
     setCurrentUser((u) => ({ ...u, memurModulesHavuz: havuz, memurModules: cozulen }));
   }, [memurAtamalari, activeDepartment, currentUser]);
+
+  // ── ÇAP: aktif programın öğrenci numarası ──
+  // Çift numaralı ÇAP'ta her programın KENDİ numarası var. Modüller öğrenci
+  // numarasını `currentUser.studentNumber` üzerinden okuyor; aktif bölüm
+  // değiştiğinde bu tek alanı çözmek hepsini birden doğru yapar (memur
+  // modüllerinde uygulanan kalıbın aynısı). `identifier` DEĞİŞMEZ: jeton
+  // kimliği odur ve sunucu kapsamı ona göre çözülür.
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'student' || !window.capEtkinNumara) return;
+    const programlar = Array.isArray(currentUser.capProgramlari) ? currentUser.capProgramlari : [];
+    if (programlar.length === 0) return;
+    // Öğrenci oturumunda kimlik `studentNumber`dır (`identifier` yazılmaz).
+    // İlk çözümde giriş numarası saklanır; sonrakiler ondan hesaplanır.
+    const giris = String(currentUser.girisNumarasi || currentUser.studentNumber || '');
+    const yeni = window.capEtkinNumara(programlar, activeDepartment, giris);
+    if (!yeni || yeni === String(currentUser.studentNumber || '')) return;
+    setCurrentUser((u) => ({
+      ...u,
+      // Giriş numarası saklanır: aktif bölüm değişince geri dönebilmek için.
+      girisNumarasi: giris,
+      studentNumber: yeni,
+    }));
+  }, [currentUser, activeDepartment]);
 
   // ── Aktif bölüm kapsam denetimi ──
   // Aktif bölüm, kullanıcının erişebildiği bölümler arasında değilse ilk
