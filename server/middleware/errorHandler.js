@@ -2,6 +2,10 @@
 // Mevcut route'lar try/catch ile kendi cevaplarını verdiği için bu sadece
 // kaçan hatalar için son güvenlik ağı görevi görür — yanıt biçimini değiştirmez.
 
+function sanitizeForLog(value) {
+  return String(value ?? '').replace(/[\r\n]/g, '');
+}
+
 function notFoundHandler(req, res, next) {
   if (res.headersSent) return next();
   if (!req.path.startsWith('/api/')) return next();
@@ -21,13 +25,15 @@ function errorHandler(err, req, res, next) {
   // Beklenen 4xx'ler tek satır; yığın izi yalnız gerçek sunucu hatalarında.
   const beklenen = err.beklenen === true || status < 500;
   if (beklenen) {
-    console.warn(`[API ${status}] ${req.method} ${req.path} — ${err.message}`);
+    console.warn(
+      `[API ${status}] ${sanitizeForLog(req.method)} ${sanitizeForLog(req.path)} — ${sanitizeForLog(err.message)}`
+    );
   } else {
     console.error('[API ERROR]', {
-      method: req.method,
-      path: req.path,
+      method: sanitizeForLog(req.method),
+      path: sanitizeForLog(req.path),
       status,
-      message: err.message,
+      message: sanitizeForLog(err.message),
       stack: err.stack,
     });
   }
