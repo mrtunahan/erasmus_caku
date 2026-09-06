@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { adAnahtari, adaylariBul } from '../server/lib/cap-aday-eslestirme.js';
+import { adAnahtari, adaylariBul, tekNumaraliCaplar } from '../server/lib/cap-aday-eslestirme.js';
 
 const ogr = (no, ad, soyad, bolum, ek) =>
   Object.assign({ studentNumber: no, firstName: ad, lastName: soyad, departmentId: bolum }, ek);
@@ -108,5 +108,55 @@ describe('adaylariBul', () => {
 
   it('boş girdi çökmez', () => {
     expect(adaylariBul(null)).toEqual({ kesin: [], supheli: [], zatenBagli: [] });
+  });
+});
+
+describe('tekNumaraliCaplar', () => {
+  it('ek bölümü olan kaydı listeler', () => {
+    // Elif Nur gibi: tek kayıt, ikinci program additionalDepartments'ta.
+    const k = ogr('240905021', 'Elif Nur', 'Ünsal', 'bilgisayar', {
+      additionalDepartments: ['eem'],
+    });
+    const r = tekNumaraliCaplar([k]);
+    expect(r.length).toBe(1);
+    expect(r[0].ekBolumler).toEqual(['eem']);
+    expect(r[0].ayriKayitlar).toEqual([]);
+  });
+
+  it('ek bölümü olmayan kayıt listeye girmez', () => {
+    expect(tekNumaraliCaplar([ogr('1', 'Ali', 'Veli', 'bilgisayar')])).toEqual([]);
+    expect(
+      tekNumaraliCaplar([ogr('1', 'Ali', 'Veli', 'bilgisayar', { additionalDepartments: [] })])
+    ).toEqual([]);
+  });
+
+  it('ACİL: kişi ek bölümde ZATEN kayıtlıysa ayrıca işaretlenir', () => {
+    // Hem ÇAP satırı hem kendi kaydı varsa listede iki kez görünür.
+    const capSatiri = ogr('220905033', 'Ece İrem', 'Filiz', 'bilgisayar', {
+      additionalDepartments: ['eem'],
+    });
+    const kendiKaydi = ogr('250903099', 'Ece İrem', 'Filiz', 'eem');
+    const r = tekNumaraliCaplar([capSatiri, kendiKaydi]);
+    expect(r.length).toBe(1);
+    expect(r[0].ayriKayitlar.map((x) => x.studentNumber)).toEqual(['250903099']);
+  });
+
+  it('aynı adlı ama BAŞKA bölümdeki kayıt acil sayılmaz', () => {
+    const capSatiri = ogr('1', 'Ali', 'Veli', 'bilgisayar', { additionalDepartments: ['eem'] });
+    const baskaBolum = ogr('2', 'Ali', 'Veli', 'makine');
+    expect(tekNumaraliCaplar([capSatiri, baskaBolum])[0].ayriKayitlar).toEqual([]);
+  });
+
+  it('alfabetik sıralanır', () => {
+    const a = ogr('1', 'Zeynep', 'Kaya', 'bilgisayar', { additionalDepartments: ['eem'] });
+    const b = ogr('2', 'Ahmet', 'Ak', 'bilgisayar', { additionalDepartments: ['eem'] });
+    expect(tekNumaraliCaplar([a, b]).map((x) => adAnahtari(x.kayit))).toEqual([
+      'AHMET AK',
+      'ZEYNEP KAYA',
+    ]);
+  });
+
+  it('boş girdi çökmez', () => {
+    expect(tekNumaraliCaplar(null)).toEqual([]);
   });
 });
