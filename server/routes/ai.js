@@ -131,6 +131,7 @@ router.post('/accreditation-draft', aiLimiter, requireAuth, requireStaff, async 
 // llm.js katmanında kalır — iki farklı iş, iki farklı katman.
 // ══════════════════════════════════════════════════════════════
 const cx = require('../services/claude-extract');
+const { AI_SURE_SINIRI_MS, sureSinirli } = require('../lib/ai-sure');
 const { kullanimRaporu } = require('../services/ai-usage');
 const filesRouter = require('./files');
 
@@ -245,13 +246,16 @@ router.post('/extract', extractLimiter, requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Okunabilir belge bulunamadı.', bulunamayan });
     }
 
-    const sonuc = await cx.alanCikar({
-      module: clip(b.module, 40),
-      docType: clip(b.docType, 40) || 'default',
-      fields,
-      dosyalar: cozulen,
-      baglam: baglamCoz(req, b),
-    });
+    const sonuc = await sureSinirli(
+      cx.alanCikar({
+        module: clip(b.module, 40),
+        docType: clip(b.docType, 40) || 'default',
+        fields,
+        dosyalar: cozulen,
+        baglam: baglamCoz(req, b),
+      }),
+      AI_SURE_SINIRI_MS
+    );
 
     if (!sonuc.ok) {
       return res.status(422).json({
@@ -269,6 +273,10 @@ router.post('/extract', extractLimiter, requireAuth, async (req, res) => {
       usage: sonuc.usage,
     });
   } catch (err) {
+    // Süre aşımı ayrı bir cevap: 502 "işlenemedi" yerine ne olduğunu ve ne
+    // yapılacağını söyleyen 504 döner. Eskiden bu noktaya hiç gelinmiyordu —
+    // bağlantıyı nginx kesiyor, kullanıcı boş bir 504 görüyordu.
+    if (err && err.sureAsti) return res.status(504).json({ error: err.message, sureAsimi: true });
     console.error('ai/extract error:', err.message);
     return res.status(502).json({ error: 'Belge işlenemedi: ' + err.message });
   }
@@ -292,14 +300,17 @@ router.post('/extract-rows', extractLimiter, requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Okunabilir belge bulunamadı.', bulunamayan });
     }
 
-    const sonuc = await cx.satirCikar({
-      module: clip(b.module, 40),
-      docType: clip(b.docType, 40) || 'default',
-      satirAlanlari,
-      satirTanimi: clip(b.satirTanimi, 200),
-      dosyalar: cozulen,
-      baglam: baglamCoz(req, b),
-    });
+    const sonuc = await sureSinirli(
+      cx.satirCikar({
+        module: clip(b.module, 40),
+        docType: clip(b.docType, 40) || 'default',
+        satirAlanlari,
+        satirTanimi: clip(b.satirTanimi, 200),
+        dosyalar: cozulen,
+        baglam: baglamCoz(req, b),
+      }),
+      AI_SURE_SINIRI_MS
+    );
 
     if (!sonuc.ok) {
       return res.status(422).json({
@@ -317,6 +328,7 @@ router.post('/extract-rows', extractLimiter, requireAuth, async (req, res) => {
       usage: sonuc.usage,
     });
   } catch (err) {
+    if (err && err.sureAsti) return res.status(504).json({ error: err.message, sureAsimi: true });
     console.error('ai/extract-rows error:', err.message);
     return res.status(502).json({ error: 'Satırlar çıkarılamadı: ' + err.message });
   }
@@ -343,14 +355,17 @@ router.post('/compare', extractLimiter, requireAuth, async (req, res) => {
       mevcutDegerler[f.id] = clip(v == null ? '' : v, 400);
     });
 
-    const sonuc = await cx.karsilastir({
-      module: clip(b.module, 40),
-      docType: clip(b.docType, 40) || 'default',
-      fields,
-      mevcutDegerler,
-      dosyalar: cozulen,
-      baglam: baglamCoz(req, b),
-    });
+    const sonuc = await sureSinirli(
+      cx.karsilastir({
+        module: clip(b.module, 40),
+        docType: clip(b.docType, 40) || 'default',
+        fields,
+        mevcutDegerler,
+        dosyalar: cozulen,
+        baglam: baglamCoz(req, b),
+      }),
+      AI_SURE_SINIRI_MS
+    );
 
     if (!sonuc.ok) {
       return res.status(422).json({
@@ -369,6 +384,7 @@ router.post('/compare', extractLimiter, requireAuth, async (req, res) => {
       usage: sonuc.usage,
     });
   } catch (err) {
+    if (err && err.sureAsti) return res.status(504).json({ error: err.message, sureAsimi: true });
     console.error('ai/compare error:', err.message);
     return res.status(502).json({ error: 'Kıyaslama yapılamadı: ' + err.message });
   }

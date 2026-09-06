@@ -32,6 +32,9 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   const [capSearch, setCapSearch] = useState('');
   const [capLoading, setCapLoading] = useState(false);
   const [capSaving, setCapSaving] = useState('');
+  // Bütün öğrenciler — ÇAP eklemeden önce "bu kişinin bu bölümde zaten kaydı
+  // var mı" denetimi için gerekli (çift numaralı ÇAP'ta vardır).
+  const [capTumOgrenciler, setCapTumOgrenciler] = useState([]);
 
   // Password states
   const [studentPasses, setStudentPasses] = useState({});
@@ -395,16 +398,84 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
         return true;
       });
       setCapAllStudents(notHere);
+      setCapTumOgrenciler(all || []);
     } catch (e) {
       console.error('ÇAP öğrenci listesi yüklenemedi:', e);
       setCapAllStudents([]);
+      setCapTumOgrenciler([]);
     } finally {
       setCapLoading(false);
     }
   };
 
+  // Çift numaralı ÇAP: iki kaydı KARŞILIKLI bağlar. Kayıtlar ayrı kalır —
+  // her programın kendi numarası, transkripti ve muafiyet kaydı vardır —
+  // ama öğrenci tek girişle ikisine de ulaşır (bkz. lib/cap-numara-baglama.js).
+  const handleBaglaCapNumara = async (student, mevcut) => {
+    const sid = student.id || student._docId;
+    const gecerli = window.capBaglamaGecerliMi
+      ? window.capBaglamaGecerliMi(student, mevcut)
+      : { olur: true, sebep: '' };
+    if (!gecerli.olur) {
+      alert('Bağlanamadı: ' + gecerli.sebep);
+      return;
+    }
+    const ad = `${student.firstName || ''} ${student.lastName || ''}`.trim();
+    if (
+      !confirm(
+        ad +
+          ' için iki öğrenci numarası bağlanacak:\n\n' +
+          '  ' +
+          student.studentNumber +
+          '  ↔  ' +
+          mevcut.studentNumber +
+          '\n\nÖğrenci tek girişle iki programına da ulaşır. Kayıtlar ayrı kalır: ' +
+          'her programın kendi transkripti ve kendi muafiyet kaydı olur.\n\nDevam edilsin mi?'
+      )
+    )
+      return;
+    setCapSaving(sid);
+    try {
+      const yamalar = window.capBaglamaYamalari(student, mevcut);
+      const kayitBul = (no) =>
+        (capTumOgrenciler || []).find((s) => String(s.studentNumber || '') === String(no));
+      for (const y of yamalar) {
+        const k = kayitBul(y.no);
+        if (!k) continue;
+        await DB.updateStudent(k.id || k._docId, { ...k, bagliOgrenciNolar: y.bagliOgrenciNolar });
+      }
+      if (window.audit)
+        window.audit('student_cap_baglama', 'students', sid, {
+          meta: { numaralar: yamalar.map((y) => y.no) },
+        });
+      setCapModalOpen(false);
+      await loadData();
+      alert('İki numara bağlandı.');
+    } catch (e) {
+      console.error('ÇAP numara bağlama hatası:', e);
+      alert('Bağlanamadı: ' + e.message);
+    } finally {
+      setCapSaving('');
+    }
+  };
+
   const handleAddCapStudent = async (student) => {
     const sid = student.id || student._docId;
+    // ⚠ Aynı kişinin bu bölümde ZATEN kaydı varsa `additionalDepartments`
+    // yazmak yanlıştır: kişi bu bölümün listesinde iki kez görünür (biri
+    // kendi kaydı, biri ÇAP satırı, farklı numaralarla). Doğrusu bağlamaktır.
+    const cakisan = window.capCakisanKayit
+      ? window.capCakisanKayit(capTumOgrenciler, student, activeDepartment)
+      : null;
+    if (cakisan) {
+      alert(
+        'Bu öğrencinin bu bölümde zaten bir kaydı var (' +
+          cakisan.studentNumber +
+          ').\n\nÇAP olarak eklemek yerine iki numarayı BAĞLAYIN; aksi halde aynı ' +
+          'kişi listede iki kez görünür.'
+      );
+      return;
+    }
     setCapSaving(sid);
     try {
       const prevExtra = Array.isArray(student.additionalDepartments)
@@ -983,6 +1054,28 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                                 ÇAP
                               </span>
                             )}
+                          {/* Çift numaralı ÇAP: bağlı diğer numara(lar). Bu
+                              satır olmadan yetkili, aynı kişinin iki kaydını
+                              iki ayrı öğrenci sanıyordu. */}
+                          {window.capBagliNolar && window.capBagliNolar(student).length > 0 && (
+                            <span
+                              style={{
+                                marginLeft: 8,
+                                padding: '1px 8px',
+                                borderRadius: 10,
+                                background: '#EDE9FE',
+                                color: '#5B21B6',
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                              }}
+                              title={
+                                'Aynı kişinin diğer programındaki numarası: ' +
+                                window.capBagliNolar(student).join(', ')
+                              }
+                            >
+                              ÇAP · {window.capBagliNolar(student).join(', ')}
+                            </span>
+                          )}
                           {student.hostInstitution && (
                             <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
                               {student.hostInstitution} - {student.hostCountry}
@@ -2373,6 +2466,11 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                         s.department ||
                         s.departmentName ||
                         '—';
+                      // Kişinin bu bölümde zaten bir kaydı varsa yapılacak iş
+                      // ÇAP eklemek değil, iki numarayı bağlamaktır.
+                      const cakisan = window.capCakisanKayit
+                        ? window.capCakisanKayit(capTumOgrenciler, s, activeDepartment)
+                        : null;
                       return (
                         <div
                           key={sid}
@@ -2391,13 +2489,35 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                             <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 2 }}>
                               {s.studentNumber} · {deptName}
                             </div>
+                            {cakisan && (
+                              <div
+                                style={{
+                                  fontSize: 11.5,
+                                  color: '#B45309',
+                                  marginTop: 3,
+                                  lineHeight: 1.45,
+                                }}
+                              >
+                                Bu bölümde {cakisan.studentNumber} numaralı kaydı var — çift
+                                numaralı ÇAP. Numaraları bağlayın, ÇAP olarak eklemeyin.
+                              </div>
+                            )}
                           </div>
                           <Btn
                             small
+                            variant={cakisan ? 'secondary' : undefined}
                             disabled={capSaving === sid}
-                            onClick={() => handleAddCapStudent(s)}
+                            onClick={() =>
+                              cakisan ? handleBaglaCapNumara(s, cakisan) : handleAddCapStudent(s)
+                            }
                           >
-                            {capSaving === sid ? 'Ekleniyor…' : 'Ekle'}
+                            {capSaving === sid
+                              ? cakisan
+                                ? 'Bağlanıyor…'
+                                : 'Ekleniyor…'
+                              : cakisan
+                                ? 'Numaraları bağla'
+                                : 'Ekle'}
                           </Btn>
                         </div>
                       );

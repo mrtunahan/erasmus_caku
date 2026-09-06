@@ -382,6 +382,16 @@ import {
   memurModulleri,
   memurStajYetkilisiMi,
 } from './lib/memur-atama.js';
+import { aiIstekHataMetni } from './lib/ai-istek-hatasi.js';
+import {
+  baglamaGecerliMi,
+  baglamaYamalari,
+  bagliNolar,
+  cakisanKayit,
+  etkinNumara,
+  kisininProgramlari,
+  koparmaYamalari,
+} from './lib/cap-numara-baglama.js';
 import {
   belgeBolumu,
   belgeGizliMi,
@@ -5140,7 +5150,7 @@ window.aiAlanDoldur = async function (opt) {
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Belge işlenemedi (HTTP ' + res.status + ')');
+  if (!res.ok) throw new Error(aiIstekHataMetni(res.status, data, 'Belge işlenemedi'));
   return data;
 };
 
@@ -5162,7 +5172,7 @@ window.aiWebDogrula = async function (opt) {
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Doğrulanamadı (HTTP ' + res.status + ')');
+  if (!res.ok) throw new Error(aiIstekHataMetni(res.status, data, 'Doğrulanamadı'));
   return data;
 };
 
@@ -5260,7 +5270,7 @@ window.aiKarsilastir = async function (opt) {
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Kıyaslanamadı (HTTP ' + res.status + ')');
+  if (!res.ok) throw new Error(aiIstekHataMetni(res.status, data, 'Kıyaslanamadı'));
   return data;
 };
 
@@ -5286,8 +5296,7 @@ window.aiDersEslestir = async function (ciftler) {
     body: JSON.stringify({ ciftler: Array.isArray(ciftler) ? ciftler : [] }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok)
-    throw new Error(data.error || 'Ders içerikleri kıyaslanamadı (HTTP ' + res.status + ')');
+  if (!res.ok) throw new Error(aiIstekHataMetni(res.status, data, 'Ders içerikleri kıyaslanamadı'));
   return data;
 };
 
@@ -5429,7 +5438,7 @@ window.aiSatirCikar = async function (opt) {
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Satırlar okunamadı (HTTP ' + res.status + ')');
+  if (!res.ok) throw new Error(aiIstekHataMetni(res.status, data, 'Satırlar okunamadı'));
   return data;
 };
 
@@ -8796,6 +8805,13 @@ const LoginModal = ({ onLogin }) => {
       const loginResult = await DB.verifyStudentLogin(trimmedId, password);
 
       if (loginResult.success) {
+        // ÇAP programları giriş yanıtından gelir: çift numaralı ÇAP'ta ikinci
+        // program AYRI bir kayıttır ve kendi numarasını taşır. Oturumda
+        // taşınmazsa öğrenci ikinci programını hiç göremez
+        // (bkz. lib/cap-numara-baglama.js).
+        if (Array.isArray(loginResult.capProgramlari) && loginResult.capProgramlari.length > 0) {
+          user.capProgramlari = loginResult.capProgramlari;
+        }
         if (password.length < 6) {
           setPendingUser(user);
           setSetupPasswordMode(true);
@@ -14245,6 +14261,16 @@ window.memurBelgeModulleri = memurBelgeModulleri;
 window.memurBelgeyiGorurMu = memurBelgeyiGorurMu;
 // Gönderilmemiş belge memur tarafında görünmez — üretim tek başına yetmez.
 window.memuraGonderildiMi = memuraGonderildiMi;
+// Belge okuma isteğinin hata metni — gövdesiz 504'te de bir şey söyler.
+window.aiIstekHataMetni = aiIstekHataMetni;
+// ÇAP numara bağı — çift numaralı öğrencinin iki kaydı tek kişi sayılır.
+window.capBagliNolar = bagliNolar;
+window.capBaglamaGecerliMi = baglamaGecerliMi;
+window.capBaglamaYamalari = baglamaYamalari;
+window.capKoparmaYamalari = koparmaYamalari;
+window.capKisininProgramlari = kisininProgramlari;
+window.capEtkinNumara = etkinNumara;
+window.capCakisanKayit = cakisanKayit;
 
 window.DUYURU_TURLERI = DUYURU_TURLERI;
 window.DUYURU_HEDEF_ROLLER = DUYURU_HEDEF_ROLLER;
