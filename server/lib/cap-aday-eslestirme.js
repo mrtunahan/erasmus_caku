@@ -17,6 +17,15 @@
 //               AYNI bölümde (bu ÇAP değil, mükerrer kayıttır).
 //
 // Şüpheli olanlar asla kendiliğinden bağlanmaz; listelenir, insan karar verir.
+//
+// ── AYRICA: TEK NUMARAYLA ÇAP GÖRÜNENLER ──
+// `additionalDepartments` taşıyan kayıt, "bu öğrenci ikinci programına AYNI
+// numarayla giriyor" demektir. Kayıtlarda bunun YANLIŞ olduğu örnekler var:
+// öğrencinin ikinci programda kendi numarası olmasına rağmen, kayıt eski
+// yöntemle (Çap Öğrencisi Ekle) girilmiş. Sonuç sessiz: ikinci programın
+// muafiyet/staj işleri BİRİNCİ numaranın altına yazılır ve belgelerde yanlış
+// numara çıkar. Sistem bunu kendi başına anlayamaz — OBS'de ikinci numara var
+// mı, onu insan bilir. Bu yüzden liste yalnız RAPORLANIR; hiçbir şey yazılmaz.
 // ══════════════════════════════════════════════════════════════
 
 const metin = (v) => String(v == null ? '' : v).trim();
@@ -110,4 +119,35 @@ function adaylariBul(kayitlar) {
   };
 }
 
-module.exports = { adAnahtari, adaylariBul };
+/**
+ * Tek numarayla ÇAP yapıyor görünen kayıtlar.
+ *
+ * Her satır: {kayit, ekBolumler, ayriKayitlar}. `ayriKayitlar` doluysa durum
+ * ACİLDİR: kişi hem ek bölüm satırı hem kendi kaydıyla listede İKİ KEZ
+ * görünüyor demektir (bkz. lib/cap-numara-baglama.js → cakisanKayit).
+ */
+function tekNumaraliCaplar(kayitlar) {
+  const liste = Array.isArray(kayitlar) ? kayitlar : [];
+  const adaGore = new Map();
+  liste.forEach((k) => {
+    const ad = adAnahtari(k);
+    if (!ad) return;
+    if (!adaGore.has(ad)) adaGore.set(ad, []);
+    adaGore.get(ad).push(k);
+  });
+  const out = [];
+  liste.forEach((k) => {
+    const ekler = Array.isArray(k.additionalDepartments)
+      ? k.additionalDepartments.map(metin).filter(Boolean)
+      : [];
+    if (ekler.length === 0) return;
+    // Aynı adlı BAŞKA kayıtlardan, bu kaydın ek bölümlerinden birinde
+    // duranlar: kişi o bölümde zaten var, ek bölüm satırı fazlalık.
+    const ayni = (adaGore.get(adAnahtari(k)) || []).filter((x) => x !== k);
+    const ayriKayitlar = ayni.filter((x) => ekler.includes(metin(x.departmentId)));
+    out.push({ kayit: k, ekBolumler: ekler, ayriKayitlar });
+  });
+  return out.sort((a, b) => adAnahtari(a.kayit).localeCompare(adAnahtari(b.kayit), 'tr'));
+}
+
+module.exports = { adAnahtari, adaylariBul, tekNumaraliCaplar };

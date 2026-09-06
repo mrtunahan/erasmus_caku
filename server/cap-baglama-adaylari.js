@@ -21,7 +21,7 @@
  */
 (async () => {
   const { getDbSafe } = require('./config/database');
-  const { adaylariBul } = require('./lib/cap-aday-eslestirme');
+  const { adaylariBul, tekNumaraliCaplar } = require('./lib/cap-aday-eslestirme');
 
   const uygula = process.argv.includes('--uygula');
   const db = await getDbSafe();
@@ -49,6 +49,39 @@
   console.log(`\n── ZATEN BAĞLI (${zatenBagli.length}) ──`);
   if (zatenBagli.length === 0) console.log('  (yok)');
   zatenBagli.forEach((c) => console.log(`  • ${c.ad}:  ${satir(c.a)}  ↔  ${satir(c.b)}`));
+
+  // Tek numarayla ÇAP: doğru olabilir de olmayabilir de — karar OBS'dedir.
+  const tekNumara = tekNumaraliCaplar(hepsi);
+  const acil = tekNumara.filter((x) => x.ayriKayitlar.length > 0);
+  const normal = tekNumara.filter((x) => x.ayriKayitlar.length === 0);
+
+  console.log(`\n── TEK NUMARAYLA ÇAP (${normal.length}) ──`);
+  console.log(
+    '  Bu öğrenciler ikinci programlarına AYNI numarayla giriyor görünüyor.\n' +
+      "  OBS'de ikinci bir numaraları varsa kayıt yanlıştır: ikinci programın\n" +
+      '  muafiyet/staj işleri birinci numaranın altına yazılır ve belgelerde\n' +
+      '  yanlış numara çıkar. Listeyi OBS ile karşılaştırın.\n'
+  );
+  if (normal.length === 0) console.log('  (yok)');
+  normal.forEach((x) =>
+    console.log(
+      `  • ${x.kayit.firstName || ''} ${x.kayit.lastName || ''}`.trimEnd() +
+        `  ${satir(x.kayit)}  →  ek bölüm: ${x.ekBolumler.join(', ')}`
+    )
+  );
+
+  console.log(`\n── ⚠ ÇİFT GÖRÜNENLER (${acil.length}) ──`);
+  console.log(
+    '  Hem ÇAP satırı HEM kendi kaydı var: bu kişiler ilgili bölümün öğrenci\n' +
+      '  listesinde İKİ KEZ, farklı numaralarla görünüyor. Doğrusu: iki numarayı\n' +
+      '  bağlayıp ek bölüm bağını kaldırmak.\n'
+  );
+  if (acil.length === 0) console.log('  (yok)');
+  acil.forEach((x) => {
+    console.log(`  • ${x.kayit.firstName || ''} ${x.kayit.lastName || ''}`.trimEnd());
+    console.log(`      ÇAP satırı : ${satir(x.kayit)}  (ek bölüm: ${x.ekBolumler.join(', ')})`);
+    x.ayriKayitlar.forEach((y) => console.log(`      kendi kaydı: ${satir(y)}`));
+  });
 
   if (!uygula) {
     console.log(
@@ -78,7 +111,11 @@
     yazilan++;
     console.log(`  ✓ ${c.ad}:  ${satir(c.a)}  ↔  ${satir(c.b)}`);
   }
-  console.log(`\n✓ ${yazilan} çift bağlandı. ${supheli.length} şüpheli çift elle incelenmeli.\n`);
+  console.log(
+    `\n✓ ${yazilan} çift bağlandı. ${supheli.length} şüpheli çift elle incelenmeli.\n` +
+      `  "TEK NUMARAYLA ÇAP" ve "ÇİFT GÖRÜNENLER" listelerine dokunulmadı:\n` +
+      `  onlar OBS ile karşılaştırılmadan değiştirilemez.\n`
+  );
   process.exit(0);
 })().catch((e) => {
   console.error('Hata:', e.message);
