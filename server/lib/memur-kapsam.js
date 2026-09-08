@@ -28,12 +28,34 @@ const dizi = (v) => (Array.isArray(v) ? v.filter(Boolean).map(String) : []);
  * (`memurModules`) yalnız memurun KENDİ bölümünde geçerlidir: o liste bir
  * bölümün kararıdır, fakültenin tamamına yayılamaz.
  */
+/**
+ * Atama bu memura mı ait?
+ *
+ * Kimlik esastır; ad ikinci anahtardır. Oturumda kayıt kimliği taşınmadığı
+ * için memur atamaları hiç çözülemiyor ve memur kendisine GÖNDERİLEN
+ * belgeleri bile göremiyordu. Kimlik artık taşınıyor ama eski oturumlar onu
+ * içermiyor; ad bu sistemde zaten kimliktir (bkz. lib/akademisyen-kimlik.js)
+ * ve atama kaydı adı kopyalar.
+ */
+function atamaBuMemurun(atama, memurId, ad) {
+  if (!atama) return false;
+  const aid = metin(atama.memurId);
+  if (memurId && aid === memurId) return true;
+  if (memurId && aid) return false; // ikisi de var ve tutmuyor → başkasının
+  return !!ad && metin(atama.memurName).toLocaleUpperCase('tr') === ad;
+}
+
+function memurAdi(memur) {
+  return metin(memur && memur.name).toLocaleUpperCase('tr');
+}
+
 function memurBolumModulleri(atamalar, bolumId, memur) {
   const b = metin(bolumId);
   if (!b || !memur) return [];
   const memurId = metin(memur.memurId);
+  const ad = memurAdi(memur);
   const atama = (atamalar || []).find(
-    (a) => a && metin(a.departmentId) === b && metin(a.memurId) === memurId
+    (a) => a && metin(a.departmentId) === b && atamaBuMemurun(a, memurId, ad)
   );
   if (atama) return dizi(atama.modules);
   if (b && b === metin(memur.departmentId)) return dizi(memur.memurModules);
@@ -56,8 +78,10 @@ function memurYonlendirmeleri(belge) {
 function stajYetkilisiMi(memur, atamalar) {
   if (!memur) return false;
   if (memur.isStajCoordinator === true) return true;
+  const memurId = metin(memur.memurId);
+  const ad = memurAdi(memur);
   return (atamalar || []).some(
-    (a) => a && metin(a.memurId) === metin(memur.memurId) && dizi(a.modules).indexOf('staj') >= 0
+    (a) => atamaBuMemurun(a, memurId, ad) && dizi(a.modules).indexOf('staj') >= 0
   );
 }
 
@@ -86,7 +110,9 @@ function memurunBelgesiMi(belge, memur, atamalar) {
     const memurFak = metin(memur.facultyId);
     if (!belgeFak || !memurFak || belgeFak !== memurFak) return false;
     return (atamalar || []).some(
-      (a) => a && metin(a.memurId) === metin(memur.memurId) && dizi(a.modules).indexOf(modul) >= 0
+      (a) =>
+        atamaBuMemurun(a, metin(memur.memurId), memurAdi(memur)) &&
+        dizi(a.modules).indexOf(modul) >= 0
     );
   });
 }

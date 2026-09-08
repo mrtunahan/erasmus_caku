@@ -391,6 +391,11 @@ async function fetchProfessorProfile(professorName) {
     const doc = await profilBul(db, professorName);
     if (!doc) return null;
     return {
+      // ⚠ KAYIT KİMLİĞİ. Bu alan yoktu ve memur atamaları (bölüm, memur)
+      // kimliğe bağlı olduğu için memur oturumunda ataması HİÇ çözülemiyordu:
+      // memura gönderilen belgeler onun ekranında görünmüyordu. Kimlik burada
+      // taşınır; istemci `currentUser.id` olarak kullanır.
+      id: String(doc._docId || (doc._id && doc._id.toString()) || ''),
       name: doc.name,
       department: doc.department || '',
       departmentId: doc.departmentId || '',

@@ -456,3 +456,77 @@ describe('staj istisnası (fakülte çapında)', () => {
     ).toBe(false);
   });
 });
+
+// ══════════════════════════════════════════════════════════════
+// OTURUMDA KAYIT KİMLİĞİ YOKKEN — BİLDİRİLEN HATA
+//
+// Giriş yanıtı memurun kayıt kimliğini (`id`) hiç döndürmüyordu. Atamalar
+// (bölüm, memur) kimliğe bağlı olduğu için hiçbir atama eşleşmiyor ve memur,
+// kendisine GÖNDERİLEN belgeleri bile göremiyordu. Kimlik artık taşınıyor;
+// açık oturumlar için ad ikinci anahtar.
+// ══════════════════════════════════════════════════════════════
+describe('kimliksiz oturum — ad ile eşleşme', () => {
+  const KIMLIKSIZ = {
+    name: 'Niyazi METE',
+    identifier: 'niyazi',
+    role: 'memur',
+    facultyId: 'muhendislik',
+    departmentId: '',
+    memurModules: [],
+  };
+  const ATAMA_ADLI = [
+    {
+      departmentId: 'bilgisayar',
+      memurId: 'm-niyazi',
+      memurName: 'Niyazi METE',
+      modules: ['muafiyet'],
+    },
+  ];
+  const belgeBil = {
+    module: 'muafiyet',
+    departmentId: 'bilgisayar',
+    facultyId: 'muhendislik',
+    gonderimler: [{ hedefRol: 'memur', kapsamId: 'bilgisayar' }],
+  };
+
+  it('kimlik yokken ad eşleşmesiyle belge görünür', () => {
+    expect(
+      memuraGonderildiMi(belgeBil, {
+        kullanici: KIMLIKSIZ,
+        atamalar: ATAMA_ADLI,
+        aktifBolum: 'bilgisayar',
+      })
+    ).toBe(true);
+  });
+
+  it('kimlik VARSA ve tutmuyorsa ad yedeği devreye girmez', () => {
+    // Başkasının ataması ada benzese de kimlik açıkça farklıysa reddedilir.
+    const baskaKimlik = { ...KIMLIKSIZ, id: 'm-baskasi' };
+    expect(
+      memuraGonderildiMi(belgeBil, {
+        kullanici: baskaKimlik,
+        atamalar: ATAMA_ADLI,
+        aktifBolum: 'bilgisayar',
+      })
+    ).toBe(false);
+  });
+
+  it('ad da tutmuyorsa görünmez', () => {
+    const yabanci = { ...KIMLIKSIZ, name: 'Başka Kişi' };
+    expect(memurBelgeModulleri(ATAMA_ADLI, 'bilgisayar', yabanci)).toEqual([]);
+  });
+
+  it('adı olmayan atamada yedek çalışmaz', () => {
+    const adsizAtama = [{ departmentId: 'bilgisayar', memurId: 'm-x', modules: ['muafiyet'] }];
+    expect(memurBelgeModulleri(adsizAtama, 'bilgisayar', KIMLIKSIZ)).toEqual([]);
+  });
+
+  it('Türkçe büyük/küçük harf farkı eşleşmeyi bozmaz', () => {
+    const kucuk = { ...KIMLIKSIZ, name: 'niyazi mete' };
+    expect(memurBelgeModulleri(ATAMA_ADLI, 'bilgisayar', kucuk)).toEqual(['muafiyet']);
+  });
+
+  it('atanmadığı bölüm yine kapalı', () => {
+    expect(memurBelgeModulleri(ATAMA_ADLI, 'kimya', KIMLIKSIZ)).toEqual([]);
+  });
+});

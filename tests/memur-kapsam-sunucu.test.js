@@ -310,3 +310,43 @@ describe('memurMuafiyetKayitlariniSuz', () => {
     expect(memurMuafiyetKayitlariniSuz(null, NIYAZI, ATAMALAR, new Set())).toEqual([]);
   });
 });
+
+describe('sunucuda kimliksiz/ad eşleşmesi', () => {
+  const ATAMA_ADLI = [
+    {
+      departmentId: 'bilgisayar',
+      memurId: 'm-niyazi',
+      memurName: 'Niyazi METE',
+      modules: ['muafiyet'],
+    },
+  ];
+  const belgeBil = {
+    module: 'muafiyet',
+    departmentId: 'bilgisayar',
+    facultyId: 'muhendislik',
+    gonderimler: [{ hedefRol: 'memur', kapsamId: 'bilgisayar' }],
+  };
+
+  it('kimliği çözülemeyen memur adıyla eşleşir', () => {
+    const memur = { memurId: '', name: 'Niyazi METE', facultyId: 'muhendislik' };
+    expect(memurunBelgesiMi(belgeBil, memur, ATAMA_ADLI)).toBe(true);
+  });
+
+  it('kimlik VARSA ve tutmuyorsa ad yedeği devreye girmez', () => {
+    const memur = { memurId: 'm-baskasi', name: 'Niyazi METE', facultyId: 'muhendislik' };
+    expect(memurunBelgesiMi(belgeBil, memur, ATAMA_ADLI)).toBe(false);
+  });
+
+  it('ad da tutmuyorsa kapalı', () => {
+    const memur = { memurId: '', name: 'Başka Kişi', facultyId: 'muhendislik' };
+    expect(memurunBelgesiMi(belgeBil, memur, ATAMA_ADLI)).toBe(false);
+  });
+
+  it('staj yetkisi de adla çözülebilir', () => {
+    const stajAtama = [
+      { departmentId: 'kimya', memurId: 'm-ergun', memurName: 'Ergün ÇINAR', modules: ['staj'] },
+    ];
+    expect(stajYetkilisiMi({ memurId: '', name: 'Ergün ÇINAR' }, stajAtama)).toBe(true);
+    expect(stajYetkilisiMi({ memurId: '', name: 'Biri' }, stajAtama)).toBe(false);
+  });
+});

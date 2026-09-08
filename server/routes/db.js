@@ -1293,6 +1293,10 @@ async function memurKimligi(db, user) {
     if (prof && prof.isMemur) {
       kimlik = {
         memurId: String(prof._docId || (prof._id && prof._id.toString()) || ''),
+        // Ad, atama eşleşmesinde ikinci anahtardır (bkz. memur-kapsam.js →
+        // atamaBuMemurun): eski atama kayıtlarında kimlik farklı biçimde
+        // yazılmış olabilir, ad her ikisinde de var.
+        name: String(prof.name || ''),
         departmentId: String(prof.departmentId || ''),
         facultyId: String(prof.facultyId || ''),
         memurModules: Array.isArray(prof.memurModules) ? prof.memurModules : [],

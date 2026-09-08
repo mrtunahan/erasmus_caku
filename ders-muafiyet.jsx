@@ -7505,6 +7505,12 @@ const ExemptionHistory = ({
       (r.otherUniversity || r.otherUni || '').toLowerCase().includes(term)
     );
   });
+  // Liste kaydın geldiği rastgele düzendeydi. Sıra artık işe göre: önce
+  // AKADEMİSYENİN yapacakları (karar, eksik not), sonra ÖĞRENCİDEN
+  // beklenenler, en sonda tamamlananlar; her grup Türkçe ada göre
+  // (bkz. lib/muafiyet-kayit-durumu.js).
+  if (window.muafiyetKayitlariSirala) filtered = window.muafiyetKayitlariSirala(filtered);
+  var eksikToplam = window.muafiyetEksikSayisi ? window.muafiyetEksikSayisi(filtered) : 0;
 
   if (loading) {
     return (
@@ -7647,6 +7653,36 @@ const ExemptionHistory = ({
         />
       </div>
 
+      {/* Kaç kayıtta eksik iş var — liste zaten eksikler üstte sıralı, bu
+          satır kuyruğun boyunu tek bakışta veriyor. */}
+      {eksikToplam > 0 && (
+        <div
+          style={{
+            marginTop: -8,
+            marginBottom: 14,
+            fontSize: 12.5,
+            color: DS.textSecondary,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span
+            style={{
+              width: 9,
+              height: 9,
+              borderRadius: 3,
+              background: '#B45309',
+              display: 'inline-block',
+            }}
+          />
+          <span>
+            <strong style={{ color: DS.text }}>{eksikToplam}</strong> kayıtta eksik işlem var —
+            listenin başında.
+          </span>
+        </div>
+      )}
+
       {/* Kayıt Kartları */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {filtered.map(function (rec) {
@@ -7693,13 +7729,22 @@ const ExemptionHistory = ({
               </span>
             );
           };
+          // Durum kaydın kendisinden çıkarılır; kart rengi ve sıra ondan gelir.
+          var durum = window.muafiyetKayitDurumu
+            ? window.muafiyetKayitDurumu(rec)
+            : { eksik: rec.pendingReviewCount > 0, renk: '#B45309', bg: '#FEF3C7', etiket: '' };
+          var durumNot = window.muafiyetDurumAciklamasi ? window.muafiyetDurumAciklamasi(rec) : '';
           return (
             <div
               key={rec.id}
               style={{
                 borderRadius: DS.radius,
                 background: DS.bgCard,
-                border: '1px solid ' + (rec.pendingReviewCount > 0 ? '#FCD34D' : DS.border),
+                border: '1px solid ' + (durum.eksik ? durum.renk + '55' : DS.border),
+                // Eksik iş SOL ŞERİTLE de gösterilir: kenarlık rengi tek
+                // başına, uzun listede göz taraması için yeterince belirgin
+                // değildi.
+                borderLeft: durum.eksik ? '4px solid ' + durum.renk : '1px solid ' + DS.border,
                 overflow: 'hidden',
               }}
             >
@@ -7763,6 +7808,25 @@ const ExemptionHistory = ({
                     {redCount > 0 && stat(redCount + ' red', DS.red, DS.redLight)}
                     {rec.pendingReviewCount > 0 &&
                       stat(rec.pendingReviewCount + ' onay bekliyor', DS.amber, DS.amberLight)}
+                    {/* Ne eksik ve KİMDE? Kart açılmadan görünsün — yaz
+                        intibakı dört aşamalı ve her aşamada topu tutan taraf
+                        değişiyor. */}
+                    {durum.eksik && durumNot && (
+                      <span
+                        style={{
+                          background: durum.bg,
+                          color: durum.renk,
+                          padding: '2px 9px',
+                          borderRadius: 6,
+                          fontWeight: 700,
+                          fontSize: 11.5,
+                        }}
+                        title={durum.kimde ? durum.kimde + ' tarafında bekliyor' : ''}
+                      >
+                        {durumNot}
+                        {durum.kimde ? ' · ' + durum.kimde : ''}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
