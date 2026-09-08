@@ -384,6 +384,7 @@ import {
   memurStajYetkilisiMi,
 } from './lib/memur-atama.js';
 import { aiIstekHataMetni } from './lib/ai-istek-hatasi.js';
+import { gonderimBasarili, gonderimHataMetni } from './lib/belge-gonderim-sonucu.js';
 import {
   durumAciklamasi,
   eksikSayisi,
@@ -1606,7 +1607,14 @@ function BelgeOnizlemeModal({
               onClick={async () => {
                 setGonderiliyor(true);
                 try {
-                  await onSend();
+                  // ⚠ `belgeYonlendir` başarısızlığı FIRLATMAZ, { ok:false }
+                  // döner. Sonuç okunmadığı için kapsamsız gönderimler
+                  // "Gönderildi" görünüp hiçbir yere düşmüyordu.
+                  const sonuc = await onSend();
+                  if (!gonderimBasarili(sonuc)) {
+                    alert(gonderimHataMetni(sonuc));
+                    return;
+                  }
                   setGonderildi(true);
                 } catch (e) {
                   alert('Gönderilemedi: ' + (e.message || ''));
@@ -6421,6 +6429,21 @@ window.belgeYonlendir = async function (o) {
     else if (kapsamTip === 'fakulte') kapsamId = o.facultyId || cu.facultyId || '';
     else kapsamId = o.departmentId || cu.departmentId || '';
   }
+  // ⚠ KAPSAMSIZ YÖNLENDİRME SESSİZ BİR KAYIPTIR. Belge bir bölüme bağlanmazsa
+  // hiçbir memurun atamasıyla eşleşmez; gönderim "başarılı" döner, karşı
+  // tarafta hiçbir şey görünmez. Kapsam çözülemiyorsa gönderim yapılmaz ve
+  // sebebi çağırana söylenir.
+  if (kapsamTip === 'bolum' && !kapsamId) {
+    return { ok: false, reason: 'kapsam-yok' };
+  }
+  // Fakülte kimliği bölümden türetilir (recordMemurOutput ile aynı kural):
+  // fakülte geneli eşleşmeler ona bakıyor.
+  let fakulteId = o.facultyId || '';
+  if (!fakulteId && kapsamTip === 'bolum' && kapsamId) {
+    const d = (window.DEPARTMENTS || []).find((x) => x.id === kapsamId);
+    fakulteId = (d && d.facultyId) || '';
+  }
+  if (!fakulteId) fakulteId = cu.facultyId || '';
   const docId = o.module + '__' + (o.sourceId || 'x' + Date.now());
   try {
     // Mevcut kaydı oku (gönderim geçmişi korunur)
@@ -6458,8 +6481,9 @@ window.belgeYonlendir = async function (o) {
         subtitle: o.subtitle || mevcut.subtitle || '',
         url: o.url,
         ogrenciNo: o.ogrenciNo || mevcut.ogrenciNo || '',
-        departmentId: o.departmentId || mevcut.departmentId || '',
-        facultyId: o.facultyId || mevcut.facultyId || cu.facultyId || '',
+        departmentId:
+          (kapsamTip === 'bolum' ? kapsamId : o.departmentId) || mevcut.departmentId || '',
+        facultyId: fakulteId || mevcut.facultyId || '',
         gonderimler,
         updatedAt: new Date().toISOString(),
       },
@@ -14274,6 +14298,8 @@ window.memurBelgeyiGorurMu = memurBelgeyiGorurMu;
 window.memuraGonderildiMi = memuraGonderildiMi;
 // Belge okuma isteğinin hata metni — gövdesiz 504'te de bir şey söyler.
 window.aiIstekHataMetni = aiIstekHataMetni;
+window.belgeGonderimBasarili = gonderimBasarili;
+window.belgeGonderimHataMetni = gonderimHataMetni;
 // Muafiyet/intibak kayıt durumu — kart rengi, açıklama ve liste sırası.
 window.muafiyetKayitDurumu = kayitDurumu;
 window.muafiyetDurumAciklamasi = durumAciklamasi;

@@ -10755,7 +10755,15 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
               subtitle: turAd,
               url: url,
               ogrenciNo: rec.studentNo || '',
-              departmentId: rec.departmentId || '',
+              // ⚠ KAPSAM BOŞ KALMAMALI. Yönlendirme, belgeyi bir BÖLÜME
+              // bağlar; memur da o bölümdeki ataması üzerinden görür. Kaydın
+              // `departmentId`si boşsa (eski kayıtlar, geçici numarayla açılan
+              // talepler) kapsam boş kalıyor ve belge kimseye düşmüyordu —
+              // üstelik sessizce, "gönderildi" diyerek. Belgeyi üreten ekranın
+              // çalıştığı bölüm doğru bağlamdır; şablon çağrısı da aynı
+              // sırayı kullanıyor (yukarıda).
+              departmentId: rec.departmentId || activeDepartment || currentUser?.departmentId || '',
+              facultyId: rec.facultyId || currentUser?.facultyId || '',
             };
             setOnizleme({
               blob: res.blob,
@@ -11299,7 +11307,10 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
           },
           onSend: onizleme.belge
             ? async function () {
-                if (window.belgeOtoYonlendir) await window.belgeOtoYonlendir(onizleme.belge);
+                // Sonuç DÖNDÜRÜLÜR: önizleme penceresi başarısızlığı ancak
+                // böyle görebiliyor (belgeYonlendir hata fırlatmaz).
+                if (!window.belgeOtoYonlendir) return { ok: false, reason: 'kural-yok' };
+                return window.belgeOtoYonlendir(onizleme.belge);
               }
             : null,
         })}
