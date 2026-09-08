@@ -542,6 +542,15 @@ function GelenBelgelerApp({ currentUser, activeDepartment }) {
   }
 
   const bekleyen = gelen.filter((i) => i.gonderim.durum === 'bekliyor').length;
+  // Süzgeç seçili bölüme bağlı (istenen davranış), ama sessiz: kendisine
+  // gönderilmiş bir belge yanlış bölüm seçiliyken hiç görünmüyor ve memur
+  // "bana gelmedi" sanıyordu. Kayıp artık söyleniyor.
+  const baskaBolumler =
+    isMemur && window.memurBaskaBolumOzeti
+      ? window.memurBaskaBolumOzeti(docs, currentUser, { atamalar, aktifBolum: activeDepartment })
+      : [];
+  const bolumAdi = (id) => ((window.DEPARTMENTS || []).find((d) => d.id === id) || {}).name || id;
+
   // Memur seçili bölümde hiçbir modüle atanmamışsa liste zorunlu olarak boştur.
   const atamasizBolum =
     isMemur &&
@@ -778,6 +787,32 @@ function GelenBelgelerApp({ currentUser, activeDepartment }) {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Başka bölümde bekleyen belge var mı? Sağdaki bölüm seçimi yüzünden
+          kaybolmuş gibi görünen işler burada sayılır. */}
+      {tab === 'gelen' && baskaBolumler.length > 0 && (
+        <div
+          style={{
+            marginBottom: 14,
+            padding: '10px 14px',
+            borderRadius: 10,
+            background: '#EFF6FF',
+            border: '1px solid #BFDBFE',
+            color: '#1E40AF',
+            fontSize: 12.5,
+            lineHeight: 1.55,
+          }}
+        >
+          <strong>Başka bölümlerde bekleyen belge var:</strong>{' '}
+          {baskaBolumler.map((b, i) => (
+            <span key={b.bolum}>
+              {i > 0 ? ' · ' : ''}
+              {bolumAdi(b.bolum)} ({b.sayi})
+            </span>
+          ))}
+          . Görmek için sağdaki bölüm listesinden o bölümü seçin.
         </div>
       )}
 

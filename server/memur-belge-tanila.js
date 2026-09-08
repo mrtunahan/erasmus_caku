@@ -90,6 +90,27 @@
           `      ${gorur ? '✓ GÖRÜR ' : '✗ görmez'}  ${p.name}` +
             `   [${bolum} atamaları: ${mods.length ? mods.join(', ') : 'YOK'}]`
         );
+        if (!gorur) return;
+        // Sunucu "görür" diyorsa ekranda görünmemesinin sebebi İSTEMCİDEDİR.
+        // İki koşul daha var ve ikisi de dışarıdan görünmüyor.
+        const kendiAtamalari = atamalar.filter(
+          (a) =>
+            String(a.memurId || '') === memur.memurId ||
+            String(a.memurName || '') === String(p.name || '')
+        );
+        const bolumler = kendiAtamalari.map((a) => a.departmentId).filter(Boolean);
+        console.log(
+          `          → Ekranda görünmesi için SAĞDAN "${bolum}" seçili olmalı.` +
+            (bolumler.length > 1 ? `  (atandığı bölümler: ${bolumler.join(', ')})` : '')
+        );
+        const adsiz = kendiAtamalari.filter((a) => !String(a.memurName || '').trim());
+        if (adsiz.length > 0) {
+          console.log(
+            `          → ${adsiz.length} atama kaydında memurName BOŞ. Oturumu ` +
+              'deploy öncesinden kalan memur, kimliği taşımadığı için bu ' +
+              'atamalara ad ile de bağlanamaz; çıkış yapıp yeniden girmeli.'
+          );
+        }
       });
     }
   }

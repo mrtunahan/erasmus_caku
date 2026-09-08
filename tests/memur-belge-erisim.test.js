@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   belgeBolumu,
+  memurBaskaBolumOzeti,
   memuraGonderildiMi,
   memurYonlendirmeleri,
   belgeGizliMi,
@@ -528,5 +529,87 @@ describe('kimliksiz oturum — ad ile eşleşme', () => {
 
   it('atanmadığı bölüm yine kapalı', () => {
     expect(memurBelgeModulleri(ATAMA_ADLI, 'kimya', KIMLIKSIZ)).toEqual([]);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// BAŞKA BÖLÜMDEKİ BEKLEYEN BELGELER
+//
+// Süzgeç seçili bölüme bağlı; bu doğru ama sessiz. Kendisine gönderilmiş bir
+// belge yanlış bölüm seçiliyken hiç görünmüyor ve memur "bana gelmedi"
+// sanıyordu.
+// ══════════════════════════════════════════════════════════════
+describe('memurBaskaBolumOzeti', () => {
+  const IKI_BOLUM = ATAMALAR.concat([
+    { departmentId: 'kimya', memurId: 'm-niyazi', modules: ['muafiyet'] },
+  ]);
+  const bel = (bolum, ek) =>
+    Object.assign(
+      {
+        id: 'muafiyet__' + bolum + (ek && ek.id ? ek.id : ''),
+        module: 'muafiyet',
+        departmentId: bolum,
+        facultyId: 'muhendislik',
+        gonderimler: [{ hedefRol: 'memur', kapsamId: bolum, durum: 'bekliyor' }],
+      },
+      ek
+    );
+
+  it('BİLDİRİLEN KARIŞIKLIK: başka bölümdeki belge sayılır', () => {
+    const liste = [bel('kimya'), bel('bilgisayar')];
+    expect(
+      memurBaskaBolumOzeti(liste, NIYAZI, { atamalar: IKI_BOLUM, aktifBolum: 'bilgisayar' })
+    ).toEqual([{ bolum: 'kimya', sayi: 1 }]);
+  });
+
+  it('aktif bölümdekiler sayılmaz', () => {
+    const liste = [bel('bilgisayar'), bel('bilgisayar', { id: '2' })];
+    expect(
+      memurBaskaBolumOzeti(liste, NIYAZI, { atamalar: IKI_BOLUM, aktifBolum: 'bilgisayar' })
+    ).toEqual([]);
+  });
+
+  it('ATANMADIĞI bölümün belgesi sayılmaz', () => {
+    // Sayaç bir sızıntı yolu olmamalı: yalnız görebileceği belgeler.
+    const liste = [bel('makine')];
+    expect(
+      memurBaskaBolumOzeti(liste, NIYAZI, { atamalar: IKI_BOLUM, aktifBolum: 'bilgisayar' })
+    ).toEqual([]);
+  });
+
+  it('TAMAMLANMIŞ gönderim kuyrukta sayılmaz', () => {
+    const liste = [
+      bel('kimya', {
+        gonderimler: [{ hedefRol: 'memur', kapsamId: 'kimya', durum: 'tamamlandi' }],
+      }),
+    ];
+    expect(
+      memurBaskaBolumOzeti(liste, NIYAZI, { atamalar: IKI_BOLUM, aktifBolum: 'bilgisayar' })
+    ).toEqual([]);
+  });
+
+  it('gizlenen belge sayılmaz', () => {
+    const liste = [bel('kimya', { gizleyenler: ['niyazi'] })];
+    expect(
+      memurBaskaBolumOzeti(liste, NIYAZI, { atamalar: IKI_BOLUM, aktifBolum: 'bilgisayar' })
+    ).toEqual([]);
+  });
+
+  it('çok belgeli bölüm önce gelir', () => {
+    const uc = ATAMALAR.concat([
+      { departmentId: 'kimya', memurId: 'm-niyazi', modules: ['muafiyet'] },
+      { departmentId: 'makine', memurId: 'm-niyazi', modules: ['muafiyet'] },
+    ]);
+    const liste = [bel('kimya'), bel('kimya', { id: '2' }), bel('makine')];
+    expect(memurBaskaBolumOzeti(liste, NIYAZI, { atamalar: uc, aktifBolum: 'bilgisayar' })).toEqual(
+      [
+        { bolum: 'kimya', sayi: 2 },
+        { bolum: 'makine', sayi: 1 },
+      ]
+    );
+  });
+
+  it('boş girdi çökmez', () => {
+    expect(memurBaskaBolumOzeti(null, NIYAZI, null)).toEqual([]);
   });
 });

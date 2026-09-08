@@ -403,6 +403,7 @@ import {
 import {
   belgeBolumu,
   belgeGizliMi,
+  memurBaskaBolumOzeti,
   gelenKutusu,
   memuraGonderildiMi,
   memurBelgeModulleri,
@@ -14296,6 +14297,8 @@ window.memurBelgeModulleri = memurBelgeModulleri;
 window.memurBelgeyiGorurMu = memurBelgeyiGorurMu;
 // Gönderilmemiş belge memur tarafında görünmez — üretim tek başına yetmez.
 window.memuraGonderildiMi = memuraGonderildiMi;
+// Başka bölümde bekleyen belgeler — süzgeç sessiz kalmasın.
+window.memurBaskaBolumOzeti = memurBaskaBolumOzeti;
 // Belge okuma isteğinin hata metni — gövdesiz 504'te de bir şey söyler.
 window.aiIstekHataMetni = aiIstekHataMetni;
 window.belgeGonderimBasarili = gonderimBasarili;
