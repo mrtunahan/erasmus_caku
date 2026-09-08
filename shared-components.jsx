@@ -385,6 +385,12 @@ import {
 } from './lib/memur-atama.js';
 import { aiIstekHataMetni } from './lib/ai-istek-hatasi.js';
 import {
+  durumAciklamasi,
+  eksikSayisi,
+  kayitDurumu,
+  kayitlariSirala,
+} from './lib/muafiyet-kayit-durumu.js';
+import {
   baglamaGecerliMi,
   baglamaYamalari,
   bagliNolar,
@@ -8929,6 +8935,10 @@ const LoginModal = ({ onLogin }) => {
                 : u.role;
           return {
             ...u,
+            // Kayıt kimliği — memur atamaları (bölüm, memur) buna bağlı.
+            // Taşınmadığı sürece memur, kendisine gönderilen belgeleri
+            // göremiyordu (bkz. lib/memur-belge-erisim.js).
+            id: p.id || u.id || '',
             role: effectiveRole,
             baseRole: 'professor',
             departmentId: p.departmentId || u.departmentId || '',
@@ -14264,6 +14274,11 @@ window.memurBelgeyiGorurMu = memurBelgeyiGorurMu;
 window.memuraGonderildiMi = memuraGonderildiMi;
 // Belge okuma isteğinin hata metni — gövdesiz 504'te de bir şey söyler.
 window.aiIstekHataMetni = aiIstekHataMetni;
+// Muafiyet/intibak kayıt durumu — kart rengi, açıklama ve liste sırası.
+window.muafiyetKayitDurumu = kayitDurumu;
+window.muafiyetDurumAciklamasi = durumAciklamasi;
+window.muafiyetKayitlariSirala = kayitlariSirala;
+window.muafiyetEksikSayisi = eksikSayisi;
 // ÇAP numara bağı — çift numaralı öğrencinin iki kaydı tek kişi sayılır.
 window.capBagliNolar = bagliNolar;
 window.capBaglamaGecerliMi = baglamaGecerliMi;
