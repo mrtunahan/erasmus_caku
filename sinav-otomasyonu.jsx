@@ -180,7 +180,12 @@ function assignSupervisorsFromList(supervisorNames, exams, classroomFn, options)
   const dolu = {};
   supervisorNames.forEach((s) => (dolu[s] = new Set()));
   const slotKey = (e) => (e.date || '') + '|' + (e.timeSlot || '');
-  const musait = (s, exam) => !dolu[s] || !dolu[s].has(slotKey(exam));
+  // Gün bazlı müsaitsizlik: izinli/görevli olduğu günde atanmaz
+  // (Bölüm Yönetimi → Gözetmenler ekranından girilir).
+  const musaitsizlik = (options && options.musaitsizlik) || {};
+  const gunMusait = (s, exam) =>
+    !window.gozetmenMusaitMi || window.gozetmenMusaitMi(s, exam && exam.date, musaitsizlik);
+  const musait = (s, exam) => gunMusait(s, exam) && (!dolu[s] || !dolu[s].has(slotKey(exam)));
   const isaretle = (s, exam, duration) => {
     if (totalMinutes[s] != null) totalMinutes[s] += duration;
     if (dolu[s]) dolu[s].add(slotKey(exam));
@@ -2404,7 +2409,10 @@ async function exportToXLSX(
   customClassrooms,
   customSupervisors,
   deptName,
-  gozetmenKurali
+  gozetmenKurali,
+  // Gözetmenin izinli/görevli olduğu günler — { 'Ad Soyad': ['2026-06-01'] }.
+  // Dekanlık çıktısı da canlı ekranla AYNI atamayı üretmeli.
+  musaitsizlik
 ) {
   // Load xlsx-js-style for cell styling support (colors, bold, borders)
   if (!window._XLSX_STYLE_LOADED) {
@@ -2456,7 +2464,7 @@ async function exportToXLSX(
     exportSupervisorNames,
     sorted,
     exportAssignClassroom,
-    { ownLecturerRule: gozetmenKurali }
+    { ownLecturerRule: gozetmenKurali, musaitsizlik: musaitsizlik || {} }
   );
 
   const enriched = sorted.map((exam) => {
@@ -2775,6 +2783,15 @@ function SinavOtomasyonuApp({
   const [showSupervisorModal, setShowSupervisorModal] = useState(false);
   const [deptClassrooms, setDeptClassrooms] = useState([]);
   const [deptSupervisors, setDeptSupervisors] = useState([]);
+  // ── Fakülte geneli çakışma denetimi ──
+  // Salonlar ve gözetmenler bölüm bölüm tanımlı; kimse fakültenin tamamını
+  // görmediği için iki bölüm aynı saatte aynı salonu/gözetmeni alabiliyordu.
+  // Denetim bu yüzden BÜTÜN bölümlerin sınavları üzerinden yapılır.
+  const [tumSinavlar, setTumSinavlar] = useState([]);
+  const [tumSalonlar, setTumSalonlar] = useState([]);
+  const [cakismaKabulleri, setCakismaKabulleri] = useState([]);
+  const [cakismaPaneli, setCakismaPaneli] = useState(false);
+  const [kabulEdilen, setKabulEdilen] = useState(null); // şartlı kabul modalı
 
   // State
   const [courses, setCourses] = useState([]);
@@ -2825,6 +2842,10 @@ function SinavOtomasyonuApp({
         deptSupervisors.length > 0 ? deptSupervisors.map((s) => s.name) : DEPT_SUPERVISORS;
       return assignSupervisorsFromList(supervisorNames, exams, assignClassroomDynamic, {
         ownLecturerRule: selectedDept?.gozetmenKurali || GOZETMEN_KURALI_VARSAYILAN,
+        // İzinli/görevli olduğu güne gözetmen atanmaz.
+        musaitsizlik: window.gozetmenMusaitsizlikHaritasi
+          ? window.gozetmenMusaitsizlikHaritasi(deptSupervisors)
+          : {},
       });
     },
     [deptSupervisors, assignClassroomDynamic, selectedDept]
@@ -2994,6 +3015,79 @@ function SinavOtomasyonuApp({
       }
     } catch (e) {
       console.error('Load dept resources error:', e);
+    }
+  };
+
+  // ── Fakülte geneli veri (çakışma denetimi için) ──
+  // Bölüm süzgeci olmadan okunur: çakışma tanımı gereği BAŞKA bölümün
+  // sınavıyla olur, kendi bölümüne bakarak görülemez. Yalnız denetim için
+  // kullanılır; takvim ve listeler aktif bölümün verisiyle çizilmeye devam
+  // eder.
+  const loadFakulteGeneli = useCallback(async () => {
+    try {
+      const [sinavlar, salonlar, kabuller] = await Promise.all([
+        window.apiRead('sinav_programi').catch(() => []),
+        window.apiRead('department_classrooms').catch(() => []),
+        window.apiRead('sinav_cakisma_kabul').catch(() => []),
+      ]);
+      setTumSinavlar(Array.isArray(sinavlar) ? sinavlar : []);
+      setTumSalonlar(Array.isArray(salonlar) ? salonlar : []);
+      setCakismaKabulleri(Array.isArray(kabuller) ? kabuller : []);
+    } catch (e) {
+      console.warn('Fakülte geneli veri okunamadı:', e && e.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFakulteGeneli();
+  }, [loadFakulteGeneli, placedExams.length]);
+
+  // ── Resmî çıktı kapısı ──
+  // Engel varsa çıktı üretilmez: fiziksel imkânsızlık taşıyan bir program
+  // dekanlığa gönderilmemeli. Karar bekleyen uyarı varsa da tutulur —
+  // yetkili ya düzeltir ya şartlı kabul eder; "görmezden gel" seçeneği yok.
+  const cikisIzniVar = () => {
+    if (programHazir) return true;
+    setCakismaPaneli(true);
+    alert(
+      cakismaOzet.engel > 0
+        ? cakismaOzet.engel +
+            ' çakışma fiziksel olarak imkânsız (kapasite yetmiyor ya da gözetmen iki ' +
+            'salonda birden olamaz). Bunlar düzeltilmeden resmî çıktı alınamaz.\n\n' +
+            'Çakışma panelini açtım.'
+        : cakismaOzet.bekleyen +
+            ' çakışma karar bekliyor. Her birini ya düzeltin ya da sebebini yazarak ' +
+            'şartlı kabul edin; kabul kayda geçer.\n\nÇakışma panelini açtım.'
+    );
+    return false;
+  };
+
+  // Şartlı kabul — sebep zorunlu, kim/ne zaman kayda geçer.
+  const cakismayiKabulEt = async (cakisma, sebep) => {
+    const k = window.sinavKabulKaydi(cakisma, sebep, currentUser);
+    if (!k.olur) {
+      alert(k.sebep);
+      return false;
+    }
+    try {
+      await DBWrite.set('sinav_cakisma_kabul', k.kayit.anahtar, k.kayit, true);
+      if (window.apiInvalidate) window.apiInvalidate('sinav_cakisma_kabul');
+      await loadFakulteGeneli();
+      return true;
+    } catch (e) {
+      alert('Kabul kaydedilemedi: ' + (e.message || ''));
+      return false;
+    }
+  };
+
+  const kabulGeriAl = async (cakisma) => {
+    if (!confirm('Bu çakışmanın şartlı kabulü geri alınacak. Devam edilsin mi?')) return;
+    try {
+      await DBWrite.remove('sinav_cakisma_kabul', cakisma.anahtar);
+      if (window.apiInvalidate) window.apiInvalidate('sinav_cakisma_kabul');
+      await loadFakulteGeneli();
+    } catch (e) {
+      alert('Geri alınamadı: ' + (e.message || ''));
     }
   };
 
@@ -3366,6 +3460,43 @@ function SinavOtomasyonuApp({
 
   const activePeriod = periods.find((p) => p.id === activePeriodId);
   const periodExams = placedExams.filter((e) => e.periodId === activePeriodId);
+
+  // ── Fakülte geneli çakışma denetimi ──
+  // Denetim aktif dönemin TARİHLERİYLE kesişen bütün sınavlar üzerinden
+  // yapılır: başka bölümün sınavı aynı güne düşüyorsa salon ve gözetmen
+  // paylaşımı da o gün yaşanıyor demektir.
+  const donemGunleri = useMemo(() => {
+    const g = new Set();
+    periodExams.forEach((e) => e.date && g.add(e.date));
+    return g;
+  }, [periodExams]);
+
+  const salonKapasiteleri = useMemo(() => {
+    const h = {};
+    (tumSalonlar.length > 0 ? tumSalonlar : deptClassrooms).forEach((r) => {
+      if (r && r.name) h[r.name] = Number(r.capacity) || 0;
+    });
+    ALL_FACULTY_CLASSROOMS.forEach((r) => {
+      if (h[r.name] == null && r.capacity) h[r.name] = Number(r.capacity) || 0;
+    });
+    return h;
+  }, [tumSalonlar, deptClassrooms]);
+
+  const cakismalar = useMemo(() => {
+    if (!window.sinavCakismalariBul) return [];
+    const kapsam = (tumSinavlar.length > 0 ? tumSinavlar : periodExams).filter(
+      (e) => e && e.date && donemGunleri.has(e.date)
+    );
+    return window.sinavCakismalariBul(kapsam, {
+      salonKapasiteleri,
+      kabuller: cakismaKabulleri,
+    });
+  }, [tumSinavlar, periodExams, donemGunleri, salonKapasiteleri, cakismaKabulleri]);
+
+  const cakismaOzet = window.sinavCakismaOzeti
+    ? window.sinavCakismaOzeti(cakismalar)
+    : { toplam: 0, engel: 0, bekleyen: 0, kabul: 0 };
+  const programHazir = window.sinavProgramHazirMi ? window.sinavProgramHazirMi(cakismalar) : true;
 
   // ── SEÇİM YOKKEN KAPANMAZ ──
   // Panel varsayılan kapalıdır, ama hiç dönem seçilmemişken kapalı açılış
@@ -4155,12 +4286,54 @@ function SinavOtomasyonuApp({
                 <span style={{ fontSize: 12, color: '#666' }}>
                   {periodExams.length}/{courses.length} ders yerleştirildi
                 </span>
+                {/* Çakışma rozeti — fakülte geneli denetimin özeti. Tıklayınca
+                    panel açılır; engel/bekleyen sayısı renkten okunur. */}
+                {periodExams.length > 0 && (
+                  <button
+                    onClick={() => setCakismaPaneli((v) => !v)}
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: 20,
+                      border:
+                        '1px solid ' +
+                        (cakismaOzet.engel > 0
+                          ? '#FCA5A5'
+                          : cakismaOzet.bekleyen > 0
+                            ? '#FCD34D'
+                            : '#A7F3D0'),
+                      background:
+                        cakismaOzet.engel > 0
+                          ? '#FEF2F2'
+                          : cakismaOzet.bekleyen > 0
+                            ? '#FFFBEB'
+                            : '#ECFDF5',
+                      color:
+                        cakismaOzet.engel > 0
+                          ? '#B91C1C'
+                          : cakismaOzet.bekleyen > 0
+                            ? '#B45309'
+                            : '#047857',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                    title="Fakülte geneli çakışma denetimi"
+                  >
+                    {cakismaOzet.engel > 0
+                      ? cakismaOzet.engel + ' engel'
+                      : cakismaOzet.bekleyen > 0
+                        ? cakismaOzet.bekleyen + ' çakışma kararı bekliyor'
+                        : 'Çakışma yok'}
+                    {cakismaOzet.kabul > 0 ? ' · ' + cakismaOzet.kabul + ' şartlı kabul' : ''}
+                  </button>
+                )}
                 {/* Dekanlık/Bölüm çıktıları yalnızca bölüm/fakülte/üniversite
                     yetkililerinde görünür; sıradan akademisyende gizli. */}
                 {canManage && periodExams.length > 0 && (
                   <>
                     <GhostBtn
                       onClick={() =>
+                        cikisIzniVar() &&
                         exportToXLSX(
                           periodExams,
                           activePeriod.label,
@@ -4168,7 +4341,10 @@ function SinavOtomasyonuApp({
                           deptClassrooms.length > 0 ? deptClassrooms : null,
                           deptSupervisors.length > 0 ? deptSupervisors.map((s) => s.name) : null,
                           selectedDept?.name || null,
-                          selectedDept?.gozetmenKurali || GOZETMEN_KURALI_VARSAYILAN
+                          selectedDept?.gozetmenKurali || GOZETMEN_KURALI_VARSAYILAN,
+                          window.gozetmenMusaitsizlikHaritasi
+                            ? window.gozetmenMusaitsizlikHaritasi(deptSupervisors)
+                            : {}
                         )
                       }
                       style={{
@@ -4183,6 +4359,7 @@ function SinavOtomasyonuApp({
                     </GhostBtn>
                     <GhostBtn
                       onClick={() =>
+                        cikisIzniVar() &&
                         exportDeptPrintable(
                           periodExams,
                           activePeriod.label,
@@ -4248,6 +4425,112 @@ function SinavOtomasyonuApp({
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* ── Çakışma paneli ── */}
+            {cakismaPaneli && (
+              <Card style={{ marginBottom: 12 }}>
+                <div style={{ padding: 4 }}>
+                  <div style={{ fontWeight: 800, color: C.navy, fontSize: 15, marginBottom: 4 }}>
+                    Fakülte geneli çakışma denetimi
+                  </div>
+                  <div style={{ fontSize: 12.5, color: '#555', marginBottom: 14, lineHeight: 1.6 }}>
+                    Salonlar ve gözetmenler bölüm bölüm tanımlı; bu denetim{' '}
+                    <strong>bütün bölümlerin</strong> sınavlarını birlikte inceler. Her çakışma hata
+                    değildir — bir salonda iki bölümün sınavı kapasite yetiyorsa birlikte
+                    yapılabilir. Böyle durumlarda <strong>sebebini yazarak şartlı kabul</strong>{' '}
+                    edebilirsiniz; kabul kim ve ne zaman yaptıysa kayda geçer.
+                  </div>
+                  {cakismalar.length === 0 && (
+                    <div style={{ fontSize: 13, color: '#047857', fontWeight: 600 }}>
+                      Çakışma bulunamadı — program resmî çıktıya hazır.
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {cakismalar.map((c) => {
+                      const engel = c.seviye === 'engel';
+                      const kabulEdildi = !!c.kabul;
+                      const renk = engel ? '#B91C1C' : kabulEdildi ? '#047857' : '#B45309';
+                      const arka = engel ? '#FEF2F2' : kabulEdildi ? '#ECFDF5' : '#FFFBEB';
+                      return (
+                        <div
+                          key={c.anahtar}
+                          style={{
+                            border: '1px solid ' + renk + '44',
+                            borderLeft: '4px solid ' + renk,
+                            borderRadius: 10,
+                            background: arka,
+                            padding: '10px 14px',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              gap: 12,
+                              flexWrap: 'wrap',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, color: renk, fontSize: 13.5 }}>
+                                {engel ? 'ENGEL' : kabulEdildi ? 'ŞARTLI KABUL' : 'KARAR BEKLİYOR'}{' '}
+                                · {c.baslik}
+                              </div>
+                              <div style={{ fontSize: 12.5, color: '#444', marginTop: 3 }}>
+                                {c.aciklama}
+                              </div>
+                              <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>
+                                {c.cozum}
+                              </div>
+                              {kabulEdildi && (
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    color: '#047857',
+                                    marginTop: 5,
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  “{c.kabul.sebep}” — {c.kabul.kabulEden || 'yetkili'}
+                                  {c.kabul.tarih
+                                    ? ' · ' + new Date(c.kabul.tarih).toLocaleDateString('tr-TR')
+                                    : ''}
+                                </div>
+                              )}
+                            </div>
+                            {canManage && c.kabulEdilebilir && (
+                              <div style={{ flexShrink: 0 }}>
+                                {kabulEdildi ? (
+                                  <GhostBtn
+                                    onClick={() => kabulGeriAl(c)}
+                                    style={{ fontSize: 12, padding: '4px 10px' }}
+                                  >
+                                    Kabulü geri al
+                                  </GhostBtn>
+                                ) : (
+                                  <GhostBtn
+                                    onClick={() => setKabulEdilen(c)}
+                                    style={{
+                                      fontSize: 12,
+                                      padding: '4px 10px',
+                                      background: '#B45309',
+                                      color: 'white',
+                                      border: 'none',
+                                    }}
+                                  >
+                                    Şartlı kabul et
+                                  </GhostBtn>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Card>
             )}
 
             {viewMode === 'calendar' ? (
@@ -4552,10 +4835,103 @@ function SinavOtomasyonuApp({
             }}
           />
         )}
+
+        {kabulEdilen && (
+          <SartliKabulModal
+            cakisma={kabulEdilen}
+            onKabul={cakismayiKabulEt}
+            onClose={() => setKabulEdilen(null)}
+          />
+        )}
       </div>
     </div>
   );
 }
+
+// ── Şartlı kabul penceresi ──
+// Sebep ZORUNLU. Kabul bir imzadır: "kapasite yeterli, iki bölüm ortak salon
+// kullanacak" diyen kişi kayda geçer ve dekanlık çıktısında bu karar
+// arkasında durulur. Sebepsiz kabul, denetimi hiç yapmamakla aynı şeydir.
+const SartliKabulModal = ({ cakisma, onKabul, onClose }) => {
+  const [sebep, setSebep] = useState('');
+  const [busy, setBusy] = useState(false);
+  const HAZIR = [
+    'Kapasite yeterli — iki bölüm salonu birlikte kullanacak.',
+    'Aynı salon, tek gözetmen iki sınavı birden gözetecek.',
+    'Seçmeli dersler — ortak öğrenci yok, kontrol edildi.',
+  ];
+  return (
+    <Modal open={true} title="Çakışmayı şartlı kabul et" onClose={onClose} width={560}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div
+          style={{
+            padding: '10px 14px',
+            borderRadius: 8,
+            background: '#FFFBEB',
+            border: '1px solid #FCD34D',
+            fontSize: 13,
+            lineHeight: 1.6,
+          }}
+        >
+          <strong>{cakisma.baslik}</strong>
+          <div style={{ marginTop: 4, color: '#555' }}>{cakisma.aciklama}</div>
+          <div style={{ marginTop: 4, color: '#B45309' }}>{cakisma.cozum}</div>
+        </div>
+        <FormField label="Kabul sebebi *">
+          <textarea
+            value={sebep}
+            onChange={(e) => setSebep(e.target.value)}
+            rows={3}
+            placeholder="Bu çakışmayı neden kabul ediyorsunuz? Karar kayda geçecek."
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid ' + (C ? C.border : '#E5E1D8'),
+              fontSize: 13.5,
+              fontFamily: 'inherit',
+              resize: 'vertical',
+            }}
+          />
+        </FormField>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {HAZIR.map((h) => (
+            <button
+              key={h}
+              onClick={() => setSebep(h)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 14,
+                border: '1px solid ' + (C ? C.border : '#E5E1D8'),
+                background: 'white',
+                fontSize: 11.5,
+                cursor: 'pointer',
+                color: '#555',
+              }}
+            >
+              {h}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <GhostBtn onClick={onClose}>Vazgeç</GhostBtn>
+          <Btn
+            disabled={busy || sebep.trim().length < 3}
+            onClick={async () => {
+              setBusy(true);
+              const ok = await onKabul(cakisma, sebep);
+              setBusy(false);
+              if (ok) onClose();
+            }}
+          >
+            {busy ? 'Kaydediliyor…' : 'Şartlı kabul et'}
+          </Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+};
 
 // Export to window
 window.SinavOtomasyonuApp = SinavOtomasyonuApp;

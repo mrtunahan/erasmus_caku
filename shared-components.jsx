@@ -386,6 +386,15 @@ import {
 import { aiIstekHataMetni } from './lib/ai-istek-hatasi.js';
 import { gonderimBasarili, gonderimHataMetni } from './lib/belge-gonderim-sonucu.js';
 import {
+  cakismaOzeti,
+  cakismalariBul,
+  gozetmenMusaitMi,
+  kabulKaydi,
+  musaitsizGunler,
+  musaitsizlikHaritasi,
+  programHazirMi,
+} from './lib/sinav-cakisma.js';
+import {
   durumAciklamasi,
   eksikSayisi,
   kayitDurumu,
@@ -14302,6 +14311,15 @@ window.memurBaskaBolumOzeti = memurBaskaBolumOzeti;
 // Belge okuma isteğinin hata metni — gövdesiz 504'te de bir şey söyler.
 window.aiIstekHataMetni = aiIstekHataMetni;
 window.belgeGonderimBasarili = gonderimBasarili;
+// Sınav çakışmaları ve şartlı kabul — fakülte geneli denetim.
+window.sinavCakismalariBul = cakismalariBul;
+window.sinavCakismaOzeti = cakismaOzeti;
+window.sinavProgramHazirMi = programHazirMi;
+window.sinavKabulKaydi = kabulKaydi;
+// Gözetmen müsaitliği — izinli/görevli olduğu günde atanmasın.
+window.gozetmenMusaitsizGunler = musaitsizGunler;
+window.gozetmenMusaitsizlikHaritasi = musaitsizlikHaritasi;
+window.gozetmenMusaitMi = gozetmenMusaitMi;
 window.belgeGonderimHataMetni = gonderimHataMetni;
 // Muafiyet/intibak kayıt durumu — kart rengi, açıklama ve liste sırası.
 window.muafiyetKayitDurumu = kayitDurumu;
