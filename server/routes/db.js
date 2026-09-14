@@ -80,6 +80,12 @@ const ALLOWED_COLLECTIONS = [
   'sinav_programi',
   'sinav_dersler',
   'sinav_donemler',
+  // SINAV ÇAKIŞMA ŞARTLI KABULLERİ — doc id = çakışma anahtarı (tür|salon|
+  // sınav|sınav, sıralı). Çakışma İKİ BÖLÜMÜ birden ilgilendirebiliyor
+  // (fakültede bir salonda iki bölümün sınavı); kabul ortak bir kayıtta
+  // durur ki iki taraf da aynı kararı görsün. Yalnız bölüm yetkilisi ve
+  // üstü yazar — kabul, sorumluluğu üstlenen bir imzadır.
+  'sinav_cakisma_kabul',
   'professors',
   'portal_posts',
   'portal_moderators',
@@ -398,6 +404,10 @@ const DEPT_MANAGER_WRITE = new Set([
   // Memurun hangi bölümde hangi modülleri göreceğini bölüm yetkilisi belirler;
   // sade akademisyen ya da öğrenci memur ataması yapamaz.
   'memur_bolum_modulleri',
+  // Sınav çakışmasının şartlı kabulü sorumluluk üstlenmektir: "kapasite
+  // yeterli, iki bölüm ortak salon kullanacak" diyen kişi kayda geçer.
+  // Sade akademisyen kendi sınavının çakışmasını kabul edemez.
+  'sinav_cakisma_kabul',
   // Ders programının saat aralığı ve bölüm rengi bölümün kendi kararıdır.
   'bolum_program_ayarlari',
 ]);

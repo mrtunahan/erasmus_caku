@@ -507,6 +507,66 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     setSaving(false);
   };
 
+  // ── Gözetmen ekranı: arama, toplu ekleme, müsaitlik ──
+  // Eski ekran düz bir listeydi: arama yok, ekleme tek tek modaldan, ve
+  // gözetmenin izinli/görevli olduğu günü girecek yer yoktu — o bilgi
+  // otomatik atamada kullanılamıyor, düzeltme elle yapılıyordu.
+  const [supArama, setSupArama] = useState('');
+  const [topluSecim, setTopluSecim] = useState([]);
+  const [musaitlikAcik, setMusaitlikAcik] = useState(null); // gözetmen kaydı
+  const [yeniGun, setYeniGun] = useState('');
+
+  const supSuzgec = (liste) => {
+    const q = String(supArama || '')
+      .trim()
+      .toLocaleLowerCase('tr');
+    if (!q) return liste;
+    return liste.filter((p) =>
+      String(p.name || '')
+        .toLocaleLowerCase('tr')
+        .includes(q)
+    );
+  };
+
+  const topluEkle = async () => {
+    if (topluSecim.length === 0) return;
+    setSaving(true);
+    try {
+      for (const id of topluSecim) {
+        const prof = professors.find((p) => p.id === id);
+        if (!prof) continue;
+        const roles = [...new Set([...(prof.roles || []), 'gozetmen'])];
+        await DBWrite.update('professors', prof.id, { roles });
+      }
+      setTopluSecim([]);
+      await loadData();
+    } catch (e) {
+      alert('Hata: ' + e.message);
+    }
+    setSaving(false);
+  };
+
+  // Müsait olmadığı günler — otomatik atama bu günleri atlar.
+  const musaitsizGunEkle = async (sup, gun) => {
+    const g = String(gun || '').trim();
+    if (!g) return;
+    const mevcut = window.gozetmenMusaitsizGunler ? window.gozetmenMusaitsizGunler(sup) : [];
+    if (mevcut.includes(g)) return;
+    const yeni = [...mevcut, g].sort();
+    await DBWrite.update('professors', sup.id, { gozetmenMusaitsizGunler: yeni });
+    setMusaitlikAcik({ ...sup, gozetmenMusaitsizGunler: yeni });
+    setYeniGun('');
+    await loadData();
+  };
+
+  const musaitsizGunCikar = async (sup, gun) => {
+    const mevcut = window.gozetmenMusaitsizGunler ? window.gozetmenMusaitsizGunler(sup) : [];
+    const yeni = mevcut.filter((x) => x !== gun);
+    await DBWrite.update('professors', sup.id, { gozetmenMusaitsizGunler: yeni });
+    setMusaitlikAcik({ ...sup, gozetmenMusaitsizGunler: yeni });
+    await loadData();
+  };
+
   const handleSupRemoveRole = async (s) => {
     if (!confirm(`${s.name} gözetmenlikten çıkarılacak. Akademisyen kaydı silinmez. Emin misiniz?`))
       return;
@@ -842,42 +902,156 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
 
                 {/* SUPERVISORS TAB — professors koleksiyonundan roles:gozetmen */}
                 {activeTab === 'supervisors' && (
-                  <table style={byTablo}>
-                    <colgroup>
-                      <col />
-                      <col style={{ width: 180 }} />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th style={byTh}>Gözetmen Akademisyen</th>
-                        <th style={{ ...byTh, textAlign: 'center' }}>İşlem</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {supervisors.map((s) => (
-                        <tr key={s.id}>
-                          <td style={{ ...byTd, fontWeight: 600 }}>{s.name}</td>
-                          <td style={{ ...byTd, textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                              <GhostBtn onClick={() => startSupEdit(s)}>Düzenle</GhostBtn>
-                              <GhostBtn
-                                onClick={() => handleSupRemoveRole(s)}
-                                style={{ color: '#DC2626' }}
+                  <>
+                    {/* Toplu ekleme — bölümün gözetmen olmayan akademisyenleri.
+                        Tek tek modal açmak 15 kişilik bölümde 15 tur demekti. */}
+                    {nonSupervisorProfs.length > 0 && (
+                      <div
+                        style={{
+                          border: '1px solid #E5E7EB',
+                          borderRadius: 10,
+                          padding: '12px 14px',
+                          marginBottom: 14,
+                          background: '#F9FAFB',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: '#1F2937',
+                            marginBottom: 8,
+                          }}
+                        >
+                          Bölümün diğer akademisyenleri ({nonSupervisorProfs.length}) — seçip
+                          topluca gözetmen yapın
+                        </div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 6,
+                            maxHeight: 150,
+                            overflowY: 'auto',
+                          }}
+                        >
+                          {nonSupervisorProfs.map((p) => {
+                            const secili = topluSecim.includes(p.id);
+                            return (
+                              <button
+                                key={p.id}
+                                onClick={() =>
+                                  setTopluSecim((prev) =>
+                                    secili ? prev.filter((x) => x !== p.id) : [...prev, p.id]
+                                  )
+                                }
+                                style={{
+                                  padding: '5px 12px',
+                                  borderRadius: 16,
+                                  border: '1px solid ' + (secili ? '#0F766E' : '#D1D5DB'),
+                                  background: secili ? '#CCFBF1' : 'white',
+                                  color: secili ? '#0F766E' : '#4B5563',
+                                  fontSize: 12,
+                                  fontWeight: secili ? 700 : 500,
+                                  cursor: 'pointer',
+                                }}
                               >
-                                Çıkar
-                              </GhostBtn>
-                            </div>
-                          </td>
+                                {secili ? '✓ ' : '+ '}
+                                {p.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {topluSecim.length > 0 && (
+                          <div style={{ marginTop: 10 }}>
+                            <Btn onClick={topluEkle} disabled={saving}>
+                              {saving
+                                ? 'Ekleniyor…'
+                                : topluSecim.length + ' akademisyeni gözetmen yap'}
+                            </Btn>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {supervisors.length > 4 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <Input
+                          value={supArama}
+                          onChange={(e) => setSupArama(e.target.value)}
+                          placeholder="Gözetmen ara…"
+                        />
+                      </div>
+                    )}
+
+                    <table style={byTablo}>
+                      <colgroup>
+                        <col />
+                        <col style={{ width: 230 }} />
+                        <col style={{ width: 200 }} />
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th style={byTh}>Gözetmen Akademisyen</th>
+                          <th style={byTh}>Müsait olmadığı günler</th>
+                          <th style={{ ...byTh, textAlign: 'center' }}>İşlem</th>
                         </tr>
-                      ))}
-                      {supervisors.length === 0 && (
-                        <BYTabloBos kolon={2}>
-                          Henüz gözetmen atanmamış. Yukarıdaki “Yeni Gözetmen” düğmesiyle
-                          ekleyebilirsiniz.
-                        </BYTabloBos>
-                      )}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {supSuzgec(supervisors).map((s) => {
+                          const gunler = window.gozetmenMusaitsizGunler
+                            ? window.gozetmenMusaitsizGunler(s)
+                            : [];
+                          return (
+                            <tr key={s.id}>
+                              <td style={{ ...byTd, fontWeight: 600 }}>{s.name}</td>
+                              <td style={byTd}>
+                                <button
+                                  onClick={() => {
+                                    setMusaitlikAcik(s);
+                                    setYeniGun('');
+                                  }}
+                                  style={{
+                                    padding: '3px 10px',
+                                    borderRadius: 14,
+                                    border: '1px solid ' + (gunler.length ? '#FCD34D' : '#D1D5DB'),
+                                    background: gunler.length ? '#FFFBEB' : 'white',
+                                    color: gunler.length ? '#B45309' : '#6B7280',
+                                    fontSize: 12,
+                                    fontWeight: gunler.length ? 700 : 500,
+                                    cursor: 'pointer',
+                                  }}
+                                  title="Bu günlerde otomatik atama yapılmaz"
+                                >
+                                  {gunler.length ? gunler.length + ' gün' : '+ gün ekle'}
+                                </button>
+                              </td>
+                              <td style={{ ...byTd, textAlign: 'center' }}>
+                                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                                  <GhostBtn onClick={() => startSupEdit(s)}>Düzenle</GhostBtn>
+                                  <GhostBtn
+                                    onClick={() => handleSupRemoveRole(s)}
+                                    style={{ color: '#DC2626' }}
+                                  >
+                                    Çıkar
+                                  </GhostBtn>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {supervisors.length === 0 && (
+                          <BYTabloBos kolon={3}>
+                            Henüz gözetmen atanmamış. Yukarıdaki listeden seçip topluca
+                            ekleyebilirsiniz.
+                          </BYTabloBos>
+                        )}
+                        {supervisors.length > 0 && supSuzgec(supervisors).length === 0 && (
+                          <BYTabloBos kolon={3}>Aramayla eşleşen gözetmen yok.</BYTabloBos>
+                        )}
+                      </tbody>
+                    </table>
+                  </>
                 )}
               </div>
             </div>
@@ -1011,6 +1185,80 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
               <Btn onClick={handleClassSave} disabled={saving}>
                 Kaydet
               </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Gözetmen müsaitlik penceresi — izinli/görevli günler */}
+      {musaitlikAcik && (
+        <Modal
+          open={true}
+          title={musaitlikAcik.name + ' — müsait olmadığı günler'}
+          onClose={() => setMusaitlikAcik(null)}
+          width={460}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ fontSize: 12.5, color: '#555', lineHeight: 1.6 }}>
+              Buraya girilen günlerde <strong>otomatik gözetmen ataması yapılmaz</strong>. İzin,
+              görevlendirme, kurul günü gibi durumlar için kullanın. Elle atama yaparsanız bu kural
+              devreye girmez.
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Input
+                type="date"
+                value={yeniGun}
+                onChange={(e) => setYeniGun(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <Btn disabled={!yeniGun} onClick={() => musaitsizGunEkle(musaitlikAcik, yeniGun)}>
+                Ekle
+              </Btn>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {(window.gozetmenMusaitsizGunler
+                ? window.gozetmenMusaitsizGunler(musaitlikAcik)
+                : []
+              ).map((g) => (
+                <span
+                  key={g}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 10px',
+                    borderRadius: 14,
+                    background: '#FFFBEB',
+                    border: '1px solid #FCD34D',
+                    color: '#B45309',
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  {new Date(g).toLocaleDateString('tr-TR')}
+                  <button
+                    onClick={() => musaitsizGunCikar(musaitlikAcik, g)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#B45309',
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      lineHeight: 1,
+                      padding: 0,
+                    }}
+                    title="Kaldır"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {(window.gozetmenMusaitsizGunler ? window.gozetmenMusaitsizGunler(musaitlikAcik) : [])
+                .length === 0 && (
+                <span style={{ fontSize: 12.5, color: '#9CA3AF' }}>
+                  Kısıt yok — her gün atanabilir.
+                </span>
+              )}
             </div>
           </div>
         </Modal>
