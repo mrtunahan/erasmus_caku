@@ -384,7 +384,12 @@ import {
   memurStajYetkilisiMi,
 } from './lib/memur-atama.js';
 import { aiIstekHataMetni } from './lib/ai-istek-hatasi.js';
-import { gonderimBasarili, gonderimHataMetni } from './lib/belge-gonderim-sonucu.js';
+import {
+  gonderimBasarili,
+  gonderimBilgiMetni,
+  gonderimHataMetni,
+  yenidenGonderimKarari,
+} from './lib/belge-gonderim-sonucu.js';
 import {
   cakismaOzeti,
   cakismalariBul,
@@ -1625,6 +1630,12 @@ function BelgeOnizlemeModal({
                     alert(gonderimHataMetni(sonuc));
                     return;
                   }
+                  // Başarı üç ayrı şey olabilir: yeni gönderim, kapanmış
+                  // kaydın yeniden açılması, ya da zaten bekleyen bir
+                  // gönderim. Hepsine "Gönderildi" demek, kapanmış kaydın
+                  // fark edilmemesine yol açıyordu.
+                  const bilgi = gonderimBilgiMetni(sonuc);
+                  if (bilgi) alert(bilgi);
                   setGonderildi(true);
                 } catch (e) {
                   alert('Gönderilemedi: ' + (e.message || ''));
@@ -6465,10 +6476,21 @@ window.belgeYonlendir = async function (o) {
       mevcut = {};
     }
     const gonderimler = Array.isArray(mevcut.gonderimler) ? mevcut.gonderimler.slice() : [];
-    const ayni = gonderimler.find(
+    const ayniIdx = gonderimler.findIndex(
       (g) => g.hedefRol === o.hedefRol && String(g.kapsamId || '') === String(kapsamId)
     );
-    if (ayni) return { ok: true, zatenVar: true };
+    if (ayniIdx >= 0) {
+      // ⚠ Burası eskiden SESSİZCE hiçbir şey yapmıyordu. Memur işi tamamlamış
+      // bir belge yeniden gönderildiğinde kayıt kapalı kalıyor, gelen
+      // kutusunun "Açık" süzgeci onu gizliyordu: gönderen "Gönderildi"
+      // görüyor, memurda hiçbir şey belirmiyordu.
+      const karar = yenidenGonderimKarari(gonderimler[ayniIdx], cu.name || cu.identifier || '');
+      if (karar.islem === 'zaten-var') return { ok: true, zatenVar: true };
+      gonderimler[ayniIdx] = { ...gonderimler[ayniIdx], ...karar.yama };
+      await window.DBWrite.set('memur_outputs', docId, { gonderimler }, true);
+      if (window.apiInvalidate) window.apiInvalidate('memur_outputs');
+      return { ok: true, yenidenAcildi: true };
+    }
     gonderimler.push({
       hedefRol: o.hedefRol,
       hedefAd: o.hedefAd || (rolDef ? rolDef.label : o.hedefRol),
@@ -6525,7 +6547,13 @@ window.belgeGonderVeBildir = async function (belge) {
     return { ok: false, reason: 'kural-yok' };
   }
   const sonuc = await window.belgeOtoYonlendir(belge);
-  if (!gonderimBasarili(sonuc)) alert(gonderimHataMetni(sonuc));
+  if (!gonderimBasarili(sonuc)) {
+    alert(gonderimHataMetni(sonuc));
+    return sonuc;
+  }
+  // Başarı da tek tip değil: yeni gönderim / yeniden açılan / zaten bekleyen.
+  const bilgi = gonderimBilgiMetni(sonuc);
+  if (bilgi) alert(bilgi);
   return sonuc;
 };
 
@@ -14343,6 +14371,7 @@ window.gozetmenMusaitsizGunler = musaitsizGunler;
 window.gozetmenMusaitsizlikHaritasi = musaitsizlikHaritasi;
 window.gozetmenMusaitMi = gozetmenMusaitMi;
 window.belgeGonderimHataMetni = gonderimHataMetni;
+window.belgeGonderimBilgiMetni = gonderimBilgiMetni;
 // Muafiyet/intibak kayıt durumu — kart rengi, açıklama ve liste sırası.
 window.muafiyetKayitDurumu = kayitDurumu;
 window.muafiyetDurumAciklamasi = durumAciklamasi;
