@@ -429,6 +429,19 @@ import {
 } from './lib/ogrenci-sinif.js';
 import { akademisyenKitlesi, kitleOzetMetni, ogrenciKitlesi } from './lib/anket-hedef-kitle.js';
 import {
+  acikEtaplar,
+  acilisHatalari,
+  acilisKaydi,
+  acilisOzeti,
+  acilisYururlukteMi,
+  acilislariSirala,
+  etabaBasvurabilirMi,
+  etapKayitDurumu,
+  kayitDurumMetni,
+  kayitSonTarihi,
+  numaralariCoz,
+} from './lib/staj-etap-acilis.js';
+import {
   gizlemeleriTemizlemeKarari,
   gonderimBasarili,
   gonderimBilgiMetni,
@@ -14481,6 +14494,19 @@ window.ogrenciSinifSayisi = sinifSayisi;
 window.ogrenciSinifEtiketi = sinifEtiketi;
 window.ogrenciSinifGrubunaUyarMi = sinifGrubunaUyarMi;
 window.ogrenciSinifTaramasi = sinifTaramasi;
+// Staj etabı kayıt kapısı ve acil durum açılışı — süresi dolmuş etap,
+// yetkilinin gerekçesiyle ve belirli öğrenciler için yeniden açılabilir.
+window.stajEtapKayitDurumu = etapKayitDurumu;
+window.stajEtabaBasvurabilirMi = etabaBasvurabilirMi;
+window.stajAcikEtaplar = acikEtaplar;
+window.stajKayitSonTarihi = kayitSonTarihi;
+window.stajKayitDurumMetni = kayitDurumMetni;
+window.stajAcilisKaydi = acilisKaydi;
+window.stajAcilisHatalari = acilisHatalari;
+window.stajAcilisOzeti = acilisOzeti;
+window.stajAcilisYururlukteMi = acilisYururlukteMi;
+window.stajAcilislariSirala = acilislariSirala;
+window.stajNumaralariCoz = numaralariCoz;
 // Anket atamadan ÖNCE "kaç kişiye gidecek" — ekran karanlıkta çalışmasın.
 window.anketOgrenciKitlesi = ogrenciKitlesi;
 window.anketAkademisyenKitlesi = akademisyenKitlesi;

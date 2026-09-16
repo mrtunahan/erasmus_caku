@@ -86,6 +86,12 @@ const ALLOWED_COLLECTIONS = [
   // durur ki iki taraf da aynı kararı görsün. Yalnız bölüm yetkilisi ve
   // üstü yazar — kabul, sorumluluğu üstlenen bir imzadır.
   'sinav_cakisma_kabul',
+  // STAJ ETABI ACİL DURUM AÇILIŞLARI — süresi dolmuş bir etabın, gerekçeyle
+  // ve belirli öğrenciler için yeniden açılması. Etabın kendi tarihlerine
+  // DOKUNULMAZ; bu ayrı kayıt yalnız kayıt kapısını aralar. Öğrenci kendi
+  // etabının açılıp açılmadığını görmek zorunda olduğu için okuması açıktır;
+  // yazması aşağıda daraltılır (STAJ_ACILIS_YAZ).
+  'internship_acil_acilis',
   'professors',
   'portal_posts',
   'portal_moderators',
@@ -542,15 +548,26 @@ const MAX_READ_LIMIT = 20000;
 // Aktör bayrakları (uniAdmin/facManager) — professors üzerinden, 60 sn cache
 const actorFlagsCache = new Map(); // identifier -> { flags, ts }
 async function getActorFlags(db, user) {
-  if (!user) return { admin: false, uniAdmin: false, facManager: false, deptManager: false };
+  const yok = {
+    admin: false,
+    uniAdmin: false,
+    facManager: false,
+    deptManager: false,
+    stajYetkilisi: false,
+  };
+  if (!user) return yok;
   if (user.role === 'admin')
-    return { admin: true, uniAdmin: true, facManager: true, deptManager: true };
-  if (user.role !== 'professor' || !user.identifier) {
-    return { admin: false, uniAdmin: false, facManager: false, deptManager: false };
-  }
+    return {
+      admin: true,
+      uniAdmin: true,
+      facManager: true,
+      deptManager: true,
+      stajYetkilisi: true,
+    };
+  if (user.role !== 'professor' || !user.identifier) return yok;
   const hit = actorFlagsCache.get(user.identifier);
   if (hit && Date.now() - hit.ts < 60 * 1000) return hit.flags;
-  let flags = { admin: false, uniAdmin: false, facManager: false, deptManager: false };
+  let flags = { ...yok };
   try {
     // findOne DEĞİL: aynı adlı kayıtlardan rastgele birini seçmek, gerçek
     // yöneticiyi yetkisiz sayıp yazdığı yetki alanını sessizce düşürüyordu
@@ -562,6 +579,9 @@ async function getActorFlags(db, user) {
         uniAdmin: !!prof.isUniversityAdmin,
         facManager: !!prof.isFacultyManager,
         deptManager: !!prof.isDeptManager,
+        // Fakülte staj yetkilisi: staj sürecinin sahibi. Etap tarihlerini
+        // DEĞİŞTİREMEZ ama acil durumda kayıt kapısını gerekçeyle aralayabilir.
+        stajYetkilisi: !!prof.isStajCoordinator,
       };
     }
   } catch (_) {
@@ -643,6 +663,35 @@ async function enforceWritePolicies(db, op, user) {
         status: 403,
         error: `Bu koleksiyonu yalnız bölüm yetkilisi düzenleyebilir: ${op.collection}`,
       };
+    }
+  }
+
+  // a2b) STAJ ETABI ACİL DURUM AÇILIŞI — ayrı ve daha dar bir kapı.
+  //
+  // ⚠ Bu, DEPT_MANAGER_WRITE ile verilemez: staj yetkilisi (isStajCoordinator)
+  // bölüm yetkilisi DEĞİLDİR ama staj sürecinin sahibidir ve acil durumda
+  // kapıyı açacak kişi odur. Tersi de doğru: sade akademisyen ya da öğrenci
+  // kendi etabını açamaz — açılış, sorumluluğu üstlenen bir imzadır.
+  //
+  // Öğrenci bu koleksiyona HİÇ yazamaz; STUDENT_WRITABLE'da yok, ama kural
+  // burada da açıkça durur ki ileride listeye eklense bile kapı kapalı kalsın.
+  if (op.collection === 'internship_acil_acilis') {
+    if (user.role === 'student') {
+      return {
+        allow: false,
+        status: 403,
+        error: 'Staj etabı açılışını yalnız staj yetkilisi ya da bölüm yetkilisi yapabilir.',
+      };
+    }
+    if (user.role === 'professor') {
+      const flags = await getActorFlags(db, user);
+      if (!flags.uniAdmin && !flags.facManager && !flags.deptManager && !flags.stajYetkilisi) {
+        return {
+          allow: false,
+          status: 403,
+          error: 'Staj etabı açılışını yalnız staj yetkilisi ya da bölüm yetkilisi yapabilir.',
+        };
+      }
     }
   }
 
