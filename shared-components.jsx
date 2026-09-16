@@ -418,6 +418,7 @@ import {
   belgeBolumu,
   belgeGizliMi,
   memurBaskaBolumOzeti,
+  memurErisebilecegiBolumler,
   gelenKutusu,
   memuraGonderildiMi,
   memurBelgeModulleri,
@@ -14358,6 +14359,8 @@ window.memurBelgeyiGorurMu = memurBelgeyiGorurMu;
 window.memuraGonderildiMi = memuraGonderildiMi;
 // Başka bölümde bekleyen belgeler — süzgeç sessiz kalmasın.
 window.memurBaskaBolumOzeti = memurBaskaBolumOzeti;
+// Bölüm şeridi ile belge görünürlüğü AYNI tanımı kullanır.
+window.memurErisebilecegiBolumler = memurErisebilecegiBolumler;
 // Belge okuma isteğinin hata metni — gövdesiz 504'te de bir şey söyler.
 window.aiIstekHataMetni = aiIstekHataMetni;
 window.belgeGonderimBasarili = gonderimBasarili;

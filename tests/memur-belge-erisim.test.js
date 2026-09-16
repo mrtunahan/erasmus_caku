@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   belgeBolumu,
   memurBaskaBolumOzeti,
+  memurErisebilecegiBolumler,
   memuraGonderildiMi,
   memurYonlendirmeleri,
   belgeGizliMi,
@@ -611,5 +612,93 @@ describe('memurBaskaBolumOzeti', () => {
 
   it('boş girdi çökmez', () => {
     expect(memurBaskaBolumOzeti(null, NIYAZI, null)).toEqual([]);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// ŞERİT İLE GÖRÜNÜRLÜK AYNI TANIMI KULLANMALI — BİLDİRİLEN HATA
+//
+// Ataması BAŞKA bölümlerde olan, kendi bölümü Bilgisayar olan bir memur
+// Bilgisayar'ı şeritte seçemiyordu; görünürlük ise "seçili bölüm belgenin
+// bölümü olmalı" diyor. Belge sunucuda görünür sayılıyor, ekranda asla
+// görünmüyordu.
+// ══════════════════════════════════════════════════════════════
+describe('memurErisebilecegiBolumler', () => {
+  it('BİLDİRİLEN HATA: kendi bölümü eski listeyle geliyorsa şeritte olmalı', () => {
+    const niyazi = {
+      id: 'm-niyazi',
+      role: 'memur',
+      name: 'Niyazi Mete GÜRGAN',
+      departmentId: 'bilgisayar',
+      memurModules: ['erasmus', 'muafiyet'],
+    };
+    const atamalar = [
+      { departmentId: 'makine', memurId: 'm-niyazi', modules: ['muafiyet'] },
+      { departmentId: 'kimya', memurId: 'm-niyazi', modules: ['muafiyet'] },
+    ];
+    const b = memurErisebilecegiBolumler(atamalar, niyazi);
+    expect(b).toContain('bilgisayar');
+    expect(b).toEqual(['bilgisayar', 'makine', 'kimya']);
+  });
+
+  it('kendi bölümü BAŞTA gelir — varsayılan aktif bölüm odur', () => {
+    const u = {
+      id: 'm1',
+      role: 'memur',
+      departmentId: 'kimya',
+      memurModules: ['muafiyet'],
+    };
+    const atamalar = [{ departmentId: 'makine', memurId: 'm1', modules: ['staj'] }];
+    expect(memurErisebilecegiBolumler(atamalar, u)[0]).toBe('kimya');
+  });
+
+  it('eski listesi BOŞ ise kendi bölümü girmez', () => {
+    // Yetki yoksa şeritte de olmamalı: boş bir bölüme geçmenin anlamı yok.
+    const u = { id: 'm1', role: 'memur', departmentId: 'bilgisayar', memurModules: [] };
+    const atamalar = [{ departmentId: 'makine', memurId: 'm1', modules: ['staj'] }];
+    expect(memurErisebilecegiBolumler(atamalar, u)).toEqual(['makine']);
+  });
+
+  it('modülü boşaltılmış atama şeritten düşer', () => {
+    const u = { id: 'm1', role: 'memur', departmentId: '', memurModules: [] };
+    const atamalar = [
+      { departmentId: 'makine', memurId: 'm1', modules: [] },
+      { departmentId: 'kimya', memurId: 'm1', modules: ['muafiyet'] },
+    ];
+    expect(memurErisebilecegiBolumler(atamalar, u)).toEqual(['kimya']);
+  });
+
+  it('ad ile eşleşen atama da sayılır', () => {
+    const u = { role: 'memur', name: 'Niyazi METE', departmentId: '', memurModules: [] };
+    const atamalar = [
+      { departmentId: 'kimya', memurId: 'm-x', memurName: 'Niyazi METE', modules: ['muafiyet'] },
+    ];
+    expect(memurErisebilecegiBolumler(atamalar, u)).toEqual(['kimya']);
+  });
+
+  it('BAŞKASININ ataması girmez', () => {
+    const u = { id: 'm1', role: 'memur', departmentId: '', memurModules: [] };
+    const atamalar = [{ departmentId: 'kimya', memurId: 'm-baskasi', modules: ['muafiyet'] }];
+    expect(memurErisebilecegiBolumler(atamalar, u)).toEqual([]);
+  });
+
+  it('memur olmayan için boş', () => {
+    expect(memurErisebilecegiBolumler([], { role: 'professor' })).toEqual([]);
+    expect(memurErisebilecegiBolumler(null, null)).toEqual([]);
+  });
+
+  it('şerit ile görünürlük tanım gereği uyumlu', () => {
+    // Şeritteki HER bölümde memurun en az bir modülü olmalı; yoksa oraya
+    // geçince boş ekran görür ve belge "kayıp" sanılır.
+    const u = {
+      id: 'm1',
+      role: 'memur',
+      departmentId: 'bilgisayar',
+      memurModules: ['erasmus'],
+    };
+    const atamalar = [{ departmentId: 'kimya', memurId: 'm1', modules: ['muafiyet'] }];
+    memurErisebilecegiBolumler(atamalar, u).forEach((b) => {
+      expect(memurBelgeModulleri(atamalar, b, u).length).toBeGreaterThan(0);
+    });
   });
 });
