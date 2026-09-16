@@ -379,6 +379,7 @@ import {
 import {
   MEMUR_ATAMA_KOLEKSIYONU,
   memurAtamaKaydi,
+  memurAtamaKaynagi,
   memurBolumleri,
   memurModulleri,
   memurStajYetkilisiMi,
@@ -14388,6 +14389,7 @@ window.fakulteBasligi = fakulteBasligi;
 // Memur atamaları: havuz fakültede, atama (bölüm, memur) başına.
 window.MEMUR_ATAMA_KOLEKSIYONU = MEMUR_ATAMA_KOLEKSIYONU;
 window.memurAtamaKaydi = memurAtamaKaydi;
+window.memurAtamaKaynagi = memurAtamaKaynagi;
 window.memurBolumleri = memurBolumleri;
 window.memurModulleri = memurModulleri;
 window.memurStajYetkilisiMi = memurStajYetkilisiMi;
