@@ -1286,7 +1286,13 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
 // ══════════════════════════════════════════════════════════════
 // Staj Başvuru Formu (Öğrenci)
 // ══════════════════════════════════════════════════════════════
-function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajPeriods = [] }) {
+function StajBasvuruFormu({
+  currentUser,
+  activeDepartment,
+  departmentInfo,
+  stajPeriods = [],
+  acilislar = [],
+}) {
   const responsive = window.useResponsive();
   const isMobile = responsive.val(true, true, false);
   const [saving, setSaving] = useState(false);
@@ -1416,18 +1422,26 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
     }
   };
 
-  // Başlamasına 10 günden az kalan etaplar (komisyon onay penceresi açılmış,
-  // süreç artık Ergün ÇINAR/komisyon tarafında) öğrenciye GÖSTERİLMEZ — yeni
-  // başvuru alınamaz. Öğrencinin mevcut başvurusunun etabı ise düzenleme/
-  // görüntüleme için her zaman görünür kalır.
-  const visiblePeriods = stajPeriods.filter((p) => {
-    if (form.stajEtapId && p.id === form.stajEtapId) return true;
-    if (!p.baslangic) return true;
-    const cutoff = new Date(p.baslangic);
-    if (isNaN(cutoff.getTime())) return true;
-    cutoff.setDate(cutoff.getDate() - 10);
-    return new Date() < cutoff;
-  });
+  // ── Hangi etaplar öğrenciye görünür? ──
+  // Kural tek yerde: lib/staj-etap-acilis.js. Başlamasına 10 günden az kalan
+  // etap kapanır (kalan 10 gün komisyon onayı + SGK bildirimi içindir), AMA
+  // yetkilinin gerekçeli acil durum açılışı varsa o etap bu öğrenciye geri
+  // gelir. Öğrencinin mevcut başvurusunun etabı her zaman görünür kalır.
+  const kayitSecenekleri = {
+    acilislar,
+    ogrenciNo: currentUser?.studentNumber || currentUser?.identifier || '',
+    mevcutBasvuruEtapId: form.stajEtapId,
+    mevcutBasvurular: myApplications,
+  };
+  const visiblePeriods = window.stajAcikEtaplar
+    ? window.stajAcikEtaplar(stajPeriods, kayitSecenekleri)
+    : stajPeriods;
+  // Bu öğrenciye açılan etaplar — ekranda ayrıca söylenir ki "neden yine
+  // görünüyor?" diye sorulmasın.
+  const etapDurumu = (p) =>
+    window.stajEtapKayitDurumu
+      ? window.stajEtapKayitDurumu(p, kayitSecenekleri)
+      : { acik: true, sebep: 'acik', sonTarih: '', acilis: null };
 
   // Öğrencinin mevcut başvurularını ve roadmap verilerini yükle
   useEffect(() => {
@@ -1525,35 +1539,28 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
       }
     }
 
-    // Aynı etaba birden çok başvuru engellenir: yeni başvuruda o etaba ait
-    // zaten bir kayıt varsa reddet (öğrenci mevcut başvurusunu düzenlemeli).
-    if (!editingId && form.stajEtapId) {
-      const dupe = myApplications.find((a) => (a.stajEtapId || '') === form.stajEtapId);
-      if (dupe) {
-        setSavedMsg(
-          'Bu staj etabına zaten bir başvurunuz var. Yeni başvuru yerine mevcut başvurunuzu düzenleyebilirsiniz.'
-        );
-        setTimeout(() => setSavedMsg(''), 5000);
-        return;
-      }
-    }
-
-    // Başlamasına 10 günden az kalan etaba YENİ başvuru alınmaz (form açıkken
-    // süre dolmuş olabilir — listede gizlemeye ek güvenlik kontrolü).
+    // ── Kayıt kapısı: mükerrer başvuru + süre denetimi tek yerden ──
+    // (Form açıkken süre dolmuş olabilir; listede gizlemeye ek güvenlik.)
+    // Acil durum açılışı varsa süresi dolmuş etaba da başvurulabilir.
     if (!editingId && form.stajEtapId) {
       const period = stajPeriods.find((p) => p.id === form.stajEtapId);
-      if (period && period.baslangic) {
-        const cutoff = new Date(period.baslangic);
-        if (!isNaN(cutoff.getTime())) {
-          cutoff.setDate(cutoff.getDate() - 10);
-          if (new Date() >= cutoff) {
-            setSavedMsg(
-              'Bu staj etabının başlamasına 10 günden az kaldığı için başvuru dönemi kapanmıştır.'
-            );
-            setTimeout(() => setSavedMsg(''), 5000);
-            return;
-          }
-        }
+      const karar = window.stajEtabaBasvurabilirMi
+        ? window.stajEtabaBasvurabilirMi(period, {
+            acilislar,
+            ogrenciNo: currentUser?.studentNumber || currentUser?.identifier || '',
+            mevcutBasvurular: myApplications,
+          })
+        : { olur: true };
+      if (!karar.olur) {
+        setSavedMsg(
+          karar.sebep === 'zaten-basvurdu'
+            ? 'Bu staj etabına zaten bir başvurunuz var. Yeni başvuru yerine mevcut başvurunuzu düzenleyebilirsiniz.'
+            : window.stajKayitDurumMetni
+              ? window.stajKayitDurumMetni(karar.durum)
+              : 'Bu staj etabının başvuru dönemi kapanmıştır.'
+        );
+        setTimeout(() => setSavedMsg(''), 8000);
+        return;
       }
     }
 
@@ -2647,7 +2654,9 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
             >
               {stajPeriods.length === 0
                 ? 'Henüz staj etabı tanımlanmamış. Lütfen bölüm yetkilinize veya staj komisyonuna başvurun.'
-                : 'Şu anda başvuruya açık staj etabı bulunmuyor. Başlamasına 10 günden az kalan etaplar başvuruya kapanır.'}
+                : // ⚠ ESKİDEN BURASI ÇIKMAZ SOKAKTI: "kapandı" deyip bırakıyordu.
+                  // Zorunlu bir durumu olan öğrenci ne yapacağını bilmiyordu.
+                  'Şu anda başvuruya açık staj etabı bulunmuyor. Etaplar, başlamasına 10 gün kala kapanır — kalan süre komisyon onayı ve SGK bildirimi içindir. Zorunlu bir durumunuz varsa (işyeri değişikliği, sağlık raporu, belgenin geç ulaşması) bölümünüzün staj yetkilisiyle görüşün: yetkili gerekçesini yazarak etabı size açabilir.'}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2711,6 +2720,28 @@ function StajBasvuruFormu({ currentUser, activeDepartment, departmentInfo, stajP
                           {period.baslangic} — {period.bitis} ({diff} gün)
                           {period.aciklama && <span> | {period.aciklama}</span>}
                         </div>
+                        {/* Süresi dolmuş ama size açılmış etap: neden yine
+                            listede olduğu ve ne kadar süre kaldığı yazsın. */}
+                        {(() => {
+                          const d = etapDurumu(period);
+                          if (d.sebep !== 'acil-acilis') return null;
+                          return (
+                            <div
+                              style={{
+                                marginTop: 6,
+                                padding: '6px 10px',
+                                borderRadius: 8,
+                                background: '#FEF3C7',
+                                border: '1px solid #FCD34D',
+                                fontSize: 11.5,
+                                color: '#92400E',
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              ⚠ {window.stajKayitDurumMetni ? window.stajKayitDurumMetni(d) : ''}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -4055,6 +4086,308 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// ACİL DURUM AÇILIŞI PENCERESİ
+//
+// Süresi dolmuş bir etabın kayıt kapısını, GEREKÇEYLE ve belirli öğrenciler
+// için yeniden aralar. Etabın tarihlerine dokunmaz — komisyon ve SGK
+// pencereleri yerinde kalır (bkz. lib/staj-etap-acilis.js).
+//
+// ⚠ Bu pencere bilerek sürtünmeli: gerekçe zorunlu, bitiş tarihi zorunlu,
+// varsayılan kapsam "seçili öğrenciler". Bir kişi için kuralı herkeste
+// delmek kolay olmamalı.
+// ══════════════════════════════════════════════════════════════
+function AcilAcilisModal({ etap, currentUser, onKaydet, onKapat }) {
+  const sonTarih = window.stajKayitSonTarihi ? window.stajKayitSonTarihi(etap) : '';
+  const [kapsam, setKapsam] = useState('ogrenci');
+  const [ogrenciNolar, setOgrenciNolar] = useState('');
+  const [gerekce, setGerekce] = useState('');
+  const p2 = (n) => String(n).padStart(2, '0');
+  const bugun = (() => {
+    const d = new Date();
+    return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+  })();
+  // Etap HENÜZ BAŞLAMAMIŞSA staj başlangıcından sonrasına kayıt almak
+  // anlamsızdır; başlangıç bir tavandır. Ama başlangıcı GEÇMİŞ bir etapta
+  // (kaydı kaybolmuş, evrağı geriye dönük tamamlanan öğrenci) bu tavan
+  // geçerli her tarihi kapatırdı — o durumda tavan yoktur.
+  const baslamamis = !!etap?.baslangic && etap.baslangic > bugun;
+  const tavan = baslamamis ? etap.baslangic : '';
+  // Varsayılan bitiş: bugünden 7 gün sonra, tavanı aşmadan.
+  const varsayilanBitis = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    const yedi = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+    return tavan && yedi > tavan ? tavan : yedi;
+  })();
+  const [bitis, setBitis] = useState(varsayilanBitis);
+  const [kaydediyor, setKaydediyor] = useState(false);
+
+  const form = {
+    periodId: etap?.id,
+    periodLabel: etap?.label,
+    departmentId: etap?.departmentId,
+    kapsam,
+    ogrenciNolar,
+    gerekce,
+    bitis,
+  };
+  const hatalar = window.stajAcilisHatalari ? window.stajAcilisHatalari(form) : [];
+  const cozulenler = window.stajNumaralariCoz ? window.stajNumaralariCoz(ogrenciNolar) : [];
+
+  const kaydet = async () => {
+    const kayit = window.stajAcilisKaydi
+      ? window.stajAcilisKaydi(form, {
+          acanAd: currentUser?.name || currentUser?.identifier || '',
+          acanRol: currentUser?.role || '',
+        })
+      : null;
+    if (!kayit) return;
+    setKaydediyor(true);
+    try {
+      await onKaydet(kayit);
+      onKapat();
+    } finally {
+      setKaydediyor(false);
+    }
+  };
+
+  const etiket = {
+    fontSize: 12,
+    fontWeight: 600,
+    color: STAJ.navy,
+    display: 'block',
+    marginBottom: 6,
+  };
+  const girdi = {
+    width: '100%',
+    padding: '9px 12px',
+    borderRadius: 8,
+    border: `1.5px solid ${STAJ.border}`,
+    fontSize: 13,
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+    color: STAJ.text,
+  };
+
+  return (
+    <div
+      onClick={onKapat}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1300,
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'white',
+          borderRadius: 14,
+          padding: 22,
+          width: '100%',
+          maxWidth: 560,
+          maxHeight: '88vh',
+          overflowY: 'auto',
+        }}
+      >
+        <div style={{ fontSize: 16, fontWeight: 700, color: STAJ.navy, marginBottom: 4 }}>
+          Acil durum açılışı
+        </div>
+        <div style={{ fontSize: 12.5, color: STAJ.textMuted, marginBottom: 16, lineHeight: 1.55 }}>
+          <b>{etap?.label}</b> etabının kayıt süresi {sonTarih || '—'} tarihinde doldu. Bu açılış
+          etabın tarihlerini <b>değiştirmez</b>; yalnızca kayıt kapısını, adı geçen kişiler için ve
+          belirttiğiniz süreyle aralar. Komisyon onayı ve SGK bildirimi pencereleri yerinde kalır —
+          kalan süreyi hesaba katın.
+        </div>
+
+        {!baslamamis && etap?.baslangic && (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: '10px 13px',
+              borderRadius: 9,
+              background: STAJ.orangeLight,
+              border: `1px solid ${STAJ.orange}40`,
+              fontSize: 12,
+              color: '#9A3412',
+              lineHeight: 1.55,
+            }}
+          >
+            Bu etabın <b>staj başlangıcı da geçmiş</b> ({etap.baslangic}). Açılış yine yapılabilir —
+            kaydı kaybolan ya da evrağı geriye dönük tamamlanan öğrenci için. Ancak komisyon onayı
+            ve SGK bildirimi pencereleri kapanmış durumda; süreci elle yürütmeniz gerekebilir.
+          </div>
+        )}
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={etiket}>Kimler için?</label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              { v: 'ogrenci', l: 'Seçili öğrenciler', a: 'Yalnız numarasını yazdığınız kişiler' },
+              { v: 'herkes', l: 'Etabın tamamı', a: 'Bölümdeki tüm öğrencilere açılır' },
+            ].map((o) => {
+              const on = kapsam === o.v;
+              return (
+                <button
+                  key={o.v}
+                  onClick={() => setKapsam(o.v)}
+                  style={{
+                    flex: '1 1 200px',
+                    textAlign: 'left',
+                    padding: '10px 13px',
+                    borderRadius: 9,
+                    cursor: 'pointer',
+                    border: `1.5px solid ${on ? STAJ.primary : STAJ.border}`,
+                    background: on ? STAJ.primaryPale : 'white',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <div
+                    style={{ fontSize: 13, fontWeight: 600, color: on ? STAJ.primary : STAJ.navy }}
+                  >
+                    {o.l}
+                  </div>
+                  <div style={{ fontSize: 11, color: STAJ.textMuted, marginTop: 2 }}>{o.a}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {kapsam === 'ogrenci' && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={etiket}>
+              Öğrenci numaraları
+              {cozulenler.length > 0 && (
+                <span style={{ color: STAJ.primary, fontWeight: 700 }}>
+                  {' '}
+                  · {cozulenler.length} kişi
+                </span>
+              )}
+            </label>
+            <textarea
+              rows={3}
+              value={ogrenciNolar}
+              onChange={(e) => setOgrenciNolar(e.target.value)}
+              placeholder="230905046, 250905012 — virgül, boşluk ya da alt alta yazabilirsiniz"
+              style={{ ...girdi, resize: 'vertical' }}
+            />
+          </div>
+        )}
+
+        {kapsam === 'herkes' && (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: '10px 13px',
+              borderRadius: 9,
+              background: STAJ.redLight,
+              border: `1px solid ${STAJ.red}40`,
+              fontSize: 12,
+              color: STAJ.red,
+              lineHeight: 1.5,
+            }}
+          >
+            <b>Dikkat:</b> Etap bölümdeki <b>tüm</b> öğrencilere açılır. Tek bir öğrencinin
+            mağduriyeti için "Seçili öğrenciler" yeterlidir; tamamını açmak komisyona son anda
+            yığılma getirebilir.
+          </div>
+        )}
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={etiket}>Gerekçe (zorunlu)</label>
+          <textarea
+            rows={3}
+            value={gerekce}
+            onChange={(e) => setGerekce(e.target.value)}
+            placeholder="Ör. Öğrencinin işyeri son anda değişti, yeni kabul yazısı 24.06 tarihinde ulaştı."
+            style={{ ...girdi, resize: 'vertical' }}
+          />
+          <div style={{ fontSize: 11, color: STAJ.textMuted, marginTop: 5, lineHeight: 1.5 }}>
+            Gerekçe kayda geçer ve kimin açtığıyla birlikte saklanır. Denetimde bu satır okunur.
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={etiket}>Açılışın bitiş tarihi</label>
+          <input
+            type="date"
+            value={bitis}
+            min={bugun}
+            max={tavan || undefined}
+            onChange={(e) => setBitis(e.target.value)}
+            style={{ ...girdi, width: 200, cursor: 'pointer' }}
+          />
+          <div style={{ fontSize: 11, color: STAJ.textMuted, marginTop: 5, lineHeight: 1.5 }}>
+            Bu tarihten sonra kapı kendiliğinden kapanır. Süresiz açık kalan kapı, kapanmamış
+            kapıdır — bu yüzden zorunludur.
+          </div>
+        </div>
+
+        {hatalar.length > 0 && (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: '10px 13px',
+              borderRadius: 9,
+              background: STAJ.redLight,
+              fontSize: 12,
+              color: STAJ.red,
+              lineHeight: 1.6,
+            }}
+          >
+            {hatalar.map((h, i) => (
+              <div key={i}>• {h}</div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button
+            onClick={onKapat}
+            style={{
+              padding: '10px 18px',
+              borderRadius: 8,
+              border: `1px solid ${STAJ.border}`,
+              background: 'white',
+              color: STAJ.text,
+              fontSize: 13,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Vazgeç
+          </button>
+          <button
+            onClick={kaydet}
+            disabled={hatalar.length > 0 || kaydediyor}
+            style={{
+              padding: '10px 18px',
+              borderRadius: 8,
+              border: 'none',
+              background: STAJ.primary,
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: hatalar.length > 0 ? 'not-allowed' : kaydediyor ? 'wait' : 'pointer',
+              opacity: hatalar.length > 0 ? 0.45 : 1,
+              fontFamily: 'inherit',
+            }}
+          >
+            {kaydediyor ? 'Açılıyor…' : 'Etabı aç'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // Ana Staj Modülü
 // ══════════════════════════════════════════════════════════════
 function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
@@ -4062,6 +4395,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [allApplications, setAllApplications] = useState([]);
   const [allUploads, setAllUploads] = useState({});
   const [stajPeriods, setStajPeriods] = useState([]);
+  // Süresi dolmuş etapların gerekçeli acil durum açılışları
+  // (bkz. lib/staj-etap-acilis.js). Hem öğrenci hem yetkili tarafı okur.
+  const [acilAcilislar, setAcilAcilislar] = useState([]);
+  const [acilisModalEtap, setAcilisModalEtap] = useState(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list');
   const [selectedApp, setSelectedApp] = useState(null);
@@ -4357,6 +4694,18 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       // Ergün ÇINAR fakülte geneli dışa aktarır: tüm etapları filtresiz sakla.
       if (isErgunCinar) setAllFacultyPeriods(allPeriods);
 
+      // Acil durum açılışları. Öğrenci de okur: kendi etabının açılıp
+      // açılmadığını görmesi gerekiyor. Bölüm süzgeci YOK — açılış etaba
+      // bağlıdır, etap zaten bölüme bağlı.
+      try {
+        const acilislar = await window.apiRead('internship_acil_acilis');
+        setAcilAcilislar(Array.isArray(acilislar) ? acilislar : []);
+      } catch (e) {
+        // Açılış okunamazsa kapı olağan kuralla çalışır; süreç durmaz.
+        console.warn('Staj acil durum açılışları okunamadı:', e && e.message);
+        setAcilAcilislar([]);
+      }
+
       // Eski internships koleksiyonunu yükle
       const internParams = effectiveDept ? { where: 'departmentId:eq:s:' + effectiveDept } : {};
       const records = await window.apiRead('internships', internParams);
@@ -4601,6 +4950,66 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       setSelectedApp(null);
     } catch (e) {
       alert('Silme hatası: ' + e.message);
+    }
+  };
+
+  // ── Acil durum açılışı: kaydet ve geri al ──
+  // ⚠ Yetki burada BİLEREK canActOnDept'ten farklı: fakülte staj yetkilisi
+  // (Ergün ÇINAR / isStajCoordinator) etap TARİHLERİNİ düzenleyemez ama
+  // acil durumda kapıyı açabilir — staj sürecinin sahibi odur. Sunucu da
+  // aynı kapıyı uygular (server/routes/db.js → internship_acil_acilis).
+  const canAcilAcilis = canActOnDept || isErgunCinar;
+
+  const handleAcilisKaydet = async (kayit) => {
+    if (!canAcilAcilis) {
+      denyCrossDept();
+      return;
+    }
+    try {
+      const sonuc = await window.DBWrite.add('internship_acil_acilis', kayit);
+      const id = sonuc?.id || String(Date.now());
+      setAcilAcilislar((prev) => [...prev, { ...kayit, id }]);
+      if (window.audit) {
+        window.audit('staj_acil_acilis', 'internship_acil_acilis', id, {
+          etap: kayit.periodLabel,
+          kapsam: kayit.kapsam,
+          kisi: kayit.ogrenciNolar.length,
+          bitis: kayit.bitis,
+        });
+      }
+    } catch (e) {
+      alert('Açılış kaydedilemedi: ' + e.message);
+    }
+  };
+
+  // İptal SİLME değildir: kayıt yerinde kalır, yalnız `iptal` işaretlenir.
+  // Altı ay sonra "bu etap neden açılmıştı, kim geri aldı?" sorusunun cevabı
+  // durmalı.
+  const handleAcilisIptal = async (acilis) => {
+    if (!canAcilAcilis) {
+      denyCrossDept();
+      return;
+    }
+    if (
+      !confirm(
+        'Bu acil durum açılışı geri alınsın mı? Kapsamdaki öğrenciler etaba yeniden başvuramaz.'
+      )
+    )
+      return;
+    try {
+      await window.DBWrite.set(
+        'internship_acil_acilis',
+        acilis.id,
+        {
+          iptal: true,
+          iptalEden: currentUser?.name || currentUser?.identifier || '',
+          iptalTarihi: new Date().toISOString(),
+        },
+        true
+      );
+      setAcilAcilislar((prev) => prev.map((a) => (a.id === acilis.id ? { ...a, iptal: true } : a)));
+    } catch (e) {
+      alert('Açılış geri alınamadı: ' + e.message);
     }
   };
 
@@ -6497,6 +6906,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           activeDepartment={activeDepartment}
           departmentInfo={departmentInfo}
           stajPeriods={stajPeriods}
+          acilislar={acilAcilislar}
         />
       )}
 
@@ -6899,6 +7309,94 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         );
                       })()}
                     </div>
+                    {/* ── Acil durum açılışı ──
+                        Kayıt süresi dolmuş etapta, yetkili gerekçesini yazarak
+                        kapıyı belirli öğrencilere yeniden aralayabilir. Etabın
+                        tarihlerine dokunulmaz. */}
+                    {canAcilAcilis &&
+                      (() => {
+                        const sonTarih = window.stajKayitSonTarihi
+                          ? window.stajKayitSonTarihi(period)
+                          : '';
+                        const bugun = new Date().toISOString().slice(0, 10);
+                        const suresiDoldu = !!sonTarih && bugun >= sonTarih;
+                        const kendiAcilislari = (acilAcilislar || []).filter(
+                          (a) => a && a.periodId === period.id
+                        );
+                        const sirali = window.stajAcilislariSirala
+                          ? window.stajAcilislariSirala(kendiAcilislari)
+                          : [];
+                        const yururlukte = sirali.filter((x) => x.yururlukte);
+                        if (!suresiDoldu && yururlukte.length === 0) return null;
+                        return (
+                          <div style={{ flexBasis: '100%', marginTop: 4 }}>
+                            {yururlukte.map((x) => (
+                              <div
+                                key={x.acilis.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  flexWrap: 'wrap',
+                                  padding: '8px 11px',
+                                  borderRadius: 8,
+                                  background: '#FEF3C7',
+                                  border: '1px solid #FCD34D',
+                                  marginBottom: 6,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: 11.5,
+                                    color: '#92400E',
+                                    flex: 1,
+                                    minWidth: 180,
+                                  }}
+                                >
+                                  <b>Acil durum açılışı</b> —{' '}
+                                  {window.stajAcilisOzeti ? window.stajAcilisOzeti(x.acilis) : ''}
+                                  <br />
+                                  <span style={{ opacity: 0.85 }}>{x.acilis.gerekce}</span>
+                                </span>
+                                <button
+                                  onClick={() => handleAcilisIptal(x.acilis)}
+                                  style={{
+                                    padding: '5px 11px',
+                                    borderRadius: 6,
+                                    border: '1px solid #FCA5A5',
+                                    background: 'white',
+                                    color: STAJ.red,
+                                    fontSize: 11.5,
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit',
+                                  }}
+                                >
+                                  Geri al
+                                </button>
+                              </div>
+                            ))}
+                            {suresiDoldu && (
+                              <button
+                                onClick={() => setAcilisModalEtap(period)}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 6,
+                                  border: '1px dashed #D97706',
+                                  background: 'white',
+                                  color: '#B45309',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  fontFamily: 'inherit',
+                                }}
+                                title="Kayıt süresi dolmuş etabı, gerekçeyle ve belirli öğrenciler için yeniden aç"
+                              >
+                                + Acil durum açılışı
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     {!isErgunCinar && canActOnDept && (
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button
@@ -9488,6 +9986,17 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             </>
           )}
         </>
+      )}
+
+      {/* Acil durum açılışı penceresi — süresi dolmuş etabın kayıt
+          kapısını gerekçeyle aralar (bkz. lib/staj-etap-acilis.js). */}
+      {acilisModalEtap && (
+        <AcilAcilisModal
+          etap={acilisModalEtap}
+          currentUser={currentUser}
+          onKaydet={handleAcilisKaydet}
+          onKapat={() => setAcilisModalEtap(null)}
+        />
       )}
     </div>
   );
