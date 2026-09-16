@@ -6,6 +6,7 @@ import {
   memurAtamasi,
   memurBolumleri,
   memurModulleri,
+  memurAtamaKaynagi,
   memurStajYetkilisiMi,
 } from '../lib/memur-atama.js';
 
@@ -115,5 +116,36 @@ describe('memurAtamaKaydi', () => {
     const k = memurAtamaKaydi({ bolumId: 'b', memur: { id: 'm' }, modules: [] });
     expect(k.modules).toEqual([]);
     expect(memurBolumleri([{ ...k }], 'm')).toEqual([]);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// MODÜLLER NEREDEN GELİYOR? — BİLDİRİLEN YANILGI
+//
+// Memurlar ekranı atama kaydı ile eski düz listeyi ayırmıyordu: bölüm için
+// hiç kayıt olmayan memurda bile "bu bölümde atanmış" yazıyordu.
+// ══════════════════════════════════════════════════════════════
+describe('memurAtamaKaynagi', () => {
+  it('gerçek atama kaydı varsa "atama"', () => {
+    expect(memurAtamaKaynagi(ATAMALAR, 'bilgisayar', 'm1', [])).toBe('atama');
+  });
+
+  it('kayıt yok ama eski liste varsa "eski-liste"', () => {
+    // Ekranda "atanmış" görünmesinin sebebi buydu.
+    expect(memurAtamaKaynagi(ATAMALAR, 'peyzaj', 'm1', ['erasmus'])).toBe('eski-liste');
+  });
+
+  it('ikisi de yoksa "yok"', () => {
+    expect(memurAtamaKaynagi(ATAMALAR, 'peyzaj', 'm1', [])).toBe('yok');
+    expect(memurAtamaKaynagi([], 'bilgisayar', 'm1', null)).toBe('yok');
+  });
+
+  it('modülü boşaltılmış atama kaydı "yok" sayılır', () => {
+    const bos = [{ departmentId: 'bilgisayar', memurId: 'm1', modules: [] }];
+    expect(memurAtamaKaynagi(bos, 'bilgisayar', 'm1', ['erasmus'])).toBe('yok');
+  });
+
+  it('atama kaydı eski listeyi bastırır', () => {
+    expect(memurAtamaKaynagi(ATAMALAR, 'bilgisayar', 'm1', ['formlar'])).toBe('atama');
   });
 });

@@ -2151,6 +2151,53 @@ function MemurBilgileri({ currentUser, activeDepartment, bolumAdi }) {
         )
       : [];
 
+  // ⚠ BU EKRAN YANLIŞ SÖYLÜYORDU. `memurModulleri` atama kaydı yoksa memur
+  // kaydındaki ESKİ düz listeye düşüyor; kart yine de "bu bölümde atanmış"
+  // yazıyordu. Bir memurun Bilgisayar'da hiçbir atama kaydı yokken kart
+  // "4 modül • bu bölümde atanmış" diyordu — yetkili ekrana bakıp "atama
+  // tamam" diye geçiyor, belgeler ise atamaya bağlı yerlerde tutmuyordu.
+  // Erişimin NEREDEN geldiği artık ayrı bir soru.
+  const atamaKaynagi = (memur) =>
+    window.memurAtamaKaynagi
+      ? window.memurAtamaKaynagi(
+          atamalar,
+          activeDepartment,
+          memur.id || memur._docId,
+          memur.memurModules
+        )
+      : bolumModulleri(memur).length > 0
+        ? 'atama'
+        : 'yok';
+
+  // Eski listeden gelen erişimi bu bölüme GERÇEK atama olarak yazar.
+  const bolumeKaydet = async (memur) => {
+    if (!activeDepartment) return;
+    const memurId = String(memur.id || memur._docId || '');
+    setYazilan(memurId + ':kaydet');
+    try {
+      const kayit = window.memurAtamaKaydi
+        ? window.memurAtamaKaydi({
+            bolumId: activeDepartment,
+            memur,
+            modules: bolumModulleri(memur),
+            yazan: currentUser?.name || currentUser?.identifier || '',
+          })
+        : null;
+      if (!kayit) return;
+      await DBWrite.set(
+        window.MEMUR_ATAMA_KOLEKSIYONU || 'memur_bolum_modulleri',
+        kayit.id,
+        kayit,
+        true
+      );
+      load();
+    } catch (e) {
+      alert('Kaydedilemedi: ' + e.message);
+    } finally {
+      setYazilan('');
+    }
+  };
+
   const toggleModule = async (memur, moduleId) => {
     if (!activeDepartment) return;
     const memurId = String(memur.id || memur._docId || '');
@@ -2209,7 +2256,8 @@ function MemurBilgileri({ currentUser, activeDepartment, bolumAdi }) {
     }
   };
 
-  const atanmisSayisi = memurlar.filter((m) => bolumModulleri(m).length > 0).length;
+  const atanmisSayisi = memurlar.filter((m) => atamaKaynagi(m) === 'atama').length;
+  const eskiListeSayisi = memurlar.filter((m) => atamaKaynagi(m) === 'eski-liste').length;
 
   return (
     <div>
@@ -2250,12 +2298,25 @@ function MemurBilgileri({ currentUser, activeDepartment, bolumAdi }) {
             <span>
               bu bölüme atanmış <b>{atanmisSayisi}</b>
             </span>
+            {eskiListeSayisi > 0 && (
+              <>
+                <span style={{ color: BY.border }}>•</span>
+                <span style={{ color: BY.amber, fontWeight: 600 }}>
+                  eski listeden gelen <b>{eskiListeSayisi}</b>
+                </span>
+              </>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {memurlar.map((m) => {
               const memurId = String(m.id || m._docId || '');
               const mods = bolumModulleri(m);
-              const atanmis = mods.length > 0;
+              const kaynak = atamaKaynagi(m);
+              const atanmis = kaynak === 'atama';
+              const eskiListe = kaynak === 'eski-liste';
+              const vurgu = atanmis ? BY.teal : eskiListe ? BY.amber : '#94A3B8';
+              const vurguKenar = atanmis ? BY.tealBorder : eskiListe ? BY.amberPale : BY.border;
+              const vurguZemin = atanmis ? BY.tealPale : eskiListe ? BY.amberPale : BY.surfaceMuted;
               return (
                 <div
                   key={memurId}
@@ -2263,7 +2324,7 @@ function MemurBilgileri({ currentUser, activeDepartment, bolumAdi }) {
                     ...byKart,
                     padding: 0,
                     overflow: 'hidden',
-                    borderColor: atanmis ? BY.tealBorder : BY.border,
+                    borderColor: vurguKenar,
                   }}
                 >
                   <div
@@ -2272,8 +2333,8 @@ function MemurBilgileri({ currentUser, activeDepartment, bolumAdi }) {
                       alignItems: 'center',
                       gap: 10,
                       padding: '13px 16px',
-                      background: atanmis ? BY.tealPale : BY.surfaceMuted,
-                      borderBottom: `1px solid ${atanmis ? BY.tealBorder : BY.border}`,
+                      background: vurguZemin,
+                      borderBottom: `1px solid ${vurguKenar}`,
                     }}
                   >
                     <div
@@ -2282,7 +2343,7 @@ function MemurBilgileri({ currentUser, activeDepartment, bolumAdi }) {
                         height: 34,
                         borderRadius: '50%',
                         flexShrink: 0,
-                        background: atanmis ? BY.teal : '#94A3B8',
+                        background: vurgu,
                         color: 'white',
                         display: 'flex',
                         alignItems: 'center',
@@ -2298,7 +2359,9 @@ function MemurBilgileri({ currentUser, activeDepartment, bolumAdi }) {
                       <div style={{ fontSize: 11.5, color: BY.textMuted, marginTop: 1 }}>
                         {atanmis
                           ? `${mods.length} modül • bu bölümde atanmış`
-                          : 'bu bölüme atanmamış'}
+                          : eskiListe
+                            ? `${mods.length} modül • eski listeden geliyor, bu bölüme KAYITLI DEĞİL`
+                            : 'bu bölüme atanmamış'}
                       </div>
                     </div>
                     {m.isStajCoordinator && (
@@ -2308,6 +2371,48 @@ function MemurBilgileri({ currentUser, activeDepartment, bolumAdi }) {
                     )}
                   </div>
                   <div style={{ padding: '12px 16px 14px' }}>
+                    {eskiListe && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          flexWrap: 'wrap',
+                          background: BY.amberPale,
+                          border: `1px solid ${BY.amber}33`,
+                          borderRadius: 8,
+                          padding: '8px 11px',
+                          marginBottom: 10,
+                          fontSize: 11.5,
+                          color: BY.amber,
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        <span style={{ flex: 1, minWidth: 180 }}>
+                          Bu memurun <b>{bolumAdi || 'bu bölüm'}</b> için atama kaydı yok; yetki
+                          eski genel listeden geliyor. Belge görünürlüğü atama kaydına bakan
+                          yerlerde tutmayabilir.
+                        </span>
+                        <button
+                          type="button"
+                          disabled={!!yazilan}
+                          onClick={() => bolumeKaydet(m)}
+                          style={{
+                            padding: '5px 11px',
+                            borderRadius: 7,
+                            fontSize: 11.5,
+                            fontWeight: 700,
+                            cursor: yazilan ? 'wait' : 'pointer',
+                            border: `1px solid ${BY.amber}`,
+                            background: 'white',
+                            color: BY.amber,
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          {yazilan === memurId + ':kaydet' ? 'Kaydediliyor…' : 'Bu bölüme kaydet'}
+                        </button>
+                      </div>
+                    )}
                     <div style={{ fontSize: 11.5, color: BY.textMuted, marginBottom: 8 }}>
                       Bu bölümde göreceği modül çıktıları — tıklayarak aç/kapat:
                     </div>

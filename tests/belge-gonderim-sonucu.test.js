@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  gizlemeleriTemizlemeKarari,
   gonderimBasarili,
   gonderimBilgiMetni,
   gonderimHataMetni,
@@ -113,5 +114,55 @@ describe('gonderimBilgiMetni', () => {
 
   it('başarısız sonuçta bilgi metni yok — hata metni ayrı', () => {
     expect(gonderimBilgiMetni({ ok: false, reason: 'kapsam-yok' })).toBe('');
+  });
+});
+
+// ── "Sil"den sonra yeniden gönderim ──
+// Memurun "Sil"i belgeyi öldürmüyordu ama gizleme de hiç kalkmıyordu: belge
+// yeniden gönderilse bile o memurda bir daha görünmüyordu.
+describe('gizlemeleriTemizlemeKarari', () => {
+  it('gizleyen varsa liste temizlenir', () => {
+    const k = gizlemeleriTemizlemeKarari(['NİYAZİ METE GÜRGAN']);
+    expect(k.temizle).toBe(true);
+    expect(k.kaldirilan).toEqual(['NİYAZİ METE GÜRGAN']);
+  });
+
+  it('gizleyen yoksa yazma yapılmaz', () => {
+    expect(gizlemeleriTemizlemeKarari([]).temizle).toBe(false);
+    expect(gizlemeleriTemizlemeKarari(undefined).temizle).toBe(false);
+    expect(gizlemeleriTemizlemeKarari(null).temizle).toBe(false);
+    expect(gizlemeleriTemizlemeKarari('NİYAZİ').temizle).toBe(false);
+  });
+
+  it('boş ve boşluklu girdiler sayılmaz', () => {
+    expect(gizlemeleriTemizlemeKarari(['', '   ', null]).temizle).toBe(false);
+  });
+
+  it('boşluklar kırpılır', () => {
+    expect(gizlemeleriTemizlemeKarari([' AYŞE ', 'VELİ']).kaldirilan).toEqual(['AYŞE', 'VELİ']);
+  });
+});
+
+describe('gonderimBilgiMetni · gizleme kaldırıldığında', () => {
+  it('zaten bekleyen gönderimde gizlemenin kalktığı söylenir', () => {
+    const m = gonderimBilgiMetni({ ok: true, zatenVar: true, gizlemeKaldirildi: true });
+    expect(m).toMatch(/hâlâ bekliyor/i);
+    expect(m).toMatch(/kendi listesinden kaldırmıştı/i);
+  });
+
+  it('yeniden açılan gönderimde de söylenir', () => {
+    const m = gonderimBilgiMetni({ ok: true, yenidenAcildi: true, gizlemeKaldirildi: true });
+    expect(m).toMatch(/listesinden kaldırmış olanlara da geri kondu/i);
+  });
+
+  it('yeni gönderimde tek başına da söylenir', () => {
+    expect(gonderimBilgiMetni({ ok: true, gizlemeKaldirildi: true })).toMatch(/geri kondu/i);
+  });
+
+  it('gizleme yoksa metin eskisi gibi kalır', () => {
+    expect(gonderimBilgiMetni({ ok: true, gizlemeKaldirildi: false })).toBe('');
+    expect(gonderimBilgiMetni({ ok: true, zatenVar: true, gizlemeKaldirildi: false })).not.toMatch(
+      /geri kondu/i
+    );
   });
 });

@@ -1636,15 +1636,35 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
   const [turFiltre, setTurFiltre] = useState('');
   // Fakülte genelinde çalışan memurun listesi uzun olur; ad/numara ile arar.
   const [arama, setArama] = useState('');
+  // ⚠ "Sil" görünmez bir kuyu açıyordu: kaldırılan belge listeden düşüyor,
+  // sayısı hiçbir yerde yazmıyor, geri alınamıyordu. Memur "belge gelmedi"
+  // diyor, gönderen "gönderdim" diyordu. Kaldırılanlar artık sayılır ve
+  // istenince gösterilip geri konabilir.
+  const [kaldirilanGoster, setKaldirilanGoster] = useState(false);
   useEffect(() => {
     setTurFiltre('');
     setArama('');
+    setKaldirilanGoster(false);
   }, [route]);
 
   // "Sil" = belgeyi YALNIZ kendi listemden kaldır. Kayıt, gönderim geçmişi ve
   // dosya yerinde kalır; belgeyi gönderen akademisyenin takibi ve diğer
   // alıcıların kutusu etkilenmez. Muafiyet kaydından gelen belgelerde de
   // aynı mantık geçerli — başvuru kaydına dokunulmaz.
+  const geriKoy = async (it) => {
+    setBusy(true);
+    try {
+      const koleksiyon = it.kaynak === 'muafiyet_record' ? 'muafiyet_records' : 'memur_outputs';
+      const r = await window.belgeListeyeGeriKoy(koleksiyon, it.docId);
+      if (!r || !r.ok) throw new Error((r && r.reason) || 'geri konamadı');
+      setYenile((n) => n + 1);
+    } catch (e) {
+      alert('Geri konamadı: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const sil = async (it) => {
     if (
       !confirm(
@@ -1703,11 +1723,10 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
           .replace('/api/files/download/', '')
           .replace('/api/files/view/', '');
       const toDownload = (u) => (rel(u) ? '/api/files/download/' + rel(u) + '?download=true' : '#');
-      const inScope = (rec) => {
-        // Memur belgeyi kendi listesinden kaldırdıysa artık görünmez.
-        if (window.belgeGizliMi && window.belgeGizliMi(rec, currentUser)) return false;
-        return gorunurMu(rec);
-      };
+      // Kapsam ile GİZLEME artık ayrı sorular. Kaldırılan belge listeden
+      // düşer ama yok sayılmaz: sayılır, istenirse gösterilir ve geri konur.
+      const inScope = (rec) => gorunurMu(rec);
+      const gizliMi = (rec) => !!(window.belgeGizliMi && window.belgeGizliMi(rec, currentUser));
       // 1) Ortak memur_outputs koleksiyonu (tüm modüller — snapshot'lar).
       const outs = await window
         .apiRead('memur_outputs', { where: 'module:eq:s:' + route })
@@ -1730,6 +1749,7 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
         .sort((a, b) => String(tarihi(b)).localeCompare(String(tarihi(a))))
         .map((o) => ({
           id: 'mo_' + (o.id || o.sourceId),
+          gizli: gizliMi(o),
           docId: o.id || o._docId || o.module + '__' + o.sourceId,
           kaynakId: String(o.sourceId || ''),
           kaynak: 'memur_output',
@@ -1805,7 +1825,11 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
       .replace(/I/g, 'ı')
       .toLocaleLowerCase('tr-TR');
   const aramaKucuk = trKucuk(arama).trim();
-  const gorunen = (items || [])
+  const kaldirilanSayisi = (items || []).filter((i) => i.gizli).length;
+  // Sekme sayıları ve "liste boş mu" kararı bu temel listeden çıkar: kaldırılan
+  // belge sayılara karışmasın, ama "Göster" açıkken de doğru saysın.
+  const temel = (items || []).filter((i) => kaldirilanGoster || !i.gizli);
+  const gorunen = temel
     .filter((i) => !turFiltre || i.tur === turFiltre)
     .filter(
       (i) => !aramaKucuk || trKucuk((i.title || '') + ' ' + (i.sub || '')).includes(aramaKucuk)
@@ -1894,8 +1918,38 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
         </div>
       </div>
 
+      {/* Listemden kaldırdıklarım — görünmez kuyu değil */}
+      {items !== null && kaldirilanSayisi > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            background: '#FFFBEB',
+            border: '1px solid #FDE68A',
+            borderRadius: 10,
+            padding: '9px 13px',
+            marginBottom: 12,
+            fontSize: 12.5,
+            color: '#92400E',
+          }}
+        >
+          <span>
+            <b>{kaldirilanSayisi}</b> belgeyi bu listeden kaldırmışsınız. Belgeler silinmedi.
+          </span>
+          <button
+            type="button"
+            onClick={() => setKaldirilanGoster((v) => !v)}
+            style={{ ...memurBtn('white', '#92400E', '#FDE68A'), marginLeft: 'auto' }}
+          >
+            {kaldirilanGoster ? 'Gizle' : 'Göster'}
+          </button>
+        </div>
+      )}
+
       {/* Arama + toplu indirme */}
-      {items !== null && items.length > 0 && (
+      {items !== null && temel.length > 0 && (
         <div
           style={{
             display: 'flex',
@@ -1940,10 +1994,10 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
       )}
 
       {/* Belge türü sekmeleri */}
-      {turSekmeleri && items !== null && items.length > 0 && (
+      {turSekmeleri && items !== null && temel.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
           {[{ id: '', label: 'Tümü' }].concat(turSekmeleri).map((t) => {
-            const sayi = t.id ? items.filter((i) => i.tur === t.id).length : items.length;
+            const sayi = t.id ? temel.filter((i) => i.tur === t.id).length : temel.length;
             const on = turFiltre === t.id;
             return (
               <button
@@ -2006,13 +2060,14 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
                 key={it.id}
                 style={{
                   background: 'white',
-                  border: '1px solid #E5E7EB',
-                  borderLeft: '3px solid ' + (st ? st.renk : '#E5E7EB'),
+                  border: '1px solid ' + (it.gizli ? '#FDE68A' : '#E5E7EB'),
+                  borderLeft: '3px solid ' + (it.gizli ? '#D97706' : st ? st.renk : '#E5E7EB'),
                   borderRadius: 12,
                   padding: '14px 16px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 10,
+                  opacity: it.gizli ? 0.75 : 1,
                 }}
               >
                 {/* Künye: kim, nereden, ne zaman, hangi durumda */}
@@ -2030,6 +2085,21 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
                       <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: 4 }}>{tarih}</div>
                     )}
                   </div>
+                  {it.gizli && (
+                    <span
+                      style={{
+                        padding: '3px 10px',
+                        borderRadius: 20,
+                        background: '#FEF3C7',
+                        color: '#92400E',
+                        fontSize: 11,
+                        fontWeight: 800,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Listenizden kaldırıldı
+                    </span>
+                  )}
                   {st && (
                     <span
                       style={{
@@ -2075,18 +2145,33 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
                     />
                   ))}
 
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => sil(it)}
-                    style={{
-                      ...memurBtn('#DC2626', '#FEE2E2', '#DC262633'),
-                      marginLeft: 'auto',
-                    }}
-                    title="Belgeyi yalnızca kendi listenizden kaldırır"
-                  >
-                    Sil
-                  </button>
+                  {it.gizli ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => geriKoy(it)}
+                      style={{
+                        ...memurBtn('#0F766E', '#CCFBF1', '#0F766E33'),
+                        marginLeft: 'auto',
+                      }}
+                      title="Belgeyi listenize geri koyar"
+                    >
+                      Listeme geri koy
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => sil(it)}
+                      style={{
+                        ...memurBtn('#DC2626', '#FEE2E2', '#DC262633'),
+                        marginLeft: 'auto',
+                      }}
+                      title="Belgeyi yalnızca kendi listenizden kaldırır"
+                    >
+                      Sil
+                    </button>
+                  )}
                 </div>
               </div>
             );
