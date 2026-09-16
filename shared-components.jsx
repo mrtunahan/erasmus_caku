@@ -427,6 +427,7 @@ import {
   sinifSayisi,
   sinifTaramasi,
 } from './lib/ogrenci-sinif.js';
+import { akademisyenKitlesi, kitleOzetMetni, ogrenciKitlesi } from './lib/anket-hedef-kitle.js';
 import {
   gizlemeleriTemizlemeKarari,
   gonderimBasarili,
@@ -14480,6 +14481,10 @@ window.ogrenciSinifSayisi = sinifSayisi;
 window.ogrenciSinifEtiketi = sinifEtiketi;
 window.ogrenciSinifGrubunaUyarMi = sinifGrubunaUyarMi;
 window.ogrenciSinifTaramasi = sinifTaramasi;
+// Anket atamadan ÖNCE "kaç kişiye gidecek" — ekran karanlıkta çalışmasın.
+window.anketOgrenciKitlesi = ogrenciKitlesi;
+window.anketAkademisyenKitlesi = akademisyenKitlesi;
+window.anketKitleOzetMetni = kitleOzetMetni;
 // Anket sonuç istatistiği — ortalama tek başına yanıltıcı, dağılım şart.
 window.anketDagilim = anketDagilim;
 window.anketSayisalOzet = sayisalOzet;

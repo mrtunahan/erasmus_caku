@@ -15,8 +15,13 @@
  * hangi kaydın elle girildiği artık ayırt edilemez. Bu yüzden önce rapor
  * verilir; yazma ayrı ve açık bir adımdır.
  *
- * Yazma yalnız SINIFI BOŞ olan kayıtlara yapılır. Elle girilmiş sınıf asla
- * ezilmez — çelişkili olanlar yalnız listelenir, kararı insan verir.
+ * Yazma yalnız SINIFI BOŞ olan (ya da daha önce bu betiğin yazdığı, artık
+ * eskimiş) kayıtlara yapılır. Elle girilmiş sınıf asla ezilmez — çelişkili
+ * olanlar yalnız listelenir, kararı insan verir.
+ *
+ * Yazılan değer `sinifKaynagi: 'numara'` ile işaretlenir ve bir KİLİT değil
+ * ÖNBELLEKtir: her okumada numaradan yeniden hesaplanır, gelecek eylülde
+ * kendiliğinden artar.
  *
  * Kullanım:
  *   node server/ogrenci-sinif-tara.js                    # yalnız rapor
@@ -28,7 +33,7 @@
  */
 (async () => {
   const { getDbSafe } = require('./config/database');
-  const { sinifTaramasi, akademikYilBasi, ogrenciSinifi } = require('./lib/ogrenci-sinif');
+  const { sinifTaramasi, akademikYilBasi } = require('./lib/ogrenci-sinif');
 
   const arg = (ad) => {
     const i = process.argv.indexOf('--' + ad);
@@ -106,8 +111,8 @@
       console.log(
         `Yazmak için:  node server/ogrenci-sinif-tara.js${bolum ? ' --bolum ' + bolum : ''}${programYili ? ' --program ' + programYili : ''} --uygula`
       );
-      console.log(`Yazılacak ${r.yazilacak.length} kayıtta sinif alanı BOŞ; elle girilmiş`);
-      console.log('hiçbir sınıf değiştirilmeyecek.');
+      console.log(`Yazılacak ${r.yazilacak.length} kayıtta sinif ya BOŞ ya da bu betiğin daha`);
+      console.log('önce yazdığı eskimiş değer; elle girilmiş hiçbir sınıf değiştirilmeyecek.');
     }
     console.log('');
     process.exit(0);
