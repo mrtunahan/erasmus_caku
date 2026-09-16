@@ -386,6 +386,49 @@ import {
 } from './lib/memur-atama.js';
 import { aiIstekHataMetni } from './lib/ai-istek-hatasi.js';
 import {
+  ANKET_OLCEKLERI,
+  anketSecenekHatalari,
+  cokluSecimMi,
+  olcekKimligi,
+  olcekSecenekleri,
+  secenegiTasi,
+  secenekEtiketi,
+  secenekHatalari,
+  secenekSayisi,
+  secenekliMi,
+  seceneklerSayisalMi,
+  soruDegerleri,
+  soruSecenekleri,
+  tipDegisiminde,
+  yeniSecenekDegeri,
+} from './lib/anket-secenek.js';
+import {
+  GRAFIK_MUREKKEP,
+  TEK_HUE,
+  anketOzeti,
+  dagilim as anketDagilim,
+  genelOrtalama as anketGenelOrtalama,
+  gunlukKatilim,
+  irakCizilebilirMi,
+  kutuplasmaVarMi,
+  metinYanitlari,
+  olcekSiraliMi,
+  sayisalOzet,
+  soruKarsilastirmasi,
+  soruRenkleri,
+  ucOranlari,
+} from './lib/anket-istatistik.js';
+import {
+  girisYili,
+  nominalSinif,
+  ogrenciSinifi,
+  sinifEtiketi,
+  sinifGrubunaUyarMi,
+  sinifSayisi,
+  sinifTaramasi,
+} from './lib/ogrenci-sinif.js';
+import { akademisyenKitlesi, kitleOzetMetni, ogrenciKitlesi } from './lib/anket-hedef-kitle.js';
+import {
   gizlemeleriTemizlemeKarari,
   gonderimBasarili,
   gonderimBilgiMetni,
@@ -8945,6 +8988,13 @@ const LoginModal = ({ onLogin }) => {
         if (Array.isArray(loginResult.capProgramlari) && loginResult.capProgramlari.length > 0) {
           user.capProgramlari = loginResult.capProgramlari;
         }
+        // Sınıf da oturumda taşınır. Taşınmazsa `currentUser.sinif` hep boş
+        // kalır; sınıf hedefli anketler kimseye doğru eşleşmez
+        // (bkz. lib/ogrenci-sinif.js). `sinifKaynagi` ayırt eder: elle
+        // girilmiş KAYIT mı, tarama betiğinin yazdığı ÖNBELLEK mi.
+        if (loginResult.sinif) user.sinif = loginResult.sinif;
+        if (loginResult.sinifKaynagi) user.sinifKaynagi = loginResult.sinifKaynagi;
+        if (loginResult.programYili != null) user.programYili = loginResult.programYili;
         if (password.length < 6) {
           setPendingUser(user);
           setSetupPasswordMode(true);
@@ -14406,6 +14456,50 @@ window.memurErisebilecegiBolumler = memurErisebilecegiBolumler;
 // Belge okuma isteğinin hata metni — gövdesiz 504'te de bir şey söyler.
 window.aiIstekHataMetni = aiIstekHataMetni;
 window.belgeGonderimBasarili = gonderimBasarili;
+// Anket şıkları: soru kendi şıklarını taşır, üç ekran da buradan okur.
+window.ANKET_OLCEKLERI = ANKET_OLCEKLERI;
+window.anketSoruSecenekleri = soruSecenekleri;
+window.anketSoruDegerleri = soruDegerleri;
+window.anketSecenekEtiketi = secenekEtiketi;
+window.anketSecenekliMi = secenekliMi;
+window.anketCokluSecimMi = cokluSecimMi;
+window.anketSeceneklerSayisalMi = seceneklerSayisalMi;
+window.anketSecenekSayisi = secenekSayisi;
+window.anketOlcekSecenekleri = olcekSecenekleri;
+window.anketOlcekKimligi = olcekKimligi;
+window.anketYeniSecenekDegeri = yeniSecenekDegeri;
+window.anketSecenegiTasi = secenegiTasi;
+window.anketSecenekHatalari = secenekHatalari;
+window.anketTumSecenekHatalari = anketSecenekHatalari;
+window.anketTipDegisiminde = tipDegisiminde;
+// Öğrencinin sınıfı: kayıt yoksa NUMARADAN çözülür (ilk iki hane giriş yılı).
+// Eskiden sınıf bilinmeyince sınıf hedefli anket HERKESE gidiyordu.
+window.ogrenciGirisYili = girisYili;
+window.ogrenciNominalSinif = nominalSinif;
+window.ogrenciSinifi = ogrenciSinifi;
+window.ogrenciSinifSayisi = sinifSayisi;
+window.ogrenciSinifEtiketi = sinifEtiketi;
+window.ogrenciSinifGrubunaUyarMi = sinifGrubunaUyarMi;
+window.ogrenciSinifTaramasi = sinifTaramasi;
+// Anket atamadan ÖNCE "kaç kişiye gidecek" — ekran karanlıkta çalışmasın.
+window.anketOgrenciKitlesi = ogrenciKitlesi;
+window.anketAkademisyenKitlesi = akademisyenKitlesi;
+window.anketKitleOzetMetni = kitleOzetMetni;
+// Anket sonuç istatistiği — ortalama tek başına yanıltıcı, dağılım şart.
+window.anketDagilim = anketDagilim;
+window.anketSayisalOzet = sayisalOzet;
+window.anketUcOranlari = ucOranlari;
+window.anketKutuplasmaVarMi = kutuplasmaVarMi;
+window.anketSoruKarsilastirmasi = soruKarsilastirmasi;
+window.anketGenelOrtalama = anketGenelOrtalama;
+window.anketGunlukKatilim = gunlukKatilim;
+window.anketMetinYanitlari = metinYanitlari;
+window.anketOzeti = anketOzeti;
+window.anketIrakCizilebilirMi = irakCizilebilirMi;
+window.anketOlcekSiraliMi = olcekSiraliMi;
+window.anketSoruRenkleri = soruRenkleri;
+window.anketTekHue = TEK_HUE;
+window.anketGrafikMurekkep = GRAFIK_MUREKKEP;
 // Sınav çakışmaları ve şartlı kabul — fakülte geneli denetim.
 window.sinavCakismalariBul = cakismalariBul;
 window.sinavCakismaOzeti = cakismaOzeti;

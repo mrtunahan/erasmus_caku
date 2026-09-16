@@ -1359,7 +1359,9 @@ function AnketlerPaneli({
 
 // ─── Anket düzenleyici modalı ─────────────────────────────────────────────
 const QUESTION_TYPES = [
-  { v: 'likert', label: 'Likert (1-5)' },
+  { v: 'likert', label: 'Likert / derecelendirme' },
+  { v: 'secenek', label: 'Çoktan seçmeli (tek yanıt)' },
+  { v: 'coklu', label: 'Çoktan seçmeli (çok yanıt)' },
   { v: 'yesno', label: 'Evet / Hayır' },
   { v: 'hours0to5', label: 'Saat (0-5)' },
   { v: 'hoursRange', label: 'Saat aralığı (0, 1-2…)' },
@@ -1367,11 +1369,258 @@ const QUESTION_TYPES = [
   { v: 'textarea', label: 'Uzun metin' },
   { v: 'text', label: 'Kısa metin' },
 ];
+// ─── Bir sorunun şıklarını düzenleme ────────────────────────────────────
+// ⚠ BU EKRAN HİÇ YOKTU. Şıklar koda gömülü olduğu için anketi hazırlayan
+// kişi ne etiketi değiştirebiliyor ne şık ekleyebiliyordu; elinde başka bir
+// ölçek olan herkes anketi sisteme uydurmak zorundaydı.
+//
+// İki yol sunulur: hazır bir ölçek seç (tek tıkla beş şık) ya da tek tek
+// yaz. Seçilen ölçek KOPYALANIR — hemen ardından bir etiketi düzeltmek
+// serbesttir.
+//
+// ── DEĞER AYRI, ETİKET AYRI ──
+// Kayıtlı yanıt şıkkın DEĞERİdir. Etiket sonradan düzeltilebilsin ve eski
+// yanıtlar bozulmasın diye ikisi ayrı tutulur; değer alanı "gelişmiş"
+// olduğu için ikinci planda, küçük ve isteğe bağlı gösterilir.
+function SecenekDuzenleyici({ soru, onChange }) {
+  const [degerleriGoster, setDegerleriGoster] = useState(false);
+  const secenekler = soruSecenekleri(soru);
+  const ozelMi = Array.isArray(soru.secenekler) && soru.secenekler.length > 0;
+  const olcekId = window.anketOlcekKimligi ? window.anketOlcekKimligi(soru) : '';
+  const hatalar = window.anketSecenekHatalari ? window.anketSecenekHatalari(soru) : [];
+  const sirali = window.anketOlcekSiraliMi ? window.anketOlcekSiraliMi(soru) : false;
+
+  // Gömülü ölçekle çalışan soruya ilk dokunuşta liste soruya KOPYALANIR:
+  // kullanıcı "varsayılanı düzenliyorum" sanıp başka soruları bozmasın.
+  const yaz = (liste) => onChange({ secenekler: liste.map((o) => ({ ...o })) });
+  const duzenle = (i, yama) => yaz(secenekler.map((o, idx) => (idx === i ? { ...o, ...yama } : o)));
+  const sil = (i) => yaz(secenekler.filter((_, idx) => idx !== i));
+  const tasi = (i, yon) =>
+    yaz(window.anketSecenegiTasi ? window.anketSecenegiTasi(secenekler, i, yon) : secenekler);
+  const ekle = () =>
+    yaz([
+      ...secenekler,
+      {
+        deger: window.anketYeniSecenekDegeri ? window.anketYeniSecenekDegeri(secenekler) : '',
+        etiket: '',
+      },
+    ]);
+
+  const kucukBtn = (renk) => ({
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    border: '1px solid ' + ANK.border,
+    background: 'white',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    padding: 0,
+    color: renk || ANK.textMuted,
+    flexShrink: 0,
+  });
+
+  return (
+    <div
+      style={{
+        border: '1px dashed ' + ANK.border,
+        borderRadius: 9,
+        padding: 10,
+        background: 'white',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: ANK.textMuted }}>
+          ŞIKLAR ({secenekler.length})
+        </span>
+        <select
+          value={olcekId}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (!v) return;
+            yaz(window.anketOlcekSecenekleri ? window.anketOlcekSecenekleri(v) : []);
+          }}
+          style={{
+            ...inputStyle,
+            width: 'auto',
+            minWidth: 170,
+            padding: '5px 8px',
+            fontSize: 12,
+            marginLeft: 'auto',
+          }}
+          title="Hazır bir ölçek seçin; şıklar kopyalanır ve düzenlenebilir kalır"
+        >
+          <option value="">Hazır ölçek uygula…</option>
+          {(window.ANKET_OLCEKLERI || []).map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.ad} — {o.ornek}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {!ozelMi && (
+        <p style={{ fontSize: 11, color: ANK.textMuted, margin: 0, lineHeight: 1.5 }}>
+          Şu an bu tipin varsayılan ölçeği kullanılıyor. Aşağıdan düzenlerseniz şıklar bu soruya
+          özel hâle gelir.
+        </p>
+      )}
+
+      {secenekler.map((o, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span
+            style={{
+              width: 20,
+              fontSize: 11,
+              fontWeight: 700,
+              color: ANK.textMuted,
+              textAlign: 'right',
+              flexShrink: 0,
+            }}
+          >
+            {i + 1}.
+          </span>
+          <input
+            value={o.etiket}
+            onChange={(e) => duzenle(i, { etiket: e.target.value })}
+            placeholder="Şık metni — ör. Kesinlikle katılmıyorum"
+            style={{ ...inputStyle, flex: 1, padding: '6px 9px', fontSize: 12.5 }}
+          />
+          {degerleriGoster && (
+            <input
+              value={o.deger}
+              onChange={(e) => duzenle(i, { deger: e.target.value })}
+              placeholder="değer"
+              title="Yanıtlarda saklanan değer. Anket yayımlandıktan sonra değiştirmeyin — eski yanıtlar bu değere bağlıdır."
+              style={{ ...inputStyle, width: 74, padding: '6px 8px', fontSize: 12 }}
+            />
+          )}
+          <button
+            onClick={() => tasi(i, -1)}
+            disabled={i === 0}
+            title="Yukarı"
+            style={{ ...kucukBtn(), opacity: i === 0 ? 0.35 : 1 }}
+          >
+            <AIcon path="M5 15l7-7 7 7" size={11} />
+          </button>
+          <button
+            onClick={() => tasi(i, +1)}
+            disabled={i === secenekler.length - 1}
+            title="Aşağı"
+            style={{ ...kucukBtn(), opacity: i === secenekler.length - 1 ? 0.35 : 1 }}
+          >
+            <AIcon path="M19 9l-7 7-7-7" size={11} />
+          </button>
+          <button onClick={() => sil(i)} title="Şıkkı sil" style={kucukBtn(ANK.red)}>
+            <AIcon path="M6 18L18 6M6 6l12 12" size={11} color={ANK.red} />
+          </button>
+        </div>
+      ))}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button
+          onClick={ekle}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 11px',
+            borderRadius: 7,
+            border: '1px dashed ' + ANK.accent,
+            background: 'white',
+            color: ANK.accent,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          <AIcon path="M12 4v16m8-8H4" size={12} color={ANK.accent} />
+          Şık ekle
+        </button>
+        {/* ⚠ SIRA BİR VERİDİR. "Üst uç / alt uç", kutuplaşma uyarısı ve ırak
+            yığılmış çubuk yalnız SIRALI ölçekte anlamlıdır; "yarısı web
+            sitesi, yarısı sosyal medya dedi" kutuplaşma değildir. Sayısal
+            şıklarda sıra kendiliğinden anlaşılır, metin şıklarda anlaşılmaz —
+            bu yüzden sorulur. */}
+        <label
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            fontSize: 11.5,
+            color: ANK.textMuted,
+            cursor: 'pointer',
+          }}
+          title="İşaretliyse sonuçlarda ortalama/uç payları hesaplanır ve şıklar sıralı ölçek grafiğiyle çizilir."
+        >
+          <input
+            type="checkbox"
+            checked={sirali}
+            onChange={(e) => onChange({ sirali: e.target.checked })}
+          />
+          Sıralı ölçek (az → çok)
+        </label>
+        <label
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            fontSize: 11.5,
+            color: ANK.textMuted,
+            cursor: 'pointer',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={degerleriGoster}
+            onChange={(e) => setDegerleriGoster(e.target.checked)}
+          />
+          Kayıt değerlerini göster
+        </label>
+        {ozelMi && (
+          <button
+            onClick={() => onChange({ secenekler: undefined })}
+            style={{
+              padding: '5px 10px',
+              borderRadius: 7,
+              border: '1px solid ' + ANK.border,
+              background: 'white',
+              color: ANK.textMuted,
+              fontSize: 11.5,
+              cursor: 'pointer',
+              fontFamily: "'Inter', sans-serif",
+            }}
+            title="Bu sorunun özel şıklarını kaldırıp tipin varsayılan ölçeğine dön"
+          >
+            Varsayılana dön
+          </button>
+        )}
+      </div>
+
+      {hatalar.length > 0 && (
+        <p style={{ fontSize: 11.5, color: ANK.red, margin: 0, lineHeight: 1.5 }}>
+          {hatalar.join(' ')}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment, isAdmin }) {
   const [title, setTitle] = useState(initial.title || '');
   const [description, setDescription] = useState(initial.description || '');
+  // ⚠ BURASI SORUNUN GERİ KALANINI SİLİYORDU. Soru yalnız {id,type,text}
+  // olarak yeniden kuruluyordu; sorunun taşıdığı her ek alan (özel şıklar,
+  // ileride eklenecek ayarlar) anketi DÜZENLEMEK için açıp kaydeden herkeste
+  // sessizce düşüyordu. Bilinen alanlar tamamlanır, geri kalanı korunur.
   const [questions, setQuestions] = useState(
     (initial.questions || []).map((q, i) => ({
+      ...q,
       id: q.id || 'q' + (i + 1),
       type: q.type || 'likert',
       text: q.text || '',
@@ -1456,6 +1705,19 @@ function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment,
       .filter((q) => q.text);
     if (cleaned.length === 0) {
       alert('En az 1 soru olmalı.');
+      return;
+    }
+    // ⚠ Şıksız ya da yinelenen şıklı soru sessizce kaydediliyordu: katılımcı
+    // tıklanacak hiçbir şey görmüyor, yinelenen şıkta ise oylar sonuçlarda
+    // tek satırda toplanıp kayboluyordu. Kayıt öncesi söylenir.
+    const secenekSorunlari = window.anketTumSecenekHatalari
+      ? window.anketTumSecenekHatalari(cleaned)
+      : [];
+    if (secenekSorunlari.length > 0) {
+      alert(
+        'Şıklarda düzeltilmesi gereken sorular var:\n\n' +
+          secenekSorunlari.map((x) => x.index + 1 + '. soru — ' + x.hatalar.join(' ')).join('\n')
+      );
       return;
     }
     setSaving(true);
@@ -1736,7 +1998,18 @@ function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment,
                 />
                 <select
                   value={q.type}
-                  onChange={(e) => update(i, { type: e.target.value })}
+                  onChange={(e) => {
+                    // Tip değişiminde şıkların ne olacağı bir KURALDIR
+                    // (lib/anket-secenek.js): metne geçişte düşer, şıklı
+                    // tipler arasında özel şıklar korunur.
+                    const sonraki = window.anketTipDegisiminde
+                      ? window.anketTipDegisiminde(q, e.target.value)
+                      : { ...q, type: e.target.value };
+                    update(i, {
+                      type: sonraki.type,
+                      secenekler: sonraki.secenekler,
+                    });
+                  }}
                   style={{ ...inputStyle, width: 'auto', minWidth: 200 }}
                 >
                   {QUESTION_TYPES.map((t) => (
@@ -1745,6 +2018,9 @@ function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment,
                     </option>
                   ))}
                 </select>
+                {soruSecenekliMi(q) && (
+                  <SecenekDuzenleyici soru={q} onChange={(yama) => update(i, yama)} />
+                )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <button
@@ -1903,6 +2179,211 @@ function EmptyState({ text }) {
 }
 
 // ─── Atama paneli ──────────────────────────────────────────────────────────
+// ─── Atama akışının adım kartı ─────────────────────────────────────────────
+// ⚠ ESKİ EKRAN TEK BİR UZUN FORMDU: altı alan alt alta, en altta "Anketi ata".
+// Hangi alanın zorunlu olduğu, nerede kalındığı ve düğmenin neden kapalı
+// olduğu görünmüyordu. Adımlar numaralanır, tamamlanan adım özetini yazar.
+function AtamaAdimi({ no, baslik, ozet, tamam, children, pasif, son }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 12,
+        opacity: pasif ? 0.45 : 1,
+        pointerEvents: pasif ? 'none' : 'auto',
+      }}
+    >
+      <div
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}
+      >
+        <span
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 12,
+            fontWeight: 800,
+            background: tamam ? ANK.accent : ANK.accentPale,
+            color: tamam ? 'white' : ANK.accentDark,
+          }}
+        >
+          {tamam ? '✓' : no}
+        </span>
+        {/* Son adımda çizgi boşluğa sarkıyordu. */}
+        {!son && <span style={{ flex: 1, width: 1, background: ANK.border, marginTop: 4 }} />}
+      </div>
+      <div style={{ flex: 1, minWidth: 0, paddingBottom: son ? 0 : 20 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 10,
+            flexWrap: 'wrap',
+            marginBottom: 10,
+          }}
+        >
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: ANK.primary }}>{baslik}</span>
+          {ozet && <span style={{ fontSize: 12, color: ANK.textMuted }}>{ozet}</span>}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─── "Bu anket kaç kişiye gidecek?" ───────────────────────────────────────
+// ⚠ BU SORUNUN CEVABI HİÇBİR YERDE YOKTU. Yetkili rolü ve grubu seçip "ata"
+// diyordu; yanlış bölüm ya da kimseye ulaşmayan bir seçim ancak günler sonra
+// "anket gelmedi" diye geri dönüyordu. Zorunlu ankette bedeli daha ağır:
+// yanlış kitleye açılan tam ekran kapı insanları uygulamanın dışında bırakır.
+//
+// Sayım, karşı taraftaki gösterme kuralının AYNISINI kullanır
+// (lib/anket-hedef-kitle.js → lib/ogrenci-sinif.js); yoksa önizleme bir şey,
+// gerçek başka şey söylerdi.
+function HedefKitleKutusu({ rol, bolumler, gruplar, kapsamEtiketi }) {
+  const [durum, setDurum] = useState('bos'); // bos | yukleniyor | hazir | hata
+  const [ozet, setOzet] = useState(null);
+  const [hata, setHata] = useState('');
+
+  // Seçim değişince eski sayı YANILTICI olur — sıfırlanır.
+  const anahtar = [rol, (bolumler || []).join(','), (gruplar || []).join(',')].join('|');
+  useEffect(() => {
+    setDurum('bos');
+    setOzet(null);
+    setHata('');
+  }, [anahtar]);
+
+  const hesapla = async () => {
+    setDurum('yukleniyor');
+    try {
+      if (rol === 'professor') {
+        const liste = await window.apiRead('professors');
+        setOzet(window.anketAkademisyenKitlesi(liste || [], { bolumler }));
+      } else {
+        const liste = await window.apiRead('students');
+        setOzet(window.anketOgrenciKitlesi(liste || [], { bolumler, gruplar }));
+      }
+      setDurum('hazir');
+    } catch (e) {
+      setHata(e.message || 'Liste okunamadı');
+      setDurum('hata');
+    }
+  };
+
+  const kutu = {
+    border: '1px solid ' + ANK.border,
+    borderRadius: 10,
+    padding: '12px 14px',
+    background: ANK.surfaceAlt,
+  };
+
+  if (durum === 'bos' || durum === 'yukleniyor') {
+    return (
+      <div style={kutu}>
+        <button
+          onClick={hesapla}
+          disabled={durum === 'yukleniyor'}
+          style={{
+            padding: '7px 14px',
+            borderRadius: 8,
+            border: '1px solid ' + ANK.accent,
+            background: 'white',
+            color: ANK.accent,
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: durum === 'yukleniyor' ? 'wait' : 'pointer',
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {durum === 'yukleniyor' ? 'Sayılıyor…' : 'Kaç kişiye gidecek? Hesapla'}
+        </button>
+        <p style={{ fontSize: 11.5, color: ANK.textMuted, margin: '8px 0 0', lineHeight: 1.5 }}>
+          Atamadan önce kitleyi görün. Sayım, öğrenci listesini okur; seçimi değiştirdiğinizde
+          yeniden hesaplamanız gerekir.
+        </p>
+      </div>
+    );
+  }
+
+  if (durum === 'hata') {
+    return (
+      <div style={{ ...kutu, borderColor: ANK.red, background: ANK.redLight }}>
+        <p style={{ fontSize: 12.5, color: ANK.red, margin: 0 }}>
+          Kitle sayılamadı: {hata}. Atama yine de yapılabilir.
+        </p>
+      </div>
+    );
+  }
+
+  const ogrenci = rol !== 'professor';
+  const sifir = ozet.ulasilan === 0;
+  return (
+    <div
+      style={{
+        ...kutu,
+        borderColor: sifir ? ANK.red : ANK.accent,
+        background: sifir ? ANK.redLight : ANK.accentPale,
+      }}
+    >
+      <p
+        style={{
+          fontSize: 17,
+          fontWeight: 800,
+          color: sifir ? ANK.red : ANK.accentDark,
+          margin: 0,
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {ozet.ulasilan} kişi
+      </p>
+      <p style={{ fontSize: 12, color: ANK.text, margin: '2px 0 0', lineHeight: 1.5 }}>
+        {kapsamEtiketi} · {ozet.kapsamdaki} kişilik kapsamdan
+      </p>
+
+      {sifir && (
+        <p style={{ fontSize: 12, color: ANK.red, margin: '8px 0 0', lineHeight: 1.5 }}>
+          <b>Bu seçim kimseye ulaşmıyor.</b> Kapsamı ya da hedef grubu gözden geçirin — atama
+          yapılsa bile hiç kimsenin listesinde görünmez.
+        </p>
+      )}
+
+      {ogrenci && ozet.gruplar && ozet.gruplar.length > 1 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', marginTop: 8 }}>
+          {ozet.gruplar.map((g) => (
+            <span key={g.grup} style={{ fontSize: 11.5, color: ANK.textMuted }}>
+              {g.grup}: <b style={{ color: ANK.text }}>{g.sayi}</b>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {ogrenci && ozet.sinifiBilinmeyen > 0 && (
+        <p style={{ fontSize: 11.5, color: '#92400E', margin: '8px 0 0', lineHeight: 1.5 }}>
+          ⚠ {ozet.sinifiBilinmeyen} kişinin sınıfı çözülemedi (numarası eksik ya da beklenen biçimde
+          değil); sınıf hedefli anket onlara <b>gitmeyecek</b>.
+        </p>
+      )}
+
+      {ogrenci && ozet.sinifiNumaradan > 0 && (
+        <p style={{ fontSize: 11.5, color: ANK.textMuted, margin: '6px 0 0', lineHeight: 1.5 }}>
+          {ozet.sinifiNumaradan} kişinin sınıfı öğrenci numarasından türetildi; kayıtlı sınıfı
+          olanlarda kayıt geçerlidir.
+        </p>
+      )}
+
+      {!ogrenci && ozet.grupSuzulmuyor && (
+        <p style={{ fontSize: 11.5, color: '#92400E', margin: '8px 0 0', lineHeight: 1.5 }}>
+          ⚠ Akademisyen grupları (öğretim üyesi / araştırma görevlisi) <b>süzmüyor</b>: kayıtlarda
+          unvan verisi yok, anket kapsamdaki tüm akademisyenlere gider.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function AtamaPaneli({
   surveys,
   assignments,
@@ -2028,12 +2509,77 @@ function AtamaPaneli({
     setSecim('');
   };
 
+  // Kitle sayımı için hedef bölümler. 'hepsi' seçiliyken de kapsam BELLİdir:
+  // yetkilinin erişebildiği bölümler. Boş dizi "sınırsız" demek olurdu ve
+  // bölüm yetkilisine bütün üniversiteyi saydırırdı.
+  const hedefBolumler = useMemo(() => {
+    if (seciliKapsam.tur === 'bolum') return [String(seciliKapsam.id || '')].filter(Boolean);
+    if (seciliKapsam.tur === 'fakulte') {
+      return kapsamBolumleri
+        .filter((d) => String(d.facultyId || '') === String(seciliKapsam.id))
+        .map((d) => String(d.id));
+    }
+    return kapsamBolumleri.map((d) => String(d.id));
+  }, [seciliKapsam, kapsamBolumleri]);
+
+  // Düğme neden kapalı? Eskiden hiçbir sebep yazmıyordu.
+  const eksik = [];
+  if (!surveyId) eksik.push('anket');
+  if (!targetRole) eksik.push('hedef rol');
+  if (!groups.length) eksik.push('hedef grup');
+
+  const seciliAnket = surveys.find((s) => s.id === surveyId);
+  const rolEtiketi = (TARGET_ROLES.find((r) => r.id === targetRole) || {}).label || '';
+
+  // Mevcut atamalar: aynı anket dört gruba atanınca dört ayrı kart çıkıyordu.
+  // Artık ankete göre toplanır ve aranabilir.
+  const [atamaArama, setAtamaArama] = useState('');
+  const trKucuk = (x) =>
+    String(x || '')
+      .replace(/İ/g, 'i')
+      .replace(/I/g, 'ı')
+      .toLocaleLowerCase('tr-TR');
+  const atamaGruplari = useMemo(() => {
+    const q = trKucuk(atamaArama).trim();
+    const harita = new Map();
+    (assignments || []).forEach((a) => {
+      const anahtar = String(a.surveyId || a.surveyTitle || a.id);
+      if (!harita.has(anahtar)) {
+        harita.set(anahtar, { anahtar, baslik: a.surveyTitle || '(adsız anket)', satirlar: [] });
+      }
+      harita.get(anahtar).satirlar.push(a);
+    });
+    return [...harita.values()]
+      .filter((g) => !q || trKucuk(g.baslik).includes(q))
+      .sort((a, b) => a.baslik.localeCompare(b.baslik, 'tr'));
+  }, [assignments, atamaArama]);
+
+  const rozet = (metin, zemin, renk) => (
+    <span
+      style={{
+        padding: '2px 9px',
+        borderRadius: 10,
+        fontSize: 11,
+        fontWeight: 600,
+        background: zemin,
+        color: renk,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {metin}
+    </span>
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {/* Anket seç */}
-        <div>
-          <label style={labelStyle}>Anket seç</label>
+      <div style={{ ...cardStyle, padding: 20 }}>
+        {/* ADIM 1 — hangi anket */}
+        <AtamaAdimi
+          no={1}
+          baslik="Hangi anket?"
+          tamam={!!surveyId}
+          ozet={seciliAnket ? seciliAnket.title : ''}
+        >
           <select
             value={surveyId}
             onChange={(e) => setSurveyId(e.target.value)}
@@ -2046,361 +2592,426 @@ function AtamaPaneli({
               </option>
             ))}
           </select>
-        </div>
-
-        {/* Kapsam — anket kimlere gidecek */}
-        <div>
-          <label style={labelStyle}>{tekBolum ? 'Kapsam (otomatik)' : 'Kapsam'}</label>
-          {tekBolum ? (
-            <input value={deptName} disabled style={{ ...inputStyle, background: '#F3F4F6' }} />
-          ) : (
-            <select
-              value={secim}
-              onChange={(e) => setSecim(e.target.value)}
-              style={{ ...inputStyle, cursor: 'pointer' }}
-            >
-              <option value="">{tumEtiket}</option>
-              {fakulteGruplari.map((g) => {
-                const secenekler = [
-                  // Fakültenin TAMAMI — üniversite yetkilisinin 57 bölümü tek
-                  // tek seçmek zorunda kalmadan bir fakülteye atayabilmesi için.
-                  //
-                  // Yalnız üniversite düzeyinde gösterilir: fakülte yetkilisinde
-                  // bu seçenek zaten "Fakültemin tüm bölümleri" ile aynı şeydir,
-                  // bölüm yetkilisinde ise etiket yanıltıcı olurdu (kapsam
-                  // kesişimi onu kendi bölümüne indirir, ama kutuda fakülte adı
-                  // yazardı).
-                  kapsamTuru === 'universite' && g.id ? (
-                    <option key={'f' + g.id} value={'fak:' + g.id}>
-                      {g.ad ? g.ad + ' (tüm bölümleri)' : 'Bu fakültenin tüm bölümleri'}
-                    </option>
-                  ) : null,
-                  ...g.bolumler.map((d) => (
-                    <option key={d.id} value={'bol:' + d.id}>
-                      Yalnız {d.name}
-                    </option>
-                  )),
-                ].filter(Boolean);
-                return fakulteBasligi && g.ad ? (
-                  <optgroup key={g.id || '_diger'} label={g.ad}>
-                    {secenekler}
-                  </optgroup>
-                ) : (
-                  secenekler
-                );
-              })}
-            </select>
+          {surveys.length === 0 && (
+            <p style={{ fontSize: 11.5, color: ANK.textMuted, margin: '6px 0 0' }}>
+              Henüz anket yok. Önce "Anketler" sekmesinden bir anket oluşturun.
+            </p>
           )}
-          <p style={{ fontSize: 11.5, color: ANK.textMuted, margin: '6px 0 0', lineHeight: 1.5 }}>
-            {tekBolum
-              ? 'Anket yalnız bu bölüme atanır.'
-              : seciliKapsam.tur === 'bolum'
-                ? 'Anket yalnız seçtiğiniz bölüme atanır.'
-                : seciliKapsam.tur === 'fakulte'
-                  ? 'Anket yalnız seçtiğiniz fakültenin bölümlerine atanır.'
-                  : kapsamTuru === 'universite'
-                    ? 'Anket tüm fakültelerin bölümlerine atanır.'
-                    : kapsamTuru === 'fakulte'
-                      ? 'Anket fakültenizdeki tüm bölümlere atanır.'
-                      : 'Anket bağlı olduğunuz bölümlere atanır.'}
-          </p>
-        </div>
+        </AtamaAdimi>
 
-        {/* Hedef rol */}
-        <div>
-          <label style={labelStyle}>Hedef rol</label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {TARGET_ROLES.map((r) => {
-              const active = targetRole === r.id;
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => {
-                    setTargetRole(r.id);
-                    setGroups([]);
-                  }}
-                  style={{
-                    padding: 14,
-                    borderRadius: 10,
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    border: '1px solid ' + (active ? ANK.accent : ANK.border),
-                    background: active ? ANK.accentPale : 'white',
-                    fontFamily: "'Inter', sans-serif",
-                  }}
-                >
-                  <AIcon path={r.icon} size={20} color={active ? ANK.accent : ANK.textMuted} />
-                  <p
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: ANK.primary,
-                      margin: '6px 0 2px',
-                    }}
-                  >
-                    {r.label}
-                  </p>
-                  <p style={{ fontSize: 11, color: ANK.textMuted, margin: 0 }}>{r.sub}</p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Hedef gruplar */}
-        {targetRole && (
-          <div>
-            <label style={labelStyle}>Hedef grup</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {TARGET_GROUPS[targetRole].map((g) => (
-                <label
-                  key={g}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    border: '1px solid ' + ANK.border,
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    color: ANK.text,
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={groups.includes(g)}
-                    onChange={() => toggleGroup(g)}
-                  />
-                  {g}
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Zorunlu anket seçeneği */}
-        <label
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 10,
-            padding: '12px 14px',
-            borderRadius: 10,
-            border: '1px solid ' + (mandatory ? ANK.accent : ANK.border),
-            background: mandatory ? ANK.accentPale : ANK.surface,
-            cursor: 'pointer',
-          }}
+        {/* ADIM 2 — kimlere */}
+        <AtamaAdimi
+          no={2}
+          baslik="Kimlere gidecek?"
+          pasif={!surveyId}
+          tamam={!!targetRole && groups.length > 0}
+          ozet={
+            targetRole && groups.length
+              ? rolEtiketi + ' · ' + groups.join(', ') + ' · ' + kapsamEtiketi
+              : ''
+          }
         >
-          <input
-            type="checkbox"
-            checked={mandatory}
-            onChange={(e) => setMandatory(e.target.checked)}
-            style={{ marginTop: 2, width: 16, height: 16, cursor: 'pointer' }}
-          />
-          <div>
-            <p
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color: mandatory ? ANK.accentDark : ANK.primary,
-                margin: 0,
-              }}
-            >
-              Zorunlu anket
-            </p>
-            <p
-              style={{ fontSize: 11.5, color: ANK.textMuted, margin: '3px 0 0', lineHeight: 1.45 }}
-            >
-              Hedef kişiler sisteme girdiğinde bu anket tam ekran karşılarına çıkar ve tamamlamadan
-              uygulamayı kullanamazlar.
-            </p>
-          </div>
-        </label>
-
-        {/* Son tarih + ata */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <label style={labelStyle}>Son tarih (takvimden)</label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              style={{ ...inputStyle, width: 200, cursor: 'pointer' }}
-            />
-          </div>
-          <button
-            onClick={submit}
-            disabled={!canSubmit}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 18px',
-              borderRadius: 8,
-              border: 'none',
-              background: ANK.accent,
-              color: 'white',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: canSubmit ? 'pointer' : 'not-allowed',
-              opacity: canSubmit ? 1 : 0.45,
-            }}
-          >
-            <AIcon path="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" size={15} /> Anketi ata
-          </button>
-        </div>
-      </div>
-
-      {assignments.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <p style={labelStyle}>Mevcut atamalar ({assignments.length})</p>
-          <div className="ank-grid">
-            {assignments.map((a) => {
-              const isStudent = a.targetRole === 'student';
-              return (
-                <div
-                  key={a.id}
-                  className="ank-card ank-card-hover"
-                  style={{
-                    ...cardStyle,
-                    padding: 16,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
-                  }}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Kapsam */}
+            <div>
+              <label style={labelStyle}>{tekBolum ? 'Kapsam (otomatik)' : 'Kapsam'}</label>
+              {tekBolum ? (
+                <input value={deptName} disabled style={{ ...inputStyle, background: '#F3F4F6' }} />
+              ) : (
+                <select
+                  value={secim}
+                  onChange={(e) => setSecim(e.target.value)}
+                  style={{ ...inputStyle, cursor: 'pointer' }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <div
+                  <option value="">{tumEtiket}</option>
+                  {fakulteGruplari.map((g) => {
+                    const secenekler = [
+                      // Fakültenin TAMAMI — üniversite yetkilisinin 57 bölümü
+                      // tek tek seçmek zorunda kalmaması için. Yalnız
+                      // üniversite düzeyinde gösterilir; alt düzeylerde etiket
+                      // yanıltıcı olurdu.
+                      kapsamTuru === 'universite' && g.id ? (
+                        <option key={'f' + g.id} value={'fak:' + g.id}>
+                          {g.ad ? g.ad + ' (tüm bölümleri)' : 'Bu fakültenin tüm bölümleri'}
+                        </option>
+                      ) : null,
+                      ...g.bolumler.map((d) => (
+                        <option key={d.id} value={'bol:' + d.id}>
+                          Yalnız {d.name}
+                        </option>
+                      )),
+                    ].filter(Boolean);
+                    return fakulteBasligi && g.ad ? (
+                      <optgroup key={g.id || '_diger'} label={g.ad}>
+                        {secenekler}
+                      </optgroup>
+                    ) : (
+                      secenekler
+                    );
+                  })}
+                </select>
+              )}
+            </div>
+
+            {/* Rol */}
+            <div>
+              <label style={labelStyle}>Hedef rol</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {TARGET_ROLES.map((r) => {
+                  const active = targetRole === r.id;
+                  return (
+                    <button
+                      key={r.id}
+                      onClick={() => {
+                        setTargetRole(r.id);
+                        setGroups([]);
+                      }}
                       style={{
-                        width: 40,
-                        height: 40,
+                        padding: 13,
                         borderRadius: 10,
-                        background: ANK.accentPale,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        border: '1.5px solid ' + (active ? ANK.accent : ANK.border),
+                        background: active ? ANK.accentPale : 'white',
+                        fontFamily: "'Inter', sans-serif",
                       }}
                     >
-                      <AIcon path="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" size={19} color={ANK.accent} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <AIcon path={r.icon} size={19} color={active ? ANK.accent : ANK.textMuted} />
                       <p
-                        title={a.surveyTitle}
                         style={{
-                          fontSize: 14.5,
-                          fontWeight: 700,
+                          fontSize: 13,
+                          fontWeight: 600,
                           color: ANK.primary,
-                          margin: 0,
-                          lineHeight: 1.35,
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
+                          margin: '6px 0 2px',
                         }}
                       >
-                        {a.surveyTitle}
+                        {r.label}
                       </p>
-                      {/* Kapsam etiketi: atamanın kime gittiği kartta okunmalı
-                          — "Bilgisayar Mühendisliği" ile "fakültenin tümü"
-                          arasındaki fark listeye bakınca görünmeli. */}
-                      {(a.kapsamEtiketi || a.departmentName || a.kapsamTuru) && (
-                        <p style={{ fontSize: 12, color: ANK.textMuted, margin: '3px 0 0' }}>
-                          {a.kapsamEtiketi ||
-                            a.departmentName ||
-                            (a.kapsamTuru === 'universite'
-                              ? 'Üniversite geneli'
-                              : a.kapsamTuru === 'fakulte'
-                                ? 'Fakülte geneli'
-                                : '')}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => onRemoveAssignment(a.id)}
-                      title="Atamayı kaldır"
-                      className="ank-btn"
-                      style={iconBtn(ANK.red)}
-                    >
-                      <AIcon
-                        path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
-                        size={14}
-                        color={ANK.red}
-                      />
+                      <p style={{ fontSize: 11, color: ANK.textMuted, margin: 0 }}>{r.sub}</p>
                     </button>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    <span
-                      style={{
-                        padding: '2px 9px',
-                        borderRadius: 10,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        background: isStudent ? ANK.accentPale : ANK.blueLight,
-                        color: isStudent ? ANK.accentDark : ANK.blue,
-                      }}
-                    >
-                      {ROLE_LABEL[a.targetRole] || a.targetRole}
-                    </span>
-                    <span
-                      style={{
-                        padding: '2px 9px',
-                        borderRadius: 10,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        background: '#F1F5F9',
-                        color: ANK.text,
-                      }}
-                    >
-                      {a.targetGroup}
-                    </span>
-                    {a.mandatory && (
-                      <span
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Gruplar — hap biçimi, çoklu seçim */}
+            {targetRole && (
+              <div>
+                <label style={labelStyle}>Hedef grup (birden çok seçilebilir)</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                  {TARGET_GROUPS[targetRole].map((g) => {
+                    const on = groups.includes(g);
+                    return (
+                      <button
+                        key={g}
+                        onClick={() => toggleGroup(g)}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: 4,
-                          padding: '2px 9px',
-                          borderRadius: 10,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          background: ANK.redLight,
-                          color: ANK.red,
+                          gap: 7,
+                          padding: '7px 13px',
+                          borderRadius: 20,
+                          fontSize: 12.5,
+                          cursor: 'pointer',
+                          border: '1.5px solid ' + (on ? ANK.accent : ANK.border),
+                          background: on ? ANK.accentPale : 'white',
+                          color: on ? ANK.accentDark : ANK.text,
+                          fontWeight: on ? 600 : 400,
+                          fontFamily: "'Inter', sans-serif",
                         }}
                       >
-                        <AIcon
-                          path="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.75-2.98l-6.93-12a2 2 0 00-3.5 0l-6.93 12A2 2 0 005.07 19z"
-                          size={11}
-                          color={ANK.red}
-                        />
-                        Zorunlu
-                      </span>
-                    )}
-                  </div>
-                  <div
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: 4,
+                            border: '1.5px solid ' + (on ? ANK.accent : ANK.border),
+                            background: on ? ANK.accent : 'white',
+                            color: 'white',
+                            fontSize: 9,
+                            fontWeight: 900,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {on ? '✓' : ''}
+                        </span>
+                        {g}
+                      </button>
+                    );
+                  })}
+                </div>
+                {targetRole === 'student' && (
+                  <p
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      marginTop: 'auto',
-                      paddingTop: 10,
-                      borderTop: '1px solid ' + ANK.border,
-                      fontSize: 12,
+                      fontSize: 11.5,
                       color: ANK.textMuted,
+                      margin: '8px 0 0',
+                      lineHeight: 1.5,
                     }}
                   >
-                    <AIcon
-                      path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      size={14}
-                      color={ANK.textDim}
-                    />
-                    Son tarih: <strong style={{ color: ANK.text }}>{fmtDueDate(a.dueDate)}</strong>
-                  </div>
-                </div>
-              );
-            })}
+                    Sınıf, kayıtlı değilse öğrenci numarasından çözülür (ilk iki hane giriş yılı).
+                    Çözülemeyen öğrenciye sınıf hedefli anket gitmez.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
+        </AtamaAdimi>
+
+        {/* ADIM 3 — önizleme */}
+        <AtamaAdimi
+          no={3}
+          baslik="Önizleme"
+          pasif={!targetRole || groups.length === 0}
+          tamam={false}
+        >
+          {targetRole && groups.length > 0 ? (
+            <HedefKitleKutusu
+              rol={targetRole}
+              bolumler={hedefBolumler}
+              gruplar={groups}
+              kapsamEtiketi={kapsamEtiketi}
+            />
+          ) : (
+            <p style={{ fontSize: 12, color: ANK.textMuted, margin: 0 }}>
+              Rol ve hedef grup seçilince kitle burada sayılır.
+            </p>
+          )}
+        </AtamaAdimi>
+
+        {/* ADIM 4 — ayarlar ve ata */}
+        <AtamaAdimi no={4} baslik="Ayarlar ve atama" pasif={!surveyId} tamam={false} son>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                padding: '12px 14px',
+                borderRadius: 10,
+                border: '1px solid ' + (mandatory ? ANK.red : ANK.border),
+                background: mandatory ? ANK.redLight : ANK.surface,
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={mandatory}
+                onChange={(e) => setMandatory(e.target.checked)}
+                style={{ marginTop: 2, width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <div>
+                <p
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: mandatory ? ANK.red : ANK.primary,
+                    margin: 0,
+                  }}
+                >
+                  Zorunlu anket
+                </p>
+                <p
+                  style={{
+                    fontSize: 11.5,
+                    color: ANK.textMuted,
+                    margin: '3px 0 0',
+                    lineHeight: 1.45,
+                  }}
+                >
+                  Hedef kişiler sisteme girdiğinde bu anket tam ekran karşılarına çıkar ve
+                  tamamlamadan uygulamayı kullanamazlar. Yanlış kitleye açılan zorunlu anket,
+                  ilgisiz kişileri uygulamanın dışında bırakır — önce önizlemeye bakın.
+                </p>
+              </div>
+            </label>
+
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <label style={labelStyle}>Son tarih (isteğe bağlı)</label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  style={{ ...inputStyle, width: 200, cursor: 'pointer' }}
+                />
+              </div>
+              <button
+                onClick={submit}
+                disabled={!canSubmit}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '11px 20px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: ANK.accent,
+                  color: 'white',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: canSubmit ? 'pointer' : 'not-allowed',
+                  opacity: canSubmit ? 1 : 0.45,
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                <AIcon path="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" size={15} />
+                {groups.length > 1 ? `Anketi ata (${groups.length} grup)` : 'Anketi ata'}
+              </button>
+              {eksik.length > 0 && (
+                <span style={{ fontSize: 11.5, color: ANK.textMuted }}>
+                  Eksik: {eksik.join(', ')}
+                </span>
+              )}
+            </div>
+          </div>
+        </AtamaAdimi>
+      </div>
+
+      {/* ── Mevcut atamalar ── */}
+      {assignments.length > 0 && (
+        <div style={{ ...cardStyle, padding: 18 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flexWrap: 'wrap',
+              marginBottom: 14,
+            }}
+          >
+            <p style={{ fontSize: 13.5, fontWeight: 700, color: ANK.primary, margin: 0 }}>
+              Mevcut atamalar
+              <span style={{ color: ANK.textMuted, fontWeight: 500 }}>
+                {' '}
+                · {atamaGruplari.length} anket, {assignments.length} atama
+              </span>
+            </p>
+            {assignments.length > 4 && (
+              <input
+                value={atamaArama}
+                onChange={(e) => setAtamaArama(e.target.value)}
+                placeholder="Anket adı ara…"
+                style={{
+                  ...inputStyle,
+                  width: 'auto',
+                  minWidth: 190,
+                  marginLeft: 'auto',
+                  padding: '7px 11px',
+                  fontSize: 12.5,
+                }}
+              />
+            )}
+          </div>
+
+          {atamaGruplari.length === 0 ? (
+            <p style={{ fontSize: 12.5, color: ANK.textMuted, margin: 0 }}>
+              "{atamaArama}" ile eşleşen atama yok.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* ⚠ ESKİDEN aynı anket dört gruba atanınca dört ayrı kart
+                  çıkıyordu ve liste okunmaz hâle geliyordu. Artık ankete göre
+                  toplanır; satırlar hedefi anlatır. */}
+              {atamaGruplari.map((g) => (
+                <div
+                  key={g.anahtar}
+                  style={{
+                    border: '1px solid ' + ANK.border,
+                    borderRadius: 10,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: '10px 14px',
+                      background: ANK.surfaceAlt,
+                      borderBottom: '1px solid ' + ANK.border,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                    }}
+                  >
+                    <AIcon path="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" size={15} color={ANK.accent} />
+                    <span
+                      style={{
+                        fontSize: 13.5,
+                        fontWeight: 700,
+                        color: ANK.primary,
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      {g.baslik}
+                    </span>
+                    <span style={{ fontSize: 11.5, color: ANK.textMuted }}>
+                      {g.satirlar.length} atama
+                    </span>
+                  </div>
+                  {g.satirlar.map((a) => {
+                    const isStudent = a.targetRole === 'student';
+                    const kapsam =
+                      a.kapsamEtiketi ||
+                      a.departmentName ||
+                      (a.kapsamTuru === 'universite'
+                        ? 'Üniversite geneli'
+                        : a.kapsamTuru === 'fakulte'
+                          ? 'Fakülte geneli'
+                          : '');
+                    return (
+                      <div
+                        key={a.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          flexWrap: 'wrap',
+                          padding: '10px 14px',
+                          borderTop: '1px solid ' + ANK.border,
+                        }}
+                      >
+                        {rozet(
+                          ROLE_LABEL[a.targetRole] || a.targetRole,
+                          isStudent ? ANK.accentPale : ANK.blueLight,
+                          isStudent ? ANK.accentDark : ANK.blue
+                        )}
+                        {rozet(a.targetGroup || 'Tümü', '#F1F5F9', ANK.text)}
+                        {kapsam && (
+                          <span style={{ fontSize: 12, color: ANK.textMuted }}>{kapsam}</span>
+                        )}
+                        {a.mandatory && rozet('Zorunlu', ANK.redLight, ANK.red)}
+                        <span
+                          style={{
+                            fontSize: 11.5,
+                            color: ANK.textMuted,
+                            marginLeft: 'auto',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Son tarih: {fmtDueDate(a.dueDate)}
+                        </span>
+                        <button
+                          onClick={() => onRemoveAssignment(a.id)}
+                          title="Atamayı kaldır"
+                          className="ank-btn"
+                          style={{ ...iconBtn(ANK.red), width: 26, height: 26 }}
+                        >
+                          <AIcon
+                            path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
+                            size={12}
+                            color={ANK.red}
+                          />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -2409,228 +3020,607 @@ function AtamaPaneli({
 
 // ─── Sonuçlar paneli — gelişmiş grafikler + CSV/Excel dışa aktarma ─────────
 
-// Likert 1→5 renk skalası (kırmızı → yeşil)
-const LIKERT_COLORS = ['#DC2626', '#F59E0B', '#9CA3AF', '#34D399', '#059669'];
-const LIKERT_LABELS = [
-  'Kesinlikle katılmıyorum',
-  'Katılmıyorum',
-  'Kararsızım',
-  'Katılıyorum',
-  'Kesinlikle katılıyorum',
-];
-
 // Soru tipine göre seçenek kümesi (dağılım grafikleri için)
-function optionsForType(type) {
-  if (type === 'likert') return ['1', '2', '3', '4', '5'];
-  if (type === 'yesno') return ['evet', 'hayır'];
-  if (type === 'hours0to5') return ['0', '1', '2', '3', '4', '5'];
-  if (type === 'hoursRange') return ['0', '1-2', '3-4', '5-6', '7-8', '9-10'];
-  if (type === 'hoursExam') return ['0', '1-4', '5-8', '9-12', '13-16', '17-20'];
-  return null; // text / textarea
+// ── Şıklar tek yerden okunur ──
+// ⚠ Eskiden şıklar İKİ yerde ayrı ayrı yazılıydı: `optionsForType` ham
+// değerleri ('1'…'5'), doldurma ekranı ise etiketli düğmeleri üretiyordu.
+// Etiketler koda gömülü olduğu için anketi hazırlayan kişi kendi ölçeğini
+// kuramıyordu. Artık soru kendi şıklarını taşır (lib/anket-secenek.js).
+const soruSecenekleri = (soru) =>
+  window.anketSoruSecenekleri ? window.anketSoruSecenekleri(soru) : [];
+const soruSecenekliMi = (soru) => (window.anketSecenekliMi ? window.anketSecenekliMi(soru) : false);
+const soruCokluMu = (soru) => (window.anketCokluSecimMi ? window.anketCokluSecimMi(soru) : false);
+const secenekEtiketi = (soru, deger) =>
+  window.anketSecenekEtiketi ? window.anketSecenekEtiketi(soru, deger) : String(deger ?? '');
+
+// Çoklu seçimde yanıt bir DİZİdir; tek seçimde düz değer. Sayma, dışa
+// aktarma ve önizleme üçü de aynı çözümlemeyi kullanmalı.
+function yanitDegerleri(v) {
+  if (v == null || v === '') return [];
+  return Array.isArray(v) ? v.map(String).filter(Boolean) : [String(v)];
 }
 
 function countAnswers(responses, qid, options) {
   const counts = Object.fromEntries(options.map((o) => [o, 0]));
   responses.forEach((r) => {
-    const v = r.answers?.[qid];
-    if (v != null && Object.prototype.hasOwnProperty.call(counts, String(v))) {
-      counts[String(v)]++;
-    }
+    yanitDegerleri(r.answers?.[qid]).forEach((d) => {
+      if (Object.prototype.hasOwnProperty.call(counts, d)) counts[d]++;
+    });
   });
   return counts;
 }
 
 // ── Yatay yığılmış Likert dağılım çubuğu ──
-function LikertStackedBar({ counts }) {
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  if (total === 0) {
-    return <p style={{ fontSize: 12, color: ANK.textMuted, margin: 0 }}>Yanıt yok</p>;
+// ══════════════════════════════════════════════════════════════
+// SONUÇ GRAFİKLERİ
+//
+// ⚠ ESKİ EKRAN HER SORUYA HALKA GRAFİK ÇİZİYORDU ve iki ayrı şeyi birden
+// yanlış yapıyordu:
+//
+//   1) HALKA, SIRALI ÖLÇEK İÇİN YANLIŞ BİÇİM. "Kesinlikle katılmıyorum →
+//      Kesinlikle katılıyorum" bir sıradır; halka bu sırayı yok eder, iki
+//      dilimin hangisinin daha büyük olduğunu göz açıyla ölçmek zordur ve
+//      anketler yan yana kıyaslanamaz. Sıralı ölçeğin biçimi, nötrde
+//      ortalanmış IRAK (diverging) yığılmış çubuktur: olumsuz sola, olumlu
+//      sağa taşar, on soru alt alta tek bakışta okunur.
+//
+//   2) RAMPA KIRMIZI→YEŞİLDİ. Renk körlüğünün en yaygın türünde kırmızı ile
+//      yeşil birbirine girer — ölçeğin iki UCU aynı renge düşüyordu. Yeni
+//      rampa sıcak/soğuk kutupludur ve doğrulayıcıdan geçmiştir
+//      (bkz. lib/anket-istatistik.js).
+//
+// Ortak kurallar: çubuk en çok 24px; dokunan parçalar arasında 2px ZEMİN
+// RENGİNDE boşluk (çizgi değil); yüzde doğrudan parçanın üstüne, ancak
+// SIĞIYORSA yazılır; gösterge her zaman var — renk tek başına anlam taşımaz.
+// ══════════════════════════════════════════════════════════════
+
+const GRAFIK = window.anketGrafikMurekkep || {
+  yazi: '#1F2937',
+  ikincil: '#52514e',
+  soluk: '#898781',
+  izgara: '#e1e0d9',
+  eksen: '#c3c2b7',
+  zemin: '#FFFFFF',
+};
+
+const yuzde = (o) => Math.round(o * 100);
+const sayiTr = (n, basamak = 2) =>
+  Number(n).toLocaleString('tr-TR', {
+    minimumFractionDigits: basamak,
+    maximumFractionDigits: basamak,
+  });
+
+// Parçanın içine yazı sığar mı? Sığmayanı yazmak, harfleri kırpmaktan ya da
+// taşırmaktan iyi değil — sığmıyorsa yazılmaz, değer göstergeden ve tablodan
+// okunur. ~7px/karakter + 10px iç boşluk kaba ama güvenli bir ölçüdür.
+const icineSigarMi = (yuzdeGenislik, metinUzunluk, toplamPx = 560) =>
+  (yuzdeGenislik / 100) * toplamPx >= metinUzunluk * 7 + 10;
+
+// ── Gösterge (legend) ──
+// İki ve daha çok renk olan her grafikte bulunur. Yazı hiçbir zaman veri
+// rengini giymez; kimliği yanındaki renk noktası taşır.
+function GrafikGosterge({ ogeler }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 10 }}>
+      {ogeler.map((o) => (
+        <span
+          key={o.etiket}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 11.5,
+            color: GRAFIK.ikincil,
+          }}
+        >
+          <span
+            style={{ width: 10, height: 10, borderRadius: 3, background: o.renk, flexShrink: 0 }}
+            aria-hidden="true"
+          />
+          {o.etiket}
+          {o.sayi != null && (
+            <span style={{ color: GRAFIK.soluk }}>
+              {o.sayi} · %{yuzde(o.oran)}
+            </span>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ── Sıralı ölçek: nötrde ortalanmış ırak yığılmış çubuk ──
+// Sol kanat olumsuz, sağ kanat olumlu; nötr ikiye bölünüp merkeze oturur, bu
+// yüzden çubukların ortası hizalanır ve sorular alt alta kıyaslanabilir.
+function IrakYiginCubuk({ soru, yanitlar }) {
+  const d = window.anketDagilim ? window.anketDagilim(yanitlar, soru) : null;
+  const renkler = window.anketSoruRenkleri ? window.anketSoruRenkleri(soru) : [];
+  if (!d || d.yanitlayan === 0) {
+    return <p style={{ fontSize: 12, color: GRAFIK.soluk, margin: 0 }}>Yanıt yok</p>;
   }
+  const n = d.secenekler.length;
+  const kanat = n <= 3 ? 1 : 2;
+  const notrVar = n % 2 === 1;
+  const notrIdx = notrVar ? Math.floor(n / 2) : -1;
+
+  // ── Ortalama ve ÖLÇEK ──
+  // ⚠ İlk hâli çubuğu %100 genişlikte çizip `translateX` ile kaydırıyordu:
+  // kaydırılan uç kartın dışına taşıyor, "Kesinlikle katılıyorum" parçası
+  // kırpılıyordu. Doğrusu, çubuğu merkeze göre ÖLÇEKLEMEK: sol ve sağ
+  // kanattan hangisi genişse o yarım alanı tam dolduracak kadar küçültülür,
+  // böylece çubuk hem ortalanır hem kutuya sığar.
+  const olumsuzPay = d.secenekler.slice(0, kanat).reduce((a, o) => a + o.oran, 0);
+  const notrPay = notrVar ? d.secenekler[notrIdx].oran : 0;
+  const solPay = olumsuzPay + notrPay / 2;
+  const sagPay = 1 - solPay;
+  const k = 0.5 / Math.max(solPay, sagPay, 0.0001);
+  const baslangic = (0.5 - solPay * k) * 100;
+
   return (
     <div>
+      <div style={{ position: 'relative', padding: '2px 0 4px' }}>
+        {/* Nötr ekseni — çubukların ortasını gösteren ince dikey çizgi */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: 0,
+            bottom: 4,
+            width: 1,
+            background: GRAFIK.eksen,
+          }}
+        />
+        <div
+          style={{
+            display: 'flex',
+            height: 24,
+            marginLeft: baslangic + '%',
+            width: 100 - baslangic + '%',
+          }}
+        >
+          {d.secenekler.map((o, i) => {
+            if (o.oran === 0) return null;
+            const g = o.oran * 100;
+            const etiket = '%' + yuzde(o.oran);
+            const ilk = i === 0;
+            const son = i === n - 1;
+            return (
+              <div
+                key={o.deger}
+                title={o.etiket + ': ' + o.sayi + ' yanıt (%' + yuzde(o.oran) + ')'}
+                style={{
+                  // Ölçeklenmiş genişlik, kalan alanın yüzdesi olarak.
+                  width: (g * k * 100) / (100 - baslangic) + '%',
+                  background: renkler[i] || GRAFIK.eksen,
+                  // Veri UCU yuvarlak, gövde kare — çubuk tek bir tabandan büyür.
+                  borderRadius: (ilk ? '4px 0 0 4px' : '0') + (son ? ' 0 4px 4px 0' : ''),
+                  // Dokunan parçaları ZEMİN boşluğu ayırır; kenarlık çizilmez.
+                  marginRight: son ? 0 : 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {icineSigarMi(g * k, etiket.length) ? etiket : ''}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <GrafikGosterge
+        ogeler={d.secenekler.map((o, i) => ({
+          etiket: o.etiket,
+          renk: renkler[i] || GRAFIK.eksen,
+          sayi: o.sayi,
+          oran: o.oran,
+        }))}
+      />
+      <p style={{ fontSize: 11.5, color: GRAFIK.soluk, margin: '8px 0 0' }}>
+        {d.yanitlayan} yanıt
+        {d.yanitsiz > 0 ? ' · ' + d.yanitsiz + ' kişi bu soruyu boş bıraktı' : ''}
+      </p>
+    </div>
+  );
+}
+
+// ── Sırasız liste: tek hue'lu yatay çubuk ──
+// Şıkların arasında sıra yoksa rengi değere göre değiştirmek, çubuk boyunun
+// zaten anlattığı şeyi ikinci kez kodlamak olur ve kimlik kanalını harcar.
+// Tek hue + uçta yazılan değer yeter.
+function YatayCubuk({ soru, yanitlar }) {
+  const d = window.anketDagilim ? window.anketDagilim(yanitlar, soru) : null;
+  if (!d || d.yanitlayan === 0) {
+    return <p style={{ fontSize: 12, color: GRAFIK.soluk, margin: 0 }}>Yanıt yok</p>;
+  }
+  const enBuyuk = Math.max(...d.secenekler.map((o) => o.sayi), 1);
+  const hue = window.anketTekHue || '#2a78d6';
+  return (
+    <div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        {d.secenekler.map((o) => (
+          <div key={o.deger} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span
+              style={{
+                width: 150,
+                flexShrink: 0,
+                fontSize: 12,
+                color: GRAFIK.yazi,
+                overflowWrap: 'anywhere',
+              }}
+            >
+              {o.etiket}
+            </span>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  title={o.etiket + ': ' + o.sayi + ' yanıt (%' + yuzde(o.oran) + ')'}
+                  style={{
+                    width: Math.max(o.sayi > 0 ? 3 : 0, (o.sayi / enBuyuk) * 100) + '%',
+                    height: 18,
+                    background: hue,
+                    borderRadius: '0 4px 4px 0',
+                  }}
+                />
+              </div>
+              <span
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  color: GRAFIK.ikincil,
+                  whiteSpace: 'nowrap',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {o.sayi} · %{yuzde(o.oran)}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontSize: 11.5, color: GRAFIK.soluk, margin: '10px 0 0' }}>
+        {d.yanitlayan} yanıt
+        {d.toplamIsaret > d.yanitlayan ? ' · ' + d.toplamIsaret + ' işaret (çok yanıtlı)' : ''}
+        {d.yanitsiz > 0 ? ' · ' + d.yanitsiz + ' boş' : ''}
+      </p>
+    </div>
+  );
+}
+
+// ── Soru kıyaslaması: hangi soru en düşük puanı aldı? ──
+// ⚠ BU SORUNUN CEVABI HİÇBİR YERDE YAZMIYORDU. Yetkili yirmi halkaya tek tek
+// bakıp kafasından sıralamak zorundaydı. Tek seri, tek hue, ortalamaya göre
+// sıralı; okunacak şey uzunluk, kimlik değil.
+function SoruKiyaslama({ sorular, yanitlar }) {
+  const satirlar = window.anketSoruKarsilastirmasi
+    ? window.anketSoruKarsilastirmasi(sorular, yanitlar)
+    : [];
+  if (satirlar.length < 2) return null;
+  const hue = window.anketTekHue || '#2a78d6';
+  return (
+    <div style={{ ...cardStyle, padding: 18 }}>
+      <p style={{ fontSize: 13, fontWeight: 700, color: ANK.primary, margin: '0 0 4px' }}>
+        Sorular, ortalamaya göre
+      </p>
+      <p style={{ fontSize: 11.5, color: GRAFIK.soluk, margin: '0 0 14px', lineHeight: 1.5 }}>
+        Çubuk, sorunun kendi ölçeğindeki konumunu gösterir; ölçekleri farklı sorular da yan yana
+        okunabilsin diye. En alttaki soru en düşük puanı almıştır.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {satirlar.map((s) => (
+          <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span
+              style={{
+                width: 22,
+                flexShrink: 0,
+                fontSize: 11,
+                fontWeight: 700,
+                color: GRAFIK.soluk,
+                textAlign: 'right',
+              }}
+            >
+              {s.sira}.
+            </span>
+            <span
+              style={{
+                flex: '1 1 180px',
+                minWidth: 0,
+                fontSize: 12,
+                color: GRAFIK.yazi,
+                overflowWrap: 'anywhere',
+              }}
+            >
+              {s.metin}
+            </span>
+            <div style={{ flex: '2 1 160px', minWidth: 90 }}>
+              <div
+                title={
+                  'Ortalama ' +
+                  sayiTr(s.ortalama) +
+                  ' / ' +
+                  s.olcekUst +
+                  ' · ' +
+                  s.n +
+                  ' yanıt · standart sapma ' +
+                  sayiTr(s.stdSapma)
+                }
+                style={{
+                  width: Math.max(2, s.oran * 100) + '%',
+                  height: 16,
+                  background: hue,
+                  borderRadius: '0 4px 4px 0',
+                }}
+              />
+            </div>
+            <span
+              style={{
+                width: 76,
+                flexShrink: 0,
+                textAlign: 'right',
+                fontSize: 12,
+                fontWeight: 700,
+                color: GRAFIK.yazi,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {sayiTr(s.ortalama)}
+              <span style={{ fontWeight: 500, color: GRAFIK.soluk }}>/{s.olcekUst}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Günlük katılım çizgisi ──
+// "Duyuru işe yaradı mı, ikinci hatırlatma gerekiyor mu?" sorusunun cevabı.
+// Tek seri olduğu için gösterge kutusu yok — başlık neyin çizildiğini söylüyor.
+function KatilimCizgisi({ yanitlar }) {
+  const gunler = window.anketGunlukKatilim ? window.anketGunlukKatilim(yanitlar) : [];
+  if (gunler.length < 2) return null;
+  const hue = window.anketTekHue || '#2a78d6';
+  const G = 560;
+  const Y = 90;
+  const enCok = Math.max(...gunler.map((g) => g.sayi), 1);
+  const x = (i) => (gunler.length === 1 ? G / 2 : (i / (gunler.length - 1)) * G);
+  const y = (v) => Y - (v / enCok) * (Y - 10);
+  const nokta = gunler.map((g, i) => x(i) + ',' + y(g.sayi)).join(' ');
+  const alan = `0,${Y} ` + nokta + ` ${G},${Y}`;
+  const gunAdi = (t) => {
+    const p = t.split('-');
+    return p[2] + '.' + p[1];
+  };
+  return (
+    <div style={{ ...cardStyle, padding: 18 }}>
+      <p style={{ fontSize: 13, fontWeight: 700, color: ANK.primary, margin: '0 0 2px' }}>
+        Günlük katılım
+      </p>
+      <p style={{ fontSize: 11.5, color: GRAFIK.soluk, margin: '0 0 12px' }}>
+        En yoğun gün {enCok} yanıt · toplam {yanitlar.length}
+      </p>
+      <svg
+        viewBox={`0 0 ${G} ${Y + 18}`}
+        preserveAspectRatio="none"
+        style={{ width: '100%', height: 128, display: 'block', overflow: 'visible' }}
+        role="img"
+        aria-label={'Günlük katılım grafiği, ' + gunler.length + ' gün'}
+      >
+        <line x1="0" y1={Y} x2={G} y2={Y} stroke={GRAFIK.eksen} strokeWidth="1" />
+        <polygon points={alan} fill={hue} opacity="0.1" />
+        <polyline
+          points={nokta}
+          fill="none"
+          stroke={hue}
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        {/* Uç nokta: zemin rengiyle 2px halka — çizgiyle kesiştiği yerde okunur kalsın */}
+        <circle
+          cx={x(gunler.length - 1)}
+          cy={y(gunler[gunler.length - 1].sayi)}
+          r="5"
+          fill={hue}
+          stroke={GRAFIK.zemin}
+          strokeWidth="2"
+        />
+        {/* Üzerine gelince gün ve sayı: görünmez dikdörtgenler çizginin
+            kendisinden büyük bir hedef verir (ince çizgiyi yakalamak zor). */}
+        {gunler.map((g, i) => (
+          <rect
+            key={g.gun}
+            x={Math.max(0, x(i) - G / (gunler.length * 2))}
+            y="0"
+            width={G / gunler.length}
+            height={Y}
+            fill="transparent"
+          >
+            <title>{g.gun + ': ' + g.sayi + ' yanıt'}</title>
+          </rect>
+        ))}
+      </svg>
       <div
         style={{
           display: 'flex',
-          height: 22,
-          borderRadius: 6,
-          overflow: 'hidden',
-          border: '1px solid ' + ANK.border,
+          justifyContent: 'space-between',
+          fontSize: 10.5,
+          color: GRAFIK.soluk,
+          marginTop: 2,
         }}
       >
-        {['1', '2', '3', '4', '5'].map((v, i) => {
-          const c = counts[v] || 0;
-          if (c === 0) return null;
-          const pct = (c / total) * 100;
-          return (
-            <div
-              key={v}
-              title={LIKERT_LABELS[i] + ': ' + c + ' yanıt (%' + Math.round(pct) + ')'}
-              style={{
-                width: pct + '%',
-                background: LIKERT_COLORS[i],
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontSize: 10,
-                fontWeight: 700,
-                minWidth: c > 0 ? 14 : 0,
-              }}
-            >
-              {pct >= 9 ? c : ''}
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ display: 'flex', gap: 10, marginTop: 5, flexWrap: 'wrap' }}>
-        {['1', '2', '3', '4', '5'].map((v, i) => (
-          <span
-            key={v}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              fontSize: 10,
-              color: ANK.textMuted,
-            }}
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 2,
-                background: LIKERT_COLORS[i],
-                display: 'inline-block',
-              }}
-            />
-            {v} ({counts[v] || 0})
-          </span>
-        ))}
+        <span>{gunAdi(gunler[0].gun)}</span>
+        <span>{gunAdi(gunler[gunler.length - 1].gun)}</span>
       </div>
     </div>
   );
 }
 
-// ── SVG halka (donut) grafik — Evet/Hayır ──
-function DonutChart({ data, size = 120 }) {
-  const total = data.reduce((a, d) => a + d.value, 0);
-  if (total === 0) {
-    return <p style={{ fontSize: 12, color: ANK.textMuted, margin: 0 }}>Yanıt yok</p>;
-  }
-  const r = size / 2 - 12;
-  const cx = size / 2;
-  const cy = size / 2;
-  const circumference = 2 * Math.PI * r;
-  let offset = 0;
+// ── Tablo görünümü — rengin taşıyamadığını yazı taşır ──
+// Kontrast uyarısı alan açık renkli parçalar için ZORUNLU kaçış yolu: değeri
+// renkten okuyamayan (ya da çıktı alan) herkes sayıyı buradan görür.
+function DagilimTablosu({ soru, yanitlar }) {
+  const d = window.anketDagilim ? window.anketDagilim(yanitlar, soru) : null;
+  if (!d) return null;
+  const hucre = { padding: '6px 10px', fontSize: 12, borderBottom: '1px solid ' + GRAFIK.izgara };
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-      <svg width={size} height={size}>
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#F3F4F6" strokeWidth="18" />
-        {data.map((d) => {
-          const frac = d.value / total;
-          const dash = frac * circumference;
-          const el = (
-            <circle
-              key={d.label}
-              cx={cx}
-              cy={cy}
-              r={r}
-              fill="none"
-              stroke={d.color}
-              strokeWidth="18"
-              strokeDasharray={dash + ' ' + (circumference - dash)}
-              strokeDashoffset={-offset}
-              transform={'rotate(-90 ' + cx + ' ' + cy + ')'}
-            >
-              <title>
-                {d.label}: {d.value} (%{Math.round(frac * 100)})
-              </title>
-            </circle>
-          );
-          offset += dash;
-          return el;
-        })}
-        <text
-          x={cx}
-          y={cy + 5}
-          textAnchor="middle"
-          style={{ fontSize: 16, fontWeight: 700, fill: ANK.primary }}
+    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 10 }}>
+      <thead>
+        <tr>
+          <th style={{ ...hucre, textAlign: 'left', color: GRAFIK.soluk, fontWeight: 600 }}>Şık</th>
+          <th style={{ ...hucre, textAlign: 'right', color: GRAFIK.soluk, fontWeight: 600 }}>
+            Yanıt
+          </th>
+          <th style={{ ...hucre, textAlign: 'right', color: GRAFIK.soluk, fontWeight: 600 }}>
+            Oran
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {d.secenekler.map((o) => (
+          <tr key={o.deger}>
+            <td style={{ ...hucre, color: GRAFIK.yazi }}>{o.etiket}</td>
+            <td style={{ ...hucre, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+              {o.sayi}
+            </td>
+            <td style={{ ...hucre, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+              %{yuzde(o.oran)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// ── Bir sorunun tam sonucu: grafik + sayısal özet + tablo ──
+function SoruSonucu({ soru, sira, yanitlar }) {
+  const [tabloAcik, setTabloAcik] = useState(false);
+  const secenekli = soruSecenekliMi(soru);
+  const ozet =
+    secenekli && window.anketSayisalOzet ? window.anketSayisalOzet(yanitlar, soru) : null;
+  const uclar = secenekli && window.anketUcOranlari ? window.anketUcOranlari(yanitlar, soru) : null;
+  const kutuplasma =
+    secenekli && window.anketKutuplasmaVarMi ? window.anketKutuplasmaVarMi(yanitlar, soru) : false;
+  const irak = window.anketIrakCizilebilirMi ? window.anketIrakCizilebilirMi(soru) : false;
+
+  return (
+    <div style={{ ...cardStyle, padding: 18 }}>
+      <p
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: ANK.primary,
+          margin: '0 0 12px',
+          lineHeight: 1.4,
+        }}
+      >
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            background: ANK.accentPale,
+            color: ANK.accent,
+            fontSize: 11,
+            fontWeight: 700,
+            marginRight: 8,
+          }}
         >
-          {total}
-        </text>
-      </svg>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {data.map((d) => (
-          <span
-            key={d.label}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 12,
-              color: ANK.text,
-            }}
-          >
-            <span
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 3,
-                background: d.color,
-                display: 'inline-block',
-              }}
-            />
-            {d.label}: <strong>{d.value}</strong> (%
-            {Math.round((d.value / total) * 100)})
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
+          {sira}
+        </span>
+        {soru.text}
+      </p>
 
-// ── Dikey çubuk dağılımı — saat/aralık soruları ──
-function BarDist({ options, counts, color = ANK.accent }) {
-  const max = Math.max(1, ...options.map((o) => counts[o] || 0));
-  const total = options.reduce((a, o) => a + (counts[o] || 0), 0);
-  if (total === 0) {
-    return <p style={{ fontSize: 12, color: ANK.textMuted, margin: 0 }}>Yanıt yok</p>;
-  }
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 90 }}>
-      {options.map((o) => {
-        const c = counts[o] || 0;
-        const h = Math.round((c / max) * 62);
-        return (
-          <div
-            key={o}
-            title={o + ': ' + c + ' yanıt'}
+      {/* Sayısal ölçekte tek satırlık künye: ortalama tek başına yanıltıcı,
+          sapma ve medyan yanında durmalı. */}
+      {ozet && ozet.n > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '4px 16px',
+            fontSize: 11.5,
+            color: GRAFIK.ikincil,
+            margin: '0 0 12px',
+          }}
+        >
+          <span>
+            Ortalama <b style={{ color: GRAFIK.yazi }}>{sayiTr(ozet.ortalama)}</b>/{ozet.olcekUst}
+          </span>
+          <span>
+            Medyan <b style={{ color: GRAFIK.yazi }}>{sayiTr(ozet.medyan, 1)}</b>
+          </span>
+          <span title="Yanıtların ortalamadan ne kadar dağıldığı. Büyükse görüşler ayrışıyor demektir.">
+            Std. sapma <b style={{ color: GRAFIK.yazi }}>{sayiTr(ozet.stdSapma)}</b>
+          </span>
+          {uclar && uclar.yanitlayan > 0 && (
+            <span>
+              Üst uç <b style={{ color: GRAFIK.yazi }}>%{yuzde(uclar.olumlu)}</b> · alt uç{' '}
+              <b style={{ color: GRAFIK.yazi }}>%{yuzde(uclar.olumsuz)}</b>
+            </span>
+          )}
+        </div>
+      )}
+
+      {kutuplasma && (
+        <p
+          style={{
+            fontSize: 11.5,
+            color: '#92400E',
+            background: '#FFFBEB',
+            border: '1px solid #FDE68A',
+            borderRadius: 8,
+            padding: '7px 11px',
+            margin: '0 0 12px',
+            lineHeight: 1.5,
+          }}
+        >
+          Yanıtlar iki uca ayrışmış. Ortalama burada grubu temsil etmiyor — iki ayrı görüş var.
+        </p>
+      )}
+
+      {secenekli ? (
+        irak ? (
+          <IrakYiginCubuk soru={soru} yanitlar={yanitlar} />
+        ) : (
+          <YatayCubuk soru={soru} yanitlar={yanitlar} />
+        )
+      ) : (
+        <CommentList
+          texts={window.anketMetinYanitlari ? window.anketMetinYanitlari(yanitlar, soru) : []}
+        />
+      )}
+
+      {secenekli && (
+        <>
+          <button
+            onClick={() => setTabloAcik((v) => !v)}
             style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              gap: 3,
-              height: '100%',
+              marginTop: 10,
+              padding: '4px 10px',
+              borderRadius: 7,
+              border: '1px solid ' + ANK.border,
+              background: 'white',
+              color: GRAFIK.ikincil,
+              fontSize: 11.5,
+              cursor: 'pointer',
+              fontFamily: "'Inter', sans-serif",
             }}
           >
-            <span style={{ fontSize: 10, fontWeight: 700, color: ANK.primary }}>
-              {c > 0 ? c : ''}
-            </span>
-            <div
-              style={{
-                width: '100%',
-                maxWidth: 38,
-                height: Math.max(c > 0 ? 4 : 2, h),
-                background: c > 0 ? color : '#F3F4F6',
-                borderRadius: '4px 4px 0 0',
-              }}
-            />
-            <span style={{ fontSize: 10, color: ANK.textMuted }}>{o}</span>
-          </div>
-        );
-      })}
+            {tabloAcik ? 'Tabloyu gizle' : 'Tablo olarak göster'}
+          </button>
+          {tabloAcik && <DagilimTablosu soru={soru} yanitlar={yanitlar} />}
+        </>
+      )}
     </div>
   );
 }
@@ -2701,8 +3691,12 @@ function buildExportTable(survey, responses) {
     ...questions.map((q) => {
       const v = r.answers?.[q.id];
       if (v == null) return '';
-      if (q.type === 'yesno') return v === 'evet' ? 'Evet' : v === 'hayır' ? 'Hayır' : v;
-      return String(v);
+      // Şıklı soruda ham değer değil ETİKET yazılır ('4' değil 'Katılıyorum');
+      // dosyayı açan kişi kod tablosu aramasın. Çoklu seçim virgülle birleşir.
+      if (!soruSecenekliMi(q)) return String(v);
+      return yanitDegerleri(v)
+        .map((d) => secenekEtiketi(q, d))
+        .join(', ');
     }),
   ]);
   return { headers, rows };
@@ -2749,18 +3743,16 @@ async function downloadExcel(survey, responses) {
   // Sayfa 2: soru bazlı özet
   const summary = [['Soru', 'Tip', 'Yanıt Sayısı', 'Özet']];
   (survey.questions || []).forEach((q, i) => {
-    const opts = optionsForType(q.type);
+    const secenekler = soruSecenekleri(q);
     let n = 0;
     let text = '';
-    if (opts) {
+    if (secenekler.length > 0) {
+      const opts = secenekler.map((o) => o.deger);
       const counts = countAnswers(responses, q.id, opts);
       n = opts.reduce((a, o) => a + counts[o], 0);
-      if (q.type === 'likert') {
-        const sum = opts.reduce((a, o) => a + counts[o] * parseInt(o, 10), 0);
-        text = n ? 'Ortalama: ' + (sum / n).toFixed(2) : '—';
-      } else {
-        text = opts.map((o) => o + ': ' + counts[o]).join(' | ');
-      }
+      const ozet = window.anketSayisalOzet ? window.anketSayisalOzet(responses, q) : null;
+      const dagilim = secenekler.map((o) => o.etiket + ': ' + counts[o.deger]).join(' | ');
+      text = ozet && ozet.n ? 'Ortalama: ' + ozet.ortalama.toFixed(2) + ' | ' + dagilim : dagilim;
     } else {
       const texts = responses.map((r) => r.answers?.[q.id]).filter((v) => v && String(v).trim());
       n = texts.length;
@@ -2834,33 +3826,14 @@ function SonuclarPaneli({ surveys }) {
     [responses, courseFilter, courseKeyField]
   );
 
-  // Genel Likert ortalaması
-  const overallLikert = useMemo(() => {
-    const likertQs = (survey?.questions || []).filter((q) => q.type === 'likert');
-    let sum = 0;
-    let n = 0;
-    likertQs.forEach((q) => {
-      filtered.forEach((r) => {
-        const v = parseInt(r.answers?.[q.id] || 0, 10);
-        if (v >= 1 && v <= 5) {
-          sum += v;
-          n++;
-        }
-      });
-    });
-    return n ? (sum / n).toFixed(2) : null;
-  }, [survey, filtered]);
-
-  const commentCount = useMemo(() => {
-    const textQs = (survey?.questions || []).filter(
-      (q) => q.type === 'textarea' || q.type === 'text'
-    );
-    return textQs.reduce(
-      (acc, q) =>
-        acc + filtered.filter((r) => r.answers?.[q.id] && String(r.answers[q.id]).trim()).length,
-      0
-    );
-  }, [survey, filtered]);
+  // ⚠ GENEL ORTALAMA YANLIŞ SÜZÜYORDU. Ölçüt `q.type === 'likert'` idi:
+  // özel şıklarla kurulmuş sayısal bir ölçek ortalamaya HİÇ girmiyor,
+  // Likert tipinde ama şıkları metin olan bir soru ise '1'/'2' sanılıp
+  // giriyordu. Ölçüt tip değil ŞIKLARDIR (lib/anket-istatistik.js).
+  const ozet = useMemo(
+    () => (window.anketOzeti ? window.anketOzeti(survey, filtered) : null),
+    [survey, filtered]
+  );
 
   const handleExcel = async () => {
     setExporting(true);
@@ -2954,113 +3927,97 @@ function SonuclarPaneli({ surveys }) {
               }}
             >
               {[
-                { label: 'Toplam yanıt', value: filtered.length, color: ANK.primary },
+                { label: 'Toplam yanıt', value: ozet ? ozet.yanitSayisi : filtered.length },
+                { label: 'Son yanıt', value: (ozet && ozet.sonTarih) || '—' },
                 {
-                  label: 'Son yanıt',
-                  value:
-                    (
-                      filtered
-                        .map((r) => r.submittedAt || '')
-                        .sort()
-                        .pop() || ''
-                    ).slice(0, 10) || '—',
-                  color: ANK.blue,
+                  label: 'Genel ortalama (5 üzerinden)',
+                  value: ozet && ozet.genelOrtalama != null ? sayiTr(ozet.genelOrtalama) : '—',
+                  alt:
+                    ozet && ozet.genelOrtalama != null
+                      ? 'Ölçekleri farklı sorular kendi ölçeğinde ölçülüp birleştirildi'
+                      : 'Sayısal ölçekli soru yok',
                 },
-                {
-                  label: 'Genel ortalama (1–5)',
-                  value: overallLikert ?? '—',
-                  color: ANK.accent,
-                },
-                { label: 'Yorum', value: commentCount, color: ANK.teal },
+                { label: 'Yorum', value: ozet ? ozet.yorumSayisi : 0 },
               ].map((k) => (
                 <div key={k.label} style={{ ...cardStyle, padding: 16 }}>
                   <p style={{ fontSize: 12, color: ANK.textMuted, margin: 0 }}>{k.label}</p>
-                  <p style={{ fontSize: 24, fontWeight: 700, color: k.color, margin: '4px 0 0' }}>
+                  <p
+                    style={{
+                      fontSize: 26,
+                      fontWeight: 700,
+                      color: ANK.primary,
+                      margin: '4px 0 0',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
                     {k.value}
                   </p>
+                  {k.alt && (
+                    <p
+                      style={{
+                        fontSize: 10.5,
+                        color: ANK.textDim,
+                        margin: '3px 0 0',
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {k.alt}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
+
+            {/* En güçlü / en zayıf soru — yetkilinin ilk bakacağı iki satır.
+                Eskiden hiçbir yerde yazmıyordu. */}
+            {ozet && ozet.enDusuk && ozet.enYuksek && ozet.enDusuk.id !== ozet.enYuksek.id && (
+              <div
+                style={{
+                  ...cardStyle,
+                  padding: 16,
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                  gap: 14,
+                }}
+              >
+                {[
+                  { baslik: 'En yüksek puan', s: ozet.enYuksek },
+                  { baslik: 'En düşük puan', s: ozet.enDusuk },
+                ].map((k) => (
+                  <div key={k.baslik}>
+                    <p style={{ fontSize: 11.5, color: ANK.textMuted, margin: 0 }}>{k.baslik}</p>
+                    <p
+                      style={{
+                        fontSize: 13,
+                        color: ANK.primary,
+                        margin: '3px 0 0',
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      <b style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {sayiTr(k.s.ortalama)}/{k.s.olcekUst}
+                      </b>{' '}
+                      — {k.s.sira}. {k.s.metin}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               {exportBtn(() => downloadCSV(survey, filtered), 'CSV indir', false)}
               {exportBtn(handleExcel, exporting ? 'Hazırlanıyor…' : 'Excel indir', true)}
             </div>
 
-            {/* Soru bazlı grafikler */}
-            {(survey.questions || []).map((q, i) => {
-              const opts = optionsForType(q.type);
-              return (
-                <div key={q.id} style={{ ...cardStyle, padding: 18 }}>
-                  <p
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: ANK.primary,
-                      margin: '0 0 12px',
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 22,
-                        height: 22,
-                        borderRadius: '50%',
-                        background: ANK.accentPale,
-                        color: ANK.accent,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        marginRight: 8,
-                      }}
-                    >
-                      {i + 1}
-                    </span>
-                    {q.text}
-                  </p>
-                  {q.type === 'likert' &&
-                    (() => {
-                      const counts = countAnswers(filtered, q.id, opts);
-                      return (
-                        <DonutChart
-                          data={['1', '2', '3', '4', '5'].map((v, idx) => ({
-                            label: LIKERT_LABELS[idx],
-                            value: counts[v] || 0,
-                            color: LIKERT_COLORS[idx],
-                          }))}
-                        />
-                      );
-                    })()}
-                  {q.type === 'yesno' &&
-                    (() => {
-                      const counts = countAnswers(filtered, q.id, opts);
-                      return (
-                        <DonutChart
-                          data={[
-                            { label: 'Evet', value: counts['evet'] || 0, color: ANK.green },
-                            { label: 'Hayır', value: counts['hayır'] || 0, color: ANK.red },
-                          ]}
-                        />
-                      );
-                    })()}
-                  {(q.type === 'hours0to5' ||
-                    q.type === 'hoursRange' ||
-                    q.type === 'hoursExam') && (
-                    <BarDist options={opts} counts={countAnswers(filtered, q.id, opts)} />
-                  )}
-                  {(q.type === 'textarea' || q.type === 'text') && (
-                    <CommentList
-                      texts={filtered
-                        .map((r) => r.answers?.[q.id])
-                        .filter((v) => v && String(v).trim())
-                        .map(String)}
-                    />
-                  )}
-                </div>
-              );
-            })}
+            {/* Sorular arası kıyas + günlük katılım: tek soruya bakmadan önce
+                "hangi soru zayıf, katılım ne zaman geldi" cevaplanır. */}
+            <SoruKiyaslama sorular={survey.questions || []} yanitlar={filtered} />
+            <KatilimCizgisi yanitlar={filtered} />
+
+            {/* Soru bazlı sonuçlar */}
+            {(survey.questions || []).map((q, i) => (
+              <SoruSonucu key={q.id} soru={q} sira={i + 1} yanitlar={filtered} />
+            ))}
           </div>
         ))}
     </div>
@@ -3070,6 +4027,20 @@ function SonuclarPaneli({ surveys }) {
 // ══════════════════════════════════════════════════════════════
 // KATILIMCI
 // ══════════════════════════════════════════════════════════════
+// ── ÖĞRENCİ HANGİ SINIFTA? ──
+// ⚠ ESKİ KURAL: `if (!myClass) return true` — sınıfı bilinmiyorsa HER sınıf
+// anketini göster. Sınıf yalnız öğrencinin kendi yazdığı `students.sinif`
+// alanında duruyordu; yazmayan herkes 1. sınıf oryantasyon anketini de,
+// 4. sınıf mezuniyet anketini de görüyor, sonuçlar kirleniyordu.
+//
+// Artık sınıf öncelikle KAYITTAN, yoksa ÖĞRENCİ NUMARASINDAN çözülür
+// (lib/ogrenci-sinif.js: ilk iki hane giriş yılı, akademik yıl eylülde döner).
+// Çözülemiyorsa anket GÖSTERİLMEZ — ve sebebi ekranda söylenir.
+const sinifUyumu = (kullanici, grup) =>
+  window.ogrenciSinifGrubunaUyarMi
+    ? window.ogrenciSinifGrubunaUyarMi(kullanici, grup)
+    : { uyar: true, sebep: 'kural-yok', sinif: null, kaynak: '' };
+
 function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
   const [assignments, setAssignments] = useState([]);
   const [surveys, setSurveys] = useState([]);
@@ -3119,20 +4090,23 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
     currentUser?.mezun ||
     currentUser?.status === 'mezun'
   );
-  const myClass = String(currentUser?.sinif || currentUser?.class || '').trim();
+  // Sınıf artık tek yerden çözülüyor (sinifUyumu); ekranda "sınıfını gir"
+  // uyarısı çıkarmak için kullanıcının çözülen sınıfı burada tutulur.
+  const sinifDurumu = useMemo(
+    () =>
+      window.ogrenciSinifi ? window.ogrenciSinifi(currentUser) : { sinif: null, kaynak: 'yok' },
+    [currentUser]
+  );
   const matchesGroup = useCallback(
     (role, group) => {
       if (role !== 'student') return true; // akademisyen grupları unvan bazlı — unvan verisi yok, tümü görür
       const g = (group || '').trim();
       if (!g || g === 'Tüm öğrenciler') return true; // grupsuz eski kayıtlar herkese görünür
       if (g === 'Mezun') return isAlumni;
-      // '1. sınıf' vb. — mezunlar sınıf gruplarını görmez;
-      // kullanıcının sınıfı biliniyorsa eşleştir, bilinmiyorsa göster
-      if (isAlumni) return false;
-      if (!myClass) return true;
-      return g.startsWith(myClass + '.');
+      if (isAlumni) return false; // mezun, sınıf gruplarına girmez
+      return sinifUyumu(currentUser, g).uyar;
     },
-    [isAlumni, myClass]
+    [isAlumni, currentUser]
   );
   // Atama bu kullanıcıya ulaşıyor mu? (bölüm/fakülte/üniversite kapsamı)
   const kapsamdaMi = useCallback(
@@ -3158,6 +4132,20 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
       return true;
     });
   }, [assignments, myRole, kapsamdaMi, matchesGroup]);
+
+  // ⚠ SESSİZ ELEME OLMASIN. Sınıfı çözülemeyen öğrenci artık sınıf hedefli
+  // anketleri görmüyor; bunu hiç söylemezsek "bana anket gelmedi" diye
+  // kaybolur. Kapsamına giren ama sınıfı bilinmediği için elenen bir atama
+  // varsa öğrenciye ne yapması gerektiği söylenir.
+  const sinifiEksikAtamaVar = useMemo(() => {
+    if (myRole !== 'student' || isAlumni) return false;
+    if (sinifDurumu.sinif != null) return false;
+    return assignments.some((a) => {
+      if ((a.targetRole === 'alumni' ? 'student' : a.targetRole) !== 'student') return false;
+      if (!kapsamdaMi(a)) return false;
+      return sinifUyumu(currentUser, a.targetGroup).sebep === 'sinif-bilinmiyor';
+    });
+  }, [assignments, myRole, isAlumni, sinifDurumu, kapsamdaMi, currentUser]);
 
   const completed = (surveyId) => myResponses.some((r) => r.surveyId === surveyId);
 
@@ -3212,6 +4200,25 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
         title: 'Anketlerim',
         subtitle: 'Size atanan anketleri doldurun',
       })}
+
+      {sinifiEksikAtamaVar && (
+        <div
+          style={{
+            background: '#FFFBEB',
+            border: '1px solid #FDE68A',
+            borderRadius: 10,
+            padding: '11px 14px',
+            margin: '0 0 14px',
+            fontSize: 12.5,
+            color: '#92400E',
+            lineHeight: 1.55,
+          }}
+        >
+          <b>Sınıfınız kayıtlı değil.</b> Belirli bir sınıfa gönderilen anketler size ulaşmıyor.
+          Öğrenci numaranız sistemde yoksa ya da beklenen biçimde değilse sınıfınız çözülemez —
+          profil sayfanızdan sınıfınızı girerseniz bu anketler listenizde görünür.
+        </div>
+      )}
 
       {myAssignments.length === 0 ? (
         <EmptyState text="Size atanmış anket bulunmuyor." />
@@ -3611,7 +4618,13 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced, e
   };
 
   const required = survey.questions.filter((q) => q.type !== 'textarea');
-  const answered = required.filter((q) => answers[q.id] != null && answers[q.id] !== '').length;
+  // ⚠ Çoklu seçimde yanıt DİZİdir; `!== ''` denetimi boş diziyi "yanıtlanmış"
+  // sayıyor, ilerleme çubuğu dolu görünüyordu. Sayım tek yerden çözülür.
+  const answered = required.filter((q) =>
+    soruSecenekliMi(q)
+      ? yanitDegerleri(answers[q.id]).length > 0
+      : answers[q.id] != null && String(answers[q.id]).trim() !== ''
+  ).length;
   // Bilgi alanları (bölüm, sınıf, cinsiyet, ders…) da tamamlanmalı.
   const infoFields = survey.infoFields || [];
   const infoDone = infoFields.filter((f) => info[f.key] && String(info[f.key]).trim()).length;
@@ -3804,6 +4817,20 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced, e
 }
 
 // ─── Soru tipi render ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// TEK SORU — KATILIMCI GÖRÜNÜMÜ
+//
+// ⚠ ŞIKLAR BURAYA GÖMÜLÜYDÜ. Her tip için ayrı bir dal vardı ve Likert'in
+// beş etiketi ("Kesinlikle katılmıyorum" …) doğrudan bu dosyada yazılıydı.
+// Anketi hazırlayan kişi şıkları göremiyor, değiştiremiyor, kendi ölçeğini
+// kuramıyordu. Artık şıklar sorunun kendi verisinden gelir
+// (lib/anket-secenek.js) ve bu bileşen yalnız ÇİZER.
+//
+// İki çizim biçimi var, ölçeğin şekline göre seçilir:
+//   • sayısal ve kısa (1–5 gibi)  → büyük rakam + altında etiket (kart)
+//   • diğerleri                    → tek satırlık "hap" düğmeler
+// Çoklu seçimde yanıt bir DİZİdir; tek seçimde düz değer.
+// ══════════════════════════════════════════════════════════════
 function SoruBilesen({ soru, numara, deger, onChange }) {
   const head = (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
@@ -3831,43 +4858,70 @@ function SoruBilesen({ soru, numara, deger, onChange }) {
     </div>
   );
 
-  const pill = (selected) => ({
-    padding: '8px 14px',
-    borderRadius: 8,
-    fontSize: 13,
-    cursor: 'pointer',
-    border: '1px solid ' + (selected ? ANK.accent : ANK.border),
-    background: selected ? ANK.accentPale : 'white',
-    color: selected ? ANK.accent : ANK.text,
-    fontWeight: selected ? 600 : 400,
-    fontFamily: "'Inter', sans-serif",
-  });
+  if (!soruSecenekliMi(soru)) {
+    if (soru.type === 'textarea') {
+      return (
+        <div>
+          {head}
+          <textarea
+            rows={2}
+            value={deger || ''}
+            onChange={(e) => onChange(soru.id, e.target.value)}
+            placeholder="Görüşlerinizi buraya yazınız…"
+            style={{ ...inputStyle, fontSize: 14, resize: 'vertical' }}
+          />
+        </div>
+      );
+    }
+    return (
+      <div>
+        {head}
+        <input
+          value={deger || ''}
+          onChange={(e) => onChange(soru.id, e.target.value)}
+          style={{ ...inputStyle, fontSize: 14 }}
+        />
+      </div>
+    );
+  }
 
-  if (soru.type === 'likert') {
-    const opts = [
-      { v: '1', l: 'Kesinlikle\nkatılmıyorum' },
-      { v: '2', l: 'Katılmıyorum' },
-      { v: '3', l: 'Kararsızım' },
-      { v: '4', l: 'Katılıyorum' },
-      { v: '5', l: 'Kesinlikle\nkatılıyorum' },
-    ];
+  const secenekler = soruSecenekleri(soru);
+  const coklu = soruCokluMu(soru);
+  const secili = yanitDegerleri(deger);
+  const isaretli = (d) => secili.includes(d);
+
+  // Tek seçimde aynı şıkka ikinci tıklama seçimi KALDIRIR: yanlış basan
+  // katılımcı, zorunlu olmayan bir soruyu boşaltabilsin.
+  const tikla = (d) => {
+    if (!coklu) return onChange(soru.id, isaretli(d) ? '' : d);
+    const sonraki = isaretli(d) ? secili.filter((x) => x !== d) : [...secili, d];
+    onChange(soru.id, sonraki);
+  };
+
+  // Ölçek "1,2,3…" gibi kısa sayılardan oluşuyorsa kart biçimi kullanılır:
+  // rakam görsel bir çapa, etiket altında okunur. Uzun metin şıklarında kart
+  // dar kalıp metni kırpıyordu — onlar hap biçiminde çizilir.
+  const sayisal = window.anketSeceneklerSayisalMi ? window.anketSeceneklerSayisalMi(soru) : false;
+  const kartBicimi = sayisal && secenekler.length >= 3 && secenekler.length <= 7;
+
+  if (kartBicimi) {
     return (
       <div>
         {head}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))',
+            gridTemplateColumns: `repeat(auto-fit, minmax(${secenekler.length > 5 ? 82 : 96}px, 1fr))`,
             gap: 10,
           }}
         >
-          {opts.map((o) => {
-            const sel = deger === o.v;
+          {secenekler.map((o) => {
+            const sel = isaretli(o.deger);
             return (
               <button
-                key={o.v}
-                onClick={() => onChange(soru.id, o.v)}
-                title={o.l.replace('\n', ' ')}
+                key={o.deger}
+                onClick={() => tikla(o.deger)}
+                title={o.etiket}
                 className="ank-likert"
                 style={{
                   display: 'flex',
@@ -3886,17 +4940,16 @@ function SoruBilesen({ soru, numara, deger, onChange }) {
                   transition: 'border-color .15s, background .15s',
                 }}
               >
-                <span style={{ fontSize: 22, fontWeight: 800 }}>{o.v}</span>
+                <span style={{ fontSize: 22, fontWeight: 800 }}>{o.deger}</span>
                 <span
                   style={{
                     fontSize: 11,
                     fontWeight: sel ? 600 : 500,
                     textAlign: 'center',
                     lineHeight: 1.25,
-                    whiteSpace: 'pre-line',
                   }}
                 >
-                  {o.l}
+                  {o.etiket === o.deger ? '' : o.etiket}
                 </span>
               </button>
             );
@@ -3906,97 +4959,65 @@ function SoruBilesen({ soru, numara, deger, onChange }) {
     );
   }
 
-  if (soru.type === 'yesno') {
-    return (
-      <div>
-        {head}
-        <div style={{ display: 'flex', gap: 8 }}>
-          {['Evet', 'Hayır'].map((v) => (
-            <button
-              key={v}
-              onClick={() => onChange(soru.id, v.toLowerCase())}
-              style={{ ...pill(deger === v.toLowerCase()), borderRadius: 20, padding: '8px 20px' }}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (soru.type === 'hours0to5') {
-    return (
-      <div>
-        {head}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {[0, 1, 2, 3, 4, 5].map((v) => (
-            <button
-              key={v}
-              onClick={() => onChange(soru.id, String(v))}
-              style={{
-                ...pill(deger === String(v)),
-                width: 40,
-                height: 40,
-                padding: 0,
-                fontSize: 15,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (soru.type === 'hoursRange' || soru.type === 'hoursExam') {
-    const opts =
-      soru.type === 'hoursRange'
-        ? ['0', '1-2', '3-4', '5-6', '7-8', '9-10']
-        : ['0', '1-4', '5-8', '9-12', '13-16', '17-20'];
-    return (
-      <div>
-        {head}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {opts.map((v) => (
-            <button key={v} onClick={() => onChange(soru.id, v)} style={pill(deger === v)}>
-              {v}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (soru.type === 'textarea') {
-    return (
-      <div>
-        {head}
-        <textarea
-          rows={2}
-          value={deger || ''}
-          onChange={(e) => onChange(soru.id, e.target.value)}
-          placeholder="Görüşlerinizi buraya yazınız…"
-          style={{ ...inputStyle, fontSize: 14, resize: 'vertical' }}
-        />
-      </div>
-    );
-  }
-
-  // text (varsayılan)
+  // Hap biçimi: metin şıkları, evet/hayır, saat aralıkları ve uzun ölçekler.
+  // Çoklu seçimde kutu, tek seçimde yuvarlak işaret çizilir — katılımcı
+  // "birden fazla seçebilir miyim?" diye sormasın.
   return (
     <div>
       {head}
-      <input
-        value={deger || ''}
-        onChange={(e) => onChange(soru.id, e.target.value)}
-        style={{ ...inputStyle, fontSize: 14 }}
-      />
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {secenekler.map((o) => {
+          const sel = isaretli(o.deger);
+          return (
+            <button
+              key={o.deger}
+              onClick={() => tikla(o.deger)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '9px 15px',
+                borderRadius: coklu ? 9 : 20,
+                fontSize: 13,
+                cursor: 'pointer',
+                border: '1.5px solid ' + (sel ? ANK.accent : ANK.border),
+                background: sel ? ANK.accentPale : 'white',
+                color: sel ? ANK.accentDark : ANK.text,
+                fontWeight: sel ? 600 : 400,
+                fontFamily: "'Inter', sans-serif",
+                transition: 'border-color .15s, background .15s',
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 15,
+                  height: 15,
+                  flexShrink: 0,
+                  borderRadius: coklu ? 4 : '50%',
+                  border: '1.5px solid ' + (sel ? ANK.accent : ANK.border),
+                  background: sel ? ANK.accent : 'white',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: 10,
+                  fontWeight: 900,
+                  lineHeight: 1,
+                }}
+              >
+                {sel ? '✓' : ''}
+              </span>
+              {o.etiket}
+            </button>
+          );
+        })}
+      </div>
+      {coklu && (
+        <p style={{ fontSize: 11.5, color: ANK.textMuted, margin: '8px 0 0' }}>
+          Birden fazla şık işaretleyebilirsiniz.
+        </p>
+      )}
     </div>
   );
 }
@@ -4023,8 +5044,6 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
     currentUser?.mezun ||
     currentUser?.status === 'mezun'
   );
-  const myClass = String(currentUser?.sinif || currentUser?.class || '').trim();
-
   const load = useCallback(async () => {
     try {
       const [a, s, r] = await Promise.all([
@@ -4062,8 +5081,10 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
     if (!g || g === 'Tüm öğrenciler') return true;
     if (g === 'Mezun') return isAlumni;
     if (isAlumni) return false;
-    if (!myClass) return true;
-    return g.startsWith(myClass + '.');
+    // ⚠ ZORUNLU ANKET KAPISI tam ekran açılır ve kapatılamaz. Sınıfı yanlış
+    // eşleşen bir anket, öğrenciyi kendisiyle ilgisiz bir formun arkasına
+    // kilitler; bu yüzden burada da aynı katı kural geçerlidir.
+    return sinifUyumu(currentUser, g).uyar;
   };
 
   // Atama bu kullanıcıya ulaşıyor mu? (bölüm/fakülte/üniversite kapsamı)
@@ -4088,7 +5109,7 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
       if (survey) return { assignment: a, survey };
     }
     return null;
-  }, [assignments, surveys, myResponses, myRole, myId, activeDepartment, isAlumni, myClass]);
+  }, [assignments, surveys, myResponses, myRole, myId, activeDepartment, isAlumni, currentUser]);
 
   const submit = async (surveyId, answers) => {
     if (!myId || myId === 'anon') return;

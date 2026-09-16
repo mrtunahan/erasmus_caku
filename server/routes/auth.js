@@ -191,9 +191,21 @@ router.post('/student', async (req, res) => {
       // öğrencisinin ikinci programı AYRI bir kayıttır ve kendi numarasını
       // taşır; istemci bölüm şeridini ve etkin numarayı buradan kurar.
       let capProgramlari = [];
+      // ⚠ SINIF OTURUMDA YOKTU. İstemci `currentUser.sinif`e bakıyordu ama
+      // giriş yanıtı bu alanı hiç döndürmüyordu: sınıf her zaman boş
+      // görünüyor, anket eşleşmesi de "bilinmiyorsa göster" diyordu — yani
+      // 1. sınıf anketi herkese gidiyordu. Sınıf artık oturumla geliyor;
+      // `sinifKaynagi` de geliyor ki tarama betiğinin yazdığı ÖNBELLEK
+      // değerle elle girilmiş KAYIT birbirine karışmasın.
+      let sinif = '';
+      let sinifKaynagi = '';
+      let programYili = null;
       try {
         const db = await getDbSafe();
         const studentDoc = await db.collection('students').findOne({ studentNumber: trimmedId });
+        if (studentDoc && studentDoc.sinif != null) sinif = String(studentDoc.sinif);
+        if (studentDoc && studentDoc.sinifKaynagi) sinifKaynagi = String(studentDoc.sinifKaynagi);
+        if (studentDoc && studentDoc.programYili != null) programYili = studentDoc.programYili;
         if (studentDoc && studentDoc.departmentId) departmentId = studentDoc.departmentId;
         if (studentDoc && Array.isArray(studentDoc.additionalDepartments)) {
           additionalDepartments = studentDoc.additionalDepartments;
@@ -210,6 +222,9 @@ router.post('/student', async (req, res) => {
         departmentId,
         additionalDepartments,
         capProgramlari,
+        sinif,
+        sinifKaynagi,
+        programYili,
       });
     } else {
       recordAttempt(rateLimitKey);
