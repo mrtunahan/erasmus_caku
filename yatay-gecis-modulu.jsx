@@ -3510,7 +3510,10 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                 <button
                   onClick={async () => {
                     try {
-                      if (window.belgeOtoYonlendir) await window.belgeOtoYonlendir(uretilenBelge);
+                      // Bu akışta önizleme penceresi yok; başarısızlığı
+                      // yardımcı bildirir ve "gönderildi" mesajı yazılmaz.
+                      const sonuc = await window.belgeGonderVeBildir(uretilenBelge);
+                      if (!window.belgeGonderimBasarili(sonuc)) return;
                       setMsg('Rapor memura gönderildi.');
                       setTimeout(() => setMsg(''), 4000);
                     } catch (e) {
