@@ -4900,7 +4900,7 @@ function erasmusStaticData(student, rows) {
 // produceFromTemplate blob'u döndürür; /api/files'e yüklenip memur_outputs'a yazılır.
 // onPreview verilirse: belge indirilmez/otomatik gönderilmez; önce önizleme
 // açılır, kullanıcı modalden "İndir" veya "Gönder" der.
-const _snapshotErasmusDoc = async (res, student, docLabel, onPreview) => {
+const _snapshotErasmusDoc = async (res, student, docLabel, onPreview, bolumId) => {
   try {
     if (!res || !res.blob || !window.uploadGeneratedDoc || !window.recordMemurOutput) return;
     const url = await window.uploadGeneratedDoc(
@@ -4921,7 +4921,7 @@ const _snapshotErasmusDoc = async (res, student, docLabel, onPreview) => {
           : ''),
       subtitle: [docLabel, student.hostInstitution].filter(Boolean).join('  ·  '),
       url,
-      departmentId: student.departmentId || '',
+      departmentId: student.departmentId || bolumId || '',
     });
     const belgeKimligi = {
       module: 'erasmus',
@@ -4935,7 +4935,11 @@ const _snapshotErasmusDoc = async (res, student, docLabel, onPreview) => {
       subtitle: [docLabel, student.hostInstitution].filter(Boolean).join('  ·  '),
       url,
       ogrenciNo: student.studentNo || student.studentNumber || '',
-      departmentId: student.departmentId || '',
+      // ⚠ KAPSAM BOŞ KALMAMALI. Yönlendirme belgeyi bir BÖLÜME bağlar; memur
+      // da o bölümdeki ataması üzerinden görür. Öğrenci kaydında bölüm yoksa
+      // ekranın çalıştığı bölüm doğru bağlamdır. Boş kapsamla gönderilen
+      // belge hiçbir memura düşmüyordu.
+      departmentId: student.departmentId || bolumId || '',
     };
 
     if (onPreview) {
@@ -4946,15 +4950,16 @@ const _snapshotErasmusDoc = async (res, student, docLabel, onPreview) => {
         baslik: docLabel + ' — ' + ad,
         belge: belgeKimligi,
       });
-    } else if (window.belgeOtoYonlendir) {
-      await window.belgeOtoYonlendir(belgeKimligi);
+    } else if (window.belgeGonderVeBildir) {
+      // Önizlemesiz akış: gitmeyen belge sessiz kalmasın.
+      await window.belgeGonderVeBildir(belgeKimligi);
     }
   } catch (e) {
     console.warn('Erasmus snapshot kaydedilemedi:', e && e.message);
   }
 };
 
-const generateOutgoingWordDoc = async (student, onPreview) => {
+const generateOutgoingWordDoc = async (student, onPreview, bolumId) => {
   if (!student.outgoingMatches || student.outgoingMatches.length === 0) {
     alert('Bu öğrencinin henüz gidiş eşleştirmesi bulunmamaktadır.');
     return;
@@ -4978,7 +4983,7 @@ const generateOutgoingWordDoc = async (student, onPreview) => {
       noDownload: !!onPreview,
     });
     if (res.ok) {
-      await _snapshotErasmusDoc(res, student, 'Gidiş Değerlendirme', onPreview);
+      await _snapshotErasmusDoc(res, student, 'Gidiş Değerlendirme', onPreview, bolumId);
       return;
     }
     if (res.reason === 'no-mapping') {
@@ -5083,7 +5088,7 @@ ${rows.join('')}
   }
 };
 
-const generateReturnWordDoc = async (student, onPreview) => {
+const generateReturnWordDoc = async (student, onPreview, bolumId) => {
   if (student.returnMatches.length === 0) {
     alert('Bu öğrencinin henüz dönüş eşleştirmesi bulunmamaktadır.');
     return;
@@ -5128,7 +5133,7 @@ const generateReturnWordDoc = async (student, onPreview) => {
       noDownload: !!onPreview,
     });
     if (res.ok) {
-      await _snapshotErasmusDoc(res, student, 'Dönüş Muafiyet', onPreview);
+      await _snapshotErasmusDoc(res, student, 'Dönüş Muafiyet', onPreview, bolumId);
       return;
     }
     if (res.reason === 'no-mapping') {
@@ -5986,7 +5991,8 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                           onClick={
                             isStudentWithoutErasmus
                               ? undefined
-                              : () => generateOutgoingWordDoc(student, setOnizleme)
+                              : () =>
+                                  generateOutgoingWordDoc(student, setOnizleme, activeDepartment)
                           }
                           disabled={isStudentWithoutErasmus}
                           style={{
@@ -6002,7 +6008,8 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
                             onClick={
                               isStudentWithoutErasmus
                                 ? undefined
-                                : () => generateReturnWordDoc(student, setOnizleme)
+                                : () =>
+                                    generateReturnWordDoc(student, setOnizleme, activeDepartment)
                             }
                             disabled={isStudentWithoutErasmus}
                             style={{
@@ -6152,7 +6159,10 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
             onClose: () => setOnizleme(null),
             onSend: onizleme.belge
               ? async () => {
-                  if (window.belgeOtoYonlendir) await window.belgeOtoYonlendir(onizleme.belge);
+                  // Sonuç DÖNDÜRÜLÜR: pencere başarısızlığı ancak böyle görür;
+                  // aksi halde gitmeyen belge "Gönderildi" görünüyordu.
+                  if (!window.belgeOtoYonlendir) return { ok: false, reason: 'kural-yok' };
+                  return window.belgeOtoYonlendir(onizleme.belge);
                 }
               : null,
           })}

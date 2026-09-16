@@ -2142,7 +2142,9 @@ function StratejikPlanIzleme({
           onClose: () => setOnizleme(null),
           onSend: onizleme.belge
             ? async () => {
-                if (window.belgeOtoYonlendir) await window.belgeOtoYonlendir(onizleme.belge);
+                // Sonuç döndürülür; pencere başarısızlığı bildirir.
+                if (!window.belgeOtoYonlendir) return { ok: false, reason: 'kural-yok' };
+                return window.belgeOtoYonlendir(onizleme.belge);
               }
             : null,
         })}
@@ -2627,7 +2629,9 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
           onClose: () => setOnizleme(null),
           onSend: onizleme.belge
             ? async () => {
-                if (window.belgeOtoYonlendir) await window.belgeOtoYonlendir(onizleme.belge);
+                // Sonuç döndürülür; pencere başarısızlığı bildirir.
+                if (!window.belgeOtoYonlendir) return { ok: false, reason: 'kural-yok' };
+                return window.belgeOtoYonlendir(onizleme.belge);
               }
             : null,
         })}

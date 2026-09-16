@@ -6507,6 +6507,28 @@ window.belgeYonlendir = async function (o) {
   }
 };
 
+/**
+ * Yönlendir ve BAŞARISIZLIĞI SÖYLE.
+ *
+ * ⚠ Bu yardımcı, aynı hatanın iki modülde birden çıkmasından sonra eklendi.
+ * `belgeYonlendir` başarısızlığı FIRLATMAZ, `{ok:false, reason}` döner. Çağrı
+ * yerlerinin çoğu sonucu hiç okumuyordu: kapsamı çözülemeyen belge hiçbir
+ * memura düşmüyor, ama ekranda "Gönderildi" yazıyordu. Yetkili günler sonra
+ * "memura iletilmemiş" diye geri geliyordu.
+ *
+ * Önizleme penceresi olan yerlerde sonucu MODAL bildirir (çift uyarı
+ * olmasın); penceresiz akışlar bunu çağırır.
+ */
+window.belgeGonderVeBildir = async function (belge) {
+  if (!window.belgeOtoYonlendir) {
+    alert(gonderimHataMetni({ ok: false, reason: 'kural-yok' }));
+    return { ok: false, reason: 'kural-yok' };
+  }
+  const sonuc = await window.belgeOtoYonlendir(belge);
+  if (!gonderimBasarili(sonuc)) alert(gonderimHataMetni(sonuc));
+  return sonuc;
+};
+
 // Otomatik kural varsa uygula (modül üretim/onay anında çağırır).
 window.belgeOtoYonlendir = async function (o) {
   const key = (o.module || '') + ':' + (o.docType || '');

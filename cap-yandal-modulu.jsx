@@ -1570,8 +1570,8 @@ function CapYandalApp({ currentUser, activeDepartment, departmentInfo }) {
         decidedAt: new Date().toISOString(),
       });
       // Onaylandıysa otomatik yönlendirme kuralını uygula (varsa)
-      if (status === 'approved' && rec.dilekceUrl && window.belgeOtoYonlendir) {
-        await window.belgeOtoYonlendir({
+      if (status === 'approved' && rec.dilekceUrl && window.belgeGonderVeBildir) {
+        await window.belgeGonderVeBildir({
           module: 'capyandal',
           docType: rec.turu || 'cap',
           sourceId: String(rec.id),
