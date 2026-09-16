@@ -419,6 +419,15 @@ import {
   ucOranlari,
 } from './lib/anket-istatistik.js';
 import {
+  girisYili,
+  nominalSinif,
+  ogrenciSinifi,
+  sinifEtiketi,
+  sinifGrubunaUyarMi,
+  sinifSayisi,
+  sinifTaramasi,
+} from './lib/ogrenci-sinif.js';
+import {
   gizlemeleriTemizlemeKarari,
   gonderimBasarili,
   gonderimBilgiMetni,
@@ -8978,6 +8987,13 @@ const LoginModal = ({ onLogin }) => {
         if (Array.isArray(loginResult.capProgramlari) && loginResult.capProgramlari.length > 0) {
           user.capProgramlari = loginResult.capProgramlari;
         }
+        // Sınıf da oturumda taşınır. Taşınmazsa `currentUser.sinif` hep boş
+        // kalır; sınıf hedefli anketler kimseye doğru eşleşmez
+        // (bkz. lib/ogrenci-sinif.js). `sinifKaynagi` ayırt eder: elle
+        // girilmiş KAYIT mı, tarama betiğinin yazdığı ÖNBELLEK mi.
+        if (loginResult.sinif) user.sinif = loginResult.sinif;
+        if (loginResult.sinifKaynagi) user.sinifKaynagi = loginResult.sinifKaynagi;
+        if (loginResult.programYili != null) user.programYili = loginResult.programYili;
         if (password.length < 6) {
           setPendingUser(user);
           setSetupPasswordMode(true);
@@ -14455,6 +14471,15 @@ window.anketSecenegiTasi = secenegiTasi;
 window.anketSecenekHatalari = secenekHatalari;
 window.anketTumSecenekHatalari = anketSecenekHatalari;
 window.anketTipDegisiminde = tipDegisiminde;
+// Öğrencinin sınıfı: kayıt yoksa NUMARADAN çözülür (ilk iki hane giriş yılı).
+// Eskiden sınıf bilinmeyince sınıf hedefli anket HERKESE gidiyordu.
+window.ogrenciGirisYili = girisYili;
+window.ogrenciNominalSinif = nominalSinif;
+window.ogrenciSinifi = ogrenciSinifi;
+window.ogrenciSinifSayisi = sinifSayisi;
+window.ogrenciSinifEtiketi = sinifEtiketi;
+window.ogrenciSinifGrubunaUyarMi = sinifGrubunaUyarMi;
+window.ogrenciSinifTaramasi = sinifTaramasi;
 // Anket sonuç istatistiği — ortalama tek başına yanıltıcı, dağılım şart.
 window.anketDagilim = anketDagilim;
 window.anketSayisalOzet = sayisalOzet;

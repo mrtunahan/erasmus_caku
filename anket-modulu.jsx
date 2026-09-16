@@ -3692,6 +3692,20 @@ function SonuclarPaneli({ surveys }) {
 // ══════════════════════════════════════════════════════════════
 // KATILIMCI
 // ══════════════════════════════════════════════════════════════
+// ── ÖĞRENCİ HANGİ SINIFTA? ──
+// ⚠ ESKİ KURAL: `if (!myClass) return true` — sınıfı bilinmiyorsa HER sınıf
+// anketini göster. Sınıf yalnız öğrencinin kendi yazdığı `students.sinif`
+// alanında duruyordu; yazmayan herkes 1. sınıf oryantasyon anketini de,
+// 4. sınıf mezuniyet anketini de görüyor, sonuçlar kirleniyordu.
+//
+// Artık sınıf öncelikle KAYITTAN, yoksa ÖĞRENCİ NUMARASINDAN çözülür
+// (lib/ogrenci-sinif.js: ilk iki hane giriş yılı, akademik yıl eylülde döner).
+// Çözülemiyorsa anket GÖSTERİLMEZ — ve sebebi ekranda söylenir.
+const sinifUyumu = (kullanici, grup) =>
+  window.ogrenciSinifGrubunaUyarMi
+    ? window.ogrenciSinifGrubunaUyarMi(kullanici, grup)
+    : { uyar: true, sebep: 'kural-yok', sinif: null, kaynak: '' };
+
 function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
   const [assignments, setAssignments] = useState([]);
   const [surveys, setSurveys] = useState([]);
@@ -3741,20 +3755,23 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
     currentUser?.mezun ||
     currentUser?.status === 'mezun'
   );
-  const myClass = String(currentUser?.sinif || currentUser?.class || '').trim();
+  // Sınıf artık tek yerden çözülüyor (sinifUyumu); ekranda "sınıfını gir"
+  // uyarısı çıkarmak için kullanıcının çözülen sınıfı burada tutulur.
+  const sinifDurumu = useMemo(
+    () =>
+      window.ogrenciSinifi ? window.ogrenciSinifi(currentUser) : { sinif: null, kaynak: 'yok' },
+    [currentUser]
+  );
   const matchesGroup = useCallback(
     (role, group) => {
       if (role !== 'student') return true; // akademisyen grupları unvan bazlı — unvan verisi yok, tümü görür
       const g = (group || '').trim();
       if (!g || g === 'Tüm öğrenciler') return true; // grupsuz eski kayıtlar herkese görünür
       if (g === 'Mezun') return isAlumni;
-      // '1. sınıf' vb. — mezunlar sınıf gruplarını görmez;
-      // kullanıcının sınıfı biliniyorsa eşleştir, bilinmiyorsa göster
-      if (isAlumni) return false;
-      if (!myClass) return true;
-      return g.startsWith(myClass + '.');
+      if (isAlumni) return false; // mezun, sınıf gruplarına girmez
+      return sinifUyumu(currentUser, g).uyar;
     },
-    [isAlumni, myClass]
+    [isAlumni, currentUser]
   );
   // Atama bu kullanıcıya ulaşıyor mu? (bölüm/fakülte/üniversite kapsamı)
   const kapsamdaMi = useCallback(
@@ -3780,6 +3797,20 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
       return true;
     });
   }, [assignments, myRole, kapsamdaMi, matchesGroup]);
+
+  // ⚠ SESSİZ ELEME OLMASIN. Sınıfı çözülemeyen öğrenci artık sınıf hedefli
+  // anketleri görmüyor; bunu hiç söylemezsek "bana anket gelmedi" diye
+  // kaybolur. Kapsamına giren ama sınıfı bilinmediği için elenen bir atama
+  // varsa öğrenciye ne yapması gerektiği söylenir.
+  const sinifiEksikAtamaVar = useMemo(() => {
+    if (myRole !== 'student' || isAlumni) return false;
+    if (sinifDurumu.sinif != null) return false;
+    return assignments.some((a) => {
+      if ((a.targetRole === 'alumni' ? 'student' : a.targetRole) !== 'student') return false;
+      if (!kapsamdaMi(a)) return false;
+      return sinifUyumu(currentUser, a.targetGroup).sebep === 'sinif-bilinmiyor';
+    });
+  }, [assignments, myRole, isAlumni, sinifDurumu, kapsamdaMi, currentUser]);
 
   const completed = (surveyId) => myResponses.some((r) => r.surveyId === surveyId);
 
@@ -3834,6 +3865,25 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
         title: 'Anketlerim',
         subtitle: 'Size atanan anketleri doldurun',
       })}
+
+      {sinifiEksikAtamaVar && (
+        <div
+          style={{
+            background: '#FFFBEB',
+            border: '1px solid #FDE68A',
+            borderRadius: 10,
+            padding: '11px 14px',
+            margin: '0 0 14px',
+            fontSize: 12.5,
+            color: '#92400E',
+            lineHeight: 1.55,
+          }}
+        >
+          <b>Sınıfınız kayıtlı değil.</b> Belirli bir sınıfa gönderilen anketler size ulaşmıyor.
+          Öğrenci numaranız sistemde yoksa ya da beklenen biçimde değilse sınıfınız çözülemez —
+          profil sayfanızdan sınıfınızı girerseniz bu anketler listenizde görünür.
+        </div>
+      )}
 
       {myAssignments.length === 0 ? (
         <EmptyState text="Size atanmış anket bulunmuyor." />
@@ -4659,8 +4709,6 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
     currentUser?.mezun ||
     currentUser?.status === 'mezun'
   );
-  const myClass = String(currentUser?.sinif || currentUser?.class || '').trim();
-
   const load = useCallback(async () => {
     try {
       const [a, s, r] = await Promise.all([
@@ -4698,8 +4746,10 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
     if (!g || g === 'Tüm öğrenciler') return true;
     if (g === 'Mezun') return isAlumni;
     if (isAlumni) return false;
-    if (!myClass) return true;
-    return g.startsWith(myClass + '.');
+    // ⚠ ZORUNLU ANKET KAPISI tam ekran açılır ve kapatılamaz. Sınıfı yanlış
+    // eşleşen bir anket, öğrenciyi kendisiyle ilgisiz bir formun arkasına
+    // kilitler; bu yüzden burada da aynı katı kural geçerlidir.
+    return sinifUyumu(currentUser, g).uyar;
   };
 
   // Atama bu kullanıcıya ulaşıyor mu? (bölüm/fakülte/üniversite kapsamı)
@@ -4724,7 +4774,7 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
       if (survey) return { assignment: a, survey };
     }
     return null;
-  }, [assignments, surveys, myResponses, myRole, myId, activeDepartment, isAlumni, myClass]);
+  }, [assignments, surveys, myResponses, myRole, myId, activeDepartment, isAlumni, currentUser]);
 
   const submit = async (surveyId, answers) => {
     if (!myId || myId === 'anon') return;
