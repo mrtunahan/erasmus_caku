@@ -385,6 +385,7 @@ import {
 } from './lib/memur-atama.js';
 import { aiIstekHataMetni } from './lib/ai-istek-hatasi.js';
 import {
+  gizlemeleriTemizlemeKarari,
   gonderimBasarili,
   gonderimBilgiMetni,
   gonderimHataMetni,
@@ -6477,6 +6478,11 @@ window.belgeYonlendir = async function (o) {
       mevcut = {};
     }
     const gonderimler = Array.isArray(mevcut.gonderimler) ? mevcut.gonderimler.slice() : [];
+    // ⚠ "Sil" kalıcı bir ölüm değildir. Alıcı belgeyi kendi listesinden
+    // kaldırdıysa (`gizleyenler`), YENİDEN gönderim bu gizlemeyi kaldırır;
+    // yoksa belge o kişide bir daha asla görünmez (bkz. lib/belge-gonderim-
+    // sonucu.js → gizlemeleriTemizlemeKarari).
+    const gizKarar = gizlemeleriTemizlemeKarari(mevcut.gizleyenler);
     const ayniIdx = gonderimler.findIndex(
       (g) => g.hedefRol === o.hedefRol && String(g.kapsamId || '') === String(kapsamId)
     );
@@ -6486,11 +6492,20 @@ window.belgeYonlendir = async function (o) {
       // kutusunun "Açık" süzgeci onu gizliyordu: gönderen "Gönderildi"
       // görüyor, memurda hiçbir şey belirmiyordu.
       const karar = yenidenGonderimKarari(gonderimler[ayniIdx], cu.name || cu.identifier || '');
-      if (karar.islem === 'zaten-var') return { ok: true, zatenVar: true };
+      if (karar.islem === 'zaten-var') {
+        // Yönlendirme zaten açık: satır çoğaltılmaz. Ama belgeyi listesinden
+        // kaldırmış bir alıcı varsa "gönderdim, görmüyor" arızası tam burada
+        // doğuyordu — gizleme kaldırılır.
+        if (!gizKarar.temizle) return { ok: true, zatenVar: true };
+        await window.DBWrite.set('memur_outputs', docId, { gizleyenler: [] }, true);
+        if (window.apiInvalidate) window.apiInvalidate('memur_outputs');
+        return { ok: true, zatenVar: true, gizlemeKaldirildi: true };
+      }
       gonderimler[ayniIdx] = { ...gonderimler[ayniIdx], ...karar.yama };
-      await window.DBWrite.set('memur_outputs', docId, { gonderimler }, true);
+      const yama = gizKarar.temizle ? { gonderimler, gizleyenler: [] } : { gonderimler };
+      await window.DBWrite.set('memur_outputs', docId, yama, true);
       if (window.apiInvalidate) window.apiInvalidate('memur_outputs');
-      return { ok: true, yenidenAcildi: true };
+      return { ok: true, yenidenAcildi: true, gizlemeKaldirildi: gizKarar.temizle };
     }
     gonderimler.push({
       hedefRol: o.hedefRol,
@@ -6518,12 +6533,15 @@ window.belgeYonlendir = async function (o) {
           (kapsamTip === 'bolum' ? kapsamId : o.departmentId) || mevcut.departmentId || '',
         facultyId: fakulteId || mevcut.facultyId || '',
         gonderimler,
+        // Yeni bir görev açılıyor: belgeyi listesinden kaldırmış olanlara da
+        // geri konur.
+        ...(gizKarar.temizle ? { gizleyenler: [] } : {}),
         updatedAt: new Date().toISOString(),
       },
       true
     );
     if (window.apiInvalidate) window.apiInvalidate('memur_outputs');
-    return { ok: true };
+    return { ok: true, gizlemeKaldirildi: gizKarar.temizle };
   } catch (e) {
     console.warn('belgeYonlendir hatası:', e && e.message);
     return { ok: false, reason: e && e.message };
@@ -6737,6 +6755,28 @@ window.belgeListedenKaldir = async function (koleksiyon, docId) {
     const doc = (r && r.data) || {};
     const liste = Array.isArray(doc.gizleyenler) ? doc.gizleyenler.slice() : [];
     if (liste.indexOf(kim) < 0) liste.push(kim);
+    await window.DBWrite.set(koleksiyon, String(docId), { gizleyenler: liste }, true);
+    if (window.apiInvalidate) window.apiInvalidate(koleksiyon);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: e && e.message };
+  }
+};
+
+// ── Kaldırdığım belgeyi LİSTEME GERİ KOY ──
+// ⚠ "Sil" tek yönlü bir kapıydı: kaldıran kişi kararını geri alamıyordu ve
+// belge onda bir daha görünmüyordu. Yanlışlıkla kaldırılan belge için tek
+// çare belgeyi üreten akademisyene "yeniden gönder" demekti.
+window.belgeListeyeGeriKoy = async function (koleksiyon, docId) {
+  const cu = window.__currentUser || {};
+  const kim = String(cu.identifier || cu.name || '');
+  if (!kim) return { ok: false, reason: 'kimlik çözülemedi' };
+  try {
+    const r = await window.apiReadDoc(koleksiyon, String(docId));
+    const doc = (r && r.data) || {};
+    const liste = (Array.isArray(doc.gizleyenler) ? doc.gizleyenler : []).filter(
+      (k) => String(k || '') !== kim
+    );
     await window.DBWrite.set(koleksiyon, String(docId), { gizleyenler: liste }, true);
     if (window.apiInvalidate) window.apiInvalidate(koleksiyon);
     return { ok: true };

@@ -110,6 +110,21 @@
       }
     });
 
+    // ⚠ ÜÇÜNCÜ SEBEP: BELGE "SİLİNMİŞ" OLABİLİR. Memurun "Sil" düğmesi kaydı
+    // silmez, kaldıranın adını `gizleyenler` listesine yazar. Sunucu yine
+    // "görür" der, tanı "✓ GÖRÜR" der, belge ekranda yoktur. Dışarıdan
+    // görünmeyen bu üçüncü koşul artık yazılıyor.
+    const gizleyenler = Array.isArray(b.gizleyenler)
+      ? b.gizleyenler.map((v) => String(v || '').trim()).filter(Boolean)
+      : [];
+    if (gizleyenler.length > 0) {
+      console.log(
+        `\n    ⚠ LİSTESİNDEN KALDIRANLAR (${gizleyenler.length}): ${gizleyenler.join(', ')}`
+      );
+      console.log('      Bu kişilerde belge GÖRÜNMEZ. Belgeyi yeniden "Gönder" ile');
+      console.log('      yollayın: yeniden gönderim gizlemeyi kaldırır.');
+    }
+
     console.log('\n    Memurlar:');
     if (memurlar.length === 0) console.log('      (sistemde memur yok)');
     memurlar.forEach((p) => {
@@ -121,13 +136,22 @@
         memurModules: Array.isArray(p.memurModules) ? p.memurModules : [],
         isStajCoordinator: !!p.isStajCoordinator,
       };
-      const gorur = memurunBelgesiMi(b, memur, atamalar);
+      const gizlemis = gizleyenler.some(
+        (k) => kucuk(k) === kucuk(p.name) || kucuk(k) === kucuk(memur.memurId)
+      );
+      const gorur = memurunBelgesiMi(b, memur, atamalar) && !gizlemis;
       const bolum = String(b.departmentId || '') || '(bölümsüz)';
       const mods = memurBolumModulleri(atamalar, b.departmentId || '', memur);
       console.log(
         `      ${gorur ? '✓ GÖRÜR ' : '✗ görmez'}  ${p.name}` +
           `   [${bolum} atamaları: ${mods.length ? mods.join(', ') : 'YOK'}]`
       );
+      if (gizlemis) {
+        console.log('          ⚠ BU MEMUR BELGEYİ KENDİ LİSTESİNDEN KALDIRMIŞ ("Sil").');
+        console.log('            Kayıt duruyor, yalnız ondan gizli. Belgeyi yeniden');
+        console.log('            "Gönder" ile yollayın — gizleme kalkar.');
+        return;
+      }
       if (!gorur) return;
       // Sunucu "görür" diyorsa ekranda görünmemesinin sebebi İSTEMCİDEDİR.
       // İki koşul daha var ve ikisi de dışarıdan görünmüyor.
