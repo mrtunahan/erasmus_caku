@@ -1,4 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
+import {
+  bolumeGecerken,
+  gezinmeDurumu,
+  gorunumDuzelt,
+  gorunumSec,
+  rolAciklamasi,
+  varsayilanGorunum,
+} from './lib/performans-gorunum.js';
 
 // ═══════════════════════════════════════════════════════════════
 // ÇAKÜ — PERFORMANS BİLGİLERİ MODÜLÜ
@@ -609,26 +617,36 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
   const capDept = isDeptMgr || isFacMgr || isUniAdmin; // bölüm özeti
   const capFaculty = isFacMgr || isUniAdmin; // fakülte özeti
 
-  // Aktif görünüm: 'own' | 'dept' | 'faculty'
-  const [activeView, setActiveView] = useState(() =>
-    capOwn ? 'own' : capDept ? 'dept' : 'faculty'
+  // ── Aktif görünüm ──
+  // Görünümler artık iki boyutlu bir yapıda gruplanıyor (NE × NEREDE);
+  // kimlikler aynı kaldı ('own' | 'dept' | 'faculty' | 'strateji' |
+  // 'strateji-fac'). Kural lib/performans-gorunum.js'de.
+  const yetkiler = useMemo(
+    () => ({ own: capOwn, dept: capDept, faculty: capFaculty }),
+    [capOwn, capDept, capFaculty]
   );
+  const [activeView, setActiveView] = useState(() => varsayilanGorunum(yetkiler));
+  // ⚠ AÇILIŞ EKRANI YARIŞA BAĞLIYDI. Akademisyen listesi asenkron geliyor;
+  // ilk render'da `capOwn` henüz false olduğu için yetkili kullanıcı bazen
+  // "Veri Girişi"nde, bazen "Bölüm Özeti"nde açılıyordu — hangisinin
+  // çıkacağı isteğin hızına bağlıydı. Kullanıcı HENÜZ BİR SEÇİM YAPMADIYSA
+  // varsayılan, yetkiler oturdukça yeniden hesaplanır; bir kez tıkladıktan
+  // sonra ekran onun seçiminde kalır (altından kaymaz).
+  const [elleSecildi, setElleSecildi] = useState(false);
+  const gorunumeGec = (hedef) => {
+    if (!hedef) return;
+    setElleSecildi(true);
+    setActiveView(hedef);
+  };
   useEffect(() => {
-    // Aktif görünüm kullanıcının YETKİSİNDE değilse en uygun sekmeye geç.
-    // KRİTİK: ilk render'da akademisyen listesi henüz yüklenmemişse capOwn
-    // false olup 'faculty'ye düşülebiliyordu; liste gelince akademisyen
-    // doğrudan Verilerim'e çekilir (Fakülte Genel Toplam'da takılı kalmaz).
-    const allowed = {
-      own: capOwn,
-      dept: capDept,
-      faculty: capFaculty,
-      strateji: capDept || capOwn,
-      'strateji-fac': capFaculty,
-    };
-    if (!allowed[activeView]) {
-      setActiveView(capOwn ? 'own' : capDept ? 'dept' : capFaculty ? 'faculty' : 'own');
-    }
-  }, [capOwn, capDept, capFaculty, activeView]);
+    // Kapalı bir görünümde kalınmaz; düzeltme AYNI BÖLÜMDE kalmaya çalışır —
+    // fakülte yetkisi olmayan kişi "Stratejik Plan / Fakülte"den bambaşka bir
+    // ekrana değil, "Stratejik Plan / Bölümüm"e iner.
+    const hedef = elleSecildi ? gorunumDuzelt(activeView, yetkiler) : varsayilanGorunum(yetkiler);
+    if (hedef !== activeView) setActiveView(hedef);
+  }, [yetkiler, activeView, elleSecildi]);
+
+  const gezinme = useMemo(() => gezinmeDurumu(activeView, yetkiler), [activeView, yetkiler]);
 
   // Bölüm özeti için hangi bölüm gösterilecek:
   //   - Bölüm yetkilisi: activeDepartment (kendi bölümü)
@@ -791,49 +809,14 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
         })}
       </div>
 
-      {/* ── Görünüm Sekmesi (yetkiye göre) ── */}
-      {(capOwn ? 1 : 0) + (capDept ? 1 : 0) + (capFaculty ? 1 : 0) + (capDept || capOwn ? 1 : 0) >
-        1 && (
-        <div
-          style={{
-            display: 'flex',
-            background: C.surface,
-            borderBottom: `1px solid ${C.border}`,
-            padding: '0 16px',
-            gap: 4,
-          }}
-        >
-          {[
-            { id: 'own', label: 'Verilerim', enabled: capOwn },
-            { id: 'dept', label: 'Bölüm Özeti', enabled: capDept },
-            { id: 'faculty', label: 'Fakülte Özeti', enabled: capFaculty },
-            { id: 'strateji', label: 'Stratejik Plan İzleme', enabled: capDept || capOwn },
-            { id: 'strateji-fac', label: 'Fakülte Özeti — Stratejik Plan', enabled: capFaculty },
-          ]
-            .filter((v) => v.enabled)
-            .map((v) => (
-              <button
-                key={v.id}
-                onClick={() => setActiveView(v.id)}
-                style={{
-                  padding: '11px 20px',
-                  border: 'none',
-                  background: activeView === v.id ? C.bg : 'transparent',
-                  color: activeView === v.id ? C.accent : C.textMuted,
-                  fontSize: 12,
-                  fontWeight: activeView === v.id ? 700 : 500,
-                  cursor: 'pointer',
-                  borderBottom:
-                    activeView === v.id ? `3px solid ${C.accent}` : '3px solid transparent',
-                  transition: 'all 0.2s',
-                  fontFamily: F,
-                }}
-              >
-                {v.label}
-              </button>
-            ))}
-        </div>
-      )}
+      {/* ── Gezinme: iki boyut, iki satır (bkz. PerformansGezinme) ── */}
+      <PerformansGezinme
+        durum={gezinme}
+        onBolum={(bolumId) => gorunumeGec(bolumeGecerken(bolumId, activeView, yetkiler))}
+        onKapsam={(kapsamId) =>
+          gorunumeGec(gorunumSec(gezinme.aktifBolum && gezinme.aktifBolum.id, kapsamId))
+        }
+      />
 
       {/* ── Content ── */}
       <div style={{ padding: '20px 16px 40px', maxWidth: 1400, margin: '0 auto' }}>
@@ -897,8 +880,53 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
           </div>
         ) : (
           <div>
-            {/* ── Yıl Seçici ── */}
-            <YearSelector yil={selectedYil} setYil={setSelectedYil} />
+            {/* ── Bağlam: yıl + bölüm + o ekranın ne yaptığı, TEK şeritte ──
+                Eskiden yıl kutusu, bölüm kutusu ve bilgi çubuğu üst üste üç
+                ayrı kutuydu; veriye inmeden ekranın yarısı doluyordu. */}
+            <BaglamCubugu
+              yil={selectedYil}
+              setYil={setSelectedYil}
+              bolumSecici={
+                // Bölüm seçimi hem gösterge özetini hem stratejik plan
+                // bölüm izlemesini besliyor (ikisi de `deptForSummary`
+                // kullanıyor); eskiden yalnız gösterge ekranında çiziliyordu
+                // ve fakülte yetkilisi stratejik planda bölüm değiştiremiyordu.
+                (activeView === 'dept' || activeView === 'strateji') && (isFacMgr || isUniAdmin) ? (
+                  <select
+                    value={selectedBolum}
+                    onChange={(e) => setSelectedBolum(e.target.value)}
+                    style={{
+                      padding: '6px 11px',
+                      borderRadius: 7,
+                      border: `1px solid ${C.border}`,
+                      background: C.surfaceAlt,
+                      color: C.accent,
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      fontFamily: F,
+                      outline: 'none',
+                      cursor: 'pointer',
+                      maxWidth: 260,
+                    }}
+                  >
+                    {/* Fakülte yetkilisi yalnız kendi fakültesinin bölümlerini
+                        görür; tüm bölümlere (BOLUMLER) düşüş yalnız üni
+                        yetkilisi içindir. */}
+                    {(fakulteBolumleri.length
+                      ? fakulteBolumleri
+                      : isUniAdmin
+                        ? BOLUMLER
+                        : fakulteBolumleri
+                    ).map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                ) : null
+              }
+              aciklama={GORUNUM_ACIKLAMA[activeView] || ''}
+            />
 
             {/* ── VERİLERİM: kullanıcı sistemde akademisyense değer girer ── */}
             {activeView === 'own' && (
@@ -907,11 +935,6 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                   title="Gösterge Verilerini Girin"
                   sub={`${currentAkad?.ad} — ${currentAkad?.bolum} • ${selectedYil} yılı`}
                 />
-                <InfoBar
-                  color={C.yellow}
-                  text={`Seçili yılın (${selectedYil}) 12 aylık gösterge verilerinizi giriniz. Her yıl ayrı kaydedilir.`}
-                />
-
                 {/* Yeni gösterge yalnızca bölüm/fakülte yetkilisi ekleyebilir */}
                 {capDept && (
                   <AddQuestionBar
@@ -959,73 +982,10 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
             {/* ── BÖLÜM ÖZETİ ── */}
             {activeView === 'dept' && (
               <>
-                {/* Fakülte/Üni yetkilisi için bölüm seçici */}
-                {(isFacMgr || isUniAdmin) && (
-                  <div
-                    style={{
-                      background: C.surface,
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 8,
-                      padding: '10px 14px',
-                      marginBottom: 14,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: C.textMuted,
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.4,
-                      }}
-                    >
-                      Bölüm
-                    </span>
-                    <select
-                      value={selectedBolum}
-                      onChange={(e) => setSelectedBolum(e.target.value)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: 6,
-                        border: `1px solid ${C.border}`,
-                        background: C.surfaceAlt,
-                        color: C.accent,
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        fontFamily: F,
-                        outline: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {/* Fakülte yetkilisi yalnız kendi fakültesinin bölümlerini
-                          görür; tüm bölümlere (BOLUMLER) düşüş yalnız üni yetkilisi
-                          içindir. */}
-                      {(fakulteBolumleri.length
-                        ? fakulteBolumleri
-                        : isUniAdmin
-                          ? BOLUMLER
-                          : fakulteBolumleri
-                      ).map((b) => (
-                        <option key={b} value={b}>
-                          {b}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
                 <Hdr
                   title="Bölüm Gösterge Özeti"
                   sub={`${departmentInfo?.name || selectedBolum || bolumAkademisyenleri[0]?.bolum || ''} — ${selectedYil} yılı`}
                 />
-                <InfoBar
-                  color={C.warning}
-                  text="Bölümdeki tüm akademisyenlerin girdiği değerler toplanır. Her gösterge için toplama kuralını (Topla / Sabit / Ortalama / Maks.) ayarlayabilirsiniz."
-                />
-
                 {/* Yeni gösterge yalnızca bölüm/fakülte yetkilisi ekleyebilir */}
                 {capDept && (
                   <AddQuestionBar
@@ -1236,11 +1196,6 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                   title="Fakülte Genel Toplam"
                   sub={`Tüm bölümlerden gelen toplam değerler — ${selectedYil} yılı`}
                 />
-                <InfoBar
-                  color={C.purple}
-                  text="Her bölümden gelen toplam değerler fakülte düzeyinde birleştirilmiştir. Bölüm özetinde ayarladığınız toplama kuralı burada da geçerlidir."
-                />
-
                 {/* Üç aylık gösterge çıktısı — fakülte kapsamı */}
                 <UcAylikCiktiBar
                   scope="faculty"
@@ -1366,33 +1321,37 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
                 </div>
               </>
             )}
+
+            {/* ⚠ STRATEJİK PLAN EKRANLARI ÇERÇEVENİN DIŞINDAYDI: yıl
+                seçici hiç çizilmiyordu, kullanıcı bu ekranlarda yılı
+                değiştiremiyordu (değer prop olarak geçiyor ama kutu yok).
+                Artık aynı bağlam çubuğunu paylaşıyorlar. */}
+            {activeView === 'strateji' && (
+              <StratejikPlanIzleme
+                deptId={deptForSummary}
+                deptName={
+                  (typeof window !== 'undefined' && Array.isArray(window.DEPARTMENTS)
+                    ? window.DEPARTMENTS.find((d) => d.id === deptForSummary)?.name
+                    : '') ||
+                  selectedBolum ||
+                  ''
+                }
+                yil={selectedYil}
+                isManager={capDept}
+                akademisyenler={bolumAkademisyenleri}
+                currentAkademisyenId={matchedAkademisyen?.id || ''}
+              />
+            )}
+
+            {activeView === 'strateji-fac' && (
+              <StratejikPlanFakulteOzeti
+                yil={selectedYil}
+                facultyName={userFacultyName}
+                departments={AKADEMISYENLER}
+                isUniAdmin={isUniAdmin}
+              />
+            )}
           </div>
-        )}
-
-        {activeView === 'strateji' && (
-          <StratejikPlanIzleme
-            deptId={deptForSummary}
-            deptName={
-              (typeof window !== 'undefined' && Array.isArray(window.DEPARTMENTS)
-                ? window.DEPARTMENTS.find((d) => d.id === deptForSummary)?.name
-                : '') ||
-              selectedBolum ||
-              ''
-            }
-            yil={selectedYil}
-            isManager={capDept}
-            akademisyenler={bolumAkademisyenleri}
-            currentAkademisyenId={matchedAkademisyen?.id || ''}
-          />
-        )}
-
-        {activeView === 'strateji-fac' && (
-          <StratejikPlanFakulteOzeti
-            yil={selectedYil}
-            facultyName={userFacultyName}
-            departments={AKADEMISYENLER}
-            isUniAdmin={isUniAdmin}
-          />
         )}
       </div>
 
@@ -2953,6 +2912,257 @@ function AddQuestionBar({
 }
 
 // ═════════════ Alt Bileşenler ═════════════
+
+// ══════════════════════════════════════════════════════════════
+// GEZİNME — İKİ BOYUT, İKİ SATIR
+//
+// ⚠ ESKİDEN BEŞ SEKME TEK SATIRDAYDI ve iki ayrı soruyu birden soruyordu:
+// "ne bakıyorum" (gösterge / stratejik plan) ile "nereye bakıyorum" (kendi
+// verim / bölüm / fakülte). Düzleştirilince "Fakülte Özeti" ekranda İKİ KEZ,
+// iki ayrı anlamda beliriyordu; "Stratejik Plan İzleme"nin bölüm kapsamında
+// olduğu ise adından hiç anlaşılmıyordu.
+//
+// Üst satır NE, alt satır NEREDE. Kapsam tek ise alt satır çizilmez —
+// kullanıcıya seçim gibi görünen tek seçenek sunulmaz.
+// (Kural: lib/performans-gorunum.js — burası yalnız çizer.)
+// ══════════════════════════════════════════════════════════════
+
+// Her ekranın ne yaptığını söyleyen tek cümle. Bağlam çubuğunun sağında
+// durur; eskiden her ekranın üstünde ayrı bir renkli "InfoBar" kutusu vardı.
+const GORUNUM_ACIKLAMA = {
+  own: 'Seçili yılın 12 aylık gösterge değerlerinizi girin. Her yıl ayrı kaydedilir.',
+  dept: 'Bölümdeki tüm akademisyenlerin girdiği değerler toplanır. Toplama kuralını (Topla / Sabit / Ortalama / Maks.) gösterge başına ayarlayabilirsiniz.',
+  faculty:
+    'Fakültedeki tüm bölümlerin toplamı. Bölüm kırılımını görmek için kapsamı "Bölümüm" yapın.',
+  strateji: 'Göstergeleriniz, stratejik plan hedefleriyle eşleştirilerek izlenir.',
+  'strateji-fac': 'Stratejik plan izlemesinin fakülte geneli toplamı.',
+};
+
+const NAV_IKON = {
+  kalem:
+    'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z',
+  grafik: 'M3 3v18h18 M7 16l4-5 3 3 5-7',
+  hedef:
+    'M12 12m-9 0a9 9 0 1018 0 9 9 0 10-18 0 M12 12m-5 0a5 5 0 1010 0 5 5 0 10-10 0 M12 12m-1 0a1 1 0 102 0 1 1 0 10-2 0',
+};
+
+function NavIkon({ ad, renk }) {
+  const d = NAV_IKON[ad] || NAV_IKON.grafik;
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={renk}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flexShrink: 0 }}
+      aria-hidden="true"
+    >
+      {d.split(' M').map((p, i) => (
+        <path key={i} d={(i === 0 ? '' : 'M') + p} />
+      ))}
+    </svg>
+  );
+}
+
+function PerformansGezinme({ durum, onBolum, onKapsam }) {
+  const { bolumler, aktifBolum, kapsamlar, aktifKapsam, tekBolum } = durum;
+  if (bolumler.length === 0) return null;
+
+  return (
+    <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+      {/* ── Üst satır: NE ── */}
+      {!tekBolum && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            padding: '10px 16px 0',
+            maxWidth: 1400,
+            margin: '0 auto',
+            flexWrap: 'wrap',
+          }}
+        >
+          {bolumler.map((b) => {
+            const on = aktifBolum && aktifBolum.id === b.id;
+            return (
+              <button
+                key={b.id}
+                onClick={() => onBolum(b.id)}
+                title={b.aciklama}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '9px 15px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: on ? C.accent : C.textMuted,
+                  fontSize: 13,
+                  fontWeight: on ? 700 : 500,
+                  cursor: 'pointer',
+                  borderBottom: `3px solid ${on ? C.accent : 'transparent'}`,
+                  fontFamily: F,
+                  transition: 'color .15s',
+                }}
+              >
+                <NavIkon ad={b.ikon} renk={on ? C.accent : C.textDim} />
+                {b.ad}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Alt satır: NEREDE (tek kapsamda çizilmez) ── */}
+      {kapsamlar.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 16px',
+            maxWidth: 1400,
+            margin: '0 auto',
+            borderTop: `1px solid ${C.borderLight}`,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              color: C.textDim,
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+            }}
+          >
+            Kapsam
+          </span>
+          <div
+            style={{
+              display: 'inline-flex',
+              background: C.surfaceAlt,
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              padding: 3,
+              gap: 3,
+            }}
+          >
+            {kapsamlar.map((k) => {
+              const on = aktifKapsam && aktifKapsam.id === k.id;
+              return (
+                <button
+                  key={k.id}
+                  onClick={() => onKapsam(k.id)}
+                  style={{
+                    padding: '6px 16px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: on ? C.surface : 'transparent',
+                    color: on ? C.accent : C.textMuted,
+                    fontSize: 12.5,
+                    fontWeight: on ? 700 : 500,
+                    cursor: 'pointer',
+                    fontFamily: F,
+                    boxShadow: on ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {k.ad}
+                </button>
+              );
+            })}
+          </div>
+          {aktifBolum && (
+            <span style={{ fontSize: 11.5, color: C.textDim, marginLeft: 4 }}>
+              {aktifBolum.aciklama}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// BAĞLAM ÇUBUĞU — "hangi yıl, hangi bölüm" tek satırda
+//
+// ⚠ Eskiden yıl seçici, bölüm seçici ve bilgi çubuğu ÜÇ AYRI KUTU olarak
+// üst üste diziliyordu; veriye inmeden önce ekranın yarısı doluyordu.
+// Üçü tek şeritte birleşti: solda seçimler, sağda o ekranın ne yaptığını
+// söyleyen tek cümle.
+// ══════════════════════════════════════════════════════════════
+function BaglamCubugu({ yil, setYil, bolumSecici, aciklama }) {
+  const etiket = {
+    fontSize: 10.5,
+    fontWeight: 700,
+    color: C.textDim,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  };
+  const secim = {
+    padding: '6px 11px',
+    borderRadius: 7,
+    border: `1px solid ${C.border}`,
+    background: C.surfaceAlt,
+    color: C.accent,
+    fontSize: 12.5,
+    fontWeight: 700,
+    fontFamily: F,
+    outline: 'none',
+    cursor: 'pointer',
+    maxWidth: 260,
+  };
+  return (
+    <div
+      style={{
+        background: C.surface,
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        padding: '11px 14px',
+        marginBottom: 16,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        flexWrap: 'wrap',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={etiket}>Yıl</span>
+        <select value={yil} onChange={(e) => setYil(e.target.value)} style={secim}>
+          {YILLAR.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+      </div>
+      {bolumSecici && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={etiket}>Bölüm</span>
+          {bolumSecici}
+        </div>
+      )}
+      {aciklama && (
+        <span
+          style={{
+            marginLeft: 'auto',
+            fontSize: 11.5,
+            color: C.textDim,
+            lineHeight: 1.5,
+            maxWidth: 520,
+          }}
+        >
+          {aciklama}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function Hdr({ title, sub }) {
   return (
