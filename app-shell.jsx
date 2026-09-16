@@ -61,7 +61,16 @@ function computeAvailableDepts(currentUser, adminScope, memurAtamalari) {
     // Atamalar AppShell'de bir kez okunur; bu yardımcı alt bileşenlerden de
     // (yan menüler) çağrıldığı için global önbellekten okur.
     const atamalar = memurAtamalari || window.__memurAtamalari || [];
-    const atanan = window.memurBolumleri ? window.memurBolumleri(atamalar, memurId) : [];
+    // ⚠ Burada eskiden YALNIZ atama kayıtları okunuyordu (memurBolumleri).
+    // Belge görünürlüğü ise atama kaydı olmayan KENDİ bölümünde eski düz
+    // listeye düşüyor. İkisi çeliştiğinde belge sunucuda "görünür" sayılıyor
+    // ama şeritte o bölüm seçilemediği için ekranda asla görünmüyordu.
+    // Tek tanım: erişilebilir bölüm = belge görebildiği bölüm.
+    const atanan = window.memurErisebilecegiBolumler
+      ? window.memurErisebilecegiBolumler(atamalar, currentUser)
+      : window.memurBolumleri
+        ? window.memurBolumleri(atamalar, memurId)
+        : [];
     if (atanan.length > 0) return allDepts.filter((d) => atanan.includes(String(d.id)));
     // Ataması hiç olmayan (eski) memur kilitlenmesin: fakültesine düşer.
     if (myFaculty) return allDepts.filter((d) => (d.facultyId || '') === myFaculty);

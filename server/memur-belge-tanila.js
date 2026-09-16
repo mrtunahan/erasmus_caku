@@ -139,8 +139,21 @@
       const bolumler = kendiAtamalari.map((a) => a.departmentId).filter(Boolean);
       console.log(
         `          → Ekranda görünmesi için SAĞDAN "${bolum}" seçili olmalı.` +
-          (bolumler.length > 1 ? `  (atandığı bölümler: ${bolumler.join(', ')})` : '')
+          (bolumler.length > 0 ? `  (atama kayıtları: ${bolumler.join(', ')})` : '')
       );
+      // ⚠ EN SİNSİ DURUM. Belgenin bölümü memurun ATAMA KAYITLARINDA yoksa
+      // görünürlük kendi bölümündeki eski düz listeden geliyordur; o bölüm
+      // bölüm şeridinde seçilemediği sürece belge ekranda ASLA görünmez.
+      // Sunucu "görür" der, kullanıcı hiçbir şey görmez.
+      if (bolum !== '(bölümsüz)' && !bolumler.includes(bolum)) {
+        console.log(
+          `          ⚠ "${bolum}" bu memurun atama kayıtlarında YOK — görünürlük` +
+            ' kendi bölümündeki eski listeden geliyor.'
+        );
+        console.log(
+          '            Bölüm Yönetimi → Memurlar ekranından bu bölüm için AÇIK' + ' atama yapın.'
+        );
+      }
       const adsiz = kendiAtamalari.filter((a) => !String(a.memurName || '').trim());
       if (adsiz.length > 0) {
         console.log(
