@@ -428,6 +428,7 @@ import {
   sinifTaramasi,
 } from './lib/ogrenci-sinif.js';
 import { akademisyenKitlesi, kitleOzetMetni, ogrenciKitlesi } from './lib/anket-hedef-kitle.js';
+import { girisListesi } from './lib/akademik-unvan.js';
 import {
   acikEtaplar,
   acilisHatalari,
@@ -8676,55 +8677,12 @@ const LoginModal = ({ onLogin }) => {
     const loadProfessors = async () => {
       try {
         const profs = await DB.fetchProfessors();
-        // Unvanları soyarak soyadı + ilk ad bazında tekilleştir
-        const titles = [
-          'Dr. Öğr. Üyesi',
-          'Dr. Öğr. Gör.',
-          'Öğr. Gör. Dr.',
-          'Arş. Gör. Dr.',
-          'Prof. Dr.',
-          'Prof Dr.',
-          'Doç. Dr.',
-          'Öğr. Gör.',
-          'Arş. Gör.',
-          'Dr.',
-        ];
-        const stripTitle = (name) => {
-          let n = (name || '').trim();
-          for (const t of titles) {
-            if (n.startsWith(t)) {
-              n = n.slice(t.length).trim();
-              break;
-            }
-          }
-          return n;
-        };
-        // Tekilleştirme anahtarı = unvanı soyulmuş TAM ad (normalize edilmiş).
-        // ÖNEMLİ: Eski sürüm anahtarı "ilk ad + BÜYÜK-HARF soyadı" ile
-        // üretiyordu; soyadı büyük harf değilse (ör. "Ahmet Tunahan Korkmaz")
-        // anahtar yalnızca ilk ada düşüyor ("AHMET") ve farklı kişiler
-        // birbirine karışıp listeden GİZLENİYORDU. Artık tam ad kullanılır:
-        // yalnızca gerçekten aynı ad (farklı unvanlı kayıtlar) birleşir,
-        // farklı kişiler asla gizlenmez.
-        const getKey = (name) => {
-          return stripTitle(name)
-            .toLocaleLowerCase('tr')
-            .replace(/\./g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-        };
-        const seen = new Map();
-        (profs || []).forEach((p) => {
-          const key = getKey(p.name);
-          if (!key) return;
-          // Daha uzun (daha detaylı) ismi tercih et
-          if (!seen.has(key) || (p.name || '').length > (seen.get(key).name || '').length) {
-            seen.set(key, p);
-          }
-        });
-        const unique = Array.from(seen.values());
-        unique.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
-        setProfessorList(unique);
+        // Liste kuralı lib/akademik-unvan.js → girisListesi:
+        // birebir aynı ad tek satıra iner, unvanı farklı kayıtlar GİZLENMEZ
+        // (gizlenen ad ayrı bir kimliktir ve bu ekrandan seçilemediği için
+        // şifresi ona bağlı kişi giriş yapamaz hâle gelirdi), sıralama
+        // kişiye göredir ki varyantlar yan yana dursun.
+        setProfessorList(girisListesi(profs));
       } catch (e) {
         console.error('Error loading professors:', e);
         setProfessorList(window.SEED_PROFESSORS || []);
