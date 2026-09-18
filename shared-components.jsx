@@ -336,6 +336,14 @@ import {
   slotEgitmeniSec,
 } from './lib/ders-egitmenleri.js';
 import { XLSX_STIL, calismaKitabiParcalari, xlsxDosyaAdi } from './lib/xlsx-yaz.js';
+import { WORD_MIME, belgeDosyaAdi, wordPaketDosyalari } from './lib/word-belge.js';
+import {
+  anketRaporu,
+  raporDosyaAdi,
+  raporExcelSayfalari,
+  raporWordGovdesi,
+  yanitTablosu as anketYanitTablosu,
+} from './lib/anket-rapor.js';
 import {
   DERS_DK,
   TENEFFUS_DK,
@@ -14401,6 +14409,54 @@ window.xlsxIndir = async function xlsxIndir(dosyaAdi, secenek) {
 };
 window.xlsxDosyaAdi = xlsxDosyaAdi;
 window.XLSX_STIL = XLSX_STIL;
+
+// ══════════════════════════════════════════════════════════════
+// WORD (.docx) İNDİRME (şablonsuz)
+//
+// xlsxIndir'in Word karşılığı: belge XML'i lib/word-belge.js'te üretilir ve
+// testlidir; burada yalnız zip'leme ve indirme var. Şablon motoru hazır bir
+// .docx'i doldurur, bu ise sıfırdan belge kurar (anket sonuç raporu gibi
+// kurumun yüklediği bir forma bağlı olmayan çıktılar için).
+// ══════════════════════════════════════════════════════════════
+window.wordIndir = async function wordIndir(dosyaAdi, govdeXml, secenek) {
+  const JSZipYukle = async () => {
+    if (window.JSZip) return window.JSZip;
+    await new Promise((res, rej) => {
+      const el = document.createElement('script');
+      el.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+      el.onload = res;
+      el.onerror = () => rej(new Error('JSZip yüklenemedi'));
+      document.head.appendChild(el);
+    });
+    return window.JSZip;
+  };
+  try {
+    const JSZip = await JSZipYukle();
+    const zip = new JSZip();
+    Object.entries(wordPaketDosyalari(govdeXml, secenek || {})).forEach(([yol, icerik]) =>
+      zip.file(yol, icerik)
+    );
+    const blob = await zip.generateAsync({ type: 'blob', mimeType: WORD_MIME });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = /\.docx$/i.test(dosyaAdi || '') ? dosyaAdi : (dosyaAdi || 'belge') + '.docx';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    return true;
+  } catch (e) {
+    alert('Word dosyası oluşturulamadı: ' + (e && e.message ? e.message : e));
+    return false;
+  }
+};
+
+// Anket sonuç raporu: ekran, Excel ve Word AYNI modeli çizer — üç çıktı üç
+// farklı sayı söylemesin.
+window.anketRaporu = anketRaporu;
+window.anketYanitTablosu = anketYanitTablosu;
+window.anketRaporExcelSayfalari = raporExcelSayfalari;
+window.anketRaporWordGovdesi = raporWordGovdesi;
+window.anketRaporDosyaAdi = raporDosyaAdi;
+window.belgeDosyaAdi = belgeDosyaAdi;
 // Aktif bölüm kapsamı — app-shell kullanır (yanlış fakültenin verisi açılmasın).
 window.aktifBolumKarari = aktifBolumKarari;
 window.bolumKapsami = bolumKapsami;
