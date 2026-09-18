@@ -3671,102 +3671,68 @@ function CommentList({ texts }) {
   );
 }
 
-// ── Dışa aktarma yardımcıları ──
-function buildExportTable(survey, responses) {
-  const infoFields = survey.infoFields || [];
-  const questions = survey.questions || [];
-  const headers = [
-    '#',
-    'Tarih',
-    'Rol',
-    ...infoFields.map((f) => f.label || f.key),
-    ...questions.map((q, i) => 'S' + (i + 1) + '. ' + q.text),
-  ];
-  const roleTr = { student: 'Öğrenci', professor: 'Akademisyen', alumni: 'Mezun' };
-  const rows = responses.map((r, idx) => [
-    idx + 1,
-    (r.submittedAt || '').slice(0, 16).replace('T', ' '),
-    roleTr[r.role] || r.role || '',
-    ...infoFields.map((f) => r.answers?.[f.key] ?? ''),
-    ...questions.map((q) => {
-      const v = r.answers?.[q.id];
-      if (v == null) return '';
-      // Şıklı soruda ham değer değil ETİKET yazılır ('4' değil 'Katılıyorum');
-      // dosyayı açan kişi kod tablosu aramasın. Çoklu seçim virgülle birleşir.
-      if (!soruSecenekliMi(q)) return String(v);
-      return yanitDegerleri(v)
-        .map((d) => secenekEtiketi(q, d))
-        .join(', ');
-    }),
-  ]);
-  return { headers, rows };
+// ══════════════════════════════════════════════════════════════
+// DIŞA AKTARMA — CSV · Excel · Word
+//
+// ⚠ ESKİDEN EXCEL KENDİ HESABINI YAPIYORDU: ekranda gördüğünüz ortalama ile
+// dosyadaki ortalama ayrı kodlardan geliyordu, biri düzeltilince öteki eski
+// kalıyordu. Artık üçü de TEK modeli çizer (lib/anket-rapor.js): ekrandaki
+// grafik, Excel sayfaları ve Word raporu aynı sayıyı söyler.
+//
+// İş bölümü:
+//   • CSV   — tek tablo, başka programa aktarmak için
+//   • Excel — ham yanıtlar + özet + şık dağılımı + metinler, ayrı sekmeler
+//   • Word  — okunacak/imzalanacak rapor (ham tablo yok, kâğıda sığmaz)
+// Üçü de kütüphanesiz üretilir; yalnız zip'leme için JSZip yüklenir.
+// ══════════════════════════════════════════════════════════════
+
+/** Ekrandaki süzgecin insan diliyle karşılığı — rapor künyesine yazılır. */
+function suzgecMetni(courseFilter, courseOptions) {
+  if (!courseFilter) return '';
+  const d = courseOptions.find((c) => c.code === courseFilter);
+  return 'Ders: ' + (d && d.name && d.name !== d.code ? d.code + ' — ' + d.name : courseFilter);
 }
 
+function raporModeli(survey, responses, suzgec) {
+  return window.anketRaporu(survey, responses, { suzgec });
+}
+
+/** Dosya adı: anket başlığı + ne olduğu. Türkçe harfler korunur. */
+const ciktiAdi = (survey, ek, uzanti) =>
+  window.belgeDosyaAdi((survey && survey.title) || 'anket', ek, uzanti);
+
 function downloadCSV(survey, responses) {
-  const { headers, rows } = buildExportTable(survey, responses);
+  const { basliklar, satirlar } = window.anketYanitTablosu(survey, responses);
   const esc = (v) => {
-    const s = String(v ?? '');
-    return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    const metin = String(v == null ? '' : v);
+    return /[";\n]/.test(metin) ? '"' + metin.replace(/"/g, '""') + '"' : metin;
   };
   // Türkçe Excel için BOM + noktalı virgül ayracı
-  const csv = '﻿' + [headers, ...rows].map((row) => row.map(esc).join(';')).join('\r\n');
+  const csv = '\ufeff' + [basliklar, ...satirlar].map((r) => r.map(esc).join(';')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = (survey.title || 'anket').replace(/[^\wçğıöşüÇĞİÖŞÜ -]/g, '') + '_yanitlar.csv';
+  a.download = ciktiAdi(survey, 'yanitlar', 'csv');
   a.click();
   URL.revokeObjectURL(a.href);
 }
 
-async function ensureXLSX() {
-  if (window.XLSX) return window.XLSX;
-  await new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
-    s.onload = res;
-    s.onerror = () => rej(new Error('XLSX kütüphanesi yüklenemedi'));
-    document.head.appendChild(s);
-  });
-  return window.XLSX;
+async function downloadExcel(survey, responses, suzgec) {
+  const rapor = raporModeli(survey, responses, suzgec);
+  const sayfalar = window.anketRaporExcelSayfalari(rapor).map((sf) => ({
+    ad: sf.ad,
+    satirlar: sf.satirlar,
+    sutunGenislikleri: sf.genislikler,
+  }));
+  // xlsxIndir dosya adını kendi sadeleştirir (ASCII); uzantısız verilir.
+  await window.xlsxIndir(((survey && survey.title) || 'anket') + ' sonuc raporu', { sayfalar });
 }
 
-async function downloadExcel(survey, responses) {
-  const XLSX = await ensureXLSX();
-  const { headers, rows } = buildExportTable(survey, responses);
-  const wb = XLSX.utils.book_new();
-
-  // Sayfa 1: ham yanıtlar
-  const ws1 = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  ws1['!cols'] = headers.map((h, i) => ({ wch: i < 3 ? 12 : Math.min(50, h.length + 4) }));
-  XLSX.utils.book_append_sheet(wb, ws1, 'Yanıtlar');
-
-  // Sayfa 2: soru bazlı özet
-  const summary = [['Soru', 'Tip', 'Yanıt Sayısı', 'Özet']];
-  (survey.questions || []).forEach((q, i) => {
-    const secenekler = soruSecenekleri(q);
-    let n = 0;
-    let text = '';
-    if (secenekler.length > 0) {
-      const opts = secenekler.map((o) => o.deger);
-      const counts = countAnswers(responses, q.id, opts);
-      n = opts.reduce((a, o) => a + counts[o], 0);
-      const ozet = window.anketSayisalOzet ? window.anketSayisalOzet(responses, q) : null;
-      const dagilim = secenekler.map((o) => o.etiket + ': ' + counts[o.deger]).join(' | ');
-      text = ozet && ozet.n ? 'Ortalama: ' + ozet.ortalama.toFixed(2) + ' | ' + dagilim : dagilim;
-    } else {
-      const texts = responses.map((r) => r.answers?.[q.id]).filter((v) => v && String(v).trim());
-      n = texts.length;
-      text = n + ' metin yanıtı';
-    }
-    summary.push(['S' + (i + 1) + '. ' + q.text, q.type, n, text]);
-  });
-  const ws2 = XLSX.utils.aoa_to_sheet(summary);
-  ws2['!cols'] = [{ wch: 70 }, { wch: 12 }, { wch: 12 }, { wch: 50 }];
-  XLSX.utils.book_append_sheet(wb, ws2, 'Özet');
-
-  XLSX.writeFile(
-    wb,
-    (survey.title || 'anket').replace(/[^\wçğıöşüÇĞİÖŞÜ -]/g, '') + '_sonuclar.xlsx'
+async function downloadWord(survey, responses, suzgec) {
+  const rapor = raporModeli(survey, responses, suzgec);
+  await window.wordIndir(
+    ciktiAdi(survey, 'sonuc-raporu', 'docx'),
+    window.anketRaporWordGovdesi(rapor)
   );
 }
 
@@ -3835,16 +3801,26 @@ function SonuclarPaneli({ surveys }) {
     [survey, filtered]
   );
 
-  const handleExcel = async () => {
+  // Süzgeç raporun künyesine yazılır: "Ders: MAT101 — Matematik". Süzülmüş
+  // bir çıktının hangi süzgeçle alındığı dosyanın üstünde yazmazsa, birkaç
+  // gün sonra o dosya "anketin tamamı" sanılıyor.
+  const suzgec = useMemo(
+    () => suzgecMetni(courseFilter, courseOptions),
+    [courseFilter, courseOptions]
+  );
+
+  const disaAktar = (is, ad) => async () => {
     setExporting(true);
     try {
-      await downloadExcel(survey, filtered);
+      await is();
     } catch (e) {
-      alert('Excel oluşturulamadı: ' + e.message);
+      alert(ad + ' oluşturulamadı: ' + (e && e.message ? e.message : e));
     } finally {
       setExporting(false);
     }
   };
+  const handleExcel = disaAktar(() => downloadExcel(survey, filtered, suzgec), 'Excel');
+  const handleWord = disaAktar(() => downloadWord(survey, filtered, suzgec), 'Word');
 
   const exportBtn = (onClick, label, primary) => (
     <button
@@ -4006,6 +3982,7 @@ function SonuclarPaneli({ surveys }) {
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               {exportBtn(() => downloadCSV(survey, filtered), 'CSV indir', false)}
+              {exportBtn(handleWord, exporting ? 'Hazırlanıyor…' : 'Word raporu', false)}
               {exportBtn(handleExcel, exporting ? 'Hazırlanıyor…' : 'Excel indir', true)}
             </div>
 
