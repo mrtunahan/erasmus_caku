@@ -10673,6 +10673,22 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         ogrenciTelefon: rec.studentPhone || ogrProfil.phone || '',
         ogrenciEposta: rec.studentEmail || ogrProfil.email || '',
         ogrenciAdres: rec.studentAddress || ogrProfil.address || '',
+        // Kimlik alanları YALNIZ profilden gelir: başvuru formunda hiç
+        // sorulmuyor, dilekçe şablonu isterse öğrencinin Benim Sayfam'daki
+        // kaydından dolar (bkz. lib/ogrenci-profil.js). Profil boşsa alanlar
+        // boş kalır — şablon eşlemesinde "Sabit metin"/"Atla" ile kapatılır.
+        ...(window.profilBelgeDegerleri
+          ? (() => {
+              const d = window.profilBelgeDegerleri(ogrProfil);
+              return {
+                ogrenciTcKimlik: d.ogrenciTcKimlik,
+                ogrenciDogumTarihi: d.ogrenciDogumTarihi,
+                ogrenciDogumYeri: d.ogrenciDogumYeri,
+                ogrenciBabaAdi: d.ogrenciBabaAdi,
+                ogrenciAnaAdi: d.ogrenciAnaAdi,
+              };
+            })()
+          : {}),
       };
 
       // Öğrencinin dilekçesi DOĞRUDAN İNER: önizleme + "Gönder" akışı

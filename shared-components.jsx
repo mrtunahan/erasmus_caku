@@ -338,6 +338,28 @@ import {
 import { XLSX_STIL, calismaKitabiParcalari, xlsxDosyaAdi } from './lib/xlsx-yaz.js';
 import { WORD_MIME, belgeDosyaAdi, wordPaketDosyalari } from './lib/word-belge.js';
 import {
+  PROFIL_ALANLARI,
+  PROFIL_BELGELERI,
+  PROFIL_GRUPLARI,
+  alanHatasi as profilAlanHatasi,
+  alanSuzgeci as profilAlanSuzgeci,
+  belgeEksikleri as profilBelgeEksikleri,
+  formaUygula as profilFormaUygula,
+  profilBelgeDegerleri,
+  profilDurumu,
+  profilHatalari,
+  profilNormalle,
+  profilOzetMetni,
+  tcGecerliMi,
+} from './lib/ogrenci-profil.js';
+import {
+  AKTS_TAVANI,
+  dersAkts,
+  dersGruplari,
+  derslerimOzeti,
+  ozetMetni as derslerimOzetMetni,
+} from './lib/derslerim-ozeti.js';
+import {
   anketRaporu,
   raporDosyaAdi,
   raporExcelSayfalari,
@@ -3070,6 +3092,14 @@ const MUAFIYET_STATIC = [
   { id: 'ogrenciTelefon', label: 'Öğrenci Telefon' },
   { id: 'ogrenciEposta', label: 'Öğrenci E-posta' },
   { id: 'ogrenciAdres', label: 'Öğrenci Adres' },
+  // Kimlik alanları da aynı profil kaydından gelir: bazı dilekçe şablonları
+  // antette T.C. kimlik ve doğum bilgisi istiyor, öğrenci her seferinde elle
+  // yazıyordu (bkz. lib/ogrenci-profil.js).
+  { id: 'ogrenciTcKimlik', label: 'Öğrenci T.C. Kimlik No' },
+  { id: 'ogrenciDogumTarihi', label: 'Öğrenci Doğum Tarihi' },
+  { id: 'ogrenciDogumYeri', label: 'Öğrenci Doğum Yeri' },
+  { id: 'ogrenciBabaAdi', label: 'Öğrenci Baba Adı' },
+  { id: 'ogrenciAnaAdi', label: 'Öğrenci Ana Adı' },
   // Dilekçe antetinde "ÇANKIRI KARATEKİN ÜNİVERSİTESİ / … Fakültesi / … Bölümü"
   // geçiyor. Bölüm zaten cakuBolum'da; fakülte ve üniversite kiracı (tenant)
   // ayarından gelir — şablon başka bir fakültede de kullanılabilsin diye.
@@ -14457,6 +14487,32 @@ window.anketRaporExcelSayfalari = raporExcelSayfalari;
 window.anketRaporWordGovdesi = raporWordGovdesi;
 window.anketRaporDosyaAdi = raporDosyaAdi;
 window.belgeDosyaAdi = belgeDosyaAdi;
+
+// ── Öğrencinin kendi bilgileri ──
+// Aynı bilgi her modülde yeniden soruluyordu (staj formunda kimlik/nüfus,
+// dilekçelerde telefon/e-posta/adres). Tek kayıt, tek sözlük: Benim Sayfam
+// girer, belge üreten modüller okur.
+window.PROFIL_ALANLARI = PROFIL_ALANLARI;
+window.PROFIL_GRUPLARI = PROFIL_GRUPLARI;
+window.PROFIL_BELGELERI = PROFIL_BELGELERI;
+window.profilAlanHatasi = profilAlanHatasi;
+window.profilAlanSuzgeci = profilAlanSuzgeci;
+window.profilBelgeEksikleri = profilBelgeEksikleri;
+window.profilBelgeDegerleri = profilBelgeDegerleri;
+window.profilDurumu = profilDurumu;
+window.profilHatalari = profilHatalari;
+window.profilNormalle = profilNormalle;
+window.profilOzetMetni = profilOzetMetni;
+window.profilFormaUygula = profilFormaUygula;
+window.tcGecerliMi = tcGecerliMi;
+
+// Dönem derslerinin özeti — Benim Sayfam'da liste ve seçim ekranı aynı
+// hesabı kullanır.
+window.AKTS_TAVANI = AKTS_TAVANI;
+window.dersAkts = dersAkts;
+window.dersGruplari = dersGruplari;
+window.derslerimOzeti = derslerimOzeti;
+window.derslerimOzetMetni = derslerimOzetMetni;
 // Aktif bölüm kapsamı — app-shell kullanır (yanlış fakültenin verisi açılmasın).
 window.aktifBolumKarari = aktifBolumKarari;
 window.bolumKapsami = bolumKapsami;
