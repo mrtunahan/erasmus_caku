@@ -191,6 +191,17 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [allCourses, setAllCourses] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [editMode, setEditMode] = useState(false);
+  // ⚠ DÜZENLEME KİPİ KULLANICININ KARARIDIR. Aşağıdaki yükleme etkisi her
+  // dönem değişiminde `setEditMode(...)` çağırıyordu: öğrenci "Dersleri
+  // Düzenle"ye basıp dönem kutusunu değiştirdiğinde ekran habersiz geri
+  // atıyor, kayıtlı dönemde ise düzenlemeye düşüyordu. Kip artık yalnız İLK
+  // yüklemede kendiliğinden açılır (hiç seçim yoksa); sonrası kullanıcıya
+  // aittir.
+  const modElleSecildi = useRef(false);
+  const kipeGec = useCallback((acik) => {
+    modElleSecildi.current = true;
+    setEditMode(acik);
+  }, []);
   const [filterSinif, setFilterSinif] = useState('all');
   // Dönem süzgeci TEK. Eskiden ikisi vardı: görünmez bir "bulunulan yarıyıl"
   // süzgeci ile bu açılır kutu. Görünmez olan önce çalıştığı için kutudan
@@ -222,12 +233,12 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [studentPhoto, setStudentPhoto] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef(null);
-  // Öğrenci iletişim bilgileri (student_profiles) — telefon / e-posta / adres
-  const [contactPhone, setContactPhone] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactAddress, setContactAddress] = useState('');
-  const [editContact, setEditContact] = useState(false);
-  const [savingContact, setSavingContact] = useState(false);
+  // Öğrencinin kendi bilgileri (student_profiles): iletişim + kimlik + nüfus.
+  // Alan sözlüğü ve denetimler lib/ogrenci-profil.js'te; burada yalnız kayıt
+  // tutulur. Belge üreten modüller (staj, muafiyet, ÇAP) aynı kaydı okur.
+  const [profil, setProfil] = useState({});
+  const [profilAcik, setProfilAcik] = useState(false);
+  const [profilKaydediliyor, setProfilKaydediliyor] = useState(false);
   // Büyütülebilir görsel (danışman fotoğrafı / kampüs haritası)
   const [lightbox, setLightbox] = useState(null); // null | { url, zoomable }
   // Aylık takvim görünümü: gösterilen ay (ayın ilk günü, 00:00 yerel)
@@ -412,8 +423,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         setSelectedIds(ids);
         setAdvisor(adv);
         setLocked(lock);
-        // Kilitliyse veya kayıt varsa düzenleme kapalı; ilk kez ise açık
-        setEditMode(!found && ids.length === 0);
+        // Kilitliyse veya kayıt varsa düzenleme kapalı; ilk kez ise açık.
+        // Kullanıcı bir kez kip seçtiyse ona dokunulmaz.
+        if (!modElleSecildi.current) setEditMode(!found && ids.length === 0);
       }
     })();
     return () => {
@@ -458,9 +470,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         const doc = (res && (res.data || (res.exists ? res.data : null))) || null;
         if (alive && doc) {
           if (doc.photoURL) setStudentPhoto(doc.photoURL);
-          setContactPhone(doc.phone || '');
-          setContactEmail(doc.email || '');
-          setContactAddress(doc.address || '');
+          setProfil(window.profilNormalle ? window.profilNormalle(doc) : doc);
         }
       } catch (_) {
         /* profil yoksa yoksay */
@@ -541,40 +551,63 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
-  // İletişim bilgilerini kaydet (student_profiles/{öğrenciNo}) — merge:true
-  // olduğundan photoURL gibi diğer alanlar korunur.
-  const handleSaveContact = async () => {
-    if (!currentUser?.studentNumber) return;
-    const email = contactEmail.trim();
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      alert('Geçerli bir e-posta adresi girin.');
-      return;
-    }
-    setSavingContact(true);
+  // Kişisel bilgileri kaydet (student_profiles/{öğrenciNo}) — merge:true
+  // olduğundan photoURL gibi diğer alanlar korunur. Denetim lib'te: geçersiz
+  // bir T.C. kimlik ya da e-posta kaydedilmez, çünkü belgeye aynen geçer.
+  const handleProfilKaydet = async (yeniDegerler) => {
+    if (!currentUser?.studentNumber) return false;
+    const temiz = window.profilNormalle ? window.profilNormalle(yeniDegerler) : yeniDegerler || {};
+    const hatalar = window.profilHatalari ? window.profilHatalari(temiz) : {};
+    if (Object.keys(hatalar).length > 0) return hatalar;
+    setProfilKaydediliyor(true);
     try {
       await window.DBWrite.set(
         'student_profiles',
         String(currentUser.studentNumber),
-        {
-          studentNumber: String(currentUser.studentNumber),
-          phone: contactPhone.trim(),
-          email: email,
-          address: contactAddress.trim(),
-        },
+        { studentNumber: String(currentUser.studentNumber), ...temiz },
         true
       );
-      setEditContact(false);
+      setProfil(temiz);
+      setProfilAcik(false);
+      return true;
     } catch (err) {
-      alert('İletişim bilgileri kaydedilemedi: ' + err.message);
+      alert('Bilgiler kaydedilemedi: ' + err.message);
+      return false;
     } finally {
-      setSavingContact(false);
+      setProfilKaydediliyor(false);
     }
   };
+
+  // Profilin doluluk durumu — kart başlığı ve belge hazırlığı satırları.
+  const profilDurum = useMemo(
+    () =>
+      window.profilDurumu
+        ? window.profilDurumu(profil)
+        : { gruplar: [], belgeler: [], dolu: 0, toplam: 0, oran: 0 },
+    [profil]
+  );
 
   const myCourseDetails = useMemo(() => {
     const map = new Map(allCourses.map((c) => [c.id, c]));
     return selectedIds.map((id) => map.get(id)).filter(Boolean);
   }, [allCourses, selectedIds]);
+
+  // Dönem derslerinin özeti ve sınıf grupları (lib/derslerim-ozeti.js).
+  // Aynı hesap hem listede hem seçim ekranında kullanılır.
+  const dersOzet = useMemo(
+    () =>
+      window.derslerimOzeti
+        ? window.derslerimOzeti(myCourseDetails, { tavan: BS_AKTS_CAP })
+        : { sayi: myCourseDetails.length, toplamAkts: 0, tavan: BS_AKTS_CAP, kalan: 0, oran: 0 },
+    [myCourseDetails]
+  );
+  const dersGruplariListesi = useMemo(
+    () =>
+      window.dersGruplari
+        ? window.dersGruplari(myCourseDetails)
+        : [{ sinif: 0, etiket: 'Dersler', dersler: myCourseDetails, toplamAkts: 0 }],
+    [myCourseDetails]
+  );
 
   // Seçilen derslerin toplam AKTS'si (42 tavanı) — akts/kredi alanından
   const totalAkts = useMemo(
@@ -786,7 +819,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       } catch (_) {
         /* ignore */
       }
-      setEditMode(false);
+      kipeGec(false);
     } catch (e) {
       console.error(e);
       alert('Kaydedilemedi: ' + (e.message || 'bilinmeyen hata'));
@@ -866,32 +899,77 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   if (editMode) {
     return (
       <div style={{ fontFamily: "'Inter', sans-serif", color: '#1F2937' }}>
+        {/* ⚠ BU EKRANDAN ÇIKIŞ YOKTU: öğrenci "Dersleri Düzenle"ye basınca
+            (ya da hiç seçimi olmadığı için ekran kendiliğinden açılınca)
+            geri dönecek bir düğme bulamıyordu. Kaydet düğmesi de danışman
+            seçilmeden etkinleşmediği için, bölümünde tanımlı akademisyen
+            olmayan öğrenci sayfada kilitli kalıyordu. */}
         <div
           style={{
             background: 'linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)',
-            padding: '24px 28px',
+            padding: '20px 24px',
             borderRadius: 14,
             color: 'white',
-            marginBottom: 20,
+            marginBottom: 18,
             boxShadow: '0 6px 20px rgba(27,42,74,0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            flexWrap: 'wrap',
           }}
         >
-          <div
+          <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 11.5,
+                opacity: 0.75,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Benim Sayfam · Ders Seçimi
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, marginTop: 4 }}>
+              {studentRecord?.firstName} {studentRecord?.lastName}
+            </div>
+            <div style={{ fontSize: 13, opacity: 0.85, marginTop: 5 }}>
+              {studentRecord?.studentNumber} · {deptName}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => kipeGec(false)}
             style={{
-              fontSize: 12,
-              opacity: 0.75,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '9px 16px',
+              borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.35)',
+              background: 'rgba(255,255,255,0.12)',
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              whiteSpace: 'nowrap',
             }}
           >
-            Benim Sayfam · Ders Seçimi
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 700, marginTop: 4 }}>
-            {studentRecord?.firstName} {studentRecord?.lastName}
-          </div>
-          <div style={{ fontSize: 13, opacity: 0.85, marginTop: 6 }}>
-            {studentRecord?.studentNumber} · {deptName}
-          </div>
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Sayfama dön
+          </button>
         </div>
 
         <div
@@ -1257,52 +1335,90 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           </div>
         )}
 
-        <div
-          style={{
-            position: 'sticky',
-            bottom: 0,
-            marginTop: 20,
-            background: 'white',
-            border: '1px solid #E5E7EB',
-            borderRadius: 12,
-            padding: 14,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            boxShadow: '0 -4px 12px rgba(0,0,0,0.05)',
-            gap: 10,
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ fontSize: 13, color: '#6B7280' }}>
-            <strong style={{ color: '#1F2937' }}>{selectedIds.length}</strong> ders ·{' '}
-            <strong style={{ color: aktsCapExceeded ? '#B91C1C' : '#1F2937' }}>{totalAkts}</strong>{' '}
-            AKTS
-            {!advisor ? ' · danışman seçilmedi' : ''}
-          </div>
-          {(() => {
-            const disabled = saving || selectedIds.length === 0 || aktsCapExceeded || !advisor;
-            return (
-              <button
-                onClick={handleSave}
-                disabled={disabled}
-                style={{
-                  padding: '10px 22px',
-                  borderRadius: 8,
-                  background: disabled ? '#9CA3AF' : '#1B2A4A',
-                  color: 'white',
-                  border: 'none',
-                  fontWeight: 600,
-                  fontSize: 14,
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                {saving ? 'Kaydediliyor…' : 'Seçimi Kaydet ve Kilitle'}
-              </button>
-            );
-          })()}
-        </div>
+        {/* Alt şerit: seçim özeti + neden kaydedilemediği + çıkış.
+            Engeller eskiden yalnız kaydet'e basınca alert olarak çıkıyordu. */}
+        {(() => {
+          const engeller = [];
+          if (selectedIds.length === 0) engeller.push('en az bir ders seçin');
+          if (aktsCapExceeded) engeller.push(BS_AKTS_CAP + ' AKTS tavanını aşmayın');
+          if (!advisor) engeller.push('danışman seçin');
+          const disabled = saving || engeller.length > 0;
+          return (
+            <div
+              style={{
+                position: 'sticky',
+                bottom: 0,
+                marginTop: 20,
+                background: 'white',
+                border: '1px solid #E5E7EB',
+                borderRadius: 14,
+                padding: '14px 16px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                boxShadow: '0 -4px 16px rgba(16,24,40,0.08)',
+                gap: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, color: '#374151' }}>
+                  <strong style={{ color: '#1F2937' }}>{selectedIds.length}</strong> ders ·{' '}
+                  <strong style={{ color: aktsCapExceeded ? '#B91C1C' : '#1F2937' }}>
+                    {totalAkts}
+                  </strong>{' '}
+                  / {BS_AKTS_CAP} AKTS
+                </div>
+                {engeller.length > 0 && (
+                  <div style={{ fontSize: 12, color: '#B45309', marginTop: 4, lineHeight: 1.5 }}>
+                    Kaydetmek için: {engeller.join(' · ')}.
+                    {advisorOptions.length === 0 && !advisor
+                      ? ' Bölümünüzde tanımlı akademisyen görünmüyor — seçiminizi kaydedemiyorsanız bölüm sekreterliğine bildirin.'
+                      : ''}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => kipeGec(false)}
+                  disabled={saving}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 10,
+                    background: 'white',
+                    color: '#1B2A4A',
+                    border: '1px solid #D1D5DB',
+                    fontWeight: 600,
+                    fontSize: 13.5,
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Vazgeç
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={disabled}
+                  title={engeller.length ? 'Kaydetmek için: ' + engeller.join(', ') : ''}
+                  style={{
+                    padding: '10px 22px',
+                    borderRadius: 10,
+                    background: disabled ? '#9CA3AF' : '#1B2A4A',
+                    color: 'white',
+                    border: 'none',
+                    fontWeight: 600,
+                    fontSize: 13.5,
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {saving ? 'Kaydediliyor…' : 'Seçimi Kaydet ve Kilitle'}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }
@@ -1358,7 +1474,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: bsCalLayout.isWide ? '300px minmax(0, 1fr) 300px' : '1fr',
+          gridTemplateColumns: bsCalLayout.isWide ? '320px minmax(0, 1fr)' : '1fr',
           gap: 24,
           alignItems: 'start',
         }}
@@ -1501,7 +1617,13 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             </div>
           </div>
 
-          {/* İletişim Bilgilerim — öğrencinin kendi telefon/e-posta/adresi */}
+          {/* ══ Kişisel Bilgilerim ══
+              ⚠ BU BİLGİLER HER MODÜLDE YENİDEN SORULUYORDU: staj formunda
+              T.C. kimlik ve nüfus bilgileri, dilekçelerde telefon/e-posta/
+              adres. Öğrenci her belgede baştan yazıyor, bir yerde yanlış
+              yazınca belgeler birbirini tutmuyordu. Artık tek kayıt
+              (student_profiles) ve tek sözlük var: lib/ogrenci-profil.js.
+              Kart hangi belgenin neyi istediğini de söyler. */}
           <div style={cardBox}>
             <div
               style={{
@@ -1522,142 +1644,105 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0122 16.92z" />
+                  <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
+                  <path d="M9 11a4 4 0 100-8 4 4 0 000 8zM19 8v6M22 11h-6" />
                 </svg>
-                İletişim Bilgilerim
+                Kişisel Bilgilerim
               </h3>
-              {!editContact && (
-                <button
-                  onClick={() => setEditContact(true)}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: 8,
-                    border: '1px solid ' + M3navy + '33',
-                    background: '#fff',
-                    color: M3navy,
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Düzenle
-                </button>
-              )}
+              <button
+                onClick={() => setProfilAcik(true)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 8,
+                  border: '1px solid ' + M3navy + '33',
+                  background: '#fff',
+                  color: M3navy,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Düzenle
+              </button>
             </div>
 
-            {editContact ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
-                {[
-                  {
-                    label: 'Telefon',
-                    val: contactPhone,
-                    set: setContactPhone,
-                    ph: 'örn. 0555 123 45 67',
-                    type: 'tel',
-                  },
-                  {
-                    label: 'E-posta',
-                    val: contactEmail,
-                    set: setContactEmail,
-                    ph: 'ornek@' + (window.TENANT?.studentEmailDomain || 'ogrenci.edu.tr'),
-                    type: 'email',
-                  },
-                ].map((f) => (
-                  <div key={f.label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <label style={{ fontSize: 12, color: '#757682' }}>{f.label}</label>
-                    <input
-                      type={f.type}
-                      value={f.val}
-                      onChange={(e) => f.set(e.target.value)}
-                      placeholder={f.ph}
-                      style={{
-                        padding: '9px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #D1D5DB',
-                        fontSize: 13.5,
-                        outline: 'none',
-                        fontFamily: "'Inter', sans-serif",
-                      }}
-                    />
-                  </div>
-                ))}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label style={{ fontSize: 12, color: '#757682' }}>Adres</label>
-                  <textarea
-                    value={contactAddress}
-                    onChange={(e) => setContactAddress(e.target.value)}
-                    placeholder="Açık adresiniz"
-                    rows={3}
-                    style={{
-                      padding: '9px 12px',
-                      borderRadius: 8,
-                      border: '1px solid #D1D5DB',
-                      fontSize: 13.5,
-                      outline: 'none',
-                      resize: 'vertical',
-                      fontFamily: "'Inter', sans-serif",
-                    }}
-                  />
+            {/* Doluluk — belgeye hazır mısınız? */}
+            <div style={{ marginTop: 12 }}>
+              <div
+                style={{
+                  height: 6,
+                  borderRadius: 6,
+                  background: '#E5E7EB',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: Math.round(profilDurum.oran * 100) + '%',
+                    height: '100%',
+                    borderRadius: 6,
+                    background: profilDurum.oran === 1 ? M3green : '#B45309',
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 6, lineHeight: 1.55 }}>
+                {profilDurum.dolu}/{profilDurum.toplam} bilgi girildi ·{' '}
+                {window.profilOzetMetni ? window.profilOzetMetni(profilDurum) : ''}
+              </div>
+            </div>
+
+            {/* Belge hazırlığı — hangi çıktı için ne eksik */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+              {(profilDurum.belgeler || []).map((b) => (
+                <div
+                  key={b.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    color: b.hazir ? '#065F46' : '#92400E',
+                    background: b.hazir ? '#ECFDF5' : '#FFFBEB',
+                    border: '1px solid ' + (b.hazir ? '#A7F3D0' : '#FDE68A'),
+                    borderRadius: 9,
+                    padding: '7px 10px',
+                    lineHeight: 1.45,
+                  }}
+                  title={b.hazir ? '' : 'Eksik: ' + b.eksikler.join(', ')}
+                >
+                  <span style={{ flex: '0 0 auto', fontWeight: 800 }}>{b.hazir ? '✓' : '!'}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    {b.ad}
+                    {b.hazir ? '' : ' — ' + b.eksik + ' bilgi eksik'}
+                  </span>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={handleSaveContact}
-                    disabled={savingContact}
+              ))}
+            </div>
+
+            {/* Girilmiş bilgiler — kısa özet */}
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                { etiket: 'Telefon', deger: profil.phone },
+                { etiket: 'E-posta', deger: profil.email },
+                { etiket: 'Adres', deger: profil.address },
+              ].map((x) => (
+                <div key={x.etiket}>
+                  <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>{x.etiket}</div>
+                  <div
                     style={{
-                      padding: '8px 16px',
-                      borderRadius: 8,
-                      border: 'none',
-                      background: M3navy,
-                      color: '#fff',
                       fontSize: 13,
-                      fontWeight: 600,
-                      cursor: savingContact ? 'wait' : 'pointer',
+                      color: x.deger ? '#1F2937' : '#9CA3AF',
+                      fontWeight: x.deger ? 600 : 400,
+                      lineHeight: 1.45,
+                      overflowWrap: 'anywhere',
                     }}
                   >
-                    {savingContact ? 'Kaydediliyor…' : 'Kaydet'}
-                  </button>
-                  <button
-                    onClick={() => setEditContact(false)}
-                    disabled={savingContact}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: 8,
-                      border: '1px solid #D1D5DB',
-                      background: '#fff',
-                      color: '#374151',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Vazgeç
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
-                {[
-                  { label: 'Telefon', val: contactPhone },
-                  { label: 'E-posta', val: contactEmail },
-                  { label: 'Adres', val: contactAddress },
-                ].map((f) => (
-                  <div key={f.label} style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: 12, color: '#757682' }}>{f.label}</span>
-                    <span
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: f.val ? '#191C1E' : '#9CA3AF',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {f.val || 'Belirtilmemiş'}
-                    </span>
+                    {x.deger || 'girilmedi'}
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Danışman Bilgileri */}
@@ -1870,6 +1955,69 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               </div>
             </div>
           )}
+          {/* Yaklaşan Etkinlikler — eskiden üçüncü bir sütundaydı; o sütunda
+              başka hiçbir şey kalmayınca ekranın sağı boş duruyordu. Kart
+              artık kenar çubuğunun sonunda, takvimin hemen yanında. */}
+          <div style={cardBox}>
+            <h3 style={sectionTitle}>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={M3green}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 11a9 9 0 019 9M4 4a16 16 0 0116 16M5 19a1 1 0 100-2 1 1 0 000 2z" />
+              </svg>
+              Yaklaşan Etkinlikler
+            </h3>
+            {upcomingEvents.length === 0 ? (
+              <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>Yaklaşan etkinlik yok.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {upcomingEvents.slice(0, 6).map((ev, i) => {
+                  const st = bsEventState(ev);
+                  const d = new Date(ev.date);
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        borderBottom:
+                          i < Math.min(upcomingEvents.length, 6) - 1 ? '1px solid #F0EDE6' : 'none',
+                        paddingBottom: 10,
+                      }}
+                    >
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}
+                      >
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            background: st.accent,
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span style={{ fontSize: 11.5, color: '#757682', fontWeight: 600 }}>
+                          {d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}
+                          {st.isSoon ? ' · yaklaşıyor' : ''}
+                        </span>
+                      </div>
+                      <div
+                        style={{ fontSize: 13, fontWeight: 600, color: M3navy, lineHeight: 1.4 }}
+                      >
+                        {ev.title || ev.baslik || 'Etkinlik'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ══ MERKEZ: Takvim · Kampüs Haritası · Derslerim ══ */}
@@ -2089,7 +2237,150 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             </div>
           )}
 
-          {/* Derslerim */}
+          {/* ══ Bildirimler ══
+              ⚠ BİLDİRİMLER YÜKLENİYOR AMA HİÇBİR YERDE ÇİZİLMİYORDU:
+              `notifications` okunuyor, "okundu" işleyicileri duruyor, ekranda
+              karşılığı yoktu. Dosyanın başındaki açıklama bile "seçim
+              tamamlandıktan sonra kendi dersleri + bildirimler" diyor. Kart
+              geri kondu. */}
+          {(notifications.length > 0 || notifLoading) && (
+            <div style={cardBox}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  marginBottom: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <h3 style={{ ...sectionTitle, margin: 0 }}>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke={M3green}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
+                  </svg>
+                  Bildirimler
+                  {unreadCount > 0 && (
+                    <span
+                      style={{
+                        marginLeft: 2,
+                        padding: '2px 9px',
+                        borderRadius: 999,
+                        background: '#FEE2E2',
+                        color: '#B91C1C',
+                        fontSize: 11.5,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {unreadCount} yeni
+                    </span>
+                  )}
+                </h3>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: 8,
+                      border: '1px solid ' + M3navy + '33',
+                      background: '#fff',
+                      color: M3navy,
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    Tümünü okundu say
+                  </button>
+                )}
+              </div>
+              {notifLoading && notifications.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>Yükleniyor…</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {notifications.slice(0, 8).map((n) => (
+                    <button
+                      key={n.id}
+                      type="button"
+                      onClick={() => handleNotificationClick(n)}
+                      style={{
+                        textAlign: 'left',
+                        display: 'flex',
+                        gap: 10,
+                        alignItems: 'flex-start',
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        border: '1px solid ' + (n.read ? '#EEF0F3' : '#BFDBFE'),
+                        background: n.read ? '#fff' : '#EFF6FF',
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          marginTop: 5,
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          flexShrink: 0,
+                          background: n.read ? '#D1D5DB' : '#2563EB',
+                        }}
+                      />
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span
+                          style={{
+                            display: 'block',
+                            fontSize: 13,
+                            fontWeight: n.read ? 600 : 700,
+                            color: M3navy,
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {n.title || 'Bildirim'}
+                        </span>
+                        {n.body && (
+                          <span
+                            style={{
+                              display: 'block',
+                              fontSize: 12,
+                              color: '#6B7280',
+                              marginTop: 2,
+                              lineHeight: 1.5,
+                            }}
+                          >
+                            {n.body}
+                          </span>
+                        )}
+                        <span
+                          style={{ display: 'block', fontSize: 11, color: '#9CA3AF', marginTop: 4 }}
+                        >
+                          {bsTimeAgo(n.createdAt)}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ══ Derslerim ══
+              ⚠ ESKİ HÂLİ DÜZ BİR KART YIĞINIYDI: kaç ders alındığı, kaç AKTS
+              ettiği, tavana ne kadar kaldığı, seçimin kilitli olup olmadığı
+              hiçbir yerde yazmıyordu — oysa seçim ekranında bu sayılar var.
+              Dersler artık sınıfa göre gruplanır ve üstte bir özet şeridi
+              durur (hesap: lib/derslerim-ozeti.js). */}
           <div>
             <div
               style={{
@@ -2115,8 +2406,8 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                   }}
                   style={{
                     padding: '8px 12px',
-                    borderRadius: 8,
-                    border: '1px solid #757682',
+                    borderRadius: 10,
+                    border: '1px solid #D1D5DB',
                     fontSize: 13,
                     background: '#fff',
                     cursor: 'pointer',
@@ -2132,21 +2423,55 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                     );
                   })}
                 </select>
+                {locked && (
+                  <span
+                    title="Seçiminiz kaydedildi ve kilitlendi. Değişiklik için bölüm yetkilinize başvurun."
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      background: '#EFF6FF',
+                      border: '1px solid #BFDBFE',
+                      color: '#1E40AF',
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                    }}
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                      <path d="M7 11V7a5 5 0 0110 0v4" />
+                    </svg>
+                    Kilitli
+                  </span>
+                )}
               </div>
               <button
-                onClick={() => setEditMode(true)}
+                onClick={() => kipeGec(true)}
                 style={{
                   background: '#fff',
                   border: '1px solid ' + M3navy,
                   color: M3navy,
-                  padding: '8px 14px',
-                  borderRadius: 8,
+                  padding: '9px 16px',
+                  borderRadius: 10,
                   fontSize: 13,
                   fontWeight: 600,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
+                  gap: 7,
+                  fontFamily: 'inherit',
                 }}
               >
                 <svg
@@ -2159,236 +2484,334 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
-                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" />
                 </svg>
                 Dersleri Düzenle
               </button>
             </div>
 
-            {locked && (
+            {/* Özet şeridi: sayı · AKTS · tavan payı */}
+            <div style={{ ...cardBox, padding: '14px 16px', marginBottom: 14 }}>
               <div
                 style={{
-                  marginBottom: 14,
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  background: '#EFF6FF',
-                  border: '1px solid #BFDBFE',
-                  fontSize: 12.5,
-                  color: '#1E3A8A',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  flexWrap: 'wrap',
+                  marginBottom: dersOzet.sayi ? 10 : 0,
                 }}
               >
-                Ders seçiminiz kilitli. Değişiklik için bölüm yetkilinizle iletişime geçin.
+                {[
+                  { etiket: 'Ders', deger: dersOzet.sayi },
+                  { etiket: 'Toplam AKTS', deger: dersOzet.toplamAkts },
+                  {
+                    etiket: dersOzet.asildi ? 'Tavan aşımı' : 'Tavana kalan',
+                    deger: dersOzet.asildi
+                      ? '+' + Math.round((dersOzet.toplamAkts - dersOzet.tavan) * 100) / 100
+                      : dersOzet.kalan,
+                    uyari: dersOzet.asildi,
+                  },
+                ].map((k) => (
+                  <div key={k.etiket} style={{ minWidth: 92 }}>
+                    <div
+                      style={{
+                        fontSize: 22,
+                        fontWeight: 800,
+                        lineHeight: 1.1,
+                        color: k.uyari ? '#B91C1C' : M3navy,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      {k.deger}
+                    </div>
+                    <div
+                      style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600, marginTop: 2 }}
+                    >
+                      {k.etiket}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ flex: '1 1 160px', minWidth: 120 }}>
+                  <div
+                    style={{
+                      height: 6,
+                      borderRadius: 6,
+                      background: '#E5E7EB',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: Math.round(dersOzet.oran * 100) + '%',
+                        height: '100%',
+                        borderRadius: 6,
+                        background: dersOzet.asildi ? '#DC2626' : M3green,
+                      }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 11, color: '#6B7280', marginTop: 5 }}>
+                    {dersOzet.toplamAkts} / {dersOzet.tavan} AKTS
+                  </div>
+                </div>
+                {advisor && (
+                  <div style={{ fontSize: 12, color: '#6B7280', flex: '1 1 180px' }}>
+                    Danışman
+                    <div style={{ fontSize: 13, fontWeight: 700, color: M3navy, marginTop: 2 }}>
+                      {advisor}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+              {dersOzet.aktsBilinmeyen > 0 && (
+                <div style={{ fontSize: 11.5, color: '#B45309' }}>
+                  {dersOzet.aktsBilinmeyen} dersin AKTS bilgisi tanımlı değil — toplam eksik
+                  görünebilir.
+                </div>
+              )}
+            </div>
 
             {myCourseDetails.length === 0 ? (
               <div
                 style={{
                   ...cardBox,
+                  border: '1px dashed #D1D5DB',
+                  boxShadow: 'none',
+                  background: '#FAFAFA',
                   textAlign: 'center',
-                  color: '#9CA3AF',
-                  fontSize: 13.5,
+                  padding: '34px 20px',
                 }}
               >
-                Kayıtlı dersiniz bulunmuyor. "Dersleri Düzenle" butonuna tıklayarak dersleri seçin.
+                <div style={{ fontSize: 14.5, fontWeight: 700, color: M3navy }}>
+                  Bu dönem için ders seçmediniz
+                </div>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    color: '#6B7280',
+                    margin: '6px auto 14px',
+                    maxWidth: 420,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {bsTermLabel(term.academicYear, term.donem)} dönemine ait ders kaydınız yok.
+                  Derslerinizi seçip kaydettiğinizde burada listelenir.
+                </div>
+                <button
+                  onClick={() => kipeGec(true)}
+                  style={{
+                    padding: '9px 18px',
+                    borderRadius: 10,
+                    background: M3navy,
+                    color: 'white',
+                    border: 'none',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Ders seçimine git
+                </button>
               </div>
             ) : (
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: bsCalLayout.isWide ? '1fr 1fr' : '1fr',
-                  gap: 14,
-                }}
-              >
-                {myCourseDetails.map((c) => (
-                  <div
-                    key={c.id || c.code}
-                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = M3navy)}
-                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#E5E7EB')}
-                    style={{
-                      background: '#fff',
-                      border: '1px solid #E5E7EB',
-                      borderRadius: 12,
-                      padding: 16,
-                      transition: 'border-color 0.15s',
-                      boxShadow: '0 1px 3px rgba(16,24,40,0.05)',
-                    }}
-                  >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {dersGruplariListesi.map((grup) => (
+                  <div key={grup.sinif}>
                     <div
                       style={{
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: M3navy,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
                         marginBottom: 8,
-                        lineHeight: 1.35,
                       }}
                     >
-                      {c.code} {c.name}
-                    </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        color: '#444651',
-                        marginBottom: 10,
-                      }}
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#757682"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: '#374151' }}>
+                        {grup.etiket}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: '#6B7280',
+                          background: '#F3F4F6',
+                          borderRadius: 999,
+                          padding: '2px 9px',
+                          fontWeight: 600,
+                        }}
                       >
-                        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" />
-                      </svg>
-                      <span style={{ fontSize: 12.5 }}>
-                        {window.dersEgitmenMetni(c) || 'Öğretim üyesi belirtilmemiş'}
+                        {grup.dersler.length} ders · {grup.toplamAkts} AKTS
                       </span>
+                      <span style={{ flex: 1, height: 1, background: '#EEF0F3' }} />
                     </div>
                     <div
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        paddingTop: 10,
-                        borderTop: '1px solid #F0EDE6',
+                        display: 'grid',
+                        gridTemplateColumns: bsCalLayout.isWide
+                          ? 'repeat(auto-fill, minmax(280px, 1fr))'
+                          : '1fr',
+                        gap: 12,
                       }}
                     >
-                      <span style={{ fontSize: 12, color: '#757682' }}>
-                        AKTS: {c.akts || c.kredi || '—'}
-                      </span>
-                      {c.bolognaLink ? (
-                        <a
-                          href={bsNormalizeUrl(c.bolognaLink)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            fontSize: 12,
-                            color: M3green,
-                            textDecoration: 'none',
-                            fontWeight: 600,
-                          }}
-                        >
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke={M3green}
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
+                      {grup.dersler.map((c) => {
+                        const sinifInfo = BS_SINIF_COLORS[c.sinif] || BS_SINIF_COLORS[5];
+                        const akts = window.dersAkts ? window.dersAkts(c) : c.akts || c.kredi;
+                        return (
+                          <div
+                            key={c.id || c.code}
+                            style={{
+                              background: '#fff',
+                              border: '1px solid #E5E7EB',
+                              borderRadius: 12,
+                              padding: 14,
+                              boxShadow: '0 1px 3px rgba(16,24,40,0.05)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 8,
+                              borderTop: '3px solid ' + sinifInfo.text,
+                            }}
                           >
-                            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-                            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-                          </svg>
-                          Bologna linki
-                        </a>
-                      ) : (
-                        <span style={{ fontSize: 12, color: '#9CA3AF' }}>Bologna linki yok</span>
-                      )}
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                flexWrap: 'wrap',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 800,
+                                  color: sinifInfo.text,
+                                  background: sinifInfo.bg,
+                                  borderRadius: 7,
+                                  padding: '3px 9px',
+                                  letterSpacing: 0.2,
+                                }}
+                              >
+                                {c.code}
+                              </span>
+                              <span
+                                style={{
+                                  marginLeft: 'auto',
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  color: '#374151',
+                                  background: '#F3F4F6',
+                                  borderRadius: 999,
+                                  padding: '3px 10px',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {akts != null ? akts + ' AKTS' : 'AKTS —'}
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 700,
+                                color: M3navy,
+                                lineHeight: 1.35,
+                              }}
+                            >
+                              {c.name}
+                            </div>
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                color: '#6B7280',
+                                fontSize: 12.5,
+                              }}
+                            >
+                              <svg
+                                width="15"
+                                height="15"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.9"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                              >
+                                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" />
+                              </svg>
+                              <span
+                                style={{
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                title={window.dersEgitmenMetni(c) || ''}
+                              >
+                                {window.dersEgitmenMetni(c) || 'Öğretim üyesi belirtilmemiş'}
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 8,
+                                paddingTop: 9,
+                                borderTop: '1px solid #F1F2F4',
+                                fontSize: 11.5,
+                                color: '#9CA3AF',
+                              }}
+                            >
+                              <span>{BS_DONEM_LABEL[c.donem] || c.donem || 'Dönem —'}</span>
+                              {c.bolognaLink ? (
+                                <a
+                                  href={bsNormalizeUrl(c.bolognaLink)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    fontSize: 11.5,
+                                    color: M3green,
+                                    textDecoration: 'none',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  <svg
+                                    width="13"
+                                    height="13"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                  >
+                                    <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                                    <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+                                  </svg>
+                                  Bologna
+                                </a>
+                              ) : (
+                                <span>Bologna linki yok</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-        </div>
 
-        {/* ══ SAĞ SÜTUN: Yaklaşan Etkinlikler ══ */}
-        {bsCalLayout.isWide && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-            <div style={cardBox}>
-              <h3 style={sectionTitle}>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={M3green}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M4 11a9 9 0 019 9M4 4a16 16 0 0116 16M5 19a1 1 0 100-2 1 1 0 000 2z" />
-                </svg>
-                Yaklaşan Etkinlikler
-              </h3>
-              {upcomingEvents.length === 0 ? (
-                <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>
-                  Yaklaşan etkinlik yok.
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {upcomingEvents.slice(0, 6).map((ev, i) => {
-                    const st = bsEventState(ev);
-                    const d = new Date(ev.date);
-                    return (
-                      <div
-                        key={i}
-                        style={{
-                          borderBottom:
-                            i < Math.min(upcomingEvents.length, 6) - 1
-                              ? '1px solid #F0EDE6'
-                              : 'none',
-                          paddingBottom: 10,
-                        }}
-                      >
-                        <div
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}
-                        >
-                          <span
-                            style={{
-                              width: 8,
-                              height: 8,
-                              borderRadius: '50%',
-                              background: st.accent,
-                              flexShrink: 0,
-                            }}
-                          />
-                          <span style={{ fontSize: 11.5, color: '#757682', fontWeight: 600 }}>
-                            {d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}
-                            {st.isSoon ? ' · yaklaşıyor' : ''}
-                          </span>
-                        </div>
-                        <div
-                          style={{ fontSize: 13, fontWeight: 600, color: M3navy, lineHeight: 1.4 }}
-                        >
-                          {ev.title || ev.baslik || 'Etkinlik'}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Mezuniyet Durumum — Yaklaşan Etkinlikler'in hemen altında,
-                aynı sütun genişliği ve kart düzeniyle. */}
-            <BSMezuniyetDurumu
-              currentUser={currentUser}
-              studentDeptId={studentDeptId}
-              allCourses={allCourses}
-              cardBox={cardBox}
-              sectionTitle={sectionTitle}
-              dar
-            />
-          </div>
-        )}
-
-        {/* Dar ekranda sağ sütun hiç render edilmiyor; kart orada da
-            görünsün diye ana akışın sonuna düşürülüyor. Aksi hâlde telefondan
-            giren öğrenci mezuniyet durumunu hiç göremezdi. */}
-        {!bsCalLayout.isWide && (
+          {/* ══ Mezuniyet Durumum ══
+              ⚠ Bu kart 300 piksellik sağ sütundaydı: transkript tablosu,
+              koşul listesi ve uyarı metni o genişliğe sığmıyor, her satır
+              üç kelimede bir kırılıyordu. Ana sütuna alındı — tablo artık
+              kırpılmadan okunuyor. */}
           <BSMezuniyetDurumu
             currentUser={currentUser}
             studentDeptId={studentDeptId}
@@ -2396,8 +2819,17 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             cardBox={cardBox}
             sectionTitle={sectionTitle}
           />
-        )}
+        </div>
       </div>
+
+      {profilAcik && (
+        <BSProfilDuzenle
+          profil={profil}
+          kaydediliyor={profilKaydediliyor}
+          onKapat={() => setProfilAcik(false)}
+          onKaydet={handleProfilKaydet}
+        />
+      )}
 
       {lightbox && (
         <BSLightbox
@@ -2406,6 +2838,246 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           onClose={() => setLightbox(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// KİŞİSEL BİLGİLER DÜZENLEME
+//
+// Sol sütundaki kart 300 piksel: on beş alanlık bir formu oraya sıkıştırmak,
+// her alanı iki kelimelik bir kutuya hapsetmek olurdu. Düzenleme bu yüzden
+// ayrı bir katmanda ve GRUPLU: iletişim · kimlik · nüfus. Her grubun başında
+// o bilgilerin hangi belgede kullanıldığı yazar — "neden soruyorsunuz"
+// sorusunun cevabı formun içinde durur.
+//
+// Denetim lib/ogrenci-profil.js'te: geçersiz bir T.C. kimlik ya da e-posta
+// KAYDEDİLMEZ, çünkü buradan doğrudan resmî belgeye geçiyor.
+// ══════════════════════════════════════════════════════════════
+function BSProfilDuzenle({ profil, onKapat, onKaydet, kaydediliyor }) {
+  const [form, setForm] = useState(() => ({ ...(profil || {}) }));
+  const [hatalar, setHatalar] = useState({});
+  const gruplar = window.PROFIL_GRUPLARI || [];
+  const alanlar = window.PROFIL_ALANLARI || [];
+
+  const yaz = (alan, deger) => {
+    const v = window.profilAlanSuzgeci ? window.profilAlanSuzgeci(alan, deger) : deger;
+    setForm((f) => ({ ...f, [alan.anahtar]: v }));
+    setHatalar((h) => {
+      if (!h[alan.anahtar]) return h;
+      const y = { ...h };
+      delete y[alan.anahtar];
+      return y;
+    });
+  };
+
+  const kaydet = async () => {
+    const sonuc = await onKaydet(form);
+    // Kural dosyası hata haritası döndürür; kaydedildiyse `true`.
+    if (sonuc && sonuc !== true) setHatalar(sonuc);
+  };
+
+  const girdiStili = (hata) => ({
+    width: '100%',
+    padding: '9px 11px',
+    borderRadius: 9,
+    border: '1px solid ' + (hata ? '#DC2626' : '#D1D5DB'),
+    fontSize: 13.5,
+    outline: 'none',
+    fontFamily: "'Inter', sans-serif",
+    background: '#fff',
+    boxSizing: 'border-box',
+  });
+
+  return (
+    <div
+      onClick={onKapat}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,0.55)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '4vh 16px',
+        overflowY: 'auto',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 16,
+          width: 'min(760px, 100%)',
+          boxShadow: '0 20px 60px rgba(15,23,42,0.3)',
+          overflow: 'hidden',
+          fontFamily: "'Inter', sans-serif",
+        }}
+      >
+        <div
+          style={{
+            padding: '18px 22px',
+            borderBottom: '1px solid #E5E7EB',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: '#1B2A4A' }}>
+              Kişisel Bilgilerim
+            </div>
+            <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 3, lineHeight: 1.5 }}>
+              Bir kez girin — staj, muafiyet ve ÇAP dilekçeleriniz bu bilgilerle üretilir. Hiçbir
+              alan zorunlu değildir; yalnız ilgili belgeyi alacaksanız doldurmanız gerekir.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onKapat}
+            aria-label="Kapat"
+            style={{
+              border: '1px solid #E5E7EB',
+              background: '#fff',
+              borderRadius: 9,
+              width: 32,
+              height: 32,
+              cursor: 'pointer',
+              color: '#6B7280',
+              fontSize: 17,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {gruplar.map((g) => (
+            <div key={g.id}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: '#1B2A4A' }}>{g.ad}</div>
+              <div style={{ fontSize: 11.5, color: '#6B7280', margin: '3px 0 10px' }}>
+                {g.aciklama}
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                  gap: 12,
+                }}
+              >
+                {alanlar
+                  .filter((a) => a.grup === g.id)
+                  .map((a) => {
+                    const hata = hatalar[a.anahtar] || '';
+                    const uzun = a.tip === 'uzunMetin';
+                    return (
+                      <div
+                        key={a.anahtar}
+                        style={{ minWidth: 0, ...(uzun ? { gridColumn: '1 / -1' } : {}) }}
+                      >
+                        <label
+                          style={{
+                            display: 'block',
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            color: hata ? '#DC2626' : '#6B7280',
+                            marginBottom: 4,
+                          }}
+                        >
+                          {a.etiket}
+                        </label>
+                        {uzun ? (
+                          <textarea
+                            value={form[a.anahtar] || ''}
+                            onChange={(e) => yaz(a, e.target.value)}
+                            rows={2}
+                            placeholder={a.ipucu || ''}
+                            style={{ ...girdiStili(hata), resize: 'vertical' }}
+                          />
+                        ) : (
+                          <input
+                            type={a.tip === 'tarih' ? 'date' : 'text'}
+                            inputMode={a.tip === 'tc' || a.tip === 'sayi' ? 'numeric' : undefined}
+                            value={form[a.anahtar] || ''}
+                            onChange={(e) => yaz(a, e.target.value)}
+                            placeholder={a.ipucu || ''}
+                            style={girdiStili(hata)}
+                          />
+                        )}
+                        {hata ? (
+                          <div style={{ fontSize: 11, color: '#DC2626', marginTop: 4 }}>{hata}</div>
+                        ) : a.ipucu && a.tip !== 'tarih' ? (
+                          <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 4 }}>
+                            {a.ipucu}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div
+          style={{
+            padding: '14px 22px',
+            borderTop: '1px solid #E5E7EB',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+            background: '#FAFAFA',
+          }}
+        >
+          <span style={{ fontSize: 11.5, color: '#6B7280', flex: '1 1 220px', lineHeight: 1.5 }}>
+            Kimlik ve nüfus bilgileri yalnız belge üretiminde kullanılır; kaydınızda saklanır ve
+            bölüm yetkilinizden başkasına gösterilmez.
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={onKapat}
+              disabled={kaydediliyor}
+              style={{
+                padding: '9px 16px',
+                borderRadius: 9,
+                border: '1px solid #D1D5DB',
+                background: '#fff',
+                color: '#1B2A4A',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Vazgeç
+            </button>
+            <button
+              type="button"
+              onClick={kaydet}
+              disabled={kaydediliyor}
+              style={{
+                padding: '9px 20px',
+                borderRadius: 9,
+                border: 'none',
+                background: '#1B2A4A',
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: kaydediliyor ? 'wait' : 'pointer',
+                opacity: kaydediliyor ? 0.7 : 1,
+                fontFamily: 'inherit',
+              }}
+            >
+              {kaydediliyor ? 'Kaydediliyor…' : 'Kaydet'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2450,10 +3122,11 @@ const BS_TRANSKRIPT_UST_BILGI = [
   { id: 'sinif', label: 'Sınıf', hint: 'yalnız rakam' },
 ];
 
-// `dar`: kart 300 piksellik sağ sütunda duruyor. Bilgi kırpılmaz — yalnız
-// yerleşim tek sütuna iner ve geniş içerik (ders tablosu) kendi içinde yatay
-// kaydırılır; sayfanın kendisi yana kaymaz.
-function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, sectionTitle, dar }) {
+// ⚠ KART ESKİDEN 300 PİKSELLİK SAĞ SÜTUNDAYDI ve oraya sığmıyordu: koşul
+// listesi, ders tablosu ve uyarı metni üç kelimede bir kırılıyordu. Artık ana
+// sütunda tam genişlikte duruyor; `dar` yerleşimi ve onunla gelen 200 piksellik
+// iç kaydırma kaldırıldı.
+function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, sectionTitle }) {
   const [kural, setKural] = useState(null);
   const [kayit, setKayit] = useState(null); // kaydedilmiş akademik kayıt
   const [yukleniyor, setYukleniyor] = useState(true);
@@ -2780,18 +3453,7 @@ function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, se
               <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1B2A4A', marginBottom: 6 }}>
                 Kalan zorunlu dersler ({sonuc.kalanZorunlu.length})
               </div>
-              {/* Dar sütunda uzun ders adları rozet içinde okunmuyor; tek
-                  sütunlu düzenli bir liste hem sığıyor hem hizalı duruyor. */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: dar ? 'nowrap' : 'wrap',
-                  flexDirection: dar ? 'column' : 'row',
-                  gap: 6,
-                  maxHeight: dar ? 200 : 'none',
-                  overflowY: dar ? 'auto' : 'visible',
-                }}
-              >
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {sonuc.kalanZorunlu.map((c, i) => (
                   <span
                     key={c.code + i}
@@ -2801,7 +3463,7 @@ function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, se
                     }
                     style={{
                       padding: '4px 10px',
-                      borderRadius: dar ? 7 : 999,
+                      borderRadius: 999,
                       border: '1px solid #FCA5A5',
                       background: '#FEF2F2',
                       color: '#991B1B',
@@ -3022,7 +3684,7 @@ function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, se
                 maxHeight: 320,
                 overflowY: 'auto',
                 // Geniş tablo KENDİ İÇİNDE kaysın; sayfanın yatay kayması
-                // dar sütunda düzeni tümden bozardı.
+                // telefonda düzeni tümden bozardı.
                 overflowX: 'auto',
                 border: '1px solid #E5E7EB',
                 borderRadius: 8,
@@ -3031,7 +3693,6 @@ function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, se
               <table
                 style={{
                   width: '100%',
-                  minWidth: dar ? 320 : 0,
                   borderCollapse: 'collapse',
                 }}
               >

@@ -1470,6 +1470,50 @@ function StajBasvuruFormu({
     loadApplications();
   }, [currentUser]);
 
+  // ── Kimlik/nüfus bilgilerini Benim Sayfam kaydından ÖN DOLDUR ──
+  // ⚠ Bu form öğrenciden T.C. kimlik, doğum yeri, cilt/aile sıra numarası
+  // gibi bilgileri her staj başvurusunda YENİDEN istiyordu; öğrenci nüfus
+  // cüzdanını her seferinde çıkarıp yazıyor, bir yerde yanlış yazınca
+  // belgeler birbirini tutmuyordu. Bilgiler artık tek kayıtta
+  // (student_profiles) duruyor; buradaki BOŞ alanlar oradan dolar, dolu
+  // alana dokunulmaz (bkz. lib/ogrenci-profil.js).
+  useEffect(() => {
+    const no = currentUser?.studentNumber || currentUser?.identifier || '';
+    if (!no || !window.profilFormaUygula) return undefined;
+    let alive = true;
+    (async () => {
+      try {
+        const res = await window.apiReadDoc('student_profiles', String(no));
+        const profil = (res && (res.data || (res.exists ? res.data : null))) || null;
+        if (!alive || !profil) return;
+        setForm((f) =>
+          window.profilFormaUygula(f, profil, {
+            telefonNo: 'phone',
+            eposta: 'email',
+            ikametgahAdresi: 'address',
+            tcKimlikNo: 'tcKimlikNo',
+            dogumTarihi: 'dogumTarihi',
+            dogumYeri: 'dogumYeri',
+            babaAdi: 'babaAdi',
+            anaAdi: 'anaAdi',
+            nufusIl: 'nufusIl',
+            nufusIlce: 'nufusIlce',
+            nufusMahalleKoy: 'nufusMahalleKoy',
+            ciltNo: 'ciltNo',
+            aileSiraNo: 'aileSiraNo',
+            siraNo: 'siraNo',
+            nufusCuzdanSeriNo: 'nufusCuzdanSeriNo',
+          })
+        );
+      } catch (_) {
+        /* profil yoksa form boş kalır */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [currentUser]);
+
   // Zorunlu alanlar listesi
   const REQUIRED_FIELDS = {
     // Kimlik Bilgileri
