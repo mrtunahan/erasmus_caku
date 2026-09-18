@@ -19,6 +19,8 @@
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 import { puanaGoreSirala, asilYedekOner } from './lib/yatay-siralama.js';
+import { alanEksikMi, formDurumu } from './lib/yatay-form-durumu.js';
+import { belgeDurumMetni, listeOzeti, ozetKutulari } from './lib/yatay-liste-ozeti.js';
 
 const YG = {
   navy: '#1B2A4A',
@@ -193,10 +195,22 @@ const YG_DURUMLAR = {
   degerlendirildi: { label: 'Değerlendirildi', color: YG.green, bg: YG.greenLight },
 };
 
+// ── Ortak görsel dil ──
+// Modülün üç ekranı (öğrenci formu · başvuru kartı · akademisyen paneli) aynı
+// kutu, aynı yuvarlaklık ve aynı gölgeyi kullanır. Değerler burada tek yerde:
+// bir kart 12, öteki 10 yarıçapla çizildiği için ekran "toplama" görünüyordu.
+const YG_OLCU = {
+  yaricap: 14,
+  yaricapKucuk: 10,
+  golge: '0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06)',
+  golgeVurgu: '0 2px 6px rgba(16,24,40,0.08), 0 8px 24px rgba(16,24,40,0.06)',
+};
+
 const ygCard = {
   background: 'white',
   border: '1px solid ' + YG.border,
-  borderRadius: 12,
+  borderRadius: YG_OLCU.yaricap,
+  boxShadow: YG_OLCU.golge,
 };
 const ygBtn = (primary) => ({
   padding: '8px 15px',
@@ -253,6 +267,301 @@ const ygOtoRozet = {
   fontWeight: 700,
   letterSpacing: 0.2,
 };
+
+// ══════════════════════════════════════════════════════════════
+// ORTAK ARAYÜZ PARÇALARI
+//
+// Üç ekran da (öğrenci formu · akademisyen listesi · aday adına başvuru)
+// aynı parçalardan kurulur. Eskiden her bölüm kendi kutusunu, kendi başlık
+// boyutunu ve kendi boşluğunu elle yazıyordu: aynı sayfada üç ayrı gri, iki
+// ayrı yuvarlaklık ve hizası tutmayan alanlar çıkıyordu.
+//
+// Buradaki parçalar YALNIZ ÇİZER — hangi alanın eksik olduğu, listede kaç
+// asil bulunduğu gibi kararlar lib/yatay-form-durumu.js ile
+// lib/yatay-liste-ozeti.js'te durur ve testlidir.
+// ══════════════════════════════════════════════════════════════
+
+/** Bölüm kutusu: numaralı başlık + açıklama + sağda serbest alan. */
+function YgBolum({ no, baslik, aciklama, sag, children, renk, style }) {
+  return (
+    <section style={{ ...ygCard, padding: '16px 18px 18px', marginBottom: 14, ...(style || {}) }}>
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 12,
+          marginBottom: aciklama || children ? 14 : 0,
+        }}
+      >
+        {no != null && (
+          <span
+            style={{
+              flex: '0 0 auto',
+              width: 26,
+              height: 26,
+              borderRadius: 8,
+              background: (renk || YG.navy) + '14',
+              color: renk || YG.navy,
+              fontSize: 12.5,
+              fontWeight: 800,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {no}
+          </span>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: 14,
+              fontWeight: 700,
+              color: YG.navy,
+              letterSpacing: -0.1,
+            }}
+          >
+            {baslik}
+          </h3>
+          {aciklama && (
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: YG.textMuted, lineHeight: 1.55 }}>
+              {aciklama}
+            </p>
+          )}
+        </div>
+        {sag && <div style={{ flex: '0 0 auto' }}>{sag}</div>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+/** Alanların ızgarası — her sütun en az `min` piksel, hepsi eşit paylı. */
+function YgIzgara({ min = 220, children, style }) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(' + min + 'px, 1fr))',
+        gap: 14,
+        alignItems: 'start',
+        ...(style || {}),
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Tek bir form alanı: etiket · giriş · ipucu.
+ *
+ * İpuçları eskiden alanın altında düz metindi ve üç satırlık açıklamalar
+ * komşu sütunun etiketiyle aynı hizaya geliyordu. Artık ipucu sol çizgili bir
+ * dipnot: alana ait olduğu görünüyor, ızgarayı da bozmuyor.
+ */
+function YgAlan({ etiket, zorunlu, ipucu, uyari, hata, eksik, children, genislik }) {
+  return (
+    <div style={{ minWidth: 0, ...(genislik ? { gridColumn: 'span ' + genislik } : {}) }}>
+      <label
+        style={{
+          ...ygLabel,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
+          color: eksik ? YG.red : YG.textMuted,
+        }}
+      >
+        <span>{etiket}</span>
+        {zorunlu && <span style={{ color: YG.red, fontWeight: 800 }}>*</span>}
+      </label>
+      {children}
+      {ipucu && (
+        <div
+          style={{
+            marginTop: 6,
+            paddingLeft: 9,
+            borderLeft: '2px solid ' + YG.border,
+            fontSize: 11,
+            color: YG.textMuted,
+            lineHeight: 1.55,
+          }}
+        >
+          {ipucu}
+        </div>
+      )}
+      {uyari && (
+        <div
+          style={{
+            marginTop: 6,
+            padding: '7px 10px',
+            borderRadius: YG_OLCU.yaricapKucuk,
+            background: YG.accentPale,
+            border: '1px solid ' + YG.accent + '55',
+            fontSize: 11.5,
+            color: '#7c4a03',
+            lineHeight: 1.5,
+          }}
+        >
+          {uyari}
+        </div>
+      )}
+      {hata && (
+        <div style={{ marginTop: 6, fontSize: 11.5, color: YG.red, fontWeight: 600 }}>{hata}</div>
+      )}
+    </div>
+  );
+}
+
+/** İlerleme çubuğu — form doluluğu ve değerlendirme oranı için. */
+function YgIlerleme({ oran, renk, yukseklik = 6 }) {
+  const yuzde = Math.max(0, Math.min(1, Number(oran) || 0)) * 100;
+  return (
+    <div
+      style={{
+        height: yukseklik,
+        borderRadius: yukseklik,
+        background: YG.border,
+        overflow: 'hidden',
+      }}
+      role="presentation"
+    >
+      <div
+        style={{
+          width: yuzde + '%',
+          height: '100%',
+          borderRadius: yukseklik,
+          background: renk || YG.green,
+          transition: 'width .25s ease',
+        }}
+      />
+    </div>
+  );
+}
+
+/** Boş liste — ne olduğunu ve ne yapılacağını söyler. */
+function YgBosDurum({ baslik, metin, eylem }) {
+  return (
+    <div
+      style={{
+        ...ygCard,
+        boxShadow: 'none',
+        border: '1px dashed ' + YG.border,
+        background: YG.bg,
+        padding: '46px 24px',
+        textAlign: 'center',
+      }}
+    >
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          margin: '0 auto 12px',
+          borderRadius: 14,
+          background: 'white',
+          border: '1px solid ' + YG.border,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        aria-hidden="true"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={YG.textMuted}
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+          <path d="M14 3v5h5" />
+        </svg>
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: YG.navy }}>{baslik}</div>
+      {metin && (
+        <div
+          style={{
+            fontSize: 12.5,
+            color: YG.textMuted,
+            lineHeight: 1.6,
+            marginTop: 6,
+            maxWidth: 520,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+          }}
+        >
+          {metin}
+        </div>
+      )}
+      {eylem && <div style={{ marginTop: 14 }}>{eylem}</div>}
+    </div>
+  );
+}
+
+// Özet kutularının renkleri — ton adı lib'ten gelir, renk buraya aittir.
+const YG_TON = {
+  notr: { renk: YG.navy, zemin: YG.bg },
+  bekleyen: { renk: YG.accent, zemin: YG.accentPale },
+  olumlu: { renk: YG.green, zemin: YG.greenLight },
+  olumsuz: { renk: YG.red, zemin: YG.redLight },
+};
+
+/** Akademisyenin tepe şeridi: kaç başvuru, kaçı bekliyor, kaç asil/yedek. */
+function YgOzetSerit({ ozet }) {
+  const kutular = ozetKutulari(ozet);
+  return (
+    <div style={{ ...ygCard, padding: '14px 16px', marginBottom: 14 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+          gap: 10,
+        }}
+      >
+        {kutular.map((k) => {
+          const ton = YG_TON[k.ton] || YG_TON.notr;
+          return (
+            <div
+              key={k.id}
+              style={{
+                padding: '10px 12px',
+                borderRadius: YG_OLCU.yaricapKucuk,
+                background: ton.zemin,
+                border: '1px solid ' + ton.renk + '22',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: ton.renk,
+                  lineHeight: 1.1,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {k.deger}
+              </div>
+              <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3, fontWeight: 600 }}>
+                {k.etiket}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <YgIlerleme oran={ozet.oran} renk={ozet.belgeHazir ? YG.green : YG.accent} />
+        <div style={{ fontSize: 11.5, color: YG.textMuted, marginTop: 6, lineHeight: 1.5 }}>
+          {belgeDurumMetni(ozet)}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const ygFileHref = (u) => {
   const rel = String(u || '')
@@ -418,12 +727,18 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
 
   // Kurum içi geçişte öğrencinin AKTİF programı sistemden bilinir.
   const icGecis = tur.id === 'kurumici';
+  // ⚠ VEKÂLETEN DOLDURURKEN KİLİT AÇILIR. Kurum içi geçişte aktif fakülte ve
+  // bölüm, formu dolduran kişinin bölümünden yazılıyordu; akademisyen bir
+  // aday adına doldurduğunda ekranda ADAYIN değil KENDİ bölümü kilitli
+  // duruyordu ve düzeltilemiyordu. Üniversite kilitli kalır: kurum içi
+  // geçişte üniversite gerçekten aynıdır.
+  const programKilidi = icGecis && !vekaleten;
 
   const [form, setForm] = useState({
     // Aktif program — kurum içinde sistemden dolu gelir
     aktifUniversite: icGecis ? window.TENANT?.universityName || '' : '',
-    aktifFakulte: icGecis ? sysFakulte : '',
-    aktifBolum: icGecis ? sysBolum : '',
+    aktifFakulte: programKilidi ? sysFakulte : '',
+    aktifBolum: programKilidi ? sysBolum : '',
     aktifSinif: '',
     // Başvurulan program — öğrenci seçer
     basvurduguFakulteId: '',
@@ -466,12 +781,12 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
   const oncekiSysFakulte = useRef(sysFakulte);
   useEffect(() => {
     const onceki = oncekiSysFakulte.current;
-    if (!icGecis || onceki === sysFakulte) return;
+    if (!programKilidi || onceki === sysFakulte) return;
     oncekiSysFakulte.current = sysFakulte;
     setForm((f) =>
       !f.aktifFakulte || f.aktifFakulte === onceki ? { ...f, aktifFakulte: sysFakulte } : f
     );
-  }, [sysFakulte, icGecis]);
+  }, [sysFakulte, programKilidi]);
 
   // Başvurulacak program için fakülte + bölüm listeleri
   const [bolumler, setBolumler] = useState([]);
@@ -527,9 +842,16 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
         hint: 'Belgedeki öğrencinin adı ve soyadı. Unvan, numara ya da veli adı ekleme.',
       });
     }
+    // Kilitli alan modele sorulmaz: doldurulsa bile forma yazılamaz.
     if (!icGecis) {
+      liste.push({
+        id: 'aktifUniversite',
+        label: 'Aktif üniversite',
+        hint: 'Belgeyi düzenleyen üniversite',
+      });
+    }
+    if (!programKilidi) {
       liste.push(
-        { id: 'aktifUniversite', label: 'Aktif üniversite', hint: 'Belgeyi düzenleyen üniversite' },
         { id: 'aktifFakulte', label: 'Aktif fakülte / yüksekokul' },
         { id: 'aktifBolum', label: 'Aktif bölüm / program' }
       );
@@ -610,7 +932,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
       });
     }
     return liste;
-  }, [icGecis, vekaleten, tur.notIster, tur.puanIster, tur.ekMadde1]);
+  }, [icGecis, programKilidi, vekaleten, tur.notIster, tur.puanIster, tur.ekMadde1]);
 
   // AGNO denetimi — 100'lük sistem şartı (bkz. lib/yatay-kriter.js).
   const gnoKontrol = useMemo(
@@ -673,49 +995,36 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
     }
   };
 
-  const eksikler = () => {
-    const eksik = [];
-    // Vekâleten kayıtta adayın adı ZORUNLU; numara zorunlu DEĞİL — bu akış
-    // zaten "numarası henüz yok" diye var. Numara boşsa geçici üretilir.
-    if (vekaleten && !form.adayAdSoyad.trim()) eksik.push('Aday adı soyadı');
-    if (!form.aktifUniversite.trim()) eksik.push('Aktif üniversite');
-    if (!form.basvurduguFakulte.trim()) eksik.push('Başvurulan fakülte');
-    if (!form.basvurduguBolum.trim()) eksik.push('Başvurulan bölüm');
-    if (!form.aktifBolum.trim()) eksik.push('Aktif bölüm');
-    if (!form.basvurduguSinif.trim()) eksik.push('Başvurduğu sınıf');
-    if (tur.notIster) {
-      if (!form.notOrtalamasi.trim()) eksik.push('Not ortalaması');
-      else if (gnoKontrol.hata) eksik.push('Not ortalaması (100’lük, 0-100)');
-    }
-    if (tur.puanIster) {
-      if (!form.yksPuani.trim()) eksik.push('YKS puanı');
-      if (!form.yksYerlesmeYili.trim()) eksik.push('YKS yerleşme yılı');
-      if (!form.yksPuanTuru.trim()) eksik.push('Puan türü');
-      // Uygunluk şartı bu alandan okunur; boş kalırsa aday hiçbir kritere
-      // göre değerlendirilemez.
-      if (!form.yksBasariSirasi.trim()) eksik.push('Yerleştirme başarı sıralaması');
-      else if (window.siraOku && window.siraOku(form.yksBasariSirasi) == null) {
-        eksik.push('Yerleştirme başarı sıralaması (yalnız rakam, ör. 245.678)');
-      }
-    }
-    // ⚠ Ek Madde-1 beyanı ZORUNLU DEĞİL. Şartın kendisi geçerli — daha önce
-    // Ek Madde-1 geçişi yapmış aday elenir — ama beyanı zorunlu kılmak
-    // başvurunun ÖNÜNÜ kesiyordu: aday alanı işaretlemeyi atlayabilir ya da
-    // bilgi yüklediği belgeden okunamayabilir. Bilinmeyen bir şart, başvuru
-    // engeli değil personelin tespit edeceği bir açıktır (karttaki
-    // "Ek Madde-1 tespiti yapılmadı" uyarısı).
-    ygEkler(tur.id)
-      .filter((e) => ygEkZorunlu(e, tur.id))
-      .forEach((e) => {
-        if (!ekler[e.id]) eksik.push(e.title);
-      });
-    return eksik;
-  };
+  // ── FORM DURUMU TEK YERDE ──
+  // ⚠ Eksikler eskiden yalnız "Gönder"e basınca görünüyordu: aday formu
+  // doldurup gönderiyor, karşısına bir liste çıkıyor, yukarı çıkıp arıyordu.
+  // Kural artık lib/yatay-form-durumu.js'te ve testli; ekran her tuşta
+  // neyin eksik olduğunu bilir, ilerlemeyi ve eksik listesini gösterir.
+  const ekTanimlari = useMemo(
+    () =>
+      ygEkler(tur.id).map((e) => ({
+        id: e.id,
+        title: e.title,
+        zorunlu: ygEkZorunlu(e, tur.id),
+      })),
+    [tur]
+  );
+  const durum = useMemo(
+    () => formDurumu({ tur, form, ekler, ekTanimlari, vekaleten }),
+    [tur, form, ekler, ekTanimlari, vekaleten]
+  );
+  // Kırmızı işaretler ancak GÖNDERME DENENDİKTEN sonra çıkar: forma daha ilk
+  // bakışta her alanın kırmızı olması, doldurmadan önce azarlanmak demektir.
+  const [denendi, setDenendi] = useState(false);
+  const eksikIsaret = (anahtar) => denendi && alanEksikMi(durum, anahtar);
 
   const gonder = async () => {
-    const eksik = eksikler();
-    if (eksik.length > 0) {
-      setMesaj({ text: 'Eksik alanlar:\n• ' + eksik.join('\n• '), kind: 'error' });
+    setDenendi(true);
+    if (!durum.gonderilebilir) {
+      setMesaj({
+        text: 'Eksik alanlar:\n• ' + durum.eksikler.map((e) => e.etiket).join('\n• '),
+        kind: 'error',
+      });
       return;
     }
     setKaydediliyor(true);
@@ -788,122 +1097,123 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
     }
   };
 
-  const sistemAlani = (etiket, deger) => (
-    <div>
-      <label style={ygLabel}>{etiket}</label>
-      <input value={deger || '—'} disabled style={{ ...ygInput, background: '#F3F4F6' }} />
-    </div>
-  );
+  // Kilitli (sistemden gelen) alanların ortak görünümü — insanın yazdığıyla
+  // karışmasın diye zemini gri, imleci "yazılamaz".
+  const kilitliStil = { ...ygInput, background: '#F3F4F6', color: '#4B5563', cursor: 'default' };
+
+  // Bölüm numaraları akışa göre üretilir: vekâleten kayıtta bir bölüm fazla,
+  // kurum içi geçişte yerleştirme bölümü hiç yok. Sabit numara yazılsaydı
+  // ekranda "1 · 2 · 4" gibi boşluklu bir sıra çıkardı.
+  const bolumNolari = (() => {
+    let n = 0;
+    const al = () => ++n;
+    return {
+      aday: vekaleten ? al() : null,
+      aktif: al(),
+      hedef: al(),
+      puan: tur.puanIster || tur.notIster ? al() : null,
+      ek: al(),
+    };
+  })();
 
   return (
     <div>
       {/* Vekâleten: adayın kimliği. Sistemde kaydı olmadığı için elle girilir. */}
       {vekaleten && (
-        <div style={{ ...ygCard, padding: 16, marginBottom: 14 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 4 }}>
-            Adayın kimliği
-          </div>
-          <div style={{ fontSize: 12, color: YG.textMuted, marginBottom: 10, lineHeight: 1.55 }}>
-            Bu başvuruyu <b>aday adına siz</b> dolduruyorsunuz. Öğrenci numarası henüz verilmediyse
-            boş bırakın — sistem geçici bir aday numarası üretir. Numara belli olunca kayıt
-            kartından tanımlayabilirsiniz; o an başvuru öğrencinin kendi ekranında görünür hâle
-            gelir.
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: 12,
-            }}
-          >
-            <div>
-              <label style={ygLabel}>Adı Soyadı *</label>
+        <YgBolum
+          no={bolumNolari.aday}
+          renk={tur.color}
+          baslik="Adayın kimliği"
+          aciklama={
+            'Bu başvuruyu aday adına siz dolduruyorsunuz. Öğrenci numarası henüz ' +
+            'verilmediyse boş bırakın — sistem geçici bir aday numarası üretir. Numara ' +
+            'belli olunca kayıt kartından tanımlayabilirsiniz; o an başvuru öğrencinin ' +
+            'kendi ekranında görünür hâle gelir.'
+          }
+        >
+          <YgIzgara>
+            <YgAlan etiket="Adı Soyadı" zorunlu eksik={eksikIsaret('adayAdSoyad')}>
               <input
                 value={form.adayAdSoyad}
                 onChange={(e) => setBuyuk('adayAdSoyad', e.target.value)}
                 placeholder="Adayın adı soyadı"
                 style={ygInput}
               />
-            </div>
-            <div>
-              <label style={ygLabel}>Öğrenci Numarası (varsa)</label>
+            </YgAlan>
+            <YgAlan
+              etiket="Öğrenci Numarası (varsa)"
+              ipucu="Boş bırakırsanız sistem geçici bir aday numarası üretir; kesin kayıttan sonra kayıt kartından tanımlayabilirsiniz."
+            >
               <input
                 value={form.adayOgrNo}
                 onChange={(e) => set('adayOgrNo', e.target.value.replace(/\D/g, ''))}
                 placeholder="Henüz yoksa boş bırakın"
                 style={ygInput}
               />
-            </div>
-          </div>
-        </div>
+            </YgAlan>
+          </YgIzgara>
+        </YgBolum>
       )}
 
-      {/* Öğrenciden istenenler */}
-      <div style={{ ...ygCard, padding: 16, marginBottom: 14 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 4 }}>
-          {vekaleten ? 'Adayın aktif öğrenim gördüğü program' : 'Aktif öğrenim gördüğünüz program'}
-        </div>
-        <div style={{ fontSize: 12, color: YG.textMuted, marginBottom: 10 }}>{tur.aciklama}</div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: 12,
-          }}
-        >
-          <div>
-            <label style={ygLabel}>Üniversite{icGecis ? '' : ' *'}</label>
+      {/* Aktif program */}
+      <YgBolum
+        no={bolumNolari.aktif}
+        renk={tur.color}
+        baslik={
+          vekaleten ? 'Adayın aktif öğrenim gördüğü program' : 'Aktif öğrenim gördüğünüz program'
+        }
+        aciklama={tur.aciklama}
+        sag={programKilidi ? <span style={ygPill(YG.navy, YG.bg)}>sistemden dolu</span> : null}
+      >
+        <YgIzgara>
+          <YgAlan etiket="Üniversite" zorunlu={!icGecis} eksik={eksikIsaret('aktifUniversite')}>
             <input
               value={form.aktifUniversite}
               onChange={(e) => setBuyuk('aktifUniversite', e.target.value)}
               disabled={icGecis}
-              style={{ ...ygInput, background: icGecis ? '#F3F4F6' : 'white' }}
+              style={icGecis ? kilitliStil : ygInput}
             />
-          </div>
-          <div>
-            <label style={ygLabel}>Fakülte / Yüksekokul</label>
+          </YgAlan>
+          <YgAlan etiket="Fakülte / Yüksekokul">
             <input
               value={form.aktifFakulte}
               onChange={(e) => setBuyuk('aktifFakulte', e.target.value)}
-              disabled={icGecis}
-              style={{ ...ygInput, background: icGecis ? '#F3F4F6' : 'white' }}
+              disabled={programKilidi}
+              style={programKilidi ? kilitliStil : ygInput}
             />
-          </div>
-          <div>
-            <label style={ygLabel}>Bölüm / Program{icGecis ? '' : ' *'}</label>
+          </YgAlan>
+          <YgAlan
+            etiket="Bölüm / Program"
+            zorunlu={!programKilidi}
+            eksik={eksikIsaret('aktifBolum')}
+          >
             <input
               value={form.aktifBolum}
               onChange={(e) => setBuyuk('aktifBolum', e.target.value)}
-              disabled={icGecis}
-              style={{ ...ygInput, background: icGecis ? '#F3F4F6' : 'white' }}
+              disabled={programKilidi}
+              style={programKilidi ? kilitliStil : ygInput}
             />
-          </div>
-          <div>
-            <label style={ygLabel}>Sınıfınız</label>
+          </YgAlan>
+          <YgAlan etiket="Sınıfınız">
             <input
               value={form.aktifSinif}
               onChange={(e) => set('aktifSinif', e.target.value)}
               placeholder="ör. 2"
               style={ygInput}
             />
-          </div>
-        </div>
-      </div>
+          </YgAlan>
+        </YgIzgara>
+      </YgBolum>
 
-      {/* Başvurmak istediğiniz program */}
-      <div style={{ ...ygCard, padding: 16, marginBottom: 14 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 10 }}>
-          Başvurmak istediğiniz program
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: 12,
-          }}
-        >
-          <div>
-            <label style={ygLabel}>Fakülte *</label>
+      {/* Başvurulan program */}
+      <YgBolum
+        no={bolumNolari.hedef}
+        renk={tur.color}
+        baslik="Başvurmak istediğiniz program"
+        aciklama="Başvuruyu, seçtiğiniz bölümün komisyonu değerlendirir."
+      >
+        <YgIzgara>
+          <YgAlan etiket="Fakülte" zorunlu eksik={eksikIsaret('basvurduguFakulte')}>
             <select
               value={form.basvurduguFakulteId}
               onChange={(e) => {
@@ -927,9 +1237,8 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label style={ygLabel}>Bölüm / Program *</label>
+          </YgAlan>
+          <YgAlan etiket="Bölüm / Program" zorunlu eksik={eksikIsaret('basvurduguBolum')}>
             <select
               value={form.basvurduguBolum}
               onChange={(e) => {
@@ -962,52 +1271,55 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label style={ygLabel}>Başvurduğunuz sınıf *</label>
+          </YgAlan>
+          <YgAlan
+            etiket="Başvurduğunuz sınıf"
+            zorunlu
+            eksik={eksikIsaret('basvurduguSinif')}
+            ipucu="Geçmek istediğiniz sınıf (ör. 2)."
+          >
             <input
               value={form.basvurduguSinif}
               onChange={(e) => set('basvurduguSinif', e.target.value)}
               placeholder="ör. 2"
               style={ygInput}
             />
-          </div>
-        </div>
-      </div>
+          </YgAlan>
+        </YgIzgara>
+      </YgBolum>
 
       {/* Yerleştirme / başarı bilgileri */}
       {(tur.puanIster || tur.notIster) && (
-        <div style={{ ...ygCard, padding: 16, marginBottom: 14 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 10 }}>
-            Yerleştirme ve başarı bilgileri
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: 12,
-            }}
-          >
+        <YgBolum
+          no={bolumNolari.puan}
+          renk={tur.color}
+          baslik="Yerleştirme ve başarı bilgileri"
+          aciklama={
+            tur.puanIster
+              ? 'Değerler ÖSYM sonuç belgenizdeki YERLEŞTİRME tablosundan alınır — ' +
+                'soldaki SINAV tablosundan değil.'
+              : 'Not ortalaması 100’lük sistemde girilir.'
+          }
+        >
+          <YgIzgara min={200}>
             {tur.puanIster && (
               <>
-                <div>
-                  <label style={ygLabel}>YKS yerleşme yılı *</label>
+                <YgAlan etiket="YKS yerleşme yılı" zorunlu eksik={eksikIsaret('yksYerlesmeYili')}>
                   <input
                     value={form.yksYerlesmeYili}
                     onChange={(e) => set('yksYerlesmeYili', e.target.value)}
                     placeholder="ör. 2024"
                     style={ygInput}
                   />
-                </div>
-                <div>
-                  <label style={ygLabel}>Yerleştiği puan türü *</label>
+                </YgAlan>
+                <YgAlan etiket="Yerleştiği puan türü" zorunlu eksik={eksikIsaret('yksPuanTuru')}>
                   {/* Serbest metindi ve YÖS / DGS gibi türler ya yanlış
                       yazılıyor ya da hiç girilmiyordu. Liste kapalı olunca
                       belge okuma tarafı da aynı kanonik değerleri görüyor. */}
                   <select
                     value={form.yksPuanTuru}
                     onChange={(e) => set('yksPuanTuru', e.target.value)}
-                    style={ygInput}
+                    style={{ ...ygInput, cursor: 'pointer' }}
                   >
                     <option value="">— Seçiniz —</option>
                     {(window.YKS_PUAN_TURLERI || []).map((t) => (
@@ -1016,26 +1328,39 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label style={ygLabel}>YKS yerleştirme puanı *</label>
+                </YgAlan>
+                <YgAlan
+                  etiket="YKS yerleştirme puanı"
+                  zorunlu
+                  eksik={eksikIsaret('yksPuani')}
+                  ipucu={
+                    <>
+                      Sonuç belgesinde <b>sağdaki</b> “YERLEŞTİRME PUANLARI VE BAŞARI SIRALARI”
+                      tablosu · <b>Yerleştirme</b> sütunu · <b>Y-</b> önekli satır (SAY için Y-SAY).
+                    </>
+                  }
+                >
                   <input
                     value={form.yksPuani}
                     onChange={(e) => set('yksPuani', e.target.value)}
                     placeholder="ör. 355,29843"
                     style={ygInput}
                   />
-                  <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
-                    Sonuç belgesinde <b>sağdaki</b> “YERLEŞTİRME PUANLARI VE BAŞARI SIRALARI”
-                    tablosu · <b>Yerleştirme</b> sütunu · <b>Y-</b> önekli satır (SAY için Y-SAY).
-                    Soldaki “SINAV PUANLARI” tablosunu kullanmayın.
-                  </div>
-                </div>
+                </YgAlan>
                 {/* Uygunluk şartının ölçütü budur: yatay geçiş taban şartı
                     puanla değil BAŞARI SIRASI ile konur (ör. 300.000'inci
                     başarı sırası). Sıralamada küçük sayı daha iyidir. */}
-                <div>
-                  <label style={ygLabel}>Yerleştirme başarı sıralaması *</label>
+                <YgAlan
+                  etiket="Yerleştirme başarı sıralaması"
+                  zorunlu
+                  eksik={eksikIsaret('yksBasariSirasi')}
+                  ipucu={
+                    <>
+                      Aynı hücrenin yanındaki <b>Başarı Sırası</b> (ör. 164.283). Puan değil sıra;
+                      “Ek Puanlı Yerleştirme” sütununu kullanmayın.
+                    </>
+                  }
+                >
                   <input
                     value={form.yksBasariSirasi}
                     onChange={(e) =>
@@ -1044,22 +1369,25 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                     placeholder="ör. 245.678"
                     style={ygInput}
                   />
-                  <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
-                    Aynı hücrenin yanındaki <b>Başarı Sırası</b> (ör. 164.283). Puan değil sıra; “Ek
-                    Puanlı Yerleştirme” sütununu kullanmayın.
-                  </div>
-                </div>
+                </YgAlan>
                 {/* Ham sınav değerleri — kıyasta KULLANILMAZ. Yalnız doğru
                     tablonun okunduğunu denetlemek için isteniyor; iki tablonun
                     değerleri aynı çıkarsa yanlış sütun okunmuş demektir. */}
-                <div>
-                  <label style={ygLabel}>Sınav puanı ve başarı sırası (ham)</label>
+                <YgAlan
+                  etiket="Sınav puanı ve başarı sırası (ham)"
+                  ipucu={
+                    <>
+                      <b>Soldaki</b> “SINAV PUANLARI VE BAŞARI SIRALARI” tablosundan, Y-öneksiz
+                      satır. Değerlendirmede kullanılmaz; doğru tablonun okunduğunu denetler.
+                    </>
+                  }
+                >
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input
                       value={form.sinavPuani}
                       onChange={(e) => set('sinavPuani', e.target.value)}
                       placeholder="ör. 298,59699"
-                      style={{ ...ygInput, flex: 1 }}
+                      style={{ ...ygInput, flex: 1, minWidth: 0 }}
                     />
                     <input
                       value={form.sinavBasariSirasi}
@@ -1067,21 +1395,25 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                         set('sinavBasariSirasi', e.target.value.replace(/[^\d.,\s]/g, ''))
                       }
                       placeholder="ör. 172.218"
-                      style={{ ...ygInput, flex: 1 }}
+                      style={{ ...ygInput, flex: 1, minWidth: 0 }}
                     />
                   </div>
-                  <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
-                    <b>Soldaki</b> “SINAV PUANLARI VE BAŞARI SIRALARI” tablosundan, Y-öneksiz satır.
-                    Değerlendirmede kullanılmaz; doğru tablonun okunduğunu denetler.
-                  </div>
-                </div>
+                </YgAlan>
               </>
             )}
             {/* Ek Madde-1 hakkı bir kez kullanılır. Beyan burada alınır;
                 tespit, yüklediğiniz Öğrenci Belgesine bakılarak yapılır. */}
             {tur.ekMadde1 && (
-              <div>
-                <label style={ygLabel}>Ek Madde-1 ile daha önce yatay geçiş yaptınız mı?</label>
+              <YgAlan
+                etiket="Ek Madde-1 ile daha önce yatay geçiş yaptınız mı?"
+                ipucu={
+                  <>
+                    Merkezi yerleştirme puanıyla yatay geçiş hakkı <b>bir kez</b> kullanılır. Bu
+                    alan <b>zorunlu değildir</b>: boş bırakırsanız bilgi, yüklediğiniz Öğrenci
+                    Belgesinden doğrulanır.
+                  </>
+                }
+              >
                 <select
                   value={form.oncekiEkMadde1Gecisi}
                   onChange={(e) => set('oncekiEkMadde1Gecisi', e.target.value)}
@@ -1091,90 +1423,89 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                   <option value="hayir">Hayır, daha önce yapmadım</option>
                   <option value="evet">Evet, daha önce yaptım</option>
                 </select>
-                <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
-                  Merkezi yerleştirme puanıyla yatay geçiş hakkı <b>bir kez</b> kullanılır. Bu alan
-                  <b> zorunlu değildir</b>: boş bırakırsanız bilgi, yüklediğiniz Öğrenci Belgesinden
-                  doğrulanır.
-                </div>
-              </div>
+              </YgAlan>
             )}
             {tur.notIster && (
-              <div>
-                <label style={ygLabel}>Not ortalaması (AGNO) — 100&apos;lük *</label>
+              <YgAlan
+                etiket="Not ortalaması (AGNO) — 100’lük"
+                zorunlu
+                eksik={eksikIsaret('notOrtalamasi')}
+                ipucu="Yalnızca 100’lük sistemde girilir (0-100)."
+                /* 4'lük AGNO sessizce geçerse sıralama puanı
+                   (YKS×0,40 + AGNO×0,60) saçmalar ve aday listenin dibine
+                   düşer — hata değil, uyarı: 4,00 teoride geçerli bir
+                   100'lük değer. */
+                uyari={gnoKontrol.uyari}
+                hata={form.notOrtalamasi.trim() ? gnoKontrol.hata : ''}
+              >
                 <input
                   value={form.notOrtalamasi}
                   onChange={(e) => set('notOrtalamasi', e.target.value.replace(/[^\d.,]/g, ''))}
                   placeholder="ör. 76,50"
                   style={ygInput}
                 />
-                <div style={{ fontSize: 11, color: YG.textMuted, marginTop: 3 }}>
-                  Yalnızca 100&apos;lük sistemde girilir (0-100).
-                </div>
-                {/* 4'lük AGNO sessizce geçerse sıralama puanı
-                    (YKS×0,40 + AGNO×0,60) saçmalar ve aday listenin dibine
-                    düşer — hata değil, uyarı: 4,00 teoride geçerli bir
-                    100'lük değer. */}
-                {gnoKontrol.uyari && (
-                  <div
-                    style={{
-                      fontSize: 11.5,
-                      color: '#7c4a03',
-                      background: YG.accentPale,
-                      border: '1px solid ' + YG.accent + '55',
-                      borderRadius: 8,
-                      padding: '7px 10px',
-                      marginTop: 6,
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {gnoKontrol.uyari}
-                  </div>
-                )}
-                {gnoKontrol.hata && form.notOrtalamasi.trim() && (
-                  <div style={{ fontSize: 11.5, color: YG.red, marginTop: 6, fontWeight: 600 }}>
-                    {gnoKontrol.hata}
-                  </div>
-                )}
-              </div>
+              </YgAlan>
             )}
-          </div>
+          </YgIzgara>
 
           {/* Kurumlararası: yerleştirmeye esas puan canlı hesaplanır */}
           {tur.hesapla && hesap && (
             <div
               style={{
-                marginTop: 12,
-                padding: '10px 12px',
+                marginTop: 14,
+                padding: '12px 14px',
                 background: YG.accentPale,
                 border: '1px solid ' + YG.accent + '44',
-                borderRadius: 8,
-                fontSize: 12.5,
+                borderRadius: YG_OLCU.yaricapKucuk,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap',
                 color: '#7c4a03',
-                lineHeight: 1.6,
               }}
             >
-              Yerleştirmeye esas puanınız otomatik hesaplanır:{' '}
-              <b>
-                {hesap.p40} (YKS %40) + {hesap.n60} (AGNO %60) = {hesap.toplam}
-              </b>
-              <br />
-              Nihai değeri komisyon doğrular.
+              <div style={{ flex: '1 1 240px', fontSize: 12.5, lineHeight: 1.6 }}>
+                Yerleştirmeye esas puanınız otomatik hesaplanır: {hesap.p40} (YKS %40) + {hesap.n60}{' '}
+                (AGNO %60). Nihai değeri komisyon doğrular.
+              </div>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  fontVariantNumeric: 'tabular-nums',
+                  color: YG.accent,
+                }}
+              >
+                {ygPuanYaz(hesap.toplam)}
+              </div>
             </div>
           )}
-        </div>
+        </YgBolum>
       )}
 
-      {/* Zorunlu ekler */}
-      <div style={{ ...ygCard, padding: 16, marginBottom: 14 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 10 }}>
-          Başvuru ekleri
-        </div>
-        <div style={{ fontSize: 11.5, color: YG.textMuted, marginBottom: 10 }}>
-          Tüm ekler <b>PDF</b> olarak yüklenir.
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Başvuru ekleri */}
+      <YgBolum
+        no={bolumNolari.ek}
+        renk={tur.color}
+        baslik="Başvuru ekleri"
+        aciklama="Tüm ekler PDF olarak yüklenir. Yıldızlı belgeler zorunludur."
+        sag={
+          <span
+            style={ygPill(
+              durum.ekEksigi ? YG.accent : YG.green,
+              durum.ekEksigi ? YG.accentPale : YG.greenLight
+            )}
+          >
+            {ekTanimlari.filter((e) => e.zorunlu).length - durum.ekEksigi} /{' '}
+            {ekTanimlari.filter((e) => e.zorunlu).length} zorunlu
+          </span>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {ygEkler(tur.id).map((ek) => {
             const yuklu = ekler[ek.id];
+            const zorunlu = ygEkZorunlu(ek, tur.id);
+            const bekliyor = denendi && zorunlu && !yuklu;
             return (
               <div
                 key={ek.id}
@@ -1183,16 +1514,67 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                   alignItems: 'center',
                   gap: 12,
                   flexWrap: 'wrap',
-                  padding: '10px 12px',
-                  border: '1px ' + (yuklu ? 'solid ' + YG.green : 'dashed ' + YG.border),
-                  borderRadius: 10,
-                  background: yuklu ? YG.greenLight + '55' : 'white',
+                  padding: '11px 13px',
+                  border:
+                    '1px solid ' + (yuklu ? YG.green + '66' : bekliyor ? YG.red + '66' : YG.border),
+                  borderRadius: YG_OLCU.yaricapKucuk,
+                  background: yuklu
+                    ? YG.greenLight + '44'
+                    : bekliyor
+                      ? YG.redLight + '55'
+                      : 'white',
                 }}
               >
+                {/* Durum işareti — "yüklendi mi" sorusunun cevabı satırın
+                    başında, tek bakışta okunur. */}
+                <span
+                  aria-hidden="true"
+                  style={{
+                    flex: '0 0 auto',
+                    width: 30,
+                    height: 30,
+                    borderRadius: 9,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: yuklu ? YG.greenLight : YG.bg,
+                    border: '1px solid ' + (yuklu ? YG.green + '55' : YG.border),
+                    color: yuklu ? YG.green : YG.textMuted,
+                  }}
+                >
+                  {yuklu ? (
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                      <path d="M14 3v5h5" />
+                    </svg>
+                  )}
+                </span>
                 <div style={{ flex: '1 1 240px', minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: YG.text }}>
                     {ek.title}
-                    {ygEkZorunlu(ek, tur.id) ? ' *' : ''}
+                    {zorunlu ? <span style={{ color: YG.red, fontWeight: 800 }}> *</span> : null}
                   </div>
                   {ek.aciklama && (
                     <div style={{ fontSize: 11.5, color: YG.textMuted, marginTop: 2 }}>
@@ -1200,12 +1582,20 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                     </div>
                   )}
                   {yuklu && (
-                    <div style={{ fontSize: 11.5, color: YG.green, marginTop: 3, fontWeight: 600 }}>
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: YG.green,
+                        marginTop: 3,
+                        fontWeight: 600,
+                        overflowWrap: 'anywhere',
+                      }}
+                    >
                       {yuklu.ad}
                     </div>
                   )}
                 </div>
-                <label style={{ ...ygBtn(false), cursor: 'pointer' }}>
+                <label style={{ ...ygBtn(false), cursor: 'pointer', flex: '0 0 auto' }}>
                   <input
                     type="file"
                     accept=".pdf,application/pdf"
@@ -1248,7 +1638,8 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
                   Object.keys(degerler).forEach((k) => {
                     // Kurum içi geçişte sistemden gelen alanlar kilitlidir;
                     // model çıktısı onları ezmemeli.
-                    if (icGecis && ['aktifUniversite', 'aktifFakulte', 'aktifBolum'].includes(k)) {
+                    if (icGecis && k === 'aktifUniversite') return;
+                    if (programKilidi && ['aktifFakulte', 'aktifBolum'].includes(k)) {
                       return;
                     }
                     y[k] = [
@@ -1267,16 +1658,17 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
             })}
           </div>
         )}
-      </div>
+      </YgBolum>
 
       {mesaj.text && (
         <div
           style={{
             padding: '10px 14px',
-            borderRadius: 10,
+            borderRadius: YG_OLCU.yaricapKucuk,
             marginBottom: 12,
             whiteSpace: 'pre-wrap',
             fontSize: 13,
+            lineHeight: 1.6,
             background: mesaj.kind === 'ok' ? YG.greenLight : YG.redLight,
             color: mesaj.kind === 'ok' ? '#065F46' : '#991B1B',
             border: '1px solid ' + (mesaj.kind === 'ok' ? YG.green : YG.red) + '44',
@@ -1286,8 +1678,79 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={gonder} disabled={kaydediliyor} style={ygBtn(true)}>
+      {/* ── Gönderim şeridi ──
+          Sayfanın altına YAPIŞIR: uzun formda "Gönder" düğmesini aramak ve
+          neyin eksik kaldığını ancak basınca öğrenmek gerekiyordu. Eksikler
+          artık doldururken görünür. */}
+      <div
+        style={{
+          position: 'sticky',
+          bottom: 0,
+          zIndex: 3,
+          ...ygCard,
+          boxShadow: YG_OLCU.golgeVurgu,
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontSize: 12.5,
+              fontWeight: 700,
+              color: durum.gonderilebilir ? YG.green : YG.navy,
+              marginBottom: 6,
+            }}
+          >
+            <span>{durum.ozet}</span>
+            <span
+              style={{ fontWeight: 600, color: YG.textMuted, fontVariantNumeric: 'tabular-nums' }}
+            >
+              {durum.tamam}/{durum.gerekli}
+            </span>
+          </div>
+          <YgIlerleme oran={durum.oran} renk={durum.gonderilebilir ? YG.green : tur.color} />
+          {/* Eksik alanların ADLARI: "eksik alanlar var" demek, hangisinin
+              eksik olduğunu söylemeden yardımcı olmaz. */}
+          {!durum.gonderilebilir && (
+            <div
+              style={{
+                display: 'flex',
+                gap: 6,
+                flexWrap: 'wrap',
+                marginTop: 8,
+              }}
+            >
+              {durum.eksikler.slice(0, 6).map((e) => (
+                <span key={e.tur + e.anahtar} style={ygPill(YG.accent, YG.accentPale)}>
+                  {e.etiket}
+                </span>
+              ))}
+              {durum.eksikler.length > 6 && (
+                <span style={ygPill(YG.textMuted, YG.bg)}>
+                  +{durum.eksikler.length - 6} tane daha
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={gonder}
+          disabled={kaydediliyor}
+          style={{
+            ...ygBtn(true),
+            padding: '10px 20px',
+            fontSize: 13,
+            opacity: kaydediliyor ? 0.6 : 1,
+            cursor: kaydediliyor ? 'wait' : 'pointer',
+          }}
+        >
           {kaydediliyor ? 'Gönderiliyor…' : 'Başvuruyu Gönder'}
         </button>
       </div>
@@ -1484,120 +1947,201 @@ function YgBasvuruKarti({
     ) : null;
 
   return (
-    <div style={{ ...ygCard, padding: 0, overflow: 'hidden' }}>
+    <div
+      style={{
+        ...ygCard,
+        padding: 0,
+        overflow: 'hidden',
+        // Kartın sol şeridi, üstteki seçili tür kartıyla aynı renktedir:
+        // liste hangi geçiş türüne ait, kaydırırken de belli olsun.
+        borderLeft: '3px solid ' + ((tur && tur.color) || YG.navy),
+      }}
+    >
       <div
         onClick={() => setAcik(!acik)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={acik}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setAcik(!acik);
+          }
+        }}
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 12,
-          padding: '14px 18px',
+          padding: '14px 16px',
           cursor: 'pointer',
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: YG.navy }}>
-            {rec.adSoyad || '—'}
-            {rec.ogrenciNo ? '  ·  ' + rec.ogrenciNo : ''}
+        <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 14.5,
+              fontWeight: 700,
+              color: YG.navy,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexWrap: 'wrap',
+            }}
+          >
+            <span>{rec.adSoyad || '—'}</span>
+            {rec.ogrenciNo ? (
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: YG.textMuted,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {rec.ogrenciNo}
+              </span>
+            ) : null}
             {/* Geçici numaralı kayıt açıkça işaretlenir: bu başvurunun sahibi
                 henüz sisteme giremiyor, öğrenci ekranında görünmüyor. */}
             {window.adayNoMu && window.adayNoMu(rec.ogrenciNo) && (
-              <span style={{ ...ygPill(YG.accent, YG.accentPale), marginLeft: 8 }}>
-                numarası bekleniyor
-              </span>
+              <span style={ygPill(YG.accent, YG.accentPale)}>numarası bekleniyor</span>
             )}
           </div>
-          <div style={{ fontSize: 11.5, color: YG.textMuted, marginTop: 3 }}>
-            {[rec.aktifUniversite, rec.aktifBolum].filter(Boolean).join(' / ')}
+          <div style={{ fontSize: 11.5, color: YG.textMuted, marginTop: 4, lineHeight: 1.5 }}>
+            {[rec.aktifUniversite, rec.aktifBolum].filter(Boolean).join(' / ') ||
+              'Program bilgisi yok'}
             {rec.basvurduguSinif ? '  →  ' + rec.basvurduguSinif + '. sınıf' : ''}
           </div>
         </div>
-        {/* Taban başarı sıralamasının altında kalan aday, sıralamaya girmeden
+        {/* Rozetler tek bir kapta ve SAĞA hizalı: eskiden serbest akıyor,
+            kart genişliğine göre satır ortasında kalıyorlardı. */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flexWrap: 'wrap',
+            justifyContent: 'flex-end',
+            flex: '1 1 auto',
+          }}
+        >
+          {/* Taban başarı sıralamasının altında kalan aday, sıralamaya girmeden
             elenir; bunu kartta görmek değerlendirmenin gerekçesidir.
             Ölçüt PUAN değil SIRA — küçük sıra daha iyidir. */}
-        {isStaff && elemeSebebi && (
-          <span
-            style={ygPill(YG.red, YG.redLight)}
-            title={
-              (elemeSebebi === 'program_sira'
-                ? 'Programın taban başarı sıralaması: ' +
-                  (ygSira(kriterKaydi.basvurduguBolumTabanSirasi) || '—')
-                : 'Taban başarı sıralaması: ' + (ygSira(siralamaEsik) || '—')) +
-              ' · adayın başarı sırası: ' +
-              (ygSira(rec.yksBasariSirasi) || '—')
-            }
-          >
-            {(window.ELEME_ETIKET || {})[elemeSebebi] || 'Taban sıralama şartını karşılamıyor'}
-          </span>
-        )}
-        {/* Yerleştirme değerleri ham SINAV değerleriyle birebir aynıysa yanlış
+          {isStaff && elemeSebebi && (
+            <span
+              style={ygPill(YG.red, YG.redLight)}
+              title={
+                (elemeSebebi === 'program_sira'
+                  ? 'Programın taban başarı sıralaması: ' +
+                    (ygSira(kriterKaydi.basvurduguBolumTabanSirasi) || '—')
+                  : 'Taban başarı sıralaması: ' + (ygSira(siralamaEsik) || '—')) +
+                ' · adayın başarı sırası: ' +
+                (ygSira(rec.yksBasariSirasi) || '—')
+              }
+            >
+              {(window.ELEME_ETIKET || {})[elemeSebebi] || 'Taban sıralama şartını karşılamıyor'}
+            </span>
+          )}
+          {/* Yerleştirme değerleri ham SINAV değerleriyle birebir aynıysa yanlış
             tablo okunmuştur: yerleştirme puanı sınav puanına OBP katkısı
             eklenerek bulunur, ikisi aynı çıkamaz. Eleme DEĞİL, uyarı. */}
-        {isStaff && tabloSuphesi.suphe && (
-          <span
-            style={ygPill(YG.red, YG.redLight)}
-            title={
-              'Beyan edilen ' +
-              (tabloSuphesi.puan && tabloSuphesi.sira
-                ? 'puan ve başarı sırası'
-                : tabloSuphesi.puan
-                  ? 'puan'
-                  : 'başarı sırası') +
-              ', belgedeki SINAV tablosundaki değerle aynı. Yerleştirme tablosundan ' +
-              '(Y- önekli satır) alınmış olmalı.'
-            }
-          >
-            Yanlış tablo şüphesi
-          </span>
-        )}
-        {/* Ek Madde-1 tespiti yapılmadan başvuru sonuçlandırılmamalı. Eleme
+          {isStaff && tabloSuphesi.suphe && (
+            <span
+              style={ygPill(YG.red, YG.redLight)}
+              title={
+                'Beyan edilen ' +
+                (tabloSuphesi.puan && tabloSuphesi.sira
+                  ? 'puan ve başarı sırası'
+                  : tabloSuphesi.puan
+                    ? 'puan'
+                    : 'başarı sırası') +
+                ', belgedeki SINAV tablosundaki değerle aynı. Yerleştirme tablosundan ' +
+                '(Y- önekli satır) alınmış olmalı.'
+              }
+            >
+              Yanlış tablo şüphesi
+            </span>
+          )}
+          {/* Ek Madde-1 tespiti yapılmadan başvuru sonuçlandırılmamalı. Eleme
             DEĞİL, uyarı: belge okunmadı diye adayı elemek olmaz. */}
-        {/* Otomatik doldurulan tespit, BELGENİN okunduğu anlamına gelmez:
+          {/* Otomatik doldurulan tespit, BELGENİN okunduğu anlamına gelmez:
             uyarı, kaynağı "personel" olana kadar durur — yalnız metni
             yumuşar. Aksi hâlde kimsenin bakmadığı bir alan denetlenmiş
             görünürdü. */}
-        {isStaff && tur?.ekMadde1 && !elemeSebebi && ekKaynak !== 'personel' && (
-          <span
-            style={ygPill(YG.accent, YG.accentPale)}
-            title={
-              ekKaynak
-                ? 'Değer sistemden geldi (' +
-                  ((window.EK_MADDE1_KAYNAK_ETIKET || {})[ekKaynak] || ekKaynak) +
-                  '). 6 nolu belgeye bakıp onaylayın.'
-                : '6 nolu belgeye bakıp “Ek Madde-1 tespiti” alanını işaretleyin'
-            }
-          >
-            {ekKaynak ? 'Ek Madde-1 belge kontrolü bekliyor' : 'Ek Madde-1 tespiti yapılmadı'}
+          {isStaff && tur?.ekMadde1 && !elemeSebebi && ekKaynak !== 'personel' && (
+            <span
+              style={ygPill(YG.accent, YG.accentPale)}
+              title={
+                ekKaynak
+                  ? 'Değer sistemden geldi (' +
+                    ((window.EK_MADDE1_KAYNAK_ETIKET || {})[ekKaynak] || ekKaynak) +
+                    '). 6 nolu belgeye bakıp onaylayın.'
+                  : '6 nolu belgeye bakıp “Ek Madde-1 tespiti” alanını işaretleyin'
+              }
+            >
+              {ekKaynak ? 'Ek Madde-1 belge kontrolü bekliyor' : 'Ek Madde-1 tespiti yapılmadı'}
+            </span>
+          )}
+          {isStaff && !elemeSebebi && esikDurumu && esikDurumu.durum === 'belirsiz' && (
+            <span
+              style={ygPill(YG.accent, YG.accentPale)}
+              title="Adayın yerleştirme başarı sıralaması girilmemiş — taban sıralama şartı uygulanamıyor"
+            >
+              Başarı sıralaması yok
+            </span>
+          )}
+          {hesap && (
+            <span style={ygPill(YG.navy, YG.bg)}>Yerleşme puanı: {ygPuanYaz(hesap.toplam)}</span>
+          )}
+          <span style={ygPill(st.color, st.bg)}>
+            {etkin.degerlendirme
+              ? ygDegerlendirmeMetni(kriterKaydi, siralamaEsik) || st.label
+              : st.label}
           </span>
-        )}
-        {isStaff && !elemeSebebi && esikDurumu && esikDurumu.durum === 'belirsiz' && (
-          <span
-            style={ygPill(YG.accent, YG.accentPale)}
-            title="Adayın yerleştirme başarı sıralaması girilmemiş — taban sıralama şartı uygulanamıyor"
-          >
-            Başarı sıralaması yok
-          </span>
-        )}
-        {hesap && <span style={ygPill(YG.navy, YG.bg)}>Yerleşme puanı: {hesap.toplam}</span>}
-        <span style={ygPill(st.color, st.bg)}>
-          {etkin.degerlendirme
-            ? ygDegerlendirmeMetni(kriterKaydi, siralamaEsik) || st.label
-            : st.label}
-        </span>
-        {/* Kriterler değişti ve bu satırın sonucu değişecek. Kayda YAZILMADI —
+          {/* Kriterler değişti ve bu satırın sonucu değişecek. Kayda YAZILMADI —
             karar hâlâ personelin; ama ne olacağı beklemeden görünüyor. */}
-        {oneriFarkli && (
+          {oneriFarkli && (
+            <span
+              style={ygPill(YG.accent, YG.accentPale)}
+              title="Güncel kriterlerle bu sonuç çıkıyor. Kayda yazmak için “Sıralamayı Uygula”."
+            >
+              → {ygOneriMetni(canliOneri)}
+            </span>
+          )}
           <span
-            style={ygPill(YG.accent, YG.accentPale)}
-            title="Güncel kriterlerle bu sonuç çıkıyor. Kayda yazmak için “Sıralamayı Uygula”."
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '5px 10px',
+              borderRadius: 8,
+              border: '1px solid ' + YG.border,
+              background: acik ? YG.bg : 'white',
+              color: YG.textMuted,
+              fontSize: 11.5,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
           >
-            → {ygOneriMetni(canliOneri)}
+            {acik ? 'Gizle' : 'Detaylar'}
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ transform: acik ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}
+              aria-hidden="true"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
           </span>
-        )}
-        <span style={{ color: YG.textMuted, fontSize: 11.5, fontWeight: 600 }}>
-          {acik ? 'Gizle' : 'Detaylar'}
-        </span>
+        </div>
       </div>
 
       {acik && (
@@ -1653,8 +2197,8 @@ function YgBasvuruKarti({
                   return yapmis + ek;
                 })()
               )}
-            {hesap && satir('YKS %40', hesap.p40)}
-            {hesap && satir('AGNO %60', hesap.n60)}
+            {hesap && satir('YKS %40', ygPuanYaz(hesap.p40))}
+            {hesap && satir('AGNO %60', ygPuanYaz(hesap.n60))}
             {satir('Telefon', rec.telefon, 'telefon')}
             {satir('E-posta', rec.eposta, 'eposta')}
           </div>
@@ -1672,98 +2216,176 @@ function YgBasvuruKarti({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {ygEkler(rec.turu).map((ek) => {
                 const f = (rec.ekler || {})[ek.id];
-                if (!f) {
-                  // Eksik ek — akademisyen yerine yükleyebilir. Öğrenci
-                  // Belgesi gibi sonradan zorunlu olan belgeler eski
-                  // kayıtlarda hep eksik kalıyor; başvuruyu geri göndermek
-                  // yerine burada tamamlanabilmeli.
-                  return (
-                    <div key={ek.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <span
-                        style={{ ...ygPill(YG.textMuted, YG.bg), flex: 1, textAlign: 'center' }}
-                      >
-                        {ek.title} — yok
-                      </span>
-                      {isStaff && onEkYukle && (
-                        <label style={{ cursor: ekYukleniyor ? 'wait' : 'pointer' }}>
-                          <input
-                            type="file"
-                            style={{ display: 'none' }}
-                            onChange={async (e) => {
-                              const dosya = (e.target.files || [])[0];
-                              e.target.value = '';
-                              if (!dosya) return;
-                              setEkYukleniyor(ek.id);
-                              try {
-                                await onEkYukle(rec, ek.id, dosya);
-                              } finally {
-                                setEkYukleniyor('');
-                              }
-                            }}
-                          />
-                          <span
-                            style={{
-                              display: 'inline-block',
-                              fontSize: 11.5,
-                              fontWeight: 700,
-                              color: YG.navy,
-                              border: '1px solid ' + YG.border,
-                              background: 'white',
-                              borderRadius: 8,
-                              padding: '5px 10px',
-                              whiteSpace: 'nowrap',
-                              opacity: ekYukleniyor ? 0.6 : 1,
-                            }}
-                          >
-                            {ekYukleniyor === ek.id ? 'Yükleniyor…' : 'Yükle'}
-                          </span>
-                        </label>
-                      )}
-                    </div>
-                  );
-                }
                 const secili = acikEk === ek.id;
+                const zorunlu = ygEkZorunlu(ek, rec.turu);
+                // ⚠ Satırlar formdaki ek satırlarıyla AYNI biçimde: eskiden
+                // yüklü ek geniş bir düğme, eksik ek ise ortalanmış gri bir
+                // etiketti — aynı listedeki iki satır birbirine benzemiyordu.
                 return (
-                  <div key={ek.id} style={{ display: 'flex', gap: 6 }}>
-                    {isStaff && (
+                  <div
+                    key={ek.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 9,
+                      padding: '8px 10px',
+                      borderRadius: YG_OLCU.yaricapKucuk,
+                      border: '1px solid ' + (secili ? YG.accent : f ? YG.green + '55' : YG.border),
+                      background: secili ? YG.accentPale : f ? YG.greenLight + '44' : YG.bg,
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        flex: '0 0 auto',
+                        width: 24,
+                        height: 24,
+                        borderRadius: 7,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'white',
+                        border: '1px solid ' + (f ? YG.green + '55' : YG.border),
+                        color: f ? YG.green : YG.textMuted,
+                      }}
+                    >
+                      {f ? (
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                      ) : (
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M12 5v14M5 12h14" />
+                        </svg>
+                      )}
+                    </span>
+                    <span
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        color: f ? YG.text : YG.textMuted,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={ek.title}
+                    >
+                      {ek.title}
+                      {zorunlu && !f ? <span style={{ color: YG.red }}> *</span> : null}
+                    </span>
+                    {!f && (
+                      <span
+                        style={{
+                          ...ygPill(YG.textMuted, 'white'),
+                          border: '1px solid ' + YG.border,
+                        }}
+                      >
+                        yok
+                      </span>
+                    )}
+                    {/* Eksik ek — akademisyen yerine yükleyebilir. Öğrenci
+                        Belgesi gibi sonradan zorunlu olan belgeler eski
+                        kayıtlarda hep eksik kalıyor; başvuruyu geri göndermek
+                        yerine burada tamamlanabilmeli. */}
+                    {!f && isStaff && onEkYukle && (
+                      <label
+                        style={{ cursor: ekYukleniyor ? 'wait' : 'pointer', flex: '0 0 auto' }}
+                      >
+                        <input
+                          type="file"
+                          style={{ display: 'none' }}
+                          onChange={async (e) => {
+                            const dosya = (e.target.files || [])[0];
+                            e.target.value = '';
+                            if (!dosya) return;
+                            setEkYukleniyor(ek.id);
+                            try {
+                              await onEkYukle(rec, ek.id, dosya);
+                            } finally {
+                              setEkYukleniyor('');
+                            }
+                          }}
+                        />
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            fontSize: 11.5,
+                            fontWeight: 700,
+                            color: YG.navy,
+                            border: '1px solid ' + YG.border,
+                            background: 'white',
+                            borderRadius: 8,
+                            padding: '5px 10px',
+                            whiteSpace: 'nowrap',
+                            opacity: ekYukleniyor ? 0.6 : 1,
+                          }}
+                        >
+                          {ekYukleniyor === ek.id ? 'Yükleniyor…' : 'Yükle'}
+                        </span>
+                      </label>
+                    )}
+                    {f && isStaff && (
                       <button
                         type="button"
                         onClick={() => setAcikEk(secili ? '' : ek.id)}
                         style={{
-                          flex: 1,
-                          textAlign: 'left',
-                          fontSize: 12,
-                          fontWeight: 600,
+                          flex: '0 0 auto',
+                          fontSize: 11.5,
+                          fontWeight: 700,
                           color: secili ? '#7c4a03' : YG.accent,
                           border: '1px solid ' + YG.accent + (secili ? '' : '55'),
-                          background: secili ? YG.accentPale : 'white',
+                          background: secili ? 'white' : 'white',
                           borderRadius: 8,
-                          padding: '6px 10px',
+                          padding: '5px 10px',
                           cursor: 'pointer',
                           fontFamily: 'inherit',
+                          whiteSpace: 'nowrap',
                         }}
                       >
-                        {ek.title}
+                        {secili ? 'Kapat' : 'Görüntüle'}
                       </button>
                     )}
-                    <a
-                      href={ygFileHref(f.url)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: YG.navy,
-                        border: '1px solid ' + YG.border,
-                        background: 'white',
-                        borderRadius: 8,
-                        padding: '6px 10px',
-                        textDecoration: 'none',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {isStaff ? 'İndir' : ek.title}
-                    </a>
+                    {f && (
+                      <a
+                        href={ygFileHref(f.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          flex: '0 0 auto',
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          color: YG.navy,
+                          border: '1px solid ' + YG.border,
+                          background: 'white',
+                          borderRadius: 8,
+                          padding: '5px 10px',
+                          textDecoration: 'none',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        İndir
+                      </a>
+                    )}
                   </div>
                 );
               })}
@@ -2665,6 +3287,11 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
     };
   }, [isStaff, loading, busy, gorunen, canliHarita, kayitlar, kontenjanBos, turId, tur]);
 
+  // Listenin tepe özeti: kaç başvuru, kaçı bekliyor, kaç asil/yedek.
+  // Sayılar GEÇERLİ sonuçtan çıkar (lib/yatay-liste-ozeti.js) — tepe şeridi
+  // ile kartların söylediği aynı olmalı.
+  const listeOzet = useMemo(() => listeOzeti(gorunen, siralamaEsik), [gorunen, siralamaEsik]);
+
   // Kayıtla öneri arasındaki fark — panelde özet olarak gösterilir.
   const canliOzet = useMemo(() => {
     let asil = 0;
@@ -3095,8 +3722,20 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           subtitle: tur.tamAd,
         })}
 
-      {/* Başvuru türü seçici — ÇAP/Yandal ile aynı desen */}
-      <div style={{ display: 'flex', gap: 10, margin: '18px 0 20px', flexWrap: 'wrap' }}>
+      {/* ── Geçiş türü seçici ──
+          Üç kart SİMETRİK: aynı yükseklik, aynı iç düzen, hepsinde kayıt
+          sayısı. Seçim kenarlığı KALINLAŞMAZ, iç gölgeyle çizilir — aksi
+          hâlde tıklandığında kartlar birkaç piksel oynuyordu. */}
+      <div
+        role="tablist"
+        aria-label="Geçiş türü"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: 12,
+          margin: '18px 0 18px',
+        }}
+      >
         {YG_TURLER.map((t) => {
           const sel = turId === t.id;
           // Rozet KAPSAM içinden sayılır: ham `kayitlar` üniversite geneliydi.
@@ -3105,76 +3744,125 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
             <button
               key={t.id}
               type="button"
+              role="tab"
+              aria-selected={sel}
               onClick={() => {
                 setTurId(t.id);
                 setSekme(isStudent ? 'yeni' : 'basvurular');
               }}
               style={{
-                flex: '1 1 300px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
                 textAlign: 'left',
-                padding: '16px 18px',
-                borderRadius: 12,
+                padding: '14px 16px',
+                borderRadius: YG_OLCU.yaricap,
                 cursor: 'pointer',
-                border: (sel ? '2px solid ' : '1px solid ') + (sel ? t.color : YG.border),
-                borderLeft: '3px solid ' + (sel ? t.color : YG.border),
+                border: '1px solid ' + (sel ? t.color + '66' : YG.border),
+                boxShadow: sel ? 'inset 0 0 0 2px ' + t.color : YG_OLCU.golge,
                 background: sel ? t.bg : 'white',
                 fontFamily: 'inherit',
+                transition: 'box-shadow .15s ease, background .15s ease',
               }}
             >
-              {/* Yalnız ana başlık — tür açıklamaları kaldırıldı; kayıt
-                  sayısı bilgi olarak kaldı. */}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                <span
+                  style={{
+                    flex: '0 0 auto',
+                    width: 10,
+                    height: 10,
+                    borderRadius: 3,
+                    background: t.color,
+                    opacity: sel ? 1 : 0.35,
+                  }}
+                  aria-hidden="true"
+                />
+                <span
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: sel ? t.color : YG.navy,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {t.label}
+                </span>
+                <span
+                  style={{
+                    flex: '0 0 auto',
+                    padding: '2px 9px',
+                    borderRadius: 11,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                    fontVariantNumeric: 'tabular-nums',
+                    background: sel ? 'white' : YG.bg,
+                    border: '1px solid ' + (sel ? t.color + '44' : YG.border),
+                    color: cnt ? (sel ? t.color : YG.navy) : YG.textMuted,
+                  }}
+                >
+                  {cnt ? cnt + ' kayıt' : 'kayıt yok'}
+                </span>
+              </span>
+              {/* Tür açıklaması geri kondu: hangi türün ne olduğu ancak
+                  formu açınca anlaşılıyordu, oysa seçim burada yapılıyor. */}
               <span
                 style={{
-                  display: 'block',
-                  fontSize: 15.5,
-                  fontWeight: 700,
-                  color: sel ? t.color : YG.text,
+                  fontSize: 11.5,
+                  lineHeight: 1.5,
+                  color: sel ? '#4b5563' : YG.textMuted,
                 }}
               >
-                {t.label}
+                {t.aciklama}
               </span>
-              {cnt ? (
-                <span
-                  style={{ fontSize: 11.5, color: YG.textMuted, display: 'block', marginTop: 4 }}
-                >
-                  {cnt} kayıt
-                </span>
-              ) : null}
             </button>
           );
         })}
       </div>
 
-      {/* Alt sekmeler */}
+      {/* ── Alt sekmeler ──
+          Alttan çizgili sekme yerine bölümlü düğme (segment): iki rolde de
+          aynı görünür ve seçili olan kart düzleminde durur. */}
       {sekmeler.length > 1 && (
         <div
+          role="tablist"
+          aria-label="Görünüm"
           style={{
-            display: 'flex',
+            display: 'inline-flex',
             gap: 4,
+            padding: 4,
             marginBottom: 16,
-            borderBottom: '1px solid ' + YG.border,
+            background: YG.bg,
+            border: '1px solid ' + YG.border,
+            borderRadius: 12,
           }}
         >
-          {sekmeler.map((s) => {
-            const on = sekme === s.id;
+          {sekmeler.map((sk) => {
+            const on = sekme === sk.id;
             return (
               <button
-                key={s.id}
+                key={sk.id}
                 type="button"
-                onClick={() => setSekme(s.id)}
+                role="tab"
+                aria-selected={on}
+                onClick={() => setSekme(sk.id)}
                 style={{
-                  padding: '10px 16px',
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: '2px solid ' + (on ? YG.accent : 'transparent'),
-                  color: on ? YG.accent : YG.textMuted,
-                  fontWeight: on ? 700 : 500,
-                  fontSize: 13.5,
+                  padding: '8px 16px',
+                  background: on ? 'white' : 'transparent',
+                  border: '1px solid ' + (on ? YG.border : 'transparent'),
+                  boxShadow: on ? YG_OLCU.golge : 'none',
+                  borderRadius: 9,
+                  color: on ? tur.color : YG.textMuted,
+                  fontWeight: on ? 700 : 600,
+                  fontSize: 13,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
+                  transition: 'background .15s ease',
                 }}
               >
-                {s.label}
+                {sk.label}
               </button>
             );
           })}
@@ -3224,6 +3912,9 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       {/* Başvuru listesi */}
       {sekme === 'basvurular' && (
         <>
+          {/* Tepe şeridi: "kaç başvuru, kaçı bekliyor, kaç asil" sorusunun
+              cevabı hiçbir yerde yazmıyordu — kartlar tek tek sayılıyordu. */}
+          {isStaff && gorunen.length > 0 && <YgOzetSerit ozet={listeOzet} />}
           {/* Bölümü çözülemeyen başvurular hiçbir bölümün listesinde çıkmaz;
               sessizce kaybolmasınlar diye burada bildirilir. Eski davranışta
               bunlar HER bölümde görünüyordu — asıl şikâyet buydu. */}
@@ -3285,73 +3976,70 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           )}
 
           {/* Akademisyen: kontenjan → puana göre asil/yedek önerisi.
-              Yalnız puan ölçütü olan türlerde (kurum içinde puan yoktur). */}
+              Yalnız puan ölçütü olan türlerde (kurum içinde puan yoktur).
+              Panel üç adıma ayrıldı: taban şartı · sınıf kontenjanları ·
+              sonuç. Eskiden hepsi tek blok hâlinde alt alta akıyordu ve
+              hangi kutunun hangi karara ait olduğu ayırt edilmiyordu. */}
           {isStaff && turId !== 'kurumici' && gorunen.length > 0 && (
-            <div style={{ ...ygCard, padding: '12px 16px', marginBottom: 14 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  gap: 12,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <div style={{ flex: '1 1 240px' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 3 }}>
-                    Kontenjan ile sıralama
-                  </div>
-                  <div style={{ fontSize: 11.5, color: YG.textMuted, lineHeight: 1.5 }}>
-                    Başvurular{' '}
-                    {turId === 'kurumlararasi'
-                      ? 'yerleştirmeye esas puana (YKS %40 + AGNO %60)'
-                      : 'YKS yerleştirme puanına'}{' '}
-                    göre sıralanır; sınıf başına ilk sıradakiler asil, sonrakiler yedek yazılır.
-                  </div>
-                </div>
+            <YgBolum
+              renk={tur.color}
+              baslik="Kontenjan ile sıralama"
+              aciklama={
+                'Başvurular ' +
+                (turId === 'kurumlararasi'
+                  ? 'yerleştirmeye esas puana (YKS %40 + AGNO %60)'
+                  : 'YKS yerleştirme puanına') +
+                ' göre sıralanır; sınıf başına ilk sıradakiler asil, sonrakiler yedek yazılır. ' +
+                'Bu bir öneridir — uygulandıktan sonra her satırı tek tek değiştirebilirsiniz.'
+              }
+              sag={
                 <button
                   onClick={siralamayiUygula}
                   disabled={busy || kontenjanBos}
+                  title={kontenjanBos ? 'Önce en az bir sınıfa kontenjan girin' : ''}
                   style={{
                     ...ygBtn(true),
                     opacity: busy || kontenjanBos ? 0.5 : 1,
                     cursor: busy || kontenjanBos ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {busy ? 'Uygulanıyor…' : 'Sıralamayı Uygula'}
                 </button>
-              </div>
-
+              }
+            >
               {/* Taban BAŞARI SIRALAMASI — kurumun elle belirlediği asgari şart
                   (yönetmelikteki "başarı sırası şartı"). Gerisinde kalan aday,
                   sıralamada nerede olursa olsun "uygun değil"dir ve kontenjanı
                   işgal etmez. */}
               <div
                 style={{
-                  marginTop: 12,
-                  paddingTop: 12,
-                  borderTop: '1px solid ' + YG.border,
                   display: 'flex',
-                  gap: 12,
+                  gap: 14,
                   flexWrap: 'wrap',
-                  alignItems: 'flex-end',
+                  alignItems: 'flex-start',
+                  padding: '12px 14px',
+                  borderRadius: YG_OLCU.yaricapKucuk,
+                  background: YG.bg,
+                  border: '1px solid ' + YG.border,
                 }}
               >
-                <div style={{ width: 190 }}>
+                <div style={{ width: 200 }}>
                   <label style={ygLabel}>Taban yerleştirme başarı sıralaması</label>
                   <input
                     value={siralamaEsik}
                     disabled={busy}
                     onChange={(e) => setSiralamaEsik(e.target.value.replace(/[^\d.,\s]/g, ''))}
                     placeholder="ör. 300.000"
-                    style={ygInput}
+                    style={{ ...ygInput, background: 'white' }}
                   />
                 </div>
                 <div
                   style={{
-                    flex: '1 1 260px',
+                    flex: '1 1 280px',
                     fontSize: 11.5,
                     color: YG.textMuted,
-                    lineHeight: 1.5,
+                    lineHeight: 1.6,
                   }}
                 >
                   Adayın <b>yerleştirme başarı sırası</b> bu değerden büyükse (yani sıralamada
@@ -3368,75 +4056,97 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
               </div>
 
               {/* Kontenjan SINIF BAŞINA ilan edilir — 1'den 5'e her sınıf için
-                  ayrı. Başvurusu olmayan sınıfa da kontenjan girilebilmeli. */}
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: YG.navy, marginBottom: 6 }}>
+                  ayrı. Başvurusu olmayan sınıfa da kontenjan girilebilmeli.
+                  Kutular ızgarada: eskiden serbest akıyor, son satırdaki kutu
+                  yarım genişlikte kalıyordu. */}
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: YG.navy, marginBottom: 8 }}>
                   Sınıf başına kontenjan
                 </div>
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  {basvuruSiniflari.map((sf) => (
-                    <div
-                      key={sf}
-                      style={{
-                        border: '1px solid ' + YG.border,
-                        borderRadius: 10,
-                        padding: '10px 12px',
-                        background: YG.bg,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 11.5,
-                          fontWeight: 800,
-                          color: YG.navy,
-                          marginBottom: 6,
-                        }}
-                      >
-                        {sf}. sınıf
-                        <span style={{ fontWeight: 600, color: YG.textMuted, marginLeft: 6 }}>
-                          (
-                          {
-                            gorunen.filter((r) => String(r.basvurduguSinif || '').trim() === sf)
-                              .length
-                          }{' '}
-                          başvuru)
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <div style={{ width: 92 }}>
-                          <label style={ygLabel}>Asil</label>
-                          <input
-                            value={(kontenjanlar[sf] || {}).asil || ''}
-                            disabled={busy}
-                            onChange={(e) => kontenjanYaz(sf, 'asil', e.target.value)}
-                            placeholder="0"
-                            style={ygInput}
-                          />
-                        </div>
-                        <div style={{ width: 92 }}>
-                          <label style={ygLabel}>Yedek</label>
-                          <input
-                            value={(kontenjanlar[sf] || {}).yedek || ''}
-                            disabled={busy}
-                            onChange={(e) => kontenjanYaz(sf, 'yedek', e.target.value)}
-                            placeholder="0"
-                            style={ygInput}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {/* Güncel kriterlerin listeye ne diyeceği — her eşik/kontenjan
-                    değişiminde anında güncellenir. Kayda YAZILMAZ; kimin asil,
-                    kimin kontenjan dışı kalacağı beklemeden görünsün diye. */}
                 <div
                   style={{
-                    marginTop: 12,
-                    padding: '9px 12px',
-                    borderRadius: 8,
-                    background: canliOzet.farkli > 0 ? YG.accentPale : YG.bg,
-                    border: '1px solid ' + (canliOzet.farkli > 0 ? YG.accent + '55' : YG.border),
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: 10,
+                  }}
+                >
+                  {basvuruSiniflari.map((sf) => {
+                    const adet = gorunen.filter(
+                      (r) => String(r.basvurduguSinif || '').trim() === sf
+                    ).length;
+                    return (
+                      <div
+                        key={sf}
+                        style={{
+                          border: '1px solid ' + YG.border,
+                          borderRadius: YG_OLCU.yaricapKucuk,
+                          padding: '10px 12px',
+                          background: adet ? 'white' : YG.bg,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            justifyContent: 'space-between',
+                            gap: 6,
+                            marginBottom: 8,
+                          }}
+                        >
+                          <span style={{ fontSize: 12.5, fontWeight: 800, color: YG.navy }}>
+                            {sf}. sınıf
+                          </span>
+                          <span style={{ fontSize: 11, color: YG.textMuted, fontWeight: 600 }}>
+                            {adet} başvuru
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <label style={ygLabel}>Asil</label>
+                            <input
+                              value={(kontenjanlar[sf] || {}).asil || ''}
+                              disabled={busy}
+                              onChange={(e) => kontenjanYaz(sf, 'asil', e.target.value)}
+                              placeholder="0"
+                              style={{ ...ygInput, textAlign: 'center' }}
+                            />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <label style={ygLabel}>Yedek</label>
+                            <input
+                              value={(kontenjanlar[sf] || {}).yedek || ''}
+                              disabled={busy}
+                              onChange={(e) => kontenjanYaz(sf, 'yedek', e.target.value)}
+                              placeholder="0"
+                              style={{ ...ygInput, textAlign: 'center' }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Güncel kriterlerin listeye ne diyeceği — her eşik/kontenjan
+                  değişiminde anında güncellenir. Kayda YAZILMAZ; kimin asil,
+                  kimin kontenjan dışı kalacağı beklemeden görünsün diye. */}
+              <div
+                style={{
+                  marginTop: 14,
+                  display: 'flex',
+                  gap: 12,
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  padding: '11px 13px',
+                  borderRadius: YG_OLCU.yaricapKucuk,
+                  background: canliOzet.farkli > 0 ? YG.accentPale : YG.bg,
+                  border: '1px solid ' + (canliOzet.farkli > 0 ? YG.accent + '55' : YG.border),
+                }}
+              >
+                <div
+                  style={{
+                    flex: '1 1 280px',
                     fontSize: 11.5,
                     lineHeight: 1.6,
                     color: canliOzet.farkli > 0 ? '#7c4a03' : YG.textMuted,
@@ -3454,17 +4164,11 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                     ' Kayıtlı sonuçlar kriterlerle uyumlu.'
                   )}
                 </div>
-                <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
-                  <button onClick={kriterKaydet} disabled={kriterKaydediliyor} style={ygBtn(false)}>
-                    {kriterKaydediliyor ? 'Kaydediliyor…' : 'Kriterleri Kaydet'}
-                  </button>
-                </div>
+                <button onClick={kriterKaydet} disabled={kriterKaydediliyor} style={ygBtn(false)}>
+                  {kriterKaydediliyor ? 'Kaydediliyor…' : 'Kriterleri Kaydet'}
+                </button>
               </div>
-              <div style={{ fontSize: 11.5, color: YG.textMuted, marginTop: 8 }}>
-                Bu bir <b>öneridir</b>: uygulandıktan sonra her satırın değerlendirmesini tek tek
-                değiştirebilirsiniz. Puanı okunamayan başvurulara dokunulmaz.
-              </div>
-            </div>
+            </YgBolum>
           )}
 
           {/* Akademisyen: belge üretimi — tüm başvurular değerlendirilince açılır */}
@@ -3472,7 +4176,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
             <div
               style={{
                 ...ygCard,
-                padding: '12px 16px',
+                padding: '14px 16px',
                 marginBottom: 14,
                 display: 'flex',
                 alignItems: 'center',
@@ -3480,70 +4184,76 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                 flexWrap: 'wrap',
               }}
             >
-              <div style={{ flex: '1 1 260px', fontSize: 12.5, color: YG.textMuted }}>
-                {belgeHazir ? (
-                  <>
-                    Tüm başvurular değerlendirildi.{' '}
-                    <b style={{ color: YG.navy }}>{gorunen.length} başvuru</b> için değerlendirme
-                    raporu üretilebilir.
-                  </>
-                ) : (
-                  <>
-                    <b style={{ color: YG.accent }}>{degerlendirilmemis} başvuru</b> henüz
-                    değerlendirilmedi. Belge, tüm başvurular değerlendirildiğinde üretilebilir.
-                  </>
-                )}
+              <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: YG.navy }}>
+                  Değerlendirme raporu
+                </div>
+                <div style={{ fontSize: 12, color: YG.textMuted, lineHeight: 1.55, marginTop: 3 }}>
+                  {belgeDurumMetni(listeOzet)}
+                </div>
               </div>
-              <button
-                onClick={belgeOlustur}
-                disabled={!belgeHazir || belgeUretiliyor}
-                title={belgeHazir ? '' : 'Önce tüm başvuruları değerlendirin'}
-                style={{
-                  ...ygBtn(belgeHazir),
-                  opacity: belgeHazir ? 1 : 0.5,
-                  cursor: belgeHazir ? 'pointer' : 'not-allowed',
-                }}
-              >
-                {belgeUretiliyor ? 'Üretiliyor…' : 'Belge Oluştur'}
-              </button>
-              {uretilenBelge && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {uretilenBelge && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        // Bu akışta önizleme penceresi yok; başarısızlığı
+                        // yardımcı bildirir ve "gönderildi" mesajı yazılmaz.
+                        const sonuc = await window.belgeGonderVeBildir(uretilenBelge);
+                        if (!window.belgeGonderimBasarili(sonuc)) return;
+                        setMsg('Rapor memura gönderildi.');
+                        setTimeout(() => setMsg(''), 4000);
+                      } catch (e) {
+                        alert('Gönderilemedi: ' + e.message);
+                      }
+                    }}
+                    style={ygBtn(false)}
+                  >
+                    Memura Gönder
+                  </button>
+                )}
                 <button
-                  onClick={async () => {
-                    try {
-                      // Bu akışta önizleme penceresi yok; başarısızlığı
-                      // yardımcı bildirir ve "gönderildi" mesajı yazılmaz.
-                      const sonuc = await window.belgeGonderVeBildir(uretilenBelge);
-                      if (!window.belgeGonderimBasarili(sonuc)) return;
-                      setMsg('Rapor memura gönderildi.');
-                      setTimeout(() => setMsg(''), 4000);
-                    } catch (e) {
-                      alert('Gönderilemedi: ' + e.message);
-                    }
+                  onClick={belgeOlustur}
+                  disabled={!belgeHazir || belgeUretiliyor}
+                  title={belgeHazir ? '' : 'Önce tüm başvuruları değerlendirin'}
+                  style={{
+                    ...ygBtn(belgeHazir),
+                    opacity: belgeHazir ? 1 : 0.5,
+                    cursor: belgeHazir ? 'pointer' : 'not-allowed',
                   }}
-                  style={ygBtn(false)}
                 >
-                  Memura Gönder
+                  {belgeUretiliyor ? 'Üretiliyor…' : 'Belge Oluştur'}
                 </button>
-              )}
+              </div>
             </div>
           )}
 
           {gorunen.length === 0 ? (
-            <div
-              style={{
-                ...ygCard,
-                border: '1px dashed ' + YG.border,
-                padding: 44,
-                textAlign: 'center',
-                color: YG.textMuted,
-                fontSize: 13.5,
-                lineHeight: 1.6,
-              }}
-            >
-              {isStudent
-                ? 'Bu geçiş türünde henüz başvurunuz yok.'
-                : 'Bu geçiş türünde başvuru bulunmuyor.'}
-            </div>
+            <YgBosDurum
+              baslik={
+                isStudent
+                  ? 'Bu geçiş türünde başvurunuz yok'
+                  : 'Bu geçiş türünde başvuru bulunmuyor'
+              }
+              metin={
+                isStudent
+                  ? tur.label +
+                    ' için henüz bir başvurunuz yok. “Yeni Başvuru” sekmesinden ' +
+                    'başvurunuzu oluşturabilirsiniz.'
+                  : tur.label +
+                    ' türünde bölümünüze yapılmış başvuru yok. Numarası henüz ' +
+                    'olmayan bir aday için “Aday Adına Başvuru” sekmesini kullanabilirsiniz.'
+              }
+              eylem={
+                <button
+                  type="button"
+                  onClick={() => setSekme(isStudent ? 'yeni' : 'aday')}
+                  style={ygBtn(true)}
+                >
+                  {isStudent ? 'Yeni başvuru oluştur' : 'Aday adına başvuru'}
+                </button>
+              }
+            />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {gorunen.map((r) => (
