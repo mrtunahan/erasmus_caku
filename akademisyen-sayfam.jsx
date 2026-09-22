@@ -445,6 +445,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   const Y = window.YoklamaKurali || {};
   const SayfaDuzeni = window.AkademisyenSayfaDuzeni || {};
   const SekmeSeridi = window.SayfaSekmeSeridi;
+  const Pencere = window.SayfaPenceresi;
   const benimAd = metin(currentUser?.identifier || currentUser?.name);
   const benimAnahtar = R.akademisyenAnahtari ? R.akademisyenAnahtari(benimAd) : '';
 
@@ -892,7 +893,15 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           iki sayfa birbirine benzemeyi koddan alsın diye. Sayfanın adını ve
           kullanıcının adını yazan başlık kaldırıldı: ikisi de üst menüde ve
           soldaki kartta zaten yazıyordu. */}
-      {SekmeSeridi ? <SekmeSeridi sekmeler={sekmeler} aktif={sekme} onSec={setSekme} /> : null}
+      {SekmeSeridi ? (
+        <SekmeSeridi
+          sekmeler={sekmeler}
+          aktif={sekme}
+          // Açık sekmeye tekrar basmak pencereyi kapatır; Genel Bakış zaten
+          // sayfanın kendisi olduğu için ona basmak yalnız pencereyi kapatır.
+          onSec={(id) => setSekme(id === sekme && id !== 'genel' ? 'genel' : id)}
+        />
+      ) : null}
 
       {hata && (
         <div
@@ -914,7 +923,11 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         <div
           style={{ display: 'grid', gridTemplateColumns: sutunlar, gap: 16, alignItems: 'start' }}
         >
-          {/* SOL: Akademisyen bilgileri · Derslerim */}
+          {/* SOL: Akademisyen bilgileri
+              ⚠ "Derslerim" kartı kaldırıldı: verdiği dersler Dijital Yoklama
+              penceresinde ders ders listeleniyor ve yoklama oradan
+              başlatılıyor. Aynı listeyi iki yerde tutmak ikisinin
+              ayrışmasına davetiye. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
             <ASBilgiKarti
               profil={profil}
@@ -922,13 +935,6 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
               ozet={ozet}
               departmentInfo={departmentInfo}
               onKaydet={bilgiKaydet}
-            />
-            <ASDerslerim
-              dersler={dersler}
-              ayarlar={yoklamaAyarlari}
-              ogrenciSayisi={(d) => dersinOgrencileri(metin(d.id || d._docId)).length}
-              onLimit={limitKaydet}
-              onYoklama={(d) => yoklamaBaslat(d)}
             />
           </div>
 
@@ -961,9 +967,17 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         </div>
       )}
 
-      {/* ══ DİJİTAL YOKLAMA ══ */}
-      {sekme === 'yoklama' && (
-        <div style={AS_KART}>
+      {/* ══ AÇILIR PENCERELER ══
+          Öğrenci tarafındaki gibi: sekme tıklanınca sayfanın ortasına açılan
+          pencere. Genişlik içeriğe göre esner ve ekranı taşmaz — geniş içerik
+          pencerenin İÇİNDE kayar (bkz. shared-components → SayfaPenceresi). */}
+      {Pencere && sekme === 'yoklama' && (
+        <Pencere
+          baslik="Dijital Yoklama"
+          altBaslik="Dersi seçin, karekod tam ekran açılır"
+          enCokGenislik={1080}
+          onKapat={() => setSekme('genel')}
+        >
           <ASYoklamaPaneli
             dersler={dersler}
             ayarlar={yoklamaAyarlari}
@@ -972,36 +986,43 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
             onBaslat={yoklamaBaslat}
             onLimit={limitKaydet}
           />
-        </div>
+        </Pencere>
       )}
 
-      {/* ══ GÖRÜŞME SAATLERİM ══ */}
-      {sekme === 'gorusme' && (
-        <div style={AS_KART}>
-          <h3 style={AS_BASLIK}>Görüşme Saatlerim</h3>
-          <p style={{ margin: '-6px 0 14px', fontSize: 12.5, color: '#6B7280', lineHeight: 1.6 }}>
-            Ders programınızdaki boş saatlere tıklayın; öğrenciler bu saatlere randevu isteyebilir.
-          </p>
+      {Pencere && sekme === 'gorusme' && (
+        <Pencere
+          baslik="Görüşme Saatlerim"
+          altBaslik="Boş saatlere tıklayın; öğrenciler bu saatlere randevu isteyebilir"
+          enCokGenislik={1000}
+          onKapat={() => setSekme('genel')}
+        >
           <ASGorusmePaneli
             izgara={tamIzgara}
             saatler={tamSaatler}
             musaitlikler={musaitlikler}
             onDegistir={musaitlikDegistir}
           />
-        </div>
+        </Pencere>
       )}
 
-      {/* ══ VERİ GİRİŞİ ══
-          Performans modülünden taşındı. Ekran KOPYALANMADI: aynı bileşen
-          gömülü kipte çiziliyor (bkz. performans_bilgileri_modul.jsx →
-          `gomulu`). Modül ilk açılışta indiriliyor; gösterge tablosu büyük
-          ve bu sekmeye girmeyen akademisyene yüklenmesinin anlamı yok. */}
-      {sekme === 'veri' && (
-        <ASVeriGirisi
-          currentUser={currentUser}
-          activeDepartment={activeDepartment}
-          departmentInfo={departmentInfo}
-        />
+      {/* Veri Girişi performans modülünden taşındı; ekran KOPYALANMADI, aynı
+          bileşen gömülü kipte çiziliyor. Modül ilk açılışta indiriliyor:
+          gösterge tablosu büyük, bu sekmeye girmeyene yüklenmesinin anlamı
+          yok. Tablo on iki aylık olduğu için pencere en geniş sınırı alır ve
+          taşma pencerenin içinde kalır. */}
+      {Pencere && sekme === 'veri' && (
+        <Pencere
+          baslik="Veri Girişi"
+          altBaslik="Performans göstergeleri"
+          enCokGenislik={1360}
+          onKapat={() => setSekme('genel')}
+        >
+          <ASVeriGirisi
+            currentUser={currentUser}
+            activeDepartment={activeDepartment}
+            departmentInfo={departmentInfo}
+          />
+        </Pencere>
       )}
 
       {tamEkran && (
@@ -1061,7 +1082,7 @@ function ASVeriGirisi({ currentUser, activeDepartment, departmentInfo }) {
     );
   }
   return (
-    <div style={{ ...AS_KART, padding: 0, overflow: 'hidden' }}>
+    <div>
       <Bilesen
         currentUser={currentUser}
         activeDepartment={activeDepartment}
@@ -1409,210 +1430,6 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
             <div style={{ fontSize: 10.5, color: '#9CA3AF', fontWeight: 600 }}>{e}</div>
           </div>
         ))}
-      </div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
-// SOL SÜTUN — Derslerim (devamsızlık sınırı burada belirlenir)
-// ══════════════════════════════════════════════════════════════
-function ASDerslerim({ dersler, ayarlar, ogrenciSayisi, onLimit, onYoklama }) {
-  const [acik, setAcik] = useState('');
-  const [taslak, setTaslak] = useState({ limitSaat: '', dersSaati: '' });
-
-  const duzenle = (ders) => {
-    const id = metin(ders.id || ders._docId);
-    const a = ayarlar[id] || {};
-    setTaslak({
-      limitSaat: String(a.limitSaat ?? ''),
-      dersSaati: String(a.dersSaati ?? ders.saat ?? 1),
-    });
-    setAcik(acik === id ? '' : id);
-  };
-
-  return (
-    <div style={AS_KART}>
-      <h3 style={AS_BASLIK}>
-        <svg
-          width="19"
-          height="19"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke={AS_GREEN}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-        </svg>
-        Derslerim
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>
-          {dersler.length}
-        </span>
-      </h3>
-
-      {dersler.length === 0 && (
-        <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>
-          Adınıza tanımlı ders bulunamadı. Ders kayıtlarında eğitmen alanı boşsa bölüm yetkilinize
-          başvurun.
-        </p>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {dersler.map((d) => {
-          const id = metin(d.id || d._docId);
-          const a = ayarlar[id] || {};
-          const limitli = Number(a.limitSaat) > 0;
-          return (
-            <div
-              key={id}
-              style={{ border: '1px solid #EEF0F3', borderRadius: 10, padding: '10px 12px' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                {metin(d.code || d.kod) && (
-                  <span
-                    style={{
-                      fontSize: 10.5,
-                      fontWeight: 800,
-                      color: '#1E40AF',
-                      background: '#DBEAFE',
-                      padding: '2px 7px',
-                      borderRadius: 6,
-                    }}
-                  >
-                    {metin(d.code || d.kod)}
-                  </span>
-                )}
-                <span style={{ fontSize: 13, fontWeight: 700, color: AS_NAVY }}>
-                  {metin(d.name || d.ad)}
-                </span>
-              </div>
-              <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 4 }}>
-                {ogrenciSayisi(d)} öğrenci ·{' '}
-                {limitli ? (
-                  <span style={{ color: AS_GREEN, fontWeight: 700 }}>
-                    devamsızlık sınırı {a.limitSaat} saat
-                  </span>
-                ) : (
-                  <span style={{ color: '#B45309', fontWeight: 700 }}>sınır belirlenmedi</span>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                <button
-                  onClick={() => onYoklama(d)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: AS_GREEN,
-                    color: '#fff',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  Yoklama Başlat
-                </button>
-                <button
-                  onClick={() => duzenle(d)}
-                  style={{
-                    padding: '6px 12px',
-                    borderRadius: 8,
-                    border: '1px solid #D1D5DB',
-                    background: '#fff',
-                    color: AS_NAVY,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  {acik === id ? 'Kapat' : 'Sınırı düzenle'}
-                </button>
-              </div>
-
-              {acik === id && (
-                <div
-                  style={{
-                    marginTop: 10,
-                    paddingTop: 10,
-                    borderTop: '1px dashed #E5E7EB',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                  }}
-                >
-                  <label style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600 }}>
-                    Devamsızlık hakkı (saat)
-                    <input
-                      type="number"
-                      min="0"
-                      value={taslak.limitSaat}
-                      onChange={(e) => setTaslak((t) => ({ ...t, limitSaat: e.target.value }))}
-                      style={{
-                        display: 'block',
-                        width: '100%',
-                        marginTop: 4,
-                        padding: '7px 10px',
-                        borderRadius: 8,
-                        border: '1px solid #D1D5DB',
-                        fontSize: 13,
-                        fontFamily: 'inherit',
-                      }}
-                    />
-                  </label>
-                  <label style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600 }}>
-                    Dersin haftalık saati
-                    <input
-                      type="number"
-                      min="1"
-                      value={taslak.dersSaati}
-                      onChange={(e) => setTaslak((t) => ({ ...t, dersSaati: e.target.value }))}
-                      style={{
-                        display: 'block',
-                        width: '100%',
-                        marginTop: 4,
-                        padding: '7px 10px',
-                        borderRadius: 8,
-                        border: '1px solid #D1D5DB',
-                        fontSize: 13,
-                        fontFamily: 'inherit',
-                      }}
-                    />
-                  </label>
-                  <p style={{ margin: 0, fontSize: 11, color: '#9CA3AF', lineHeight: 1.5 }}>
-                    Bir yoklama = dersin haftalık saati kadar devamsızlık. Sınır boş bırakılırsa
-                    devamsızlıktan kalma hesabı yapılmaz, yalnız sayılar görünür.
-                  </p>
-                  <button
-                    onClick={() => {
-                      onLimit(d, taslak.limitSaat, taslak.dersSaati);
-                      setAcik('');
-                    }}
-                    style={{
-                      alignSelf: 'flex-start',
-                      padding: '7px 14px',
-                      borderRadius: 8,
-                      border: 'none',
-                      background: AS_NAVY,
-                      color: '#fff',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    Kaydet
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
       </div>
     </div>
   );

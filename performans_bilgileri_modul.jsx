@@ -8,6 +8,19 @@ import {
   rolAciklamasi,
   varsayilanGorunum,
 } from './lib/performans-gorunum.js';
+import {
+  bolumKapsamiCozuldu,
+  fakulteKapsamiCozuldu,
+  fakulteyeGirenAkademisyenler,
+  gonderimAnahtari,
+  gonderimDurumu,
+  gonderimOzetMetni,
+  gonderimVarMi,
+  gorunurAkademisyenler,
+  kapsamOzetMetni,
+  secilebilirBolumler,
+  veriKapsami,
+} from './lib/performans-kapsam.js';
 
 // ═══════════════════════════════════════════════════════════════
 // ÇAKÜ — PERFORMANS BİLGİLERİ MODÜLÜ
@@ -239,6 +252,11 @@ export default function PerformansBilgileri({
 
   const [toast, setToast] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  // ── BÖLÜM → FAKÜLTE GÖNDERİMLERİ ──
+  // Bölüm yetkilisi "gönderdim" demeden bölümün değerleri fakülte toplamına
+  // girmez (bkz. lib/performans-kapsam.js). Kayıt: performance_submissions.
+  const [gonderimler, setGonderimler] = useState([]);
+  const [gonderiliyor, setGonderiliyor] = useState(false);
   const [saving, setSaving] = useState(false);
   // Sunucudan yüklenen "temel" durum — kaydet öncesi diff için karşılaştırma zemini.
   // Kaydet çağrıldığında sadece değişen hücreler backend'e yazılır.
@@ -255,11 +273,13 @@ export default function PerformansBilgileri({
   useEffect(() => {
     const load = async () => {
       try {
-        const [rows, rules, customQ] = await Promise.all([
+        const [rows, rules, customQ, gonderimSatirlari] = await Promise.all([
           window.apiRead('performance_data').catch(() => []),
           window.apiRead('performance_agg_rules').catch(() => []),
           window.apiRead('performance_indicators').catch(() => []),
+          window.apiRead('performance_submissions').catch(() => []),
         ]);
+        setGonderimler(Array.isArray(gonderimSatirlari) ? gonderimSatirlari : []);
         setCustomGostergeler(
           (Array.isArray(customQ) ? customQ : []).filter((q) => q && q.id && q.ad)
         );
@@ -470,6 +490,44 @@ export default function PerformansBilgileri({
     flash('Gösterge verileri gönderildi');
   };
 
+  /**
+   * Bölümün değerlerini fakülteye gönderir.
+   *
+   * ⚠ BU BİR KAYITTIR, BİR BAYRAK DEĞİL. Eskiden "Gönder" yalnız ekranda bir
+   * durum değiştiriyordu; sayfa yenilenince iz kalmıyor, fakülte toplamı da
+   * gönderilmiş/gönderilmemiş ayrımı yapmadan her şeyi topluyordu. Gönderim
+   * artık `performance_submissions` koleksiyonunda durur: kim, hangi bölüm,
+   * hangi yıl, ne zaman.
+   */
+  const fakulteyeGonder = async () => {
+    if (gonderiliyor) return;
+    if (!deptForSummary) {
+      flash('Bölümünüz çözülemedi; gönderilemiyor.');
+      return;
+    }
+    setGonderiliyor(true);
+    try {
+      await handleSave();
+      const kayit = {
+        id: gonderimAnahtari(deptForSummary, selectedYil),
+        bolumId: String(deptForSummary),
+        bolumAdi: departmentInfo?.name || selectedBolum || '',
+        yil: String(selectedYil),
+        gonderenAd: String(currentUser?.name || currentUser?.identifier || ''),
+        gonderimZamani: new Date().toISOString(),
+      };
+      await window.DBWrite.set('performance_submissions', kayit.id, kayit, true);
+      window.apiInvalidate && window.apiInvalidate('performance_submissions');
+      setGonderimler((önce) => [...önce.filter((x) => x.id !== kayit.id), kayit]);
+      flash('Bölüm verileri fakülteye gönderildi.');
+    } catch (e) {
+      console.error('Gönderilemedi:', e);
+      flash('Gönderilemedi: ' + (e.message || 'bilinmeyen hata'));
+    } finally {
+      setGonderiliyor(false);
+    }
+  };
+
   // ── Toplama kuralını backend'e yaz (bölüm/fakülte yetkilisi ayarı) ──
   const persistAggRule = async (scope, scopeId, gostergeId, aggType) => {
     if (!scope || !scopeId || !gostergeId || !aggType) return;
@@ -634,6 +692,27 @@ export default function PerformansBilgileri({
   const capDept = isDeptMgr || isFacMgr || isUniAdmin; // bölüm özeti
   const capFaculty = isFacMgr || isUniAdmin; // fakülte özeti
 
+  // ── KAPSAM: kim kimin verisini görür ──
+  // Kural lib/performans-kapsam.js'te; burası yalnız uygular.
+  const kapsam = useMemo(
+    () =>
+      veriKapsami({
+        profil: matchedAkademisyen,
+        departmentId: currentUser?.departmentId || activeDepartment,
+        dept: capDept,
+        faculty: capFaculty,
+        uni: isUniAdmin,
+      }),
+    [
+      matchedAkademisyen,
+      currentUser?.departmentId,
+      activeDepartment,
+      capDept,
+      capFaculty,
+      isUniAdmin,
+    ]
+  );
+
   // ── Aktif görünüm ──
   // Görünümler artık iki boyutlu bir yapıda gruplanıyor (NE × NEREDE);
   // kimlikler aynı kaldı ('own' | 'dept' | 'faculty' | 'strateji' |
@@ -657,16 +736,37 @@ export default function PerformansBilgileri({
     setElleSecildi(true);
     setActiveView(hedef);
   };
+  // ── GÖMÜLÜ KİPTE KAPSAM SEÇİMİ ──
+  // Akademisyen kendi verisini girer; bölüm yetkilisi kendi bölümünün
+  // özetini, fakülte yetkilisi kendi fakültesinin GÖNDERİLMİŞ toplamını da
+  // buradan görebilmeli — ayrı bir modüle gitmesin. Kapsamı çözülemeyen
+  // görünüm hiç sunulmaz (yanlış fakültenin verisini göstermektense
+  // sekmeyi hiç açmamak doğru).
+  const gomuluGorunumler = useMemo(() => {
+    if (!gomulu) return [];
+    const liste = [];
+    if (capOwn) liste.push({ id: 'own', ad: 'Verilerim' });
+    if (capDept && bolumKapsamiCozuldu(kapsam)) liste.push({ id: 'dept', ad: 'Bölümüm' });
+    if (capFaculty && fakulteKapsamiCozuldu(kapsam)) liste.push({ id: 'faculty', ad: 'Fakültem' });
+    return liste;
+  }, [gomulu, capOwn, capDept, capFaculty, kapsam]);
+
   useEffect(() => {
-    // Gömülü kipte tek bir ekran var; görünüm düzeltmesi onu 'own'dan
-    // çıkarırdı (veri girişi bu modülün gezinmesinde artık yok).
-    if (gomulu) return;
+    // Gömülü kipte görünüm yalnız bu sekmenin kapsamları arasında gezinir;
+    // modülün genel düzeltmesi onu buradan çıkarırdı.
+    if (gomulu) {
+      if (gomuluGorunumler.length === 0) return;
+      if (!gomuluGorunumler.some((g) => g.id === activeView)) {
+        setActiveView(gomuluGorunumler[0].id);
+      }
+      return;
+    }
     // Kapalı bir görünümde kalınmaz; düzeltme AYNI BÖLÜMDE kalmaya çalışır —
     // fakülte yetkisi olmayan kişi "Stratejik Plan / Fakülte"den bambaşka bir
     // ekrana değil, "Stratejik Plan / Bölümüm"e iner.
     const hedef = elleSecildi ? gorunumDuzelt(activeView, yetkiler) : varsayilanGorunum(yetkiler);
     if (hedef && hedef !== activeView) setActiveView(hedef);
-  }, [gomulu, yetkiler, activeView, elleSecildi]);
+  }, [gomulu, gomuluGorunumler, yetkiler, activeView, elleSecildi]);
 
   const gezinme = useMemo(() => gezinmeDurumu(activeView, yetkiler), [activeView, yetkiler]);
 
@@ -674,48 +774,50 @@ export default function PerformansBilgileri({
   //   - Bölüm yetkilisi: activeDepartment (kendi bölümü)
   //   - Fakülte/Üni yetkilisi: dropdown ile kendi seçtiği
   //   - Akademisyen (sadece): matched akademisyenin bölümü
+  // ⚠ BÖLÜM YETKİLİSİ KENDİ BÖLÜMÜNE SABİTTİR. Eskiden kenar çubuğunda
+  // gezinilen bölüm (`activeDepartment`) esas alınıyordu; başka bir bölüme
+  // geçmek o bölümün verisini görmek demekti. Kapsam artık kişinin KENDİ
+  // kaydından gelir. Yalnız fakülte/üniversite yetkilisi bölüm seçebilir ve
+  // seçebildikleri de kendi kapsamlarıyla sınırlıdır.
+  const secilebilirler = useMemo(
+    () => secilebilirBolumler(AKADEMISYENLER, kapsam),
+    [AKADEMISYENLER, kapsam]
+  );
   const deptForSummary = useMemo(() => {
-    if (isDeptMgr && activeDepartment) return activeDepartment;
+    if (!kapsam.uni && !kapsam.faculty) return kapsam.departmentId;
     if (selectedBolum) {
-      // selectedBolum bir bölüm ADI — id'ye çevir
-      const first = AKADEMISYENLER.find((a) => a.bolum === selectedBolum);
-      return first?.departmentId || '';
+      const secili = secilebilirler.find((b) => b.ad === selectedBolum);
+      if (secili) return secili.id;
+      return '';
     }
-    return matchedAkademisyen?.departmentId || activeDepartment || '';
-  }, [isDeptMgr, activeDepartment, selectedBolum, AKADEMISYENLER, matchedAkademisyen]);
+    return kapsam.departmentId || (secilebilirler[0] && secilebilirler[0].id) || '';
+  }, [kapsam, selectedBolum, secilebilirler]);
 
   const bolumAkademisyenleri = useMemo(() => {
-    if (deptForSummary) {
-      return AKADEMISYENLER.filter((a) => a.departmentId === deptForSummary);
-    }
-    if (selectedBolum) return AKADEMISYENLER.filter((a) => a.bolum === selectedBolum);
-    return [];
-  }, [AKADEMISYENLER, deptForSummary, selectedBolum]);
+    // Kapsam dışındaki bölüm hiç sorulmaz: gorunurAkademisyenler 'dept'
+    // görünümünde kullanıcının kendi bölümüne kilitler; fakülte/üniversite
+    // yetkilisi için seçili bölüme süzülür.
+    if (!kapsam.uni && !kapsam.faculty)
+      return gorunurAkademisyenler(AKADEMISYENLER, kapsam, 'dept');
+    const izinli = gorunurAkademisyenler(
+      AKADEMISYENLER,
+      kapsam,
+      kapsam.uni ? 'faculty' : 'faculty'
+    );
+    if (!deptForSummary) return [];
+    return izinli.filter((a) => a.departmentId === deptForSummary);
+  }, [AKADEMISYENLER, kapsam, deptForSummary]);
 
-  // Kullanıcının kendi fakültesi — üniversite yetkilisi hariç herkesin
-  // kapsamı buraya sınırlıdır (fakülte yetkilisi kendi fakültesinin dışını
-  // göremez, bölüm yetkilisi zaten kendi bölümüne sıkışıktır).
-  const userFacultyName = useMemo(
-    () => matchedAkademisyen?.fakulte || FAKULTELER[0] || '',
-    [matchedAkademisyen, FAKULTELER]
+  // ⚠ ESKİDEN: `matchedAkademisyen?.fakulte || FAKULTELER[0]`. Sistemde
+  // akademisyen kaydı bulunmayan bir fakülte yetkilisi, listedeki İLK
+  // fakültenin verisini görüyordu. Artık boş kalır ve ekran sebebini söyler.
+  const userFacultyName = kapsam.fakulte;
+
+  // Fakülte kırılımında seçilebilecek bölüm ADLARI — kapsam dışına çıkmaz.
+  const fakulteBolumleri = useMemo(
+    () => (capFaculty ? secilebilirler.map((b) => b.ad).filter(Boolean) : []),
+    [capFaculty, secilebilirler]
   );
-
-  const fakulteBolumleri = useMemo(() => {
-    if (!capFaculty) return [];
-    // Fakülte yetkilisi yalnızca kendi fakültesinin bölümlerini görür.
-    // Üniversite yetkilisi tüm bölümleri görebilir.
-    if (isUniAdmin) {
-      const allDepts =
-        typeof window !== 'undefined' && Array.isArray(window.DEPARTMENTS)
-          ? window.DEPARTMENTS
-          : [];
-      if (allDepts.length > 0) return allDepts.map((d) => d.name);
-    }
-    // AKADEMISYENLER'in fakulte alanı bölüm adları için tek gerçek kaynağıdır
-    return [
-      ...new Set(AKADEMISYENLER.filter((a) => a.fakulte === userFacultyName).map((a) => a.bolum)),
-    ].filter(Boolean);
-  }, [capFaculty, isUniAdmin, AKADEMISYENLER, userFacultyName]);
 
   // Fakülte scope id'si — fakülte adı stabil bir kimlik olarak kullanılır.
   // Faculty yetkilisi/üniversite yetkilisi kendi fakültesi için kural belirler.
@@ -726,10 +828,16 @@ export default function PerformansBilgileri({
     () => mergedGostergeler.flatMap((k) => k.gostergeler.map((g) => ({ id: g.id, ad: g.ad }))),
     [mergedGostergeler]
   );
-  const facultyAkademisyenIds = useMemo(() => {
-    if (isUniAdmin) return AKADEMISYENLER.map((a) => a.id);
-    return AKADEMISYENLER.filter((a) => a.fakulte === userFacultyName).map((a) => a.id);
-  }, [AKADEMISYENLER, userFacultyName, isUniAdmin]);
+  // ⚠ Fakülte çıktısına yalnız GÖNDERİM YAPMIŞ bölümler girer (bkz.
+  // lib/performans-kapsam.js). Taslak rakamlar fakülte toplamını sessizce
+  // bozardı ve kimse bunun taslak olduğunu bilmezdi.
+  const facultyAkademisyenIds = useMemo(
+    () =>
+      fakulteyeGirenAkademisyenler(AKADEMISYENLER, kapsam, gonderimler, selectedYil).map(
+        (a) => a.id
+      ),
+    [AKADEMISYENLER, kapsam, gonderimler, selectedYil]
+  );
 
   // Kurallara scope-aware erişim: önce ilgili scope'ta ayar ara, bulamazsa default
   const getAggType = (gostergeId, scope, scopeId) => {
@@ -764,11 +872,17 @@ export default function PerformansBilgileri({
   const calcFakulteToplam = (gostergeId, ay) => {
     const g = findG(gostergeId);
     const aggType = getAggType(gostergeId, 'faculty', facultyIdForSummary);
-    const fak = userFacultyName;
-    if (!fak) return '—';
+    if (!fakulteKapsamiCozuldu(kapsam)) return '—';
 
-    // Fakültedeki bölümleri gruplandır ve her bölümün toplamını al
-    const akadsInFak = AKADEMISYENLER.filter((a) => a.fakulte === fak);
+    // ⚠ Yalnız GÖNDERİM YAPMIŞ bölümlerin akademisyenleri. Göndermemiş
+    // bölüm toplamdan tamamen düşer — "eksik veriyle toplam" diye bir şey
+    // yoktur, çünkü fakülte yetkilisi eksikliği göremez.
+    const akadsInFak = fakulteyeGirenAkademisyenler(
+      AKADEMISYENLER,
+      kapsam,
+      gonderimler,
+      selectedYil
+    );
     const byDept = new Map();
     akadsInFak.forEach((a) => {
       if (!byDept.has(a.departmentId || a.bolum)) byDept.set(a.departmentId || a.bolum, []);
@@ -842,6 +956,45 @@ export default function PerformansBilgileri({
                   )
                 : null
             ),
+          })}
+        </div>
+      )}
+
+      {/* ── Gömülü kipte kapsam seçimi ── */}
+      {gomulu && gomuluGorunumler.length > 1 && (
+        <div
+          style={{
+            display: 'inline-flex',
+            padding: 3,
+            borderRadius: 10,
+            background: '#F3F4F6',
+            gap: 2,
+            margin: '0 0 14px',
+            flexWrap: 'wrap',
+          }}
+        >
+          {gomuluGorunumler.map((g) => {
+            const on = activeView === g.id;
+            return (
+              <button
+                key={g.id}
+                onClick={() => setActiveView(g.id)}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: on ? '#fff' : 'transparent',
+                  color: on ? '#1B2A4A' : '#6B7280',
+                  fontSize: 12.5,
+                  fontWeight: on ? 700 : 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  boxShadow: on ? '0 1px 2px rgba(16,24,40,0.1)' : 'none',
+                }}
+              >
+                {g.ad}
+              </button>
+            );
           })}
         </div>
       )}
@@ -980,6 +1133,7 @@ export default function PerformansBilgileri({
                   title="Gösterge Verilerini Girin"
                   sub={`${currentAkad?.ad} — ${currentAkad?.bolum} • ${selectedYil} yılı`}
                 />
+                <KapsamSeridi metin={kapsamOzetMetni(kapsam, 'own')} />
                 {/* Yeni gösterge yalnızca bölüm/fakülte yetkilisi ekleyebilir */}
                 {capDept && (
                   <AddQuestionBar
@@ -1031,6 +1185,22 @@ export default function PerformansBilgileri({
                   title="Bölüm Gösterge Özeti"
                   sub={`${departmentInfo?.name || selectedBolum || bolumAkademisyenleri[0]?.bolum || ''} — ${selectedYil} yılı`}
                 />
+                <KapsamSeridi metin={kapsamOzetMetni(kapsam, 'dept')} />
+                {/* ── Fakülteye gönderim ──
+                    ⚠ Bölüm "gönderdim" demeden değerleri fakülte toplamına
+                    GİRMEZ. Ay içinde eksik rakamlarla çalışan bölümün yarım
+                    verisi fakülte raporunu sessizce bozardı. */}
+                {capDept && deptForSummary && (
+                  <GonderimSeridi
+                    gonderilmis={gonderimVarMi(gonderimler, deptForSummary, selectedYil)}
+                    kayit={gonderimler.find(
+                      (g) => g && g.id === gonderimAnahtari(deptForSummary, selectedYil)
+                    )}
+                    yil={selectedYil}
+                    gonderiliyor={gonderiliyor}
+                    onGonder={fakulteyeGonder}
+                  />
+                )}
                 {/* Yeni gösterge yalnızca bölüm/fakülte yetkilisi ekleyebilir */}
                 {capDept && (
                   <AddQuestionBar
@@ -1239,7 +1409,13 @@ export default function PerformansBilgileri({
               <>
                 <Hdr
                   title="Fakülte Genel Toplam"
-                  sub={`Tüm bölümlerden gelen toplam değerler — ${selectedYil} yılı`}
+                  sub={`Bölümlerin gönderdiği değerlerin toplamı — ${selectedYil} yılı`}
+                />
+                <KapsamSeridi metin={kapsamOzetMetni(kapsam, 'faculty')} />
+                {/* ⚠ Toplamın NEYİ kapsadığı görünmeden ona güvenilemez:
+                    hangi bölüm gönderdi, hangisi toplama girmedi. */}
+                <GonderimDurumSeridi
+                  durum={gonderimDurumu(AKADEMISYENLER, kapsam, gonderimler, selectedYil)}
                 />
                 {/* Üç aylık gösterge çıktısı — fakülte kapsamı */}
                 <UcAylikCiktiBar
@@ -3205,6 +3381,107 @@ function BaglamCubugu({ yil, setYil, bolumSecici, aciklama }) {
           {aciklama}
         </span>
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// KAPSAM ŞERİDİ — "bu ekranda kimin verisi var" tek cümlede.
+// Kullanıcı gördüğü toplamın neyi kapsadığını bilmeden ona güvenemez.
+// ══════════════════════════════════════════════════════════════
+function KapsamSeridi({ metin }) {
+  if (!metin) return null;
+  return (
+    <div
+      style={{
+        margin: '0 0 14px',
+        padding: '9px 13px',
+        borderRadius: 9,
+        background: '#F3F6FB',
+        border: '1px solid #DDE5F0',
+        color: '#334155',
+        fontSize: 12.5,
+        lineHeight: 1.6,
+      }}
+    >
+      {metin}
+    </div>
+  );
+}
+
+/** Bölüm yetkilisinin "fakülteye gönder" şeridi. */
+function GonderimSeridi({ gonderilmis, kayit, yil, gonderiliyor, onGonder }) {
+  const tarih = kayit && kayit.gonderimZamani ? new Date(kayit.gonderimZamani) : null;
+  return (
+    <div
+      style={{
+        margin: '0 0 14px',
+        padding: '12px 14px',
+        borderRadius: 10,
+        border: '1px solid ' + (gonderilmis ? '#6EE7B7' : '#FCD34D'),
+        background: gonderilmis ? '#ECFDF5' : '#FFFBEB',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 14,
+        flexWrap: 'wrap',
+      }}
+    >
+      <div style={{ minWidth: 0, fontSize: 12.5, lineHeight: 1.6 }}>
+        {gonderilmis ? (
+          <span style={{ color: '#047857' }}>
+            <b>{yil} verileri fakülteye gönderildi.</b>
+            {tarih ? ' ' + tarih.toLocaleString('tr-TR') + '.' : ''}{' '}
+            {kayit && kayit.gonderenAd ? 'Gönderen: ' + kayit.gonderenAd + '. ' : ''}
+            Değer değiştirirseniz yeniden gönderin.
+          </span>
+        ) : (
+          <span style={{ color: '#92400E' }}>
+            <b>Bu bölümün {yil} verileri fakülteye gönderilmedi.</b> Gönderilene kadar fakülte
+            toplamına girmez.
+          </span>
+        )}
+      </div>
+      <button
+        onClick={onGonder}
+        disabled={gonderiliyor}
+        style={{
+          padding: '9px 18px',
+          borderRadius: 9,
+          border: 'none',
+          background: gonderiliyor ? '#9CA3AF' : gonderilmis ? '#1B2A4A' : '#059669',
+          color: '#fff',
+          fontSize: 12.5,
+          fontWeight: 700,
+          cursor: gonderiliyor ? 'default' : 'pointer',
+          fontFamily: 'inherit',
+          flexShrink: 0,
+        }}
+      >
+        {gonderiliyor ? 'Gönderiliyor…' : gonderilmis ? 'Yeniden gönder' : 'Fakülteye gönder'}
+      </button>
+    </div>
+  );
+}
+
+/** Fakülte yetkilisinin gördüğü gönderim tablosu. */
+function GonderimDurumSeridi({ durum }) {
+  const d = durum || { toplam: 0, gonderen: [], bekleyen: [] };
+  const eksik = d.bekleyen.length > 0;
+  return (
+    <div
+      style={{
+        margin: '0 0 14px',
+        padding: '11px 14px',
+        borderRadius: 10,
+        border: '1px solid ' + (eksik ? '#FCD34D' : '#6EE7B7'),
+        background: eksik ? '#FFFBEB' : '#ECFDF5',
+        color: eksik ? '#92400E' : '#047857',
+        fontSize: 12.5,
+        lineHeight: 1.6,
+      }}
+    >
+      {gonderimOzetMetni(d)}
     </div>
   );
 }
