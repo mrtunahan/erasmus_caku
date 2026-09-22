@@ -353,6 +353,16 @@ import {
   tcGecerliMi,
 } from './lib/ogrenci-profil.js';
 import {
+  anketGorunurMu,
+  anketKapsamEtiketi,
+  anketKapsamYamasi,
+  anketKilitSebebi,
+  anketYonetilebilirMi,
+  anketleriSuz,
+  kapsamOzetMetni as anketKapsamOzetMetni,
+  kapsamliMi as anketKapsamliMi,
+} from './lib/anket-kapsam.js';
+import {
   AKTS_TAVANI,
   dersAkts,
   dersGruplari,
@@ -14513,6 +14523,18 @@ window.dersAkts = dersAkts;
 window.dersGruplari = dersGruplari;
 window.derslerimOzeti = derslerimOzeti;
 window.derslerimOzetMetni = derslerimOzetMetni;
+
+// ── Anketin kapsamı ──
+// Anket kaydının kendisi kapsam taşımıyordu: her yetkili her anketi görüyor,
+// düzenliyor ve silebiliyordu. Görünürlük ve yönetim AYRI kararlar.
+window.anketKapsamYamasi = anketKapsamYamasi;
+window.anketGorunurMu = anketGorunurMu;
+window.anketYonetilebilirMi = anketYonetilebilirMi;
+window.anketKilitSebebi = anketKilitSebebi;
+window.anketKapsamEtiketi = anketKapsamEtiketi;
+window.anketleriSuz = anketleriSuz;
+window.anketKapsamOzetMetni = anketKapsamOzetMetni;
+window.anketKapsamliMi = anketKapsamliMi;
 // Aktif bölüm kapsamı — app-shell kullanır (yanlış fakültenin verisi açılmasın).
 window.aktifBolumKarari = aktifBolumKarari;
 window.bolumKapsami = bolumKapsami;

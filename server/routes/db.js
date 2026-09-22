@@ -5,6 +5,15 @@ const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
+// ── ANKET KAPSAMI: istemciyle AYNI kural dosyası ──
+// Kuralın CJS ikizini yazmak yerine ESM modülü dinamik olarak alınır (Node 22
+// tür algılamasıyla sorunsuz). İki kopya tutulsaydı biri değişip öteki
+// kalırdı; anket yetkisi böyle bir riski kaldırmaz.
+let anketKuraliSozu = null;
+function anketKurali() {
+  if (!anketKuraliSozu) anketKuraliSozu = import('../../lib/anket-kapsam.js');
+  return anketKuraliSozu;
+}
 const { aramaKapsami, desenKacir, aramaAdlari } = require('../lib/ogrenci-arama');
 const { mukerrerAtlanabilirMi, mukerrerHataMi } = require('../lib/yazma-mukerrer');
 const {
@@ -804,6 +813,96 @@ async function enforceWritePolicies(db, op, user) {
             'üniversite yetkilisi kaldırabilir; diğerlerini yalnız kendi yetki ' +
             'alanınızdaki yayınlar için yapabilirsiniz.',
         };
+      }
+    }
+  }
+
+  // a2a-2) ANKET KAYDININ KENDİSİ (surveys): kapsam damgası ve yetki.
+  //
+  // ⚠ Anket kaydı kapsam taşımıyordu; "Anketler" sekmesi koleksiyonun
+  // tamamını listeliyor, her yetkili her anketi düzenleyip silebiliyordu.
+  // Kural istemcide de var ama YALNIZ orada olması yetmez: arayüzü atlayan
+  // bir istek doğrudan buraya gelir.
+  //
+  //   • add    → kapsam SUNUCUDA damgalanır (istemcinin gönderdiği kapsam
+  //              yok sayılır: yetki genişletme aracı olmasın).
+  //   • set/update → mevcut kaydı yönetme yetkisi aranır; kapsam alanları
+  //              yalnız üniversite yetkilisi tarafından değiştirilebilir.
+  //   • delete → aynı yetki denetimi.
+  if (op.collection === 'surveys' && user && user.role !== 'student') {
+    const flags = await getActorFlags(db, user);
+    let profil = null;
+    try {
+      if (user.role === 'professor') {
+        profil = await profilBul(db, user.identifier);
+      } else if (user.role === 'bolum_yetkilisi') {
+        // Bölüm yetkilisi girişinin professors kaydı olmayabilir; bölümü
+        // JWT'de imzalı geliyor (bkz. routes/auth.js). Profil yoksa kapsam
+        // boş çıkar ve yetkili KENDİ anketini bile düzenleyemezdi.
+        profil = { departmentId: user.departmentId || '' };
+      }
+    } catch (_) {
+      profil = null;
+    }
+    const bolumler = await db.collection('departments').find({}).toArray();
+    const kapsam =
+      flags.admin || flags.uniAdmin
+        ? { kapsamTuru: 'universite', facultyId: '', departmentIds: [] }
+        : aktorKapsami(profil, bolumler);
+
+    if (op.type === 'add' && op.data && typeof op.data === 'object') {
+      op.data.kapsamTuru = kapsam.kapsamTuru;
+      op.data.kapsamFacultyId = String(kapsam.facultyId || '');
+      op.data.kapsamDepartmentIds =
+        kapsam.kapsamTuru === 'universite' ? [] : (kapsam.departmentIds || []).map(String);
+    }
+
+    if (op.type === 'set' || op.type === 'update' || op.type === 'delete') {
+      let mevcut = null;
+      try {
+        mevcut = await findDocByAnyId(db, 'surveys', op.docId);
+      } catch (_) {
+        mevcut = null;
+      }
+      // Kayıt yoksa bu bir OLUŞTURMADIR (set ile yazılan yeni kayıt):
+      // kapsam damgalanır, yetki denetimi aranmaz.
+      if (!mevcut) {
+        if (op.data && typeof op.data === 'object' && op.type !== 'delete') {
+          op.data.kapsamTuru = kapsam.kapsamTuru;
+          op.data.kapsamFacultyId = String(kapsam.facultyId || '');
+          op.data.kapsamDepartmentIds =
+            kapsam.kapsamTuru === 'universite' ? [] : (kapsam.departmentIds || []).map(String);
+        }
+      } else {
+        const { anketYonetilebilirMi, kapsamliMi } = await anketKurali();
+        const izin = anketYonetilebilirMi(mevcut, kapsam, { name: user.identifier || '' });
+        if (!izin) {
+          const { anketKilitSebebi } = await anketKurali();
+          return {
+            allow: false,
+            status: 403,
+            error:
+              anketKilitSebebi(mevcut, kapsam, { name: user.identifier || '' }) ||
+              'Bu anket üzerinde işlem yapma yetkiniz yok.',
+          };
+        }
+        if (op.data && typeof op.data === 'object' && op.type !== 'delete') {
+          if (kapsam.kapsamTuru === 'universite') {
+            // Üniversite yetkilisi kaydı başka bir kapsama taşıyabilir.
+          } else if (kapsamliMi(mevcut)) {
+            // Kapsam damgası olan kaydın kapsamı istemciden DEĞİŞTİRİLEMEZ.
+            delete op.data.kapsamTuru;
+            delete op.data.kapsamFacultyId;
+            delete op.data.kapsamDepartmentIds;
+          } else {
+            // Kapsamsız (eski) kayıt ilk kaydedişte sahibinin kapsamıyla
+            // damgalanır — belirsiz kayıtlar zamanla erisin.
+            op.data.kapsamTuru = kapsam.kapsamTuru;
+            op.data.kapsamFacultyId = String(kapsam.facultyId || '');
+            op.data.kapsamDepartmentIds =
+              kapsam.kapsamTuru === 'universite' ? [] : (kapsam.departmentIds || []).map(String);
+          }
+        }
       }
     }
   }
