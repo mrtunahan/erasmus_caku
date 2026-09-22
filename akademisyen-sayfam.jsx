@@ -17,7 +17,7 @@
 
 import qrOlustur from 'qrcode-generator';
 
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 const AS_NAVY = '#1B2A4A';
 const AS_GREEN = '#059669';
@@ -430,105 +430,6 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
   );
 }
 
-// ══════════════════════════════════════════════════════════════
-// AÇILIR PANEL — öğrenci sayfasındakiyle aynı davranış
-// (✕ · karartı · ESC ile kapanır; arkadaki sayfa kaymaz)
-// ══════════════════════════════════════════════════════════════
-function ASPopup({ baslik, altBaslik, genislik, onKapat, children }) {
-  useEffect(() => {
-    const esc = (e) => {
-      if (e.key === 'Escape') onKapat();
-    };
-    document.addEventListener('keydown', esc);
-    const eski = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', esc);
-      document.body.style.overflow = eski;
-    };
-  }, [onKapat]);
-
-  return (
-    <div
-      onClick={onKapat}
-      role="dialog"
-      aria-modal="true"
-      aria-label={baslik}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 4000,
-        background: 'rgba(15,23,42,0.55)',
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        padding: '4vh 16px',
-        overflowY: 'auto',
-        fontFamily: "'Inter', sans-serif",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%',
-          maxWidth: genislik || 1000,
-          maxHeight: '92vh',
-          display: 'flex',
-          flexDirection: 'column',
-          background: '#F7F8FA',
-          borderRadius: 18,
-          overflow: 'hidden',
-          boxShadow: '0 28px 70px rgba(15,23,42,0.32)',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 14,
-            padding: '16px 20px',
-            background: AS_NAVY,
-            color: '#FFFFFF',
-            flexShrink: 0,
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
-            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>{baslik}</h2>
-            {altBaslik && (
-              <p style={{ margin: '3px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>
-                {altBaslik}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={onKapat}
-            title="Kapat (ESC)"
-            aria-label="Kapat"
-            style={{
-              width: 34,
-              height: 34,
-              flexShrink: 0,
-              borderRadius: 10,
-              border: '1px solid rgba(255,255,255,0.24)',
-              background: 'rgba(255,255,255,0.12)',
-              color: '#FFFFFF',
-              fontSize: 16,
-              lineHeight: 1,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            ✕
-          </button>
-        </div>
-        <div style={{ padding: 20, overflowY: 'auto' }}>{children}</div>
-      </div>
-    </div>
-  );
-}
-
-window.ASPopup = ASPopup;
 window.TamEkranYoklama = TamEkranYoklama;
 window.KarekodSVG = KarekodSVG;
 window.asSeviyeKovasi = seviyeKovasi;
@@ -542,6 +443,8 @@ window.AS_BASLIK = AS_BASLIK;
 function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const R = window.RandevuKurali || {};
   const Y = window.YoklamaKurali || {};
+  const SayfaDuzeni = window.AkademisyenSayfaDuzeni || {};
+  const SekmeSeridi = window.SayfaSekmeSeridi;
   const benimAd = metin(currentUser?.identifier || currentUser?.name);
   const benimAnahtar = R.akademisyenAnahtari ? R.akademisyenAnahtari(benimAd) : '';
 
@@ -566,7 +469,9 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   const [katilimKayitlari, setKatilimKayitlari] = useState([]);
 
   const [seviye, setSeviye] = useState('hepsi');
-  const [acikPanel, setAcikPanel] = useState('');
+  // Aktif sekme ('genel' | 'yoklama' | 'gorusme' | 'veri'). Kural ve yetki
+  // koşulları lib/akademisyen-sayfam-duzeni.js'te.
+  const [sekme, setSekme] = useState('genel');
   const [tamEkran, setTamEkran] = useState(null); // { oturum, saatFarki, ogrenciler }
   const [tazele, setTazele] = useState(0);
 
@@ -637,6 +542,17 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   useEffect(() => {
     yukle();
   }, [yukle, tazele]);
+
+  // Yetkiler (ders listesi, akademisyen kaydı) asenkron geliyor; kapalı bir
+  // sekmede takılı kalınmaz.
+  useEffect(() => {
+    if (!SayfaDuzeni.sekmeDuzelt) return;
+    const hedef = SayfaDuzeni.sekmeDuzelt(sekme, {
+      ders: dersler.length > 0,
+      akademisyen: !!profil,
+    });
+    if (hedef !== sekme) setSekme(hedef);
+  }, [SayfaDuzeni, sekme, dersler.length, profil]);
 
   useEffect(() => {
     if (window.bolumAyarlariniYukle) {
@@ -842,7 +758,6 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Yoklama açılamadı.');
-      setAcikPanel('');
       setTamEkran({
         oturum: d.oturum,
         // ⚠ Sunucu saatiyle aramızdaki fark. Hocanın makinesi ileri/geriyse
@@ -873,6 +788,40 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
       setTazele((t) => t + 1);
     } catch (e) {
       alert('Sınır kaydedilemedi: ' + (e.message || 'bilinmeyen hata'));
+    }
+  };
+
+  /**
+   * Kendi bilgilerini kaydeder.
+   * ⚠ AYNI KAYIT: Bölüm Yönetimi → Akademisyenler ekranı da `professors`
+   * dokümanının bu alanlarını yazıyor. Alan listesi lib/akademisyen-bilgi.js
+   * içinde tek yerde; iki ekran ayrışmasın diye.
+   */
+  const bilgiKaydet = async (form) => {
+    const B = window.AkademisyenBilgi;
+    const profId = metin(profil?.id || profil?._docId);
+    if (!profId) {
+      alert('Akademisyen kaydınız bulunamadı; bilgileriniz kaydedilemiyor.');
+      return false;
+    }
+    const temiz = B ? B.bilgiNormalle(form) : form;
+    try {
+      await window.DBWriteGenel(
+        'professors',
+        profId,
+        // ⚠ Boşaltılan alan da YAZILMALI. `bilgiNormalle` boş alanları
+        // atıyor; yalnız onu göndersek silinen dahili eski değeriyle kalırdı
+        // (merge yazma alanı düşürmez).
+        Object.assign({ email: '', dahili: '', photoURL: '' }, temiz, {
+          updatedAt: new Date().toISOString(),
+        }),
+        true
+      );
+      setTazele((t) => t + 1);
+      return true;
+    } catch (e) {
+      alert('Bilgiler kaydedilemedi: ' + (e.message || 'bilinmeyen hata'));
+      return false;
     }
   };
 
@@ -924,141 +873,26 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     );
   }
 
-  const panelDugmeleri = [
-    {
-      id: 'yoklama',
-      baslik: 'Dijital Yoklama',
-      ozet: dersler.length ? dersler.length + ' ders · karekodla' : 'Ders bulunamadı',
-    },
-    {
-      id: 'gorusme',
-      baslik: 'Görüşme Saatlerim',
-      ozet: musaitlikler.length ? musaitlikler.length + ' saat açık' : 'Henüz saat açmadınız',
-    },
-  ];
+  const sekmeler = SayfaDuzeni.sekmeSeridi
+    ? SayfaDuzeni.sekmeSeridi(
+        { ders: dersler.length > 0, akademisyen: !!profil },
+        {
+          dersSaati: ozet?.dersSaati || 0,
+          dersSayisi: dersler.length,
+          acikSaat: musaitlikler.length,
+          yil: new Date().getFullYear(),
+        }
+      )
+    : [];
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", color: '#191C1E' }}>
-      {/* ══ ÜST ŞERİT ══ */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 12,
-          marginBottom: 18,
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: AS_NAVY }}>Benim Sayfam</h2>
-          <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#6B7280' }}>
-            {benimAd} · {departmentInfo?.name || metin(profil?.departmentId) || 'Bölüm'}
-          </p>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'stretch',
-            flexWrap: 'wrap',
-            gap: 12,
-            flex: tekSutun ? '1 1 100%' : '0 1 auto',
-          }}
-        >
-          {panelDugmeleri.map((p) => {
-            const acik = acikPanel === p.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setAcikPanel(acik ? '' : p.id)}
-                aria-expanded={acik}
-                title={p.baslik + ' — ' + p.ozet}
-                style={{
-                  flex: tekSutun ? '1 1 100%' : '0 0 272px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  textAlign: 'left',
-                  padding: '12px 16px',
-                  borderRadius: 14,
-                  border: '1px solid ' + (acik ? AS_NAVY : '#E5E7EB'),
-                  background: acik ? AS_NAVY : '#FFFFFF',
-                  color: acik ? '#FFFFFF' : AS_NAVY,
-                  boxShadow: acik ? 'none' : '0 1px 3px rgba(16,24,40,0.06)',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 38,
-                    height: 38,
-                    flexShrink: 0,
-                    borderRadius: 11,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: acik ? 'rgba(255,255,255,0.16)' : '#F3F4F6',
-                    color: acik ? '#FFFFFF' : AS_GREEN,
-                  }}
-                >
-                  <svg
-                    width="19"
-                    height="19"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    {p.id === 'yoklama' ? (
-                      <>
-                        <rect x="3" y="3" width="7" height="7" rx="1" />
-                        <rect x="14" y="3" width="7" height="7" rx="1" />
-                        <rect x="3" y="14" width="7" height="7" rx="1" />
-                        <path d="M14 14h3v3h-3zM18 18h3v3h-3z" />
-                      </>
-                    ) : (
-                      <>
-                        <circle cx="12" cy="12" r="9" />
-                        <path d="M12 7v5l3 2" />
-                      </>
-                    )}
-                  </svg>
-                </span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span
-                    style={{
-                      display: 'block',
-                      fontSize: 14,
-                      fontWeight: 700,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {p.baslik}
-                  </span>
-                  <span
-                    style={{
-                      display: 'block',
-                      fontSize: 11.5,
-                      marginTop: 2,
-                      color: acik ? 'rgba(255,255,255,0.78)' : '#6B7280',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {p.ozet}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* ══ SEKME ŞERİDİ ══
+          Öğrenci tarafıyla AYNI bileşen (shared-components → SayfaSekmeSeridi);
+          iki sayfa birbirine benzemeyi koddan alsın diye. Sayfanın adını ve
+          kullanıcının adını yazan başlık kaldırıldı: ikisi de üst menüde ve
+          soldaki kartta zaten yazıyordu. */}
+      {SekmeSeridi ? <SekmeSeridi sekmeler={sekmeler} aktif={sekme} onSec={setSekme} /> : null}
 
       {hata && (
         <div
@@ -1075,55 +909,61 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: sutunlar, gap: 16, alignItems: 'start' }}>
-        {/* ══ SOL: Akademisyen bilgileri · Derslerim ══ */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-          <ASBilgiKarti profil={profil} ad={benimAd} ozet={ozet} departmentInfo={departmentInfo} />
-          <ASDerslerim
-            dersler={dersler}
-            ayarlar={yoklamaAyarlari}
-            ogrenciSayisi={(d) => dersinOgrencileri(metin(d.id || d._docId)).length}
-            onLimit={limitKaydet}
-            onYoklama={(d) => yoklamaBaslat(d)}
-          />
-        </div>
-
-        {/* ══ ORTA: Ders programı ══ */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-          <ASProgram
-            seviye={seviye}
-            setSeviye={setSeviye}
-            sayilar={seviyeSayilari}
-            izgara={izgara}
-            saatler={doluSaatler}
-            cakismalar={cakismalar}
-            donem={donem}
-            ad={benimAd}
-            unvan={metin(profil?.title)}
-          />
-        </div>
-
-        {/* ══ SAĞ: Randevu talepleri · Bugün ══ */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-          <ASRandevular
-            bekleyenler={bekleyenler}
-            onaylilar={onaylilar}
-            ozet={randevuOzeti}
-            cakisanlar={cakisanlar}
-            onKarar={randevuKarar}
-          />
-          <ASBugun gun={bugunAdi} dersler={bugunkuDersler} />
-        </div>
-      </div>
-
-      {/* ══ AÇILIR PANELLER ══ */}
-      {acikPanel === 'yoklama' && (
-        <ASPopup
-          baslik="Dijital Yoklama"
-          altBaslik="Dersi seçin, karekod tam ekran açılır"
-          genislik={1040}
-          onKapat={() => setAcikPanel('')}
+      {/* ══ GENEL BAKIŞ ══ */}
+      {sekme === 'genel' && (
+        <div
+          style={{ display: 'grid', gridTemplateColumns: sutunlar, gap: 16, alignItems: 'start' }}
         >
+          {/* SOL: Akademisyen bilgileri · Derslerim */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+            <ASBilgiKarti
+              profil={profil}
+              ad={benimAd}
+              ozet={ozet}
+              departmentInfo={departmentInfo}
+              onKaydet={bilgiKaydet}
+            />
+            <ASDerslerim
+              dersler={dersler}
+              ayarlar={yoklamaAyarlari}
+              ogrenciSayisi={(d) => dersinOgrencileri(metin(d.id || d._docId)).length}
+              onLimit={limitKaydet}
+              onYoklama={(d) => yoklamaBaslat(d)}
+            />
+          </div>
+
+          {/* ORTA: Ders programı */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+            <ASProgram
+              seviye={seviye}
+              setSeviye={setSeviye}
+              sayilar={seviyeSayilari}
+              izgara={izgara}
+              saatler={doluSaatler}
+              cakismalar={cakismalar}
+              donem={donem}
+              ad={benimAd}
+              unvan={metin(profil?.title)}
+            />
+          </div>
+
+          {/* SAĞ: Randevu talepleri · Bugün */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+            <ASRandevular
+              bekleyenler={bekleyenler}
+              onaylilar={onaylilar}
+              ozet={randevuOzeti}
+              cakisanlar={cakisanlar}
+              onKarar={randevuKarar}
+            />
+            <ASBugun gun={bugunAdi} dersler={bugunkuDersler} />
+          </div>
+        </div>
+      )}
+
+      {/* ══ DİJİTAL YOKLAMA ══ */}
+      {sekme === 'yoklama' && (
+        <div style={AS_KART}>
           <ASYoklamaPaneli
             dersler={dersler}
             ayarlar={yoklamaAyarlari}
@@ -1132,23 +972,36 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
             onBaslat={yoklamaBaslat}
             onLimit={limitKaydet}
           />
-        </ASPopup>
+        </div>
       )}
 
-      {acikPanel === 'gorusme' && (
-        <ASPopup
-          baslik="Görüşme Saatlerim"
-          altBaslik="Ders programınızdaki boş saatlere tıklayın — öğrenciler bu saatlere randevu isteyebilir"
-          genislik={980}
-          onKapat={() => setAcikPanel('')}
-        >
+      {/* ══ GÖRÜŞME SAATLERİM ══ */}
+      {sekme === 'gorusme' && (
+        <div style={AS_KART}>
+          <h3 style={AS_BASLIK}>Görüşme Saatlerim</h3>
+          <p style={{ margin: '-6px 0 14px', fontSize: 12.5, color: '#6B7280', lineHeight: 1.6 }}>
+            Ders programınızdaki boş saatlere tıklayın; öğrenciler bu saatlere randevu isteyebilir.
+          </p>
           <ASGorusmePaneli
             izgara={tamIzgara}
             saatler={tamSaatler}
             musaitlikler={musaitlikler}
             onDegistir={musaitlikDegistir}
           />
-        </ASPopup>
+        </div>
+      )}
+
+      {/* ══ VERİ GİRİŞİ ══
+          Performans modülünden taşındı. Ekran KOPYALANMADI: aynı bileşen
+          gömülü kipte çiziliyor (bkz. performans_bilgileri_modul.jsx →
+          `gomulu`). Modül ilk açılışta indiriliyor; gösterge tablosu büyük
+          ve bu sekmeye girmeyen akademisyene yüklenmesinin anlamı yok. */}
+      {sekme === 'veri' && (
+        <ASVeriGirisi
+          currentUser={currentUser}
+          activeDepartment={activeDepartment}
+          departmentInfo={departmentInfo}
+        />
       )}
 
       {tamEkran && (
@@ -1167,10 +1020,132 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
 }
 
 // ══════════════════════════════════════════════════════════════
+// VERİ GİRİŞİ SEKMESİ
+//
+// Performans modülünün veri giriş ekranı, gömülü kipte. Modül ağır
+// (gösterge tanımları + on iki aylık tablo); sekmeye girilene kadar
+// indirilmiyor.
+// ══════════════════════════════════════════════════════════════
+function ASVeriGirisi({ currentUser, activeDepartment, departmentInfo }) {
+  const [Bilesen, setBilesen] = useState(() => window.PerformansBilgileriApp || null);
+  const [hata, setHata] = useState('');
+
+  useEffect(() => {
+    if (Bilesen) return;
+    let canli = true;
+    import('./performans_bilgileri_modul.jsx')
+      .then((m) => {
+        if (!canli) return;
+        const c = m.default || window.PerformansBilgileriApp;
+        if (c) setBilesen(() => c);
+        else setHata('Performans modülü yüklendi ama bileşen bulunamadı.');
+      })
+      .catch((e) => canli && setHata('Veri giriş ekranı yüklenemedi: ' + (e.message || '')));
+    return () => {
+      canli = false;
+    };
+  }, [Bilesen]);
+
+  if (hata) {
+    return (
+      <div style={{ ...AS_KART, borderColor: '#FCA5A5', background: '#FEF2F2', color: '#B91C1C' }}>
+        {hata}
+      </div>
+    );
+  }
+  if (!Bilesen) {
+    return (
+      <div style={{ ...AS_KART, textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
+        Veri giriş ekranı yükleniyor…
+      </div>
+    );
+  }
+  return (
+    <div style={{ ...AS_KART, padding: 0, overflow: 'hidden' }}>
+      <Bilesen
+        currentUser={currentUser}
+        activeDepartment={activeDepartment}
+        departmentInfo={departmentInfo}
+        gomulu
+      />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // SOL SÜTUN — Akademisyen bilgileri
 // ══════════════════════════════════════════════════════════════
-function ASBilgiKarti({ profil, ad, ozet, departmentInfo }) {
+function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
+  const B = window.AkademisyenBilgi || {};
   const p = profil || {};
+  const [duzenle, setDuzenle] = useState(false);
+  const [form, setForm] = useState({});
+  const [hatalar, setHatalar] = useState({});
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+  const [yukleniyor, setYukleniyor] = useState(false);
+  const dosyaRef = useRef(null);
+
+  const kipeGec = (ac) => {
+    if (ac) {
+      setForm({
+        email: metin(p.email),
+        dahili: metin(p.dahili),
+        photoURL: metin(p.photoURL),
+      });
+      setHatalar({});
+    }
+    setDuzenle(ac);
+  };
+
+  const alanYaz = (anahtar, deger) => {
+    const v = B.alanSuzgeci ? B.alanSuzgeci(anahtar, deger) : deger;
+    setForm((f) => ({ ...f, [anahtar]: v }));
+    setHatalar((h) => {
+      const y = { ...h };
+      delete y[anahtar];
+      return y;
+    });
+  };
+
+  const fotoSec = async (e) => {
+    const dosya = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!dosya) return;
+    if (!/^image\/(png|jpe?g)$/i.test(dosya.type)) {
+      alert('Yalnızca PNG veya JPEG yükleyebilirsiniz.');
+      return;
+    }
+    setYukleniyor(true);
+    try {
+      const fd = new FormData();
+      fd.append('folder', 'akademisyen/foto');
+      fd.append('file', dosya);
+      const r = await fetch('/api/files/upload?folder=' + encodeURIComponent('akademisyen/foto'), {
+        method: 'POST',
+        body: fd,
+        credentials: 'include',
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      alanYaz('photoURL', j.downloadURL || '');
+    } catch (err) {
+      alert('Fotoğraf yüklenemedi: ' + (err.message || 'bilinmeyen hata'));
+    } finally {
+      setYukleniyor(false);
+    }
+  };
+
+  const kaydet = async () => {
+    const h = B.bilgiHatalari ? B.bilgiHatalari(form) : {};
+    if (Object.keys(h).length > 0) {
+      setHatalar(h);
+      return;
+    }
+    setKaydediliyor(true);
+    const ok = await onKaydet(form);
+    setKaydediliyor(false);
+    if (ok) setDuzenle(false);
+  };
   const bashar = metin(ad)
     .split(/\s+/)
     .filter((x) => !/^(prof\.?|doç\.?|dr\.?|öğr\.?|gör\.?|arş\.?|üyesi)$/i.test(x))
@@ -1243,11 +1218,174 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo }) {
         )}
       </div>
 
+      {/* ── İletişim bilgileri ──
+          ⚠ Bu alanlar Bölüm Yönetimi → Akademisyenler ekranıyla AYNI kayda
+          (`professors`) yazar. Akademisyen kendi kartından günceller, bölüm
+          yetkilisi de oradan; ikisi de aynı değeri görür. Öğrencinin
+          "Danışman Bilgileri" kartında görünen de budur. */}
       <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: 14 }}>
-        {satir('Birim', departmentInfo?.name || metin(p.departmentId))}
-        {satir('E-posta', metin(p.email))}
-        {satir('Telefon', metin(p.phone))}
-        {satir('Oda', metin(p.office || p.oda))}
+        {!duzenle ? (
+          <>
+            {satir('Birim', departmentInfo?.name || metin(p.departmentId))}
+            {satir('E-posta', metin(p.email))}
+            {satir('Dahili', metin(p.dahili))}
+            <p style={{ margin: '4px 0 10px', fontSize: 11, color: '#9CA3AF', lineHeight: 1.6 }}>
+              {B.bilgiOzetMetni ? B.bilgiOzetMetni(p) : ''}
+            </p>
+            <button
+              onClick={() => kipeGec(true)}
+              disabled={!onKaydet}
+              title={
+                onKaydet
+                  ? 'E-posta, dahili ve fotoğrafınızı güncelleyin'
+                  : 'Akademisyen kaydınız bulunamadı'
+              }
+              style={{
+                width: '100%',
+                padding: '8px 14px',
+                borderRadius: 9,
+                border: '1px solid #D1D5DB',
+                background: '#fff',
+                color: AS_NAVY,
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: onKaydet ? 'pointer' : 'not-allowed',
+                fontFamily: 'inherit',
+                opacity: onKaydet ? 1 : 0.5,
+              }}
+            >
+              Bilgilerimi düzenle
+            </button>
+          </>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {satir('Birim', departmentInfo?.name || metin(p.departmentId))}
+            {(B.BILGI_ALANLARI || [])
+              .filter((a) => a.tur !== 'gorsel')
+              .map((a) => (
+                <label
+                  key={a.anahtar}
+                  style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600 }}
+                >
+                  {a.etiket}
+                  <input
+                    value={form[a.anahtar] || ''}
+                    onChange={(e) => alanYaz(a.anahtar, e.target.value)}
+                    placeholder={a.ipucu}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      marginTop: 4,
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid ' + (hatalar[a.anahtar] ? '#FCA5A5' : '#D1D5DB'),
+                      fontSize: 13,
+                      fontFamily: 'inherit',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  {hatalar[a.anahtar] ? (
+                    <span
+                      style={{ display: 'block', fontSize: 11, color: '#B91C1C', marginTop: 3 }}
+                    >
+                      {hatalar[a.anahtar]}
+                    </span>
+                  ) : (
+                    <span
+                      style={{ display: 'block', fontSize: 10.5, color: '#9CA3AF', marginTop: 3 }}
+                    >
+                      {a.aciklama}
+                    </span>
+                  )}
+                </label>
+              ))}
+
+            <div>
+              <span style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600 }}>Fotoğraf</span>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => dosyaRef.current && dosyaRef.current.click()}
+                  disabled={yukleniyor}
+                  style={{
+                    padding: '7px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #D1D5DB',
+                    background: '#fff',
+                    color: AS_NAVY,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: yukleniyor ? 'default' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {yukleniyor ? 'Yükleniyor…' : metin(form.photoURL) ? 'Değiştir' : 'Yükle'}
+                </button>
+                {metin(form.photoURL) && (
+                  <button
+                    onClick={() => alanYaz('photoURL', '')}
+                    style={{
+                      padding: '7px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #FCA5A5',
+                      background: '#fff',
+                      color: '#B91C1C',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    Kaldır
+                  </button>
+                )}
+              </div>
+              <input
+                ref={dosyaRef}
+                type="file"
+                accept="image/png,image/jpeg"
+                onChange={fotoSec}
+                style={{ display: 'none' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button
+                onClick={kaydet}
+                disabled={kaydediliyor}
+                style={{
+                  flex: 1,
+                  padding: '9px 14px',
+                  borderRadius: 9,
+                  border: 'none',
+                  background: kaydediliyor ? '#9CA3AF' : AS_GREEN,
+                  color: '#fff',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: kaydediliyor ? 'default' : 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {kaydediliyor ? 'Kaydediliyor…' : 'Kaydet'}
+              </button>
+              <button
+                onClick={() => kipeGec(false)}
+                style={{
+                  padding: '9px 14px',
+                  borderRadius: 9,
+                  border: '1px solid #D1D5DB',
+                  background: '#fff',
+                  color: '#374151',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Vazgeç
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Programın özeti — hoca kendi yükünü tek bakışta görsün */}

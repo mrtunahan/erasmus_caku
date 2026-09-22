@@ -1213,6 +1213,58 @@ async function enforceWritePolicies(db, op, user) {
     return { allow: true };
   }
 
+  // b0) SADE AKADEMİSYEN YALNIZ KENDİ KAYDINA DOKUNUR.
+  //
+  // ⚠ `professors` "personel yazabilir" kapısından geçiyordu: herhangi bir
+  // akademisyen bir başkasının e-postasını, dahilisini ya da fotoğrafını
+  // değiştirebilirdi. Akademisyenin kendi "Benim Sayfam" kartından bu
+  // alanları düzenlemesi eklendiğine göre kapı da daraltılmalı.
+  //
+  // Bölüm/fakülte/üniversite yetkilisi ve admin ETKİLENMEZ: Bölüm Yönetimi →
+  // Akademisyenler ekranı bu kişilerin herkesin kaydını düzenlemesine dayanır.
+  if (
+    op.collection === 'professors' &&
+    (user.role === 'professor' || user.role === 'bolum_yetkilisi')
+  ) {
+    const flags = await getActorFlags(db, user);
+    if (!flags.admin && !flags.uniAdmin && !flags.facManager && !flags.deptManager) {
+      if (op.type === 'add' || op.type === 'delete') {
+        return {
+          allow: false,
+          status: 403,
+          error: 'Akademisyen kaydı ekleme/silme yalnız bölüm yetkilisindedir.',
+        };
+      }
+      let mevcut = null;
+      try {
+        mevcut = await findDocByAnyId(db, 'professors', op.docId);
+      } catch (_) {
+        mevcut = null;
+      }
+      const sade = (v) =>
+        String(v == null ? '' : v)
+          .replace(/(prof\.?|doç\.?|dr\.?|öğr\.?|gör\.?|arş\.?|üyesi)/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .toLocaleLowerCase('tr');
+      if (!mevcut || sade(mevcut.name) !== sade(user.identifier)) {
+        return {
+          allow: false,
+          status: 403,
+          error: 'Yalnız kendi akademisyen kaydınızı düzenleyebilirsiniz.',
+        };
+      }
+      // Kendi kaydında bile yalnız iletişim alanları: ad, bölüm ve yetki
+      // alanları kişinin kendi elinde olmamalı.
+      if (op.data && typeof op.data === 'object') {
+        const IZINLI = new Set(['email', 'dahili', 'photoURL', 'updatedAt']);
+        Object.keys(op.data).forEach((k) => {
+          if (!IZINLI.has(k)) delete op.data[k];
+        });
+      }
+    }
+  }
+
   // b) professors üzerindeki yetki bayrakları — yetkisiz aktörde sabitlenir
   if (op.collection === 'professors' && op.data && typeof op.data === 'object') {
     const touchesPriv = PRIV_FIELDS.some((f) => f in op.data);

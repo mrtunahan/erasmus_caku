@@ -10,6 +10,7 @@ import {
   gorunumSec,
   kullanilabilirBolumler,
   rolAciklamasi,
+  tasinmisMi,
   varsayilanGorunum,
 } from '../lib/performans-gorunum.js';
 
@@ -33,31 +34,48 @@ describe('PERFORMANS_BOLUMLERI', () => {
   });
 });
 
-describe('kullanilabilirBolumler', () => {
-  it('akademisyen: veri girişi + stratejik plan (bölüm), gösterge raporu yok', () => {
-    const b = kullanilabilirBolumler(AKADEMISYEN);
-    expect(b.map((x) => x.id)).toEqual(['veri', 'strateji']);
-    expect(b[1].kapsamlar.map((k) => k.id)).toEqual(['bolum']);
+describe('taşınmış bölüm', () => {
+  // Veri Girişi artık akademisyenin "Benim Sayfam" modülünde bir sekme.
+  it('veri girişi taşınmış işaretli', () => {
+    expect(tasinmisMi(PERFORMANS_BOLUMLERI.find((b) => b.id === 'veri'))).toBe(true);
   });
 
-  it('bölüm yetkilisi: üçü de var, ama fakülte kapsamı yok', () => {
+  it('taşınmayan bölümler işaretsiz', () => {
+    ['gosterge', 'strateji'].forEach((id) =>
+      expect(tasinmisMi(PERFORMANS_BOLUMLERI.find((b) => b.id === id))).toBe(false)
+    );
+  });
+
+  it('boş girdide çökmez', () => {
+    expect(tasinmisMi(null)).toBe(false);
+  });
+});
+
+describe('kullanilabilirBolumler', () => {
+  // Veri girişi taşındı: bu modülün gezinmesinde artık çıkmaz.
+  it('akademisyen: yalnız stratejik plan (bölüm)', () => {
+    const b = kullanilabilirBolumler(AKADEMISYEN);
+    expect(b.map((x) => x.id)).toEqual(['strateji']);
+    expect(b[0].kapsamlar.map((k) => k.id)).toEqual(['bolum']);
+  });
+
+  it('bölüm yetkilisi: gösterge + strateji, fakülte kapsamı yok', () => {
     const b = kullanilabilirBolumler(BOLUM_YETKILISI);
-    expect(b.map((x) => x.id)).toEqual(['veri', 'gosterge', 'strateji']);
+    expect(b.map((x) => x.id)).toEqual(['gosterge', 'strateji']);
+    expect(b[0].kapsamlar.map((k) => k.id)).toEqual(['bolum']);
     expect(b[1].kapsamlar.map((k) => k.id)).toEqual(['bolum']);
-    expect(b[2].kapsamlar.map((k) => k.id)).toEqual(['bolum']);
   });
 
   it('fakülte yetkilisi: her bölümde iki kapsam', () => {
     const b = kullanilabilirBolumler(FAKULTE_YETKILISI);
+    expect(b[0].kapsamlar.map((k) => k.id)).toEqual(['bolum', 'fakulte']);
     expect(b[1].kapsamlar.map((k) => k.id)).toEqual(['bolum', 'fakulte']);
-    expect(b[2].kapsamlar.map((k) => k.id)).toEqual(['bolum', 'fakulte']);
   });
 
-  it('akademisyen kaydı olmayan yetkilide veri girişi çıkmaz', () => {
-    expect(kullanilabilirBolumler(SADECE_FAKULTE).map((x) => x.id)).toEqual([
-      'gosterge',
-      'strateji',
-    ]);
+  it('veri girişi hiçbir yetkide listelenmez', () => {
+    [AKADEMISYEN, BOLUM_YETKILISI, FAKULTE_YETKILISI, SADECE_FAKULTE].forEach((y) =>
+      expect(kullanilabilirBolumler(y).map((x) => x.id)).not.toContain('veri')
+    );
   });
 
   it('yetkisiz kullanıcıda hiçbir bölüm yok', () => {
@@ -99,6 +117,12 @@ describe('gorunumAcikMi', () => {
     expect(gorunumAcikMi('strateji', AKADEMISYEN)).toBe(true);
   });
 
+  // Taşınmış görünüm bu modülde artık açık değil — yetkisi olsa bile.
+  it('veri girişi bu modülde açık değil', () => {
+    expect(gorunumAcikMi('own', AKADEMISYEN)).toBe(false);
+    expect(gorunumAcikMi('own', FAKULTE_YETKILISI)).toBe(false);
+  });
+
   it('bölüm yetkilisi bölüm raporunu görür', () => {
     expect(gorunumAcikMi('dept', BOLUM_YETKILISI)).toBe(true);
     expect(gorunumAcikMi('faculty', BOLUM_YETKILISI)).toBe(false);
@@ -106,17 +130,19 @@ describe('gorunumAcikMi', () => {
 });
 
 describe('varsayilanGorunum', () => {
-  it('akademisyen kendi veri giriş ekranında açılır', () => {
-    expect(varsayilanGorunum(AKADEMISYEN)).toBe('own');
-    expect(varsayilanGorunum(BOLUM_YETKILISI)).toBe('own');
+  it('sade akademisyen stratejik planda açılır', () => {
+    expect(varsayilanGorunum(AKADEMISYEN)).toBe('strateji');
   });
 
-  it('akademisyen kaydı yoksa gösterge raporunda açılır', () => {
+  it('yetkili gösterge raporunda açılır', () => {
+    expect(varsayilanGorunum(BOLUM_YETKILISI)).toBe('dept');
     expect(varsayilanGorunum(SADECE_FAKULTE)).toBe('dept');
   });
 
-  it('yetkisizde de bir değer döner — ekran boşa düşmez', () => {
-    expect(varsayilanGorunum(YETKISIZ)).toBe('own');
+  // Eskiden burada 'own' dönülüyordu; o ekran artık bu modülde olmadığı
+  // için çizilemeyen bir görünüm döndürmek olurdu.
+  it('hiç açık bölüm yoksa boş döner', () => {
+    expect(varsayilanGorunum(YETKISIZ)).toBe('');
   });
 });
 
@@ -136,22 +162,29 @@ describe('gorunumDuzelt', () => {
 
   it('bölüm de kapalıysa varsayılana döner', () => {
     // akademisyende gösterge bölümü hiç yok
-    expect(gorunumDuzelt('faculty', AKADEMISYEN)).toBe('own');
+    expect(gorunumDuzelt('faculty', AKADEMISYEN)).toBe('strateji');
   });
 
   it('bilinmeyen görünüm varsayılana düşer', () => {
-    expect(gorunumDuzelt('saçma', BOLUM_YETKILISI)).toBe('own');
+    expect(gorunumDuzelt('saçma', BOLUM_YETKILISI)).toBe('dept');
+  });
+
+  // Taşınmış ekranda kalınmaz: 'own' kayıtlı kalan kullanıcı bu modülde
+  // karşılığı olmayan bir görünümde takılırdı.
+  it('taşınmış görünümden çıkılır', () => {
+    expect(gorunumDuzelt('own', AKADEMISYEN)).toBe('strateji');
+    expect(gorunumDuzelt('own', BOLUM_YETKILISI)).toBe('dept');
   });
 
   it('yetkisiz kullanıcıda da çöker değil', () => {
-    expect(gorunumDuzelt('dept', YETKISIZ)).toBe('own');
+    expect(gorunumDuzelt('dept', YETKISIZ)).toBe('');
   });
 });
 
 describe('gezinmeDurumu', () => {
   it('fakülte yetkilisinde iki satır da çizilir', () => {
     const d = gezinmeDurumu('faculty', FAKULTE_YETKILISI);
-    expect(d.bolumler.map((b) => b.id)).toEqual(['veri', 'gosterge', 'strateji']);
+    expect(d.bolumler.map((b) => b.id)).toEqual(['gosterge', 'strateji']);
     expect(d.aktifBolum.id).toBe('gosterge');
     expect(d.kapsamlar.map((k) => k.id)).toEqual(['bolum', 'fakulte']);
     expect(d.aktifKapsam.id).toBe('fakulte');
@@ -159,9 +192,7 @@ describe('gezinmeDurumu', () => {
   });
 
   it('tek kapsamlı bölümde ikinci satır ÇİZİLMEZ', () => {
-    // Veri girişinin tek kapsamı var
-    expect(gezinmeDurumu('own', FAKULTE_YETKILISI).kapsamlar).toEqual([]);
-    // Bölüm yetkilisinde gösterge raporunun da tek kapsamı var
+    // Bölüm yetkilisinde gösterge raporunun tek kapsamı var
     expect(gezinmeDurumu('dept', BOLUM_YETKILISI).kapsamlar).toEqual([]);
   });
 
@@ -175,8 +206,8 @@ describe('gezinmeDurumu', () => {
 
   it('bölümün tamamı kapalıysa varsayılana döner', () => {
     const d = gezinmeDurumu('faculty', AKADEMISYEN);
-    expect(d.aktifBolum.id).toBe('veri');
-    expect(d.aktifKapsam.id).toBe('own');
+    expect(d.aktifBolum.id).toBe('strateji');
+    expect(d.aktifKapsam.id).toBe('bolum');
   });
 
   it('yetkisiz kullanıcıda boş ama çökmeyen durum', () => {
@@ -197,14 +228,16 @@ describe('bolumeGecerken', () => {
   });
 
   it('aynı kapsam yoksa bölümün ilk kapsamına düşer', () => {
-    // Veri girişinde 'fakulte' kapsamı yok
-    expect(bolumeGecerken('veri', 'faculty', FAKULTE_YETKILISI)).toBe('own');
     // Bölüm yetkilisinde fakülte kapsamı hiç açık değil
     expect(bolumeGecerken('strateji', 'dept', BOLUM_YETKILISI)).toBe('strateji');
   });
 
+  it('taşınmış bölüme geçilemez — varsayılana döner', () => {
+    expect(bolumeGecerken('veri', 'faculty', FAKULTE_YETKILISI)).toBe('dept');
+  });
+
   it('kapalı bölüme geçilmek istenirse varsayılana döner', () => {
-    expect(bolumeGecerken('gosterge', 'own', AKADEMISYEN)).toBe('own');
+    expect(bolumeGecerken('gosterge', 'strateji', AKADEMISYEN)).toBe('strateji');
   });
 });
 

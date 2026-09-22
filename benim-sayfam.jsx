@@ -270,8 +270,8 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const bsSutunlar = window.sayfaSutunSablonu
     ? window.sayfaSutunSablonu(_bsResp.width)
     : '300px minmax(0, 1fr) 300px';
-  const bsSutunSayisi = window.sayfaSutunSayisi ? window.sayfaSutunSayisi(_bsResp.width) : 3;
-  const bsTekSutun = bsSutunSayisi === 1;
+  // Sekme şeridi akademisyen sayfasıyla ortak (bkz. shared-components.jsx).
+  const BSSekmeSeridi = window.SayfaSekmeSeridi;
 
   const isStudent = currentUser?.role === 'student';
   // ⚠ EskiDEN `currentUser.departmentId` okunuyordu; o alan HER ZAMAN ana
@@ -1736,154 +1736,24 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", color: '#191C1E' }}>
-      {/* ══ AÇILIR PANELLER ══
-          Derslerim ve Mezuniyet Durumum artık sütunların içinde değil: ikisi de
-          uzun, ikisi de tablo taşıyor ve 300 piksellik bir sütunda okunmuyordu.
-          Sayfanın sağ üstünde birer düğme olarak duruyorlar; tıklanınca sayfanın
-          ORTASINA açılan ayrı birer pencere olarak geliyorlar. Düğmenin üstünde
-          özet yazar ki panel açılmadan da durum görünsün. */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 12,
-          marginBottom: 18,
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: M3navy }}>Benim Sayfam</h2>
-          <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#6B7280' }}>
-            {deptName} · {bsTermLabel(term.academicYear, term.donem)}
-          </p>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'stretch',
-            flexWrap: 'wrap',
-            gap: 12,
-            flex: bsTekSutun ? '1 1 100%' : '0 1 auto',
-          }}
-        >
-          {panelListesi.map((p) => {
-            const acik = acikPanel === p.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setAcikPanel(acik ? '' : p.id)}
-                aria-expanded={acik}
-                title={p.baslik + ' — ' + p.ozet}
-                style={{
-                  flex: bsTekSutun ? '1 1 100%' : '0 0 216px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  textAlign: 'left',
-                  padding: '12px 16px',
-                  borderRadius: 14,
-                  border: '1px solid ' + (acik ? M3navy : '#E5E7EB'),
-                  background: acik ? M3navy : '#FFFFFF',
-                  color: acik ? '#FFFFFF' : M3navy,
-                  boxShadow: acik ? 'none' : '0 1px 3px rgba(16,24,40,0.06)',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 38,
-                    height: 38,
-                    flexShrink: 0,
-                    borderRadius: 11,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: acik ? 'rgba(255,255,255,0.16)' : '#F3F4F6',
-                    color: acik ? '#FFFFFF' : M3green,
-                  }}
-                >
-                  {p.id === 'dersler' ? (
-                    <svg
-                      width="19"
-                      height="19"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
-                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-                    </svg>
-                  ) : (
-                    <svg
-                      width="19"
-                      height="19"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-                      <path d="M6 12v5c3 3 9 3 12 0v-5" />
-                    </svg>
-                  )}
-                </span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span
-                    style={{
-                      display: 'block',
-                      fontSize: 14,
-                      fontWeight: 700,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {p.baslik}
-                  </span>
-                  <span
-                    style={{
-                      display: 'block',
-                      fontSize: 11.5,
-                      marginTop: 2,
-                      color: acik ? 'rgba(255,255,255,0.78)' : '#6B7280',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {p.ozet}
-                  </span>
-                </span>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                  style={{
-                    flexShrink: 0,
-                    opacity: 0.6,
-                    transform: acik ? 'rotate(180deg)' : 'none',
-                  }}
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* ══ SEKME ŞERİDİ ══
+          Akademisyen tarafıyla AYNI bileşen (shared-components →
+          SayfaSekmeSeridi): iki sayfa birbirine benzemeyi koddan alsın.
+          ⚠ Burada sekme tıklanınca içerik yerinde DEĞİŞMEZ, pencere açılır —
+          Derslerim ve Mezuniyet Durumum okunup kapatılan içerikler ve daha
+          önce bu şekilde istendi. Akademisyende ise (Veri Girişi, Görüşme
+          Saatleri) üzerinde çalışılan ekranlar var, orada içerik yerinde
+          değişiyor. Şerit ikisinde de aynı görünür; ne olacağına sayfa karar
+          verir.
+          Sayfanın adını ve bölümü yazan başlık kaldırıldı: ikisi de üst
+          menüde ve soldaki profil kartında zaten yazıyor. */}
+      {BSSekmeSeridi ? (
+        <BSSekmeSeridi
+          sekmeler={panelListesi}
+          aktif={acikPanel}
+          onSec={(id) => setAcikPanel((o) => (o === id ? '' : id))}
+        />
+      ) : null}
 
       <div
         style={{
@@ -4403,7 +4273,7 @@ function BSKarekodTarayici({ onKod, onKapat }) {
           maxHeight: '48vh',
         }}
       >
-        { }
+        {}
         <video
           ref={videoRef}
           playsInline
