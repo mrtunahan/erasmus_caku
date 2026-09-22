@@ -377,6 +377,8 @@ import {
   sutunSablonu,
   sutunSayisi,
 } from './lib/benim-sayfam-duzeni.js';
+import * as YoklamaKurali from './lib/yoklama.js';
+import * as RandevuKurali from './lib/randevu.js';
 import {
   anketRaporu,
   raporDosyaAdi,
@@ -956,6 +958,14 @@ const DEPARTMENT_MODULES = [
   },
   {
     id: 'benim',
+    label: 'Benim Sayfam',
+    icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+  },
+  // Akademisyenin kendi sayfası. 'benim' öğrenciye özeldir (ders seçimi,
+  // mezuniyet durumu); akademisyenin ihtiyacı bambaşka olduğu için ayrı bir
+  // modül — aynı ekranı iki role birden uydurmak ikisini de bozardı.
+  {
+    id: 'benimakademik',
     label: 'Benim Sayfam',
     icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
   },
@@ -14541,6 +14551,41 @@ window.sayfaKartinSutunu = kartinSutunu;
 window.sayfaPanelDugmeleri = panelDugmeleri;
 window.sayfaSutunSablonu = sutunSablonu;
 window.sayfaSutunSayisi = sutunSayisi;
+
+// ── Dijital yoklama ve randevu kuralları ──
+// Modüller bu iki kuralı bütün olarak okur (kod üretimi, tolerans penceresi,
+// devamsızlık hesabı / görüşme saatleri, randevu kuralları). Tek tek window
+// alanı açmak yerine modülün kendisi veriliyor: kural dosyasına yeni bir
+// fonksiyon eklendiğinde burada ikinci bir satır unutulmuş olmaz.
+window.YoklamaKurali = YoklamaKurali;
+window.RandevuKurali = RandevuKurali;
+
+// Akademisyen programının hücre yardımcıları — akademisyen sayfası da aynı
+// çakışma ve renk kuralını kullanır.
+window.hucreCakisiyor = hucreCakisiyor;
+window.bolumRengi = bolumRengi;
+
+/**
+ * Yoklama uç noktalarına giden isteklerin kimlik başlıkları.
+ * Çerez varsa zaten gider; header yalnız eski (token) yol için.
+ */
+window.yoklamaBasliklari = function yoklamaBasliklari() {
+  try {
+    const t = localStorage.getItem('caku_auth_token');
+    return t ? { Authorization: 'Bearer ' + t } : {};
+  } catch (_) {
+    return {};
+  }
+};
+
+/**
+ * Genel amaçlı belge yazma (set/merge) — koleksiyon adına özel bir DB
+ * yardımcısı olmayan yeni kayıtlar için.
+ */
+window.DBWriteGenel = function DBWriteGenel(koleksiyon, docId, veri, birlestir) {
+  if (docId) return DBWrite.set(koleksiyon, String(docId), veri, birlestir !== false);
+  return DBWrite.add(koleksiyon, veri);
+};
 
 // ── Anketin kapsamı ──
 // Anket kaydının kendisi kapsam taşımıyordu: her yetkili her anketi görüyor,

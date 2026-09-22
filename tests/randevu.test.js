@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   GUNLER,
+  akademisyenAnahtari,
   MESGUL_DURUMLAR,
   RANDEVU_DURUMLARI,
   acikSlotlar,
@@ -18,6 +19,7 @@ import {
   sonrakiTarih,
   talepOzeti,
   tarihMetni,
+  yetimSlotlar,
 } from '../lib/randevu.js';
 
 // Salı 10:30'da dersi var, Salı 13:15 boş.
@@ -29,6 +31,26 @@ const IZGARA = {
   Cuma: {},
 };
 const SAATLER = ['09:30', '10:30', '13:15', '14:15'];
+
+describe('akademisyenAnahtari', () => {
+  it('unvanı ayıklar, Türkçe harfleri katlar', () => {
+    expect(akademisyenAnahtari('Dr. Öğr. Üyesi Ayşe İnanç')).toBe('ayse-inanc');
+  });
+
+  // Aynı kişi iki yerde farklı unvanla yazılıyorsa saatleri ikiye bölünmemeli.
+  it('unvanlı ve unvansız ad aynı anahtarı verir', () => {
+    expect(akademisyenAnahtari('Prof. Dr. Ali Şahin')).toBe(akademisyenAnahtari('Ali Şahin'));
+  });
+
+  it('belge kimliğine uygun: yalnız harf, rakam ve tire', () => {
+    expect(akademisyenAnahtari('  Ömer  Faruk   Çiçek ')).toMatch(/^[a-z0-9-]+$/);
+  });
+
+  it('boş girdide boş anahtar', () => {
+    expect(akademisyenAnahtari('')).toBe('');
+    expect(akademisyenAnahtari(null)).toBe('');
+  });
+});
 
 describe('slot anahtarı', () => {
   it('gün ve saati birleştirir, geri ayırır', () => {
@@ -105,6 +127,37 @@ describe('acikSlotlar', () => {
 
   it('boş girdide boş liste', () => {
     expect(acikSlotlar(null, null)).toEqual([]);
+  });
+});
+
+describe('yetimSlotlar', () => {
+  // Bölüm ders saatlerini değiştirdi: eski etiket ('13:15-14:00') artık
+  // ızgaranın hiçbir satırına düşmüyor.
+  it('programda karşılığı kalmayan işareti bulur', () => {
+    const y = yetimSlotlar(['Salı|13:15', 'Salı|13:15-14:00'], SAATLER);
+    expect(y).toEqual(['Salı|13:15-14:00']);
+  });
+
+  it('tanınmayan gün de yetimdir', () => {
+    expect(yetimSlotlar(['Cumartesi|09:30'], SAATLER)).toHaveLength(1);
+  });
+
+  // Saat listesi henüz yüklenmediyse hiçbir şey yetim ilan edilmez —
+  // yoksa açılışta bütün saatler "geçersiz" görünürdü.
+  it('saat listesi yoksa boş döner', () => {
+    expect(yetimSlotlar(['Salı|13:15'], [])).toEqual([]);
+    expect(yetimSlotlar(['Salı|13:15'], null)).toEqual([]);
+  });
+});
+
+describe('acikSlotlar — bayat etiket', () => {
+  it('saat listesi verilince eski etiket elenir', () => {
+    const s = acikSlotlar(IZGARA, ['Salı|13:15', 'Salı|eski-saat'], SAATLER);
+    expect(s.map((x) => x.anahtar)).toEqual(['Salı|13:15']);
+  });
+
+  it('saat listesi verilmezse eski davranış sürer', () => {
+    expect(acikSlotlar(IZGARA, ['Salı|eski-saat'])).toHaveLength(1);
   });
 });
 
