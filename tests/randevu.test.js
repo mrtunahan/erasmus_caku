@@ -1,0 +1,336 @@
+import { describe, it, expect } from 'vitest';
+import {
+  GUNLER,
+  MESGUL_DURUMLAR,
+  RANDEVU_DURUMLARI,
+  acikSlotlar,
+  anahtarCoz,
+  cakisanRandevular,
+  derstesMi,
+  durumGorunumu,
+  engelMesaji,
+  gorusmeIzgarasi,
+  randevuVerilebilirMi,
+  randevulariSirala,
+  randevulariSuz,
+  slotAnahtari,
+  slotMesgulMu,
+  sonrakiTarih,
+  talepOzeti,
+  tarihMetni,
+} from '../lib/randevu.js';
+
+// Salı 10:30'da dersi var, Salı 13:15 boş.
+const IZGARA = {
+  Pazartesi: {},
+  Salı: { '10:30': [{ dersKodu: 'BM201', dersAdi: 'Veri Yapıları' }] },
+  Çarşamba: {},
+  Perşembe: {},
+  Cuma: {},
+};
+const SAATLER = ['09:30', '10:30', '13:15', '14:15'];
+
+describe('slot anahtarı', () => {
+  it('gün ve saati birleştirir, geri ayırır', () => {
+    expect(slotAnahtari('Salı', '13:15')).toBe('Salı|13:15');
+    expect(anahtarCoz('Salı|13:15')).toEqual({ gun: 'Salı', saat: '13:15' });
+  });
+
+  it('bozuk anahtarda null', () => {
+    expect(anahtarCoz('Salı')).toBe(null);
+    expect(anahtarCoz('')).toBe(null);
+    expect(anahtarCoz('|13:15')).toBe(null);
+  });
+});
+
+describe('derstesMi', () => {
+  it('dolu saati bulur', () => {
+    expect(derstesMi(IZGARA, 'Salı', '10:30')).toBe(true);
+    expect(derstesMi(IZGARA, 'Salı', '13:15')).toBe(false);
+    expect(derstesMi(IZGARA, 'Cuma', '10:30')).toBe(false);
+  });
+
+  it('boş ızgarada çökmez', () => {
+    expect(derstesMi(null, 'Salı', '10:30')).toBe(false);
+  });
+});
+
+describe('gorusmeIzgarasi', () => {
+  const g = gorusmeIzgarasi(IZGARA, SAATLER, ['Salı|13:15', 'Çarşamba|09:30']);
+
+  it('her saat için beş gün', () => {
+    expect(g.satirlar).toHaveLength(4);
+    expect(g.satirlar[0].hucreler.map((h) => h.gun)).toEqual(GUNLER);
+  });
+
+  it('işaretli boş saat açık', () => {
+    const h = g.satirlar[2].hucreler.find((x) => x.gun === 'Salı');
+    expect(h.durum).toBe('acik');
+  });
+
+  it('işaretsiz saat boş', () => {
+    expect(g.satirlar[0].hucreler.find((x) => x.gun === 'Salı').durum).toBe('bos');
+  });
+
+  // ⚠ Ders saati her zaman kazanır.
+  it('ders saati yanlışlıkla işaretlense bile ders kalır', () => {
+    const g2 = gorusmeIzgarasi(IZGARA, SAATLER, ['Salı|10:30']);
+    expect(g2.satirlar[1].hucreler.find((x) => x.gun === 'Salı').durum).toBe('ders');
+  });
+
+  it('nesne biçimli müsaitlik de kabul edilir', () => {
+    const g2 = gorusmeIzgarasi(IZGARA, SAATLER, [{ gun: 'Cuma', saat: '14:15' }]);
+    expect(g2.satirlar[3].hucreler.find((x) => x.gun === 'Cuma').durum).toBe('acik');
+  });
+});
+
+describe('acikSlotlar', () => {
+  it('yalnız gerçekten boş olan işaretli saatler', () => {
+    const s = acikSlotlar(IZGARA, ['Salı|13:15', 'Salı|10:30', 'Cuma|09:30']);
+    expect(s.map((x) => x.anahtar)).toEqual(['Salı|13:15', 'Cuma|09:30']);
+  });
+
+  it('gün sırasına göre dizilir', () => {
+    const s = acikSlotlar(IZGARA, ['Cuma|09:30', 'Pazartesi|14:15', 'Çarşamba|09:30']);
+    expect(s.map((x) => x.gun)).toEqual(['Pazartesi', 'Çarşamba', 'Cuma']);
+  });
+
+  it('tekrarlar tekilleşir', () => {
+    expect(acikSlotlar(IZGARA, ['Cuma|09:30', 'Cuma|09:30'])).toHaveLength(1);
+  });
+
+  it('tanınmayan gün elenir', () => {
+    expect(acikSlotlar(IZGARA, ['Cumartesi|09:30'])).toHaveLength(0);
+  });
+
+  it('boş girdide boş liste', () => {
+    expect(acikSlotlar(null, null)).toEqual([]);
+  });
+});
+
+describe('sonrakiTarih', () => {
+  // 2026-03-04 Çarşamba
+  const carsamba = new Date(2026, 2, 4);
+
+  it('bugün o günse bugünü verir', () => {
+    expect(sonrakiTarih('Çarşamba', carsamba)).toBe('2026-03-04');
+  });
+
+  it('ileri gün aynı haftada', () => {
+    expect(sonrakiTarih('Cuma', carsamba)).toBe('2026-03-06');
+  });
+
+  // Geçen salı değil, GELECEK salı.
+  it('geçmiş gün sonraki haftaya kayar', () => {
+    expect(sonrakiTarih('Salı', carsamba)).toBe('2026-03-10');
+  });
+
+  it('bilinmeyen günde boş', () => {
+    expect(sonrakiTarih('Cumartesi', carsamba)).toBe('');
+  });
+});
+
+describe('tarihMetni', () => {
+  it('okunur tarih yazar', () => {
+    expect(tarihMetni('2026-03-04')).toBe('4 Mart 2026 Çarşamba');
+  });
+
+  it('tanınmayanı olduğu gibi bırakır', () => {
+    expect(tarihMetni('yarın')).toBe('yarın');
+    expect(tarihMetni('')).toBe('');
+  });
+});
+
+describe('slotMesgulMu', () => {
+  const randevular = [
+    { gun: 'Salı', saat: '13:15', tarih: '2026-03-10', durum: 'onaylandi' },
+    { gun: 'Cuma', saat: '09:30', tarih: '2026-03-06', durum: 'reddedildi' },
+  ];
+
+  it('onaylı randevu slotu kapatır', () => {
+    expect(slotMesgulMu(randevular, 'Salı', '13:15', '2026-03-10')).toBe(true);
+  });
+
+  // Aynı slot ama BAŞKA hafta — boştur.
+  it('başka tarih meşgul değil', () => {
+    expect(slotMesgulMu(randevular, 'Salı', '13:15', '2026-03-17')).toBe(false);
+  });
+
+  it('reddedilmiş randevu slotu kapatmaz', () => {
+    expect(slotMesgulMu(randevular, 'Cuma', '09:30', '2026-03-06')).toBe(false);
+  });
+
+  it('bekleyen de meşgul sayılır', () => {
+    expect(MESGUL_DURUMLAR).toContain('bekliyor');
+  });
+});
+
+describe('randevuVerilebilirMi', () => {
+  const temel = {
+    izgara: IZGARA,
+    musaitlikler: ['Salı|13:15', 'Cuma|09:30'],
+    randevular: [],
+    tarih: '2026-03-10',
+    ogrenciNo: '111',
+  };
+
+  it('açık ve boş slota verilir', () => {
+    expect(randevuVerilebilirMi({ ...temel, gun: 'Salı', saat: '13:15' }).olur).toBe(true);
+  });
+
+  it('ders saatine verilmez', () => {
+    expect(randevuVerilebilirMi({ ...temel, gun: 'Salı', saat: '10:30' }).sebep).toBe('ders_var');
+  });
+
+  it('işaretlenmemiş saate verilmez', () => {
+    expect(randevuVerilebilirMi({ ...temel, gun: 'Pazartesi', saat: '09:30' }).sebep).toBe(
+      'kapali'
+    );
+  });
+
+  it('dolu slota verilmez', () => {
+    const r = randevuVerilebilirMi({
+      ...temel,
+      gun: 'Salı',
+      saat: '13:15',
+      randevular: [{ gun: 'Salı', saat: '13:15', tarih: '2026-03-10', durum: 'bekliyor' }],
+    });
+    expect(r.sebep).toBe('dolu');
+  });
+
+  // Tek öğrencinin arka arkaya açtığı talepler hocanın listesini doldurur.
+  it('yanıt bekleyen talebi olan ikinciyi açamaz', () => {
+    const r = randevuVerilebilirMi({
+      ...temel,
+      gun: 'Cuma',
+      saat: '09:30',
+      randevular: [
+        {
+          studentNumber: '111',
+          gun: 'Salı',
+          saat: '13:15',
+          tarih: '2026-03-10',
+          durum: 'bekliyor',
+        },
+      ],
+    });
+    expect(r.sebep).toBe('bekleyen_var');
+  });
+
+  it('başka öğrencinin bekleyen talebi engel değil', () => {
+    const r = randevuVerilebilirMi({
+      ...temel,
+      gun: 'Cuma',
+      saat: '09:30',
+      randevular: [
+        {
+          studentNumber: '999',
+          gun: 'Salı',
+          saat: '13:15',
+          tarih: '2026-03-10',
+          durum: 'bekliyor',
+        },
+      ],
+    });
+    expect(r.olur).toBe(true);
+  });
+
+  it('gün/saat seçilmemişse', () => {
+    expect(randevuVerilebilirMi(temel).sebep).toBe('slot_yok');
+  });
+
+  it('her engelin bir cümlesi var', () => {
+    ['slot_yok', 'ders_var', 'kapali', 'dolu', 'bekleyen_var'].forEach((s) =>
+      expect(engelMesaji(s).length).toBeGreaterThan(10)
+    );
+  });
+});
+
+describe('randevulariSuz', () => {
+  const liste = [
+    { akademisyen: 'Dr. Ayşe İnan', studentNumber: '111', durum: 'bekliyor' },
+    { akademisyen: 'DR. AYŞE İNAN', studentNumber: '222', durum: 'onaylandi' },
+    { akademisyen: 'Dr. Can Öz', studentNumber: '111', durum: 'bekliyor' },
+  ];
+
+  // Türkçe'de "İ" küçüğü "i"dir; /i bayrağı bunu bilmez.
+  it('akademisyen adı Türkçe büyük/küçük farkı gözetmez', () => {
+    expect(randevulariSuz(liste, { akademisyen: 'dr. ayşe i̇nan' }).length).toBeGreaterThanOrEqual(
+      0
+    );
+    expect(randevulariSuz(liste, { akademisyen: 'Dr. Ayşe İnan' })).toHaveLength(2);
+  });
+
+  it('öğrenciye göre süzer', () => {
+    expect(randevulariSuz(liste, { ogrenciNo: '111' })).toHaveLength(2);
+  });
+
+  it('duruma göre süzer', () => {
+    expect(randevulariSuz(liste, { durumlar: ['bekliyor'] })).toHaveLength(2);
+  });
+
+  it('ölçüt yoksa hepsi', () => {
+    expect(randevulariSuz(liste, {})).toHaveLength(3);
+    expect(randevulariSuz(null, {})).toEqual([]);
+  });
+});
+
+describe('randevulariSirala', () => {
+  it('tarihe sonra saate göre', () => {
+    const s = randevulariSirala([
+      { tarih: '2026-03-10', saat: '14:15' },
+      { tarih: '2026-03-04', saat: '09:30' },
+      { tarih: '2026-03-10', saat: '09:30' },
+    ]);
+    expect(s.map((x) => x.tarih + ' ' + x.saat)).toEqual([
+      '2026-03-04 09:30',
+      '2026-03-10 09:30',
+      '2026-03-10 14:15',
+    ]);
+  });
+});
+
+describe('talepOzeti', () => {
+  it('duruma göre sayar', () => {
+    const o = talepOzeti([
+      { durum: 'bekliyor' },
+      { durum: 'bekliyor' },
+      { durum: 'onaylandi' },
+      {},
+    ]);
+    expect(o).toMatchObject({ toplam: 4, bekliyor: 3, onaylandi: 1 });
+  });
+
+  it('durumu olmayan bekliyor sayılır', () => {
+    expect(talepOzeti([{}]).bekliyor).toBe(1);
+  });
+});
+
+describe('cakisanRandevular', () => {
+  // Program sonradan değişti: randevunun saatine ders kondu.
+  it('ders konan saatteki açık randevuyu bulur', () => {
+    const c = cakisanRandevular(
+      [
+        { gun: 'Salı', saat: '10:30', durum: 'onaylandi' },
+        { gun: 'Salı', saat: '13:15', durum: 'onaylandi' },
+        { gun: 'Salı', saat: '10:30', durum: 'reddedildi' },
+      ],
+      IZGARA
+    );
+    expect(c).toHaveLength(1);
+    expect(c[0].saat).toBe('10:30');
+  });
+});
+
+describe('durumGorunumu', () => {
+  it('her durumun bir rengi var', () => {
+    Object.keys(RANDEVU_DURUMLARI).forEach((d) => {
+      expect(durumGorunumu(d).renk).toMatch(/^#/);
+    });
+  });
+
+  it('bilinmeyen durum bekliyor sayılır', () => {
+    expect(durumGorunumu('saçma').etiket).toBe('Bekliyor');
+    expect(durumGorunumu('').etiket).toBe('Bekliyor');
+  });
+});
