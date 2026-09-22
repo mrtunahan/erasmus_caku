@@ -24,6 +24,7 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
 const { profilBul } = require('../lib/akademisyen-kimlik');
@@ -36,6 +37,13 @@ function kural() {
 }
 
 const router = express.Router();
+
+const oturumListeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 dakika
+  max: 120, // endpoint başına makul canlı liste yenileme limiti
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const OTURUMLAR = 'yoklama_oturumlari';
 const KAYITLAR = 'yoklama_kayitlari';
@@ -237,7 +245,7 @@ router.post('/imzala', requireAuth, async (req, res) => {
 // ══════════════════════════════════════════════════════════════
 // GET /api/yoklama/oturum/:id — canlı liste (akademisyen)
 // ══════════════════════════════════════════════════════════════
-router.get('/oturum/:id', requireAuth, async (req, res) => {
+router.get('/oturum/:id', requireAuth, oturumListeLimiter, async (req, res) => {
   try {
     const db = await getDbSafe();
     const oturum = await oturumBul(db, req.params.id);
