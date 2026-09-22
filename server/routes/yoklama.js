@@ -38,11 +38,25 @@ function kural() {
 
 const router = express.Router();
 
+// Canlı liste hız sınırı.
+//
+// ⚠ SINIR GERÇEK KULLANIMA GÖRE HESAPLANMALI. Tam ekran yoklama ekranı bu
+// uca HER 3 SANİYEDE BİR sorar (bkz. akademisyen-sayfam.jsx →
+// TamEkranYoklama): 15 dakikada 300 istek eder. 120'lik bir sınır, iki
+// saatlik bir dersin daha altıncı dakikasında listeyi dondurur ve
+// akademisyen sınıfta kimin okuttuğunu göremez hâle gelirdi — hatayı da
+// fark etmez, liste sadece güncellenmeyi bırakır.
+//
+// 450: 300 (bir pencerelik normal yoklama) + yeniden açma, ağ tekrarları ve
+// aynı hocanın arka arkaya iki ders yapması için pay. Kötüye kullanımı
+// engellemeye yeter; meşru dersi kesmez.
+const OTURUM_LISTE_ARALIGI_SN = 3;
 const oturumListeLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 dakika
-  max: 120, // endpoint başına makul canlı liste yenileme limiti
+  windowMs: 15 * 60 * 1000,
+  max: Math.ceil(((15 * 60) / OTURUM_LISTE_ARALIGI_SN) * 1.5),
   standardHeaders: true,
   legacyHeaders: false,
+  message: { error: 'Canlı liste çok sık yenilendi. Birkaç dakika sonra tekrar deneyin.' },
 });
 
 const OTURUMLAR = 'yoklama_oturumlari';

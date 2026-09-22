@@ -379,6 +379,8 @@ import {
 } from './lib/benim-sayfam-duzeni.js';
 import * as YoklamaKurali from './lib/yoklama.js';
 import * as RandevuKurali from './lib/randevu.js';
+import * as AkademisyenBilgi from './lib/akademisyen-bilgi.js';
+import * as AkademisyenSayfaDuzeni from './lib/akademisyen-sayfam-duzeni.js';
 import {
   anketRaporu,
   raporDosyaAdi,
@@ -14552,6 +14554,159 @@ window.sayfaPanelDugmeleri = panelDugmeleri;
 window.sayfaSutunSablonu = sutunSablonu;
 window.sayfaSutunSayisi = sutunSayisi;
 
+// ══════════════════════════════════════════════════════════════
+// SAYFA SEKME ŞERİDİ
+//
+// "Benim Sayfam"ın öğrenci ve akademisyen tarafı AYNI şeridi kullanır.
+// İki ayrı kopya yazılsaydı biri değişince ikisi ayrışır, aynı ürünün iki
+// sayfası birbirine benzemez olurdu; simetri kodun kendisinden gelmeli.
+//
+// Şerit iki farklı işi çağırabilir ve bu bilerek böyledir:
+//   • Öğrencide sekme bir PENCERE açar (Derslerim, Mezuniyet Durumum —
+//     okunup kapatılan içerik).
+//   • Akademisyende sekme içeriği YERİNDE değiştirir (Veri Girişi on iki
+//     aylık bir tablo, Görüşme Saatleri haftalık bir ızgara: üzerinde
+//     çalışılan ekranlar pencereye sıkışmaz).
+// Şeridin görevi hangi sekmenin seçili olduğunu göstermek; ne olacağına
+// çağıran karar verir. `aktif` verilmezse hiçbiri seçili çizilmez.
+// ══════════════════════════════════════════════════════════════
+const SEKME_IKONLARI = {
+  pano: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
+  karekod: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3z M14 14h3v3h-3zM18 18h3v3h-3z',
+  saat: 'M12 12m-9 0a9 9 0 1018 0 9 9 0 10-18 0 M12 7v5l3 2',
+  kalem:
+    'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z',
+  kitap: 'M4 19.5A2.5 2.5 0 016.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z',
+  mezun: 'M22 10v6M2 10l10-5 10 5-10 5z M6 12v5c3 3 9 3 12 0v-5',
+  takvim: 'M3 4h18v18H3z M16 2v4M8 2v4M3 10h18',
+  kisi: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7m-4 0a4 4 0 108 0 4 4 0 10-8 0 M19 8v6M22 11h-6',
+};
+
+function SekmeIkonu({ ad, renk }) {
+  const d = SEKME_IKONLARI[ad] || SEKME_IKONLARI.pano;
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={renk}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flexShrink: 0 }}
+      aria-hidden="true"
+    >
+      {d.split(' M').map((p, i) => (
+        <path key={i} d={(i === 0 ? '' : 'M') + p} />
+      ))}
+    </svg>
+  );
+}
+
+function SayfaSekmeSeridi({ sekmeler, aktif, onSec, baslik, altBaslik }) {
+  const liste = Array.isArray(sekmeler) ? sekmeler : [];
+  if (liste.length === 0) return null;
+  const LACIVERT = '#1B2A4A';
+  const YESIL = '#059669';
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        flexWrap: 'wrap',
+        marginBottom: 18,
+      }}
+    >
+      {baslik && (
+        <div style={{ minWidth: 0 }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: LACIVERT }}>{baslik}</h2>
+          {altBaslik && (
+            <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#6B7280' }}>{altBaslik}</p>
+          )}
+        </div>
+      )}
+      {/* Şerit dar ekranda YATAY KAYAR: sekmeler alt alta düşüp sayfanın
+          yarısını kaplamasın. */}
+      <div
+        role="tablist"
+        style={{
+          display: 'flex',
+          gap: 6,
+          padding: 4,
+          borderRadius: 14,
+          background: '#EEF1F5',
+          border: '1px solid #E1E6ED',
+          overflowX: 'auto',
+          maxWidth: '100%',
+          marginLeft: baslik ? 'auto' : 0,
+        }}
+      >
+        {liste.map((s) => {
+          const on = aktif === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => onSec && onSec(s.id)}
+              title={s.ozet ? s.baslik + ' — ' + s.ozet : s.baslik}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 9,
+                flexShrink: 0,
+                textAlign: 'left',
+                padding: '9px 14px',
+                borderRadius: 11,
+                border: '1px solid ' + (on ? LACIVERT : 'transparent'),
+                background: on ? LACIVERT : 'transparent',
+                color: on ? '#FFFFFF' : LACIVERT,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                boxShadow: on ? '0 1px 3px rgba(16,24,40,0.18)' : 'none',
+                transition: 'background 120ms',
+              }}
+            >
+              <SekmeIkonu ad={s.ikon} renk={on ? '#FFFFFF' : YESIL} />
+              <span style={{ minWidth: 0 }}>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: 13.5,
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {s.baslik}
+                </span>
+                {s.ozet && (
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 11,
+                      marginTop: 1,
+                      whiteSpace: 'nowrap',
+                      color: on ? 'rgba(255,255,255,0.75)' : '#6B7280',
+                    }}
+                  >
+                    {s.ozet}
+                  </span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+window.SayfaSekmeSeridi = SayfaSekmeSeridi;
+
 // ── Dijital yoklama ve randevu kuralları ──
 // Modüller bu iki kuralı bütün olarak okur (kod üretimi, tolerans penceresi,
 // devamsızlık hesabı / görüşme saatleri, randevu kuralları). Tek tek window
@@ -14559,6 +14714,12 @@ window.sayfaSutunSayisi = sutunSayisi;
 // fonksiyon eklendiğinde burada ikinci bir satır unutulmuş olmaz.
 window.YoklamaKurali = YoklamaKurali;
 window.RandevuKurali = RandevuKurali;
+
+// ── Akademisyen "Benim Sayfam" ──
+// Bilgi alanları (e-posta · dahili · fotoğraf) Bölüm Yönetimi'ndeki
+// Akademisyenler sekmesiyle AYNI kayda yazar; alan listesi tek yerde.
+window.AkademisyenBilgi = AkademisyenBilgi;
+window.AkademisyenSayfaDuzeni = AkademisyenSayfaDuzeni;
 
 // Akademisyen programının hücre yardımcıları — akademisyen sayfası da aynı
 // çakışma ve renk kuralını kullanır.

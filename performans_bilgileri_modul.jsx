@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
+  VERI_GIRISI_GORUNUMU,
   bolumeGecerken,
   gezinmeDurumu,
   gorunumDuzelt,
@@ -175,7 +176,23 @@ const C = {
 const F = "'Inter', 'Segoe UI', -apple-system, sans-serif";
 
 // ════════════════ ANA MODÜL ════════════════
-export default function PerformansBilgileri({ currentUser, activeDepartment, departmentInfo }) {
+/**
+ * @param {boolean} gomulu  Başka bir modülün içinde, YALNIZ veri giriş ekranı
+ *   olarak çiziliyor (akademisyenin "Benim Sayfam" → Veri Girişi sekmesi).
+ *
+ * ⚠ VERİ GİRİŞİ EKRANI KOPYALANMADI. Akademisyen kendi göstergelerini girmek
+ * için ayrı bir modüle gitmek zorunda kalmasın diye ekran Benim Sayfam'a
+ * taşındı; ama ikinci bir kopya yazmak, gösterge listesi/kaydetme/gönderme
+ * mantığının iki yerde ayrışması demekti. Aynı bileşen gömülü kipte
+ * çiziliyor: başlık bandı ve modül gezinmesi gizlenir, görünüm 'own'a
+ * kilitlenir. Kaydetme, gösterge tanımları, yıl seçimi — hepsi tek yerde.
+ */
+export default function PerformansBilgileri({
+  currentUser,
+  activeDepartment,
+  departmentInfo,
+  gomulu,
+}) {
   // Akademisyen listesi (API'den yüklenir)
   const [akademisyenlerList, setAkademisyenlerList] = useState([]);
   const [loadingAkad, setLoadingAkad] = useState(true);
@@ -625,7 +642,9 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     () => ({ own: capOwn, dept: capDept, faculty: capFaculty }),
     [capOwn, capDept, capFaculty]
   );
-  const [activeView, setActiveView] = useState(() => varsayilanGorunum(yetkiler));
+  const [activeView, setActiveView] = useState(() =>
+    gomulu ? VERI_GIRISI_GORUNUMU : varsayilanGorunum(yetkiler)
+  );
   // ⚠ AÇILIŞ EKRANI YARIŞA BAĞLIYDI. Akademisyen listesi asenkron geliyor;
   // ilk render'da `capOwn` henüz false olduğu için yetkili kullanıcı bazen
   // "Veri Girişi"nde, bazen "Bölüm Özeti"nde açılıyordu — hangisinin
@@ -639,12 +658,15 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
     setActiveView(hedef);
   };
   useEffect(() => {
+    // Gömülü kipte tek bir ekran var; görünüm düzeltmesi onu 'own'dan
+    // çıkarırdı (veri girişi bu modülün gezinmesinde artık yok).
+    if (gomulu) return;
     // Kapalı bir görünümde kalınmaz; düzeltme AYNI BÖLÜMDE kalmaya çalışır —
     // fakülte yetkisi olmayan kişi "Stratejik Plan / Fakülte"den bambaşka bir
     // ekrana değil, "Stratejik Plan / Bölümüm"e iner.
     const hedef = elleSecildi ? gorunumDuzelt(activeView, yetkiler) : varsayilanGorunum(yetkiler);
-    if (hedef !== activeView) setActiveView(hedef);
-  }, [yetkiler, activeView, elleSecildi]);
+    if (hedef && hedef !== activeView) setActiveView(hedef);
+  }, [gomulu, yetkiler, activeView, elleSecildi]);
 
   const gezinme = useMemo(() => gezinmeDurumu(activeView, yetkiler), [activeView, yetkiler]);
 
@@ -774,52 +796,75 @@ export default function PerformansBilgileri({ currentUser, activeDepartment, dep
 
   // ═══════════════════════════════════════════════════════
   return (
-    <div style={{ fontFamily: F, color: C.text, minHeight: '100vh' }}>
-      {/* ── Header — ortak banner ── */}
-      <div style={{ padding: '16px 16px 0' }}>
-        {React.createElement(window.CakuBanner, {
-          title: 'Performans Modülü',
-          subtitle: 'Gösterge İzleme',
-          right: React.createElement(
-            'div',
-            { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 } },
-            React.createElement(
-              'span',
+    <div
+      style={{
+        fontFamily: F,
+        color: C.text,
+        minHeight: gomulu ? 0 : '100vh',
+        background: gomulu ? 'transparent' : undefined,
+      }}
+    >
+      {/* ── Header — ortak banner ──
+          ⚠ Gömülü kipte HİÇ OLUŞTURULMAZ, yalnız gizlenmez: banner
+          `window.CakuBanner`dan geliyor ve React.createElement onu gizli
+          olsa bile çağırır. Yükleme sırasına bağlı bir çökme riskini
+          gereksiz yere taşımanın anlamı yok. */}
+      {!gomulu && (
+        <div style={{ padding: '16px 16px 0' }}>
+          {React.createElement(window.CakuBanner, {
+            title: 'Performans Modülü',
+            subtitle: 'Gösterge İzleme',
+            right: React.createElement(
+              'div',
               {
-                style: {
-                  padding: '6px 14px',
-                  borderRadius: 6,
-                  background: 'rgba(255,255,255,0.15)',
-                  border: '1px solid rgba(255,255,255,0.25)',
-                  color: '#fff',
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                },
+                style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 },
               },
-              roleLabel
+              React.createElement(
+                'span',
+                {
+                  style: {
+                    padding: '6px 14px',
+                    borderRadius: 6,
+                    background: 'rgba(255,255,255,0.15)',
+                    border: '1px solid rgba(255,255,255,0.25)',
+                    color: '#fff',
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                  },
+                },
+                roleLabel
+              ),
+              matchedAkademisyen
+                ? React.createElement(
+                    'span',
+                    { style: { fontSize: 12, color: 'rgba(255,255,255,0.75)' } },
+                    'Giriş yapan: ' + matchedAkademisyen.ad + ' — ' + matchedAkademisyen.bolum
+                  )
+                : null
             ),
-            matchedAkademisyen
-              ? React.createElement(
-                  'span',
-                  { style: { fontSize: 12, color: 'rgba(255,255,255,0.75)' } },
-                  'Giriş yapan: ' + matchedAkademisyen.ad + ' — ' + matchedAkademisyen.bolum
-                )
-              : null
-          ),
-        })}
-      </div>
+          })}
+        </div>
+      )}
 
       {/* ── Gezinme: iki boyut, iki satır (bkz. PerformansGezinme) ── */}
-      <PerformansGezinme
-        durum={gezinme}
-        onBolum={(bolumId) => gorunumeGec(bolumeGecerken(bolumId, activeView, yetkiler))}
-        onKapsam={(kapsamId) =>
-          gorunumeGec(gorunumSec(gezinme.aktifBolum && gezinme.aktifBolum.id, kapsamId))
-        }
-      />
+      {!gomulu && (
+        <PerformansGezinme
+          durum={gezinme}
+          onBolum={(bolumId) => gorunumeGec(bolumeGecerken(bolumId, activeView, yetkiler))}
+          onKapsam={(kapsamId) =>
+            gorunumeGec(gorunumSec(gezinme.aktifBolum && gezinme.aktifBolum.id, kapsamId))
+          }
+        />
+      )}
 
       {/* ── Content ── */}
-      <div style={{ padding: '20px 16px 40px', maxWidth: 1400, margin: '0 auto' }}>
+      <div
+        style={{
+          padding: gomulu ? 0 : '20px 16px 40px',
+          maxWidth: 1400,
+          margin: '0 auto',
+        }}
+      >
         {loadingAkad ? (
           <div
             style={{

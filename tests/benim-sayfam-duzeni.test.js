@@ -60,6 +60,13 @@ describe('panel tanımı', () => {
   it('paneller hiçbir sütunda değil', () => {
     SAYFA_PANELLERI.forEach((p) => expect(kartinSutunu(p.id)).toBe(''));
   });
+
+  // Sekme şeridi (shared-components → SayfaSekmeSeridi) simgeyi `ikon`
+  // alanından okuyor; eksik kalan panel simgesiz çizilirdi.
+  it('her panelin bir simgesi var', () => {
+    SAYFA_PANELLERI.forEach((p) => expect(typeof p.ikon).toBe('string'));
+    expect(SAYFA_PANELLERI.every((p) => p.ikon.length > 0)).toBe(true);
+  });
 });
 
 describe('sutunSayisi', () => {
