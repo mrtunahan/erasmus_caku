@@ -14628,20 +14628,17 @@ function SayfaSekmeSeridi({ sekmeler, aktif, onSec, baslik, altBaslik }) {
           )}
         </div>
       )}
-      {/* Şerit dar ekranda YATAY KAYAR: sekmeler alt alta düşüp sayfanın
-          yarısını kaplamasın. */}
+      {/* Sekmeler AYRI KARTLAR olarak durur: her biri kendi kutusunda, simge ·
+          başlık · özet · durum oku. Dar ekranda alt alta iner; `flex: 1 1 240px`
+          hem sığdırır hem eşit genişlikte tutar (simetri). */}
       <div
         role="tablist"
         style={{
           display: 'flex',
-          gap: 6,
-          padding: 4,
-          borderRadius: 14,
-          background: '#EEF1F5',
-          border: '1px solid #E1E6ED',
-          overflowX: 'auto',
-          maxWidth: '100%',
-          marginLeft: baslik ? 'auto' : 0,
+          gap: 12,
+          flexWrap: 'wrap',
+          flex: '1 1 auto',
+          minWidth: 0,
         }}
       >
         {liste.map((s) => {
@@ -14655,30 +14652,47 @@ function SayfaSekmeSeridi({ sekmeler, aktif, onSec, baslik, altBaslik }) {
               onClick={() => onSec && onSec(s.id)}
               title={s.ozet ? s.baslik + ' — ' + s.ozet : s.baslik}
               style={{
+                flex: '1 1 240px',
+                minWidth: 0,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 9,
-                flexShrink: 0,
+                gap: 12,
                 textAlign: 'left',
-                padding: '9px 14px',
-                borderRadius: 11,
-                border: '1px solid ' + (on ? LACIVERT : 'transparent'),
-                background: on ? LACIVERT : 'transparent',
+                padding: '12px 16px',
+                borderRadius: 14,
+                border: '1px solid ' + (on ? LACIVERT : '#E5E7EB'),
+                background: on ? LACIVERT : '#FFFFFF',
                 color: on ? '#FFFFFF' : LACIVERT,
+                boxShadow: on ? 'none' : '0 1px 3px rgba(16,24,40,0.06)',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
-                boxShadow: on ? '0 1px 3px rgba(16,24,40,0.18)' : 'none',
                 transition: 'background 120ms',
               }}
             >
-              <SekmeIkonu ad={s.ikon} renk={on ? '#FFFFFF' : YESIL} />
-              <span style={{ minWidth: 0 }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 38,
+                  height: 38,
+                  flexShrink: 0,
+                  borderRadius: 11,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: on ? 'rgba(255,255,255,0.16)' : '#F3F4F6',
+                }}
+              >
+                <SekmeIkonu ad={s.ikon} renk={on ? '#FFFFFF' : YESIL} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
                 <span
                   style={{
                     display: 'block',
-                    fontSize: 13.5,
+                    fontSize: 14,
                     fontWeight: 700,
                     whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                   }}
                 >
                   {s.baslik}
@@ -14687,16 +14701,37 @@ function SayfaSekmeSeridi({ sekmeler, aktif, onSec, baslik, altBaslik }) {
                   <span
                     style={{
                       display: 'block',
-                      fontSize: 11,
-                      marginTop: 1,
+                      fontSize: 11.5,
+                      marginTop: 2,
                       whiteSpace: 'nowrap',
-                      color: on ? 'rgba(255,255,255,0.75)' : '#6B7280',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      color: on ? 'rgba(255,255,255,0.78)' : '#6B7280',
                     }}
                   >
                     {s.ozet}
                   </span>
                 )}
               </span>
+              {/* Açık/kapalı oku: kartın bir pencere ya da ekran açtığını söyler. */}
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                style={{
+                  flexShrink: 0,
+                  opacity: 0.55,
+                  transform: on ? 'rotate(180deg)' : 'none',
+                }}
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
             </button>
           );
         })}
