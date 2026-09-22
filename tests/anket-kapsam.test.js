@@ -8,6 +8,7 @@ import {
   anketleriSuz,
   kapsamOzetMetni,
   kapsamliMi,
+  sahibiMi,
 } from '../lib/anket-kapsam.js';
 
 // ── Kapsamlar (yayinKapsamCoz çıktısı biçiminde) ──
@@ -29,7 +30,11 @@ const muhFakAnketi = {
   kapsamTuru: 'fakulte',
   kapsamFacultyId: 'f-muh',
   kapsamDepartmentIds: ['b-bil', 'b-ins'],
+  createdBy: 'Prof. Dr. Dekan YILMAZ',
 };
+// Aynı fakültenin BAŞKA bir yetkilisi — anketi o açmadı.
+const DEKAN = { name: 'Prof. Dr. Dekan YILMAZ' };
+const DEKAN_YRD = { name: 'Doç. Dr. Dekan Yrd. KAYA' };
 const ormFakAnketi = {
   id: 'a3',
   title: 'Orman fakülte anketi',
@@ -145,16 +150,27 @@ describe('anketYonetilebilirMi', () => {
     expect(anketYonetilebilirMi(bilAnketi, MUH_FAK)).toBe(false);
   });
 
-  it('fakülte yetkilisi KENDİ fakülte geneli anketini düzenler', () => {
-    expect(anketYonetilebilirMi(muhFakAnketi, MUH_FAK)).toBe(true);
+  it('fakülte yetkilisi KENDİ AÇTIĞI fakülte geneli anketini düzenler', () => {
+    expect(anketYonetilebilirMi(muhFakAnketi, MUH_FAK, DEKAN)).toBe(true);
+  });
+
+  // ⚠ Aynı fakültede birden çok yetkili olabiliyor; birinin hazırladığı
+  // anketi ötekinin silmesi, sahibinin haberi olmadan veri kaybıdır.
+  it('AYNI fakültenin başka yetkilisi o anketi düzenleyemez', () => {
+    expect(anketGorunurMu(muhFakAnketi, MUH_FAK)).toBe(true);
+    expect(anketYonetilebilirMi(muhFakAnketi, MUH_FAK, DEKAN_YRD)).toBe(false);
+  });
+
+  it('kimlik verilmezse sahiplik iddia edilemez', () => {
+    expect(anketYonetilebilirMi(muhFakAnketi, MUH_FAK)).toBe(false);
   });
 
   it('fakülte yetkilisi başka fakültenin fakülte anketini düzenleyemez', () => {
-    expect(anketYonetilebilirMi(ormFakAnketi, MUH_FAK)).toBe(false);
+    expect(anketYonetilebilirMi(ormFakAnketi, MUH_FAK, DEKAN)).toBe(false);
   });
 
   it('fakülte yetkilisi üniversite geneli ankete dokunamaz', () => {
-    expect(anketYonetilebilirMi(uniAnketi, MUH_FAK)).toBe(false);
+    expect(anketYonetilebilirMi(uniAnketi, MUH_FAK, DEKAN)).toBe(false);
   });
 
   it('bölüm yetkilisi yalnız kendi bölüm anketini düzenler', () => {
@@ -177,11 +193,17 @@ describe('anketYonetilebilirMi', () => {
 
 describe('anketKilitSebebi', () => {
   it('yetki varsa sebep yok', () => {
-    expect(anketKilitSebebi(muhFakAnketi, MUH_FAK)).toBe('');
+    expect(anketKilitSebebi(muhFakAnketi, MUH_FAK, DEKAN)).toBe('');
+  });
+
+  it('başkasının fakülte anketinde SAHİBİNİN ADI yazılır', () => {
+    const sebep = anketKilitSebebi(muhFakAnketi, MUH_FAK, DEKAN_YRD);
+    expect(sebep).toMatch(/Prof. Dr. Dekan YILMAZ oluşturdu/);
+    expect(sebep).toMatch(/üniversite yetkilisine başvurun/);
   });
 
   it('bölüm anketinde fakülte yetkilisine kimin düzenleyebileceği söylenir', () => {
-    expect(anketKilitSebebi(bilAnketi, MUH_FAK)).toMatch(/bölüm yetkilisindedir/i);
+    expect(anketKilitSebebi(bilAnketi, MUH_FAK, DEKAN)).toMatch(/bölüm yetkilisindedir/i);
   });
 
   it('üniversite geneli ankette üst merci söylenir', () => {
@@ -233,7 +255,7 @@ describe('anketleriSuz', () => {
   const hepsi = [uniAnketi, muhFakAnketi, ormFakAnketi, bilAnketi, ormAnketi, eskiAnket];
 
   it('fakülte yetkilisi: başka fakülte gizlenir, bölüm anketi kilitli görünür', () => {
-    const o = anketleriSuz(hepsi, MUH_FAK, { user: { name: 'Dekan' } });
+    const o = anketleriSuz(hepsi, MUH_FAK, { user: DEKAN });
     expect(o.liste.map((a) => a.id)).toEqual(['a1', 'a2', 'a4', 'a6']);
     expect(o.gizlenen).toBe(2);
     expect(o.yonetilebilir).toBe(1);
@@ -248,6 +270,12 @@ describe('anketleriSuz', () => {
     expect(o.yonetilebilir).toBe(hepsi.length);
   });
 
+  it('fakülte yetkilisi BAŞKASININ açtığı fakülte anketini yönetemez', () => {
+    const o = anketleriSuz(hepsi, MUH_FAK, { user: DEKAN_YRD });
+    expect(o.liste.map((a) => a.id)).toEqual(['a1', 'a2', 'a4', 'a6']);
+    expect(o.yonetilebilir).toBe(0);
+  });
+
   it('bölüm yetkilisi yalnız kendi anketini yönetir', () => {
     const o = anketleriSuz(hepsi, BIL_BOLUM, { user: { name: 'Bölüm Bşk.' } });
     expect(o.liste.map((a) => a.id)).toEqual(['a1', 'a2', 'a4', 'a6']);
@@ -260,9 +288,11 @@ describe('anketleriSuz', () => {
 });
 
 describe('kapsamOzetMetni', () => {
-  it('fakülte yetkilisine bölüm anketlerinin kilitli olduğu söylenir', () => {
-    const o = anketleriSuz([muhFakAnketi, bilAnketi], MUH_FAK, {});
-    expect(kapsamOzetMetni(MUH_FAK, o)).toMatch(/Bölüm anketleri yalnız görüntülenir/);
+  it('fakülte yetkilisine neyi düzenleyebileceği söylenir', () => {
+    const o = anketleriSuz([muhFakAnketi, bilAnketi], MUH_FAK, { user: DEKAN });
+    const m = kapsamOzetMetni(MUH_FAK, o);
+    expect(m).toMatch(/kendi oluşturduğunuz fakülte geneli anketler/);
+    expect(m).toMatch(/^2 anket görünüyor · 1 tanesini/);
   });
 
   it('üniversite yetkilisine tam yetki yazılır', () => {
@@ -273,5 +303,28 @@ describe('kapsamOzetMetni', () => {
   it('bölüm yetkilisine kaç anketin kendisine ait olduğu yazılır', () => {
     const o = anketleriSuz([muhFakAnketi, bilAnketi], BIL_BOLUM, {});
     expect(kapsamOzetMetni(BIL_BOLUM, o)).toMatch(/1 tanesi bölümünüze ait/);
+  });
+});
+
+describe('sahibiMi', () => {
+  it('createdBy ile eşleşen kişi sahiptir', () => {
+    expect(sahibiMi(muhFakAnketi, DEKAN)).toBe(true);
+    expect(sahibiMi(muhFakAnketi, DEKAN_YRD)).toBe(false);
+  });
+
+  // Türkçe büyük/küçük harf (İ/I) ve fazladan boşluk ad eşleşmesini bozmamalı.
+  it('ad karşılaştırması Türkçe duyarlı ve boşluğa toleranslı', () => {
+    const a = { createdBy: 'Öğrt. Gör.  İNCİ  YILDIZ' };
+    expect(sahibiMi(a, { name: 'öğrt. gör. inci yildiz' })).toBe(false);
+    expect(sahibiMi(a, { name: 'Öğrt. Gör. İNCİ YILDIZ' })).toBe(true);
+  });
+
+  it('kimlik yoksa sahiplik yok', () => {
+    expect(sahibiMi(muhFakAnketi, null)).toBe(false);
+    expect(sahibiMi(null, DEKAN)).toBe(false);
+  });
+
+  it('sahipAd alanı da tanınır (kapsam damgasıyla yazılan)', () => {
+    expect(sahibiMi({ sahipAd: 'Dekan X' }, { identifier: 'Dekan X' })).toBe(true);
   });
 });
