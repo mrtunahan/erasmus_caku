@@ -47,8 +47,13 @@ describe('sütun tanımı', () => {
 });
 
 describe('panel tanımı', () => {
-  it('iki ayrı panel: dersler ve mezuniyet', () => {
-    expect(SAYFA_PANELLERI.map((p) => p.id)).toEqual(['dersler', 'mezuniyet']);
+  it('dört panel: dersler · mezuniyet · yoklama · randevu', () => {
+    expect(SAYFA_PANELLERI.map((p) => p.id)).toEqual([
+      'dersler',
+      'mezuniyet',
+      'yoklama',
+      'randevu',
+    ]);
   });
 
   // Panel olan şey sütunda da durursa sayfada iki kere görünür.
@@ -129,12 +134,55 @@ describe('panelOzeti', () => {
 describe('panelDugmeleri', () => {
   it('her panel başlık ve özetiyle döner', () => {
     const d = panelDugmeleri({ dersOzet: { sayi: 5, toplamAkts: 28, tavan: 42 } });
-    expect(d).toHaveLength(2);
+    expect(d).toHaveLength(4);
     expect(d[0]).toMatchObject({ id: 'dersler', baslik: 'Derslerim', ozet: '5 ders · 28/42 AKTS' });
     expect(d[1].baslik).toBe('Mezuniyet Durumum');
   });
 
   it('veri olmadan da çöker değil', () => {
     expect(panelDugmeleri().every((p) => typeof p.ozet === 'string')).toBe(true);
+  });
+
+  it('dört düğme döner', () => {
+    expect(panelDugmeleri({})).toHaveLength(4);
+  });
+});
+
+describe('panelOzeti — yoklama', () => {
+  // Öğrenci devamsızlıktan kaldığını paneli açmadan görmeli.
+  it('sınırı aşılan ders sayısını yazar', () => {
+    expect(panelOzeti('yoklama', { yoklama: { asan: 2, riskli: 1, dersSayisi: 5 } })).toBe(
+      '2 derste sınır aşıldı'
+    );
+  });
+
+  it('aşan yoksa riskli olanı yazar', () => {
+    expect(panelOzeti('yoklama', { yoklama: { asan: 0, riskli: 3, dersSayisi: 5 } })).toBe(
+      '3 derste hak azaldı'
+    );
+  });
+
+  it('her şey yolundaysa bunu söyler', () => {
+    expect(panelOzeti('yoklama', { yoklama: { dersSayisi: 4 } })).toMatch(/iyi/);
+  });
+
+  it('hiç ders yoksa çağrı metni', () => {
+    expect(panelOzeti('yoklama', {})).toBe('Karekodu okutun');
+  });
+});
+
+describe('panelOzeti — randevu', () => {
+  it('bekleyen talep sayısı önceliklidir', () => {
+    expect(panelOzeti('randevu', { randevu: { bekleyen: 1, onayli: 2 } })).toBe(
+      '1 talebiniz yanıt bekliyor'
+    );
+  });
+
+  it('bekleyen yoksa onaylı sayılır', () => {
+    expect(panelOzeti('randevu', { randevu: { onayli: 2 } })).toBe('2 onaylı randevunuz var');
+  });
+
+  it('hiçbiri yoksa çağrı metni', () => {
+    expect(panelOzeti('randevu', {})).toMatch(/Görüşme saatlerine/);
   });
 });

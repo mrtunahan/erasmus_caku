@@ -10,6 +10,7 @@ import {
   derstesMi,
   durumGorunumu,
   engelMesaji,
+  gorusmeEkseni,
   gorusmeIzgarasi,
   randevuVerilebilirMi,
   randevulariSirala,
@@ -127,6 +128,47 @@ describe('acikSlotlar', () => {
 
   it('boş girdide boş liste', () => {
     expect(acikSlotlar(null, null)).toEqual([]);
+  });
+});
+
+describe('gorusmeEkseni', () => {
+  const kayitlar = [
+    { bolumId: 'bm', seviye: 'lisans' },
+    { bolumId: 'bm', seviye: 'lisans' },
+  ];
+  const saatler = { 'bm|lisans': ['08:30', '09:30', '10:30', '13:15', '14:15', '15:15'] };
+
+  // ⚠ Görüşme saati tanımı gereği BOŞ bir saattir; eksen dolu saatlerden
+  // kurulsaydı hiç dersi olmayan saat ızgarada satır bile açmazdı.
+  it('bölümün TÜM saatlerini verir, yalnız dolu olanları değil', () => {
+    const e = gorusmeEkseni(kayitlar, saatler, ['09:30']);
+    expect(e).toContain('15:15');
+    expect(e).toHaveLength(6);
+  });
+
+  it('dolu saatler eksende eksik kalmaz', () => {
+    const e = gorusmeEkseni(kayitlar, saatler, ['18:00']);
+    expect(e).toContain('18:00');
+  });
+
+  it('başlangıç saatine göre sıralı', () => {
+    expect(gorusmeEkseni(kayitlar, saatler, ['11:30'])).toEqual([
+      '08:30',
+      '09:30',
+      '10:30',
+      '11:30',
+      '13:15',
+      '14:15',
+      '15:15',
+    ]);
+  });
+
+  it('bölüm listesi yoksa yedeğe düşer', () => {
+    expect(gorusmeEkseni([], {}, [], ['09:00', '10:00'])).toEqual(['09:00', '10:00']);
+  });
+
+  it('hiçbir şey yoksa boş eksen', () => {
+    expect(gorusmeEkseni(null, null, null, null)).toEqual([]);
   });
 });
 

@@ -698,12 +698,23 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
 
   // Görüşme saatleri TÜM program üzerinden hesaplanır: seviye sekmesi
   // yalnız görünümü süzer, hocanın doktora dersi olan saat boş sayılmamalı.
-  const { izgara: tamIzgara, doluSaatler: tamSaatler } = useMemo(
+  const { izgara: tamIzgara, doluSaatler: tamDolu } = useMemo(
     () =>
       window.programIzgarasi
         ? window.programIzgarasi(tumKayitlar)
         : { izgara: {}, doluSaatler: [] },
     [tumKayitlar]
+  );
+
+  // ⚠ Görüşme ızgarasının ekseni DOLU saatler olamaz: görüşme saati tanımı
+  // gereği boş bir saattir. Hafta boyunca hiç dersi olmayan bir saat
+  // (ör. 15:15) ızgarada satır bile açmaz, hoca o saati açamazdı.
+  const tamSaatler = useMemo(
+    () =>
+      R.gorusmeEkseni
+        ? R.gorusmeEkseni(tumKayitlar, bolumSaatleri, tamDolu, window.PROGRAM_SAATLERI)
+        : tamDolu,
+    [R, tumKayitlar, bolumSaatleri, tamDolu]
   );
 
   const seviyeSayilari = useMemo(() => {
