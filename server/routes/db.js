@@ -855,6 +855,14 @@ async function enforceWritePolicies(db, op, user) {
       op.data.kapsamFacultyId = String(kapsam.facultyId || '');
       op.data.kapsamDepartmentIds =
         kapsam.kapsamTuru === 'universite' ? [] : (kapsam.departmentIds || []).map(String);
+      // ── SAHİPLİK DE DAMGALANIR ──
+      // Fakülte geneli anketi YALNIZ onu açan kişi düzenleyip silebiliyor
+      // (bkz. lib/anket-kapsam.js); yani `createdBy` artık bir yetki alanı.
+      // İstemcinin yazdığı ada güvenilemez.
+      if (user.identifier) {
+        op.data.createdBy = user.identifier;
+        op.data.sahipAd = user.identifier;
+      }
     }
 
     if (op.type === 'set' || op.type === 'update' || op.type === 'delete') {
@@ -887,6 +895,14 @@ async function enforceWritePolicies(db, op, user) {
           };
         }
         if (op.data && typeof op.data === 'object' && op.type !== 'delete') {
+          // Sahiplik alanları güncellemede DEĞİŞTİRİLEMEZ: yetki alanı olan
+          // bir alanı istemcinin yeniden yazması, anketi başkasının üstüne
+          // geçirmek (ya da kendi üstüne almak) demek olurdu. Devir gerekirse
+          // üniversite yetkilisi yapar.
+          if (kapsam.kapsamTuru !== 'universite') {
+            delete op.data.createdBy;
+            delete op.data.sahipAd;
+          }
           if (kapsam.kapsamTuru === 'universite') {
             // Üniversite yetkilisi kaydı başka bir kapsama taşıyabilir.
           } else if (kapsamliMi(mevcut)) {
