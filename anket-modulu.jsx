@@ -393,22 +393,89 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
       );
   }, [load]);
 
+  // ── ANKETİN KENDİSİNİN KAPSAMI ──
+  // ⚠ Kapsam yalnız ATAMA kaydında vardı; anketin kendisinde yoktu ve
+  // "Anketler" sekmesi koleksiyonun tamamını listeliyordu: her yetkili her
+  // anketi görüyor, düzenliyor ve SİLEBİLİYORDU. Kural artık kaydın üzerinde
+  // (lib/anket-kapsam.js) ve iki ayrı soruya cevap veriyor: görünür mü,
+  // yönetilebilir mi?
+  // Rozette bölüm ADI yazabilmek için kimlik→ad listesi: kapsam listesi
+  // yalnız {id, facultyId} taşır, ad ondan çıkmaz.
+  const bolumAdListesi = useMemo(() => {
+    const out = [];
+    const ekle = (id, name) => {
+      const k = String(id || '');
+      if (k && name && !out.some((x) => x.id === k)) out.push({ id: k, name: String(name) });
+    };
+    (dbBolumler || []).forEach((d) => {
+      if (!d) return;
+      [d.id, d._id, d._docId, d.code].forEach((v) => ekle(v, d.name));
+    });
+    (FACULTY_DEPARTMENTS || []).forEach((d) => d && ekle(d.id, d.name));
+    return out;
+  }, [dbBolumler, FACULTY_DEPARTMENTS]);
+
+  const anketOzeti = useMemo(() => {
+    if (!window.anketleriSuz) {
+      // Kural yüklenemediyse liste BOŞ kalır. Yetki kararında "kural yoksa
+      // hepsini göster" yanlış taraftır.
+      console.warn('Anket kapsam kuralı yüklenemedi — liste gösterilmiyor.');
+      return { liste: [], gizlenen: 0, yonetilebilir: 0 };
+    }
+    return window.anketleriSuz(surveys, yayinKapsami, {
+      user: currentUser,
+      bolumler: bolumAdListesi,
+    });
+  }, [surveys, yayinKapsami, currentUser, bolumAdListesi]);
+  const gorunenAnketler = anketOzeti.liste;
+
   const addSurvey = async (survey) => {
-    await window.DBWrite.add('surveys', { ...survey, createdBy: currentUser?.name || '' });
+    // Kapsam yayımcının KENDİ yetki alanıdır; ekrandan genişletilemez.
+    const kapsamYamasi = window.anketKapsamYamasi
+      ? window.anketKapsamYamasi(yayinKapsami, currentUser)
+      : {};
+    await window.DBWrite.add('surveys', {
+      ...survey,
+      ...kapsamYamasi,
+      createdBy: currentUser?.name || '',
+    });
     await load();
     toast.show(survey.title + ' yüklendi');
   };
   const updateSurvey = async (id, survey) => {
+    const mevcut = surveys.find((x) => String(x.id) === String(id));
+    if (mevcut && window.anketYonetilebilirMi) {
+      if (!window.anketYonetilebilirMi(mevcut, yayinKapsami, currentUser)) {
+        alert(window.anketKilitSebebi(mevcut, yayinKapsami, currentUser));
+        return;
+      }
+    }
+    // Kapsamsız (eski) kayıt ilk kaydedişte damgalanır — sahibi belirsiz
+    // kayıtlar zamanla eriyip gitsin.
+    const kapsamYamasi =
+      mevcut &&
+      window.anketKapsamliMi &&
+      !window.anketKapsamliMi(mevcut) &&
+      window.anketKapsamYamasi
+        ? window.anketKapsamYamasi(yayinKapsami, currentUser)
+        : {};
     await window.DBWrite.set(
       'surveys',
       id,
-      { ...survey, updatedBy: currentUser?.name || '' },
+      { ...survey, ...kapsamYamasi, updatedBy: currentUser?.name || '' },
       true
     );
     await load();
     toast.show('Anket güncellendi');
   };
   const removeSurvey = async (id) => {
+    const mevcut = surveys.find((x) => String(x.id) === String(id));
+    if (mevcut && window.anketYonetilebilirMi) {
+      if (!window.anketYonetilebilirMi(mevcut, yayinKapsami, currentUser)) {
+        alert(window.anketKilitSebebi(mevcut, yayinKapsami, currentUser));
+        return;
+      }
+    }
     if (!confirm('Bu anket ve atamaları silinecek. Emin misiniz?')) return;
     await window.DBWrite.remove('surveys', id);
     // İlgili atamaları da temizle
@@ -427,6 +494,9 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
       linkedCourses: s.linkedCourses || [],
       // presetKey korunur — şablon kartındaki "N yüklü" sayacı kopyaları da sayar
       ...(s.presetKey ? { presetKey: s.presetKey } : {}),
+      // Kopya KOPYALAYANIN kapsamına yazılır: başka bir bölümün anketini
+      // çoğaltan fakülte yetkilisi, kopyanın sahibi olur.
+      ...(window.anketKapsamYamasi ? window.anketKapsamYamasi(yayinKapsami, currentUser) : {}),
       createdBy: currentUser?.name || '',
     };
     await window.DBWrite.add('surveys', copy);
@@ -499,7 +569,16 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
       <AnkStyles />
       <PageHeader
         title="Anketler"
-        subtitle={`${isAdmin ? 'Fakülte' : departmentInfo?.name || 'Bölüm'} yönetici paneli — anket oluştur, ata ve sonuçları izle`}
+        subtitle={
+          (yayinKapsami.kapsamTuru === 'universite'
+            ? 'Üniversite'
+            : yayinKapsami.kapsamTuru === 'fakulte'
+              ? window.useFakulteAdlari
+                ? (window.useFakulteAdlari() || {})[yayinKapsami.facultyId] || 'Fakülte'
+                : 'Fakülte'
+              : departmentInfo?.name || 'Bölüm') +
+          ' yönetici paneli — anket oluştur, ata ve sonuçları izle'
+        }
         responsive={responsive}
       />
       <SegTabs tabs={tabs} active={tab} onChange={setTab} />
@@ -510,7 +589,9 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
         <>
           {tab === 'anketler' && (
             <AnketlerPaneli
-              surveys={surveys}
+              surveys={gorunenAnketler}
+              kapsam={yayinKapsami}
+              kapsamOzeti={anketOzeti}
               assignments={assignments}
               onAdd={addSurvey}
               onUpdate={updateSurvey}
@@ -522,7 +603,7 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
           )}
           {tab === 'atama' && (
             <AtamaPaneli
-              surveys={surveys}
+              surveys={gorunenAnketler}
               // Yetkili yalnız KENDİ kapsamındaki atamaları görür ve kaldırır —
               // bir bölüm yetkilisinin başka bölümün atamasını silmesi olmaz.
               assignments={yonetilebilirAtamalar}
@@ -534,7 +615,7 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
               kapsam={yayinKapsami}
             />
           )}
-          {tab === 'sonuclar' && <SonuclarPaneli surveys={surveys} />}
+          {tab === 'sonuclar' && <SonuclarPaneli surveys={gorunenAnketler} />}
         </>
       )}
 
@@ -542,6 +623,15 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
     </div>
   );
 }
+
+// Kapsam rozetinin renkleri — ton adı kuraldan (lib/anket-kapsam.js) gelir,
+// renk buraya aittir.
+const KAPSAM_RENK = {
+  universite: { zemin: '#EDE9FE', renk: '#5B21B6' },
+  fakulte: { zemin: '#DBEAFE', renk: '#1D4ED8' },
+  bolum: { zemin: '#CCFBF1', renk: '#0F766E' },
+  eski: { zemin: '#F3F4F6', renk: '#6B7280' },
+};
 
 const cardStyle = {
   background: ANK.surface,
@@ -923,6 +1013,8 @@ function AnketlerPaneli({
   onDuplicate,
   activeDepartment,
   isAdmin,
+  kapsam,
+  kapsamOzeti,
 }) {
   // Doğrudan yükle — aynı şablon birden çok kez eklenebilir (kopya sayısı gösterilir)
   const addPreset = async (key) => {
@@ -1164,6 +1256,47 @@ function AnketlerPaneli({
         </p>
       </div>
 
+      {/* Kapsam şeridi: yetkili neyi gördüğünü ve neye dokunabildiğini bilsin.
+          Düğmeyi sessizce kapatmak "sistem bozuk" izlenimi veriyor. */}
+      <div
+        style={{
+          ...cardStyle,
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexWrap: 'wrap',
+          background: ANK.bluePale || '#F8FAFF',
+        }}
+      >
+        <AIcon
+          path="M12 11c0-3.5 2.5-6 6-6v6c0 3.5-2.5 6-6 6s-6-2.5-6-6V5c3.5 0 6 2.5 6 6z"
+          size={16}
+          color={ANK.blue}
+        />
+        <span style={{ fontSize: 12.5, color: ANK.text, flex: '1 1 260px', lineHeight: 1.5 }}>
+          {window.anketKapsamOzetMetni
+            ? window.anketKapsamOzetMetni(kapsam, kapsamOzeti)
+            : surveys.length + ' anket'}
+        </span>
+        {kapsamOzeti && kapsamOzeti.gizlenen > 0 && (
+          <span
+            title="Başka fakültelerin anketleri listede gösterilmez."
+            style={{
+              padding: '3px 10px',
+              borderRadius: 10,
+              background: ANK.border,
+              color: ANK.textMuted,
+              fontSize: 11,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {kapsamOzeti.gizlenen} anket kapsam dışı
+          </span>
+        )}
+      </div>
+
       <p style={labelStyle}>Yüklü anketler ({surveys.length})</p>
       {surveys.length === 0 ? (
         <EmptyState text="Henüz anket yüklenmedi. Yukarıdaki şablonlardan ekleyin." />
@@ -1225,6 +1358,24 @@ function AnketlerPaneli({
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, minHeight: 22 }}>
+                  {/* Kapsam rozeti: anket kimin? Fakülte yetkilisi listede
+                      hem kendi fakülte anketlerini hem bölümlerinkini görür;
+                      hangisinin hangisi olduğu yazmazsa liste okunmaz. */}
+                  {s._etiket && (
+                    <span
+                      title={s._kilitSebebi || 'Bu anketi düzenleyebilirsiniz'}
+                      style={{
+                        padding: '2px 9px',
+                        borderRadius: 10,
+                        background: KAPSAM_RENK[s._etiket.ton].zemin,
+                        color: KAPSAM_RENK[s._etiket.ton].renk,
+                        fontSize: 11,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {s._etiket.etiket}
+                    </span>
+                  )}
                   {ac > 0 && (
                     <span
                       style={{
@@ -1282,9 +1433,14 @@ function AnketlerPaneli({
                     borderTop: '1px solid ' + ANK.border,
                   }}
                 >
+                  {/* Yetki yoksa düğme "Görüntüle"ye döner: anket kilitli
+                      olsa da içeriğine bakabilmek gerekir. */}
                   <button
-                    onClick={() => setEditing({ ...s, _isNew: false })}
+                    onClick={() =>
+                      setEditing({ ...s, _isNew: false, _saltOkunur: !s._yonetilebilir })
+                    }
                     className="ank-btn"
+                    title={s._kilitSebebi || 'Anketi düzenle'}
                     style={{
                       flex: 1,
                       display: 'inline-flex',
@@ -1294,8 +1450,8 @@ function AnketlerPaneli({
                       padding: '8px 10px',
                       borderRadius: 8,
                       border: '1px solid ' + ANK.border,
-                      background: ANK.accentPale,
-                      color: ANK.accent,
+                      background: s._yonetilebilir ? ANK.accentPale : ANK.surfaceAlt || '#F3F4F6',
+                      color: s._yonetilebilir ? ANK.accent : ANK.textMuted,
                       fontSize: 12.5,
                       fontWeight: 600,
                       cursor: 'pointer',
@@ -1303,11 +1459,15 @@ function AnketlerPaneli({
                     }}
                   >
                     <AIcon
-                      path="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                      path={
+                        s._yonetilebilir
+                          ? 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z'
+                          : 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'
+                      }
                       size={13}
-                      color={ANK.accent}
+                      color={s._yonetilebilir ? ANK.accent : ANK.textMuted}
                     />
-                    Düzenle
+                    {s._yonetilebilir ? 'Düzenle' : 'Görüntüle'}
                   </button>
                   <button
                     onClick={() => onDuplicate(s)}
@@ -1324,18 +1484,23 @@ function AnketlerPaneli({
                       color={ANK.blue}
                     />
                   </button>
-                  <button
-                    onClick={() => onRemove(s.id)}
-                    title="Sil"
-                    className="ank-btn"
-                    style={iconBtn(ANK.red)}
-                  >
-                    <AIcon
-                      path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
-                      size={14}
-                      color={ANK.red}
-                    />
-                  </button>
+                  {/* Silme yetkisi yoksa düğme HİÇ ÇİZİLMEZ: tıklanan ama
+                      her seferinde reddedilen bir düğme, kullanıcıya yetkisi
+                      varmış gibi görünür. Sebep rozette yazılı. */}
+                  {s._yonetilebilir && (
+                    <button
+                      onClick={() => onRemove(s.id)}
+                      title="Sil"
+                      className="ank-btn"
+                      style={iconBtn(ANK.red)}
+                    >
+                      <AIcon
+                        path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
+                        size={14}
+                        color={ANK.red}
+                      />
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -1612,6 +1777,10 @@ function SecenekDuzenleyici({ soru, onChange }) {
 }
 
 function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment, isAdmin }) {
+  // Yetkisi olmayan kullanıcı anketi GÖRÜNTÜLER: içeriğe bakmak yasak değil,
+  // değiştirmek yasak (bkz. lib/anket-kapsam.js).
+  const saltOkunur = !!initial._saltOkunur;
+  const kilitSebebi = initial._kilitSebebi || '';
   const [title, setTitle] = useState(initial.title || '');
   const [description, setDescription] = useState(initial.description || '');
   // ⚠ BURASI SORUNUN GERİ KALANINI SİLİYORDU. Soru yalnız {id,type,text}
@@ -1763,8 +1932,25 @@ function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment,
         }}
       >
         <h3 style={{ fontSize: 18, fontWeight: 700, color: ANK.primary, margin: '0 0 16px' }}>
-          {isNew ? 'Yeni Anket' : 'Anketi Düzenle'}
+          {isNew ? 'Yeni Anket' : saltOkunur ? 'Anketi Görüntüle' : 'Anketi Düzenle'}
         </h3>
+        {saltOkunur && (
+          <div
+            style={{
+              margin: '0 0 16px',
+              padding: '10px 14px',
+              borderRadius: 10,
+              background: ANK.amberLight,
+              border: '1px solid ' + ANK.amber + '55',
+              color: '#7c4a03',
+              fontSize: 12.5,
+              lineHeight: 1.55,
+            }}
+          >
+            {kilitSebebi || 'Bu anketi yalnız görüntüleyebilirsiniz.'} Kendi kopyanızı almak için
+            kart üzerindeki <b>Çoğalt</b> düğmesini kullanabilirsiniz.
+          </div>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
           <div>
             <label style={labelStyle}>Başlık *</label>
@@ -2090,25 +2276,27 @@ function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment,
               cursor: 'pointer',
             }}
           >
-            İptal
+            {saltOkunur ? 'Kapat' : 'İptal'}
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              padding: '10px 18px',
-              borderRadius: 8,
-              border: 'none',
-              background: ANK.accent,
-              color: 'white',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: saving ? 'wait' : 'pointer',
-              opacity: saving ? 0.7 : 1,
-            }}
-          >
-            {saving ? 'Kaydediliyor…' : isNew ? 'Anketi Oluştur' : 'Değişiklikleri Kaydet'}
-          </button>
+          {!saltOkunur && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                padding: '10px 18px',
+                borderRadius: 8,
+                border: 'none',
+                background: ANK.accent,
+                color: 'white',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: saving ? 'wait' : 'pointer',
+                opacity: saving ? 0.7 : 1,
+              }}
+            >
+              {saving ? 'Kaydediliyor…' : isNew ? 'Anketi Oluştur' : 'Değişiklikleri Kaydet'}
+            </button>
+          )}
         </div>
       </div>
     </div>
