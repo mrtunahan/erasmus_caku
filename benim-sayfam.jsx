@@ -7,7 +7,6 @@
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 const BS_FirebaseDB = window.DB;
-const BS_Notifier = window.StudentNotifier;
 
 const BS_SINIF_COLORS = {
   1: { bg: '#DBEAFE', text: '#1E40AF', label: '1. Sınıf' },
@@ -220,8 +219,6 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [advisor, setAdvisor] = useState('');
   // Bu dönemin seçimi kilitli mi (kaydedildikten sonra kilitlenir)
   const [locked, setLocked] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [notifLoading, setNotifLoading] = useState(false);
   const [calendar, setCalendar] = useState([]);
   // Bölüm yetkilisinin tanımladığı Hızlı Bağlantılar + Kampüs Haritası
   const [pageSettings, setPageSettings] = useState({ quickLinks: [], campusMapUrl: '' });
@@ -241,6 +238,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const [profilKaydediliyor, setProfilKaydediliyor] = useState(false);
   // Büyütülebilir görsel (danışman fotoğrafı / kampüs haritası)
   const [lightbox, setLightbox] = useState(null); // null | { url, zoomable }
+  // Sütunların dışındaki açılır paneller: '' | 'dersler' | 'mezuniyet'.
+  // Aynı anda yalnız biri açık — iki pencere üst üste gelmesin.
+  const [acikPanel, setAcikPanel] = useState('');
   // Aylık takvim görünümü: gösterilen ay (ayın ilk günü, 00:00 yerel)
   const [displayMonth, setDisplayMonth] = useState(() => {
     var d = new Date();
@@ -253,6 +253,13 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   // Takvim için responsive: geniş ekranda 2 sütun (sol panel + grid), dar ekranda tek sütun
   const _bsResp = window.useResponsive ? window.useResponsive() : { width: 1200 };
   const bsCalLayout = { isWide: _bsResp.width > 880 };
+  // Sayfanın üç sütunu: hangi kartın hangi sütunda durduğu ve hangi genişlikte
+  // kaç sütun çizileceği lib/benim-sayfam-duzeni.js'te — testi de orada.
+  const bsSutunlar = window.sayfaSutunSablonu
+    ? window.sayfaSutunSablonu(_bsResp.width)
+    : '300px minmax(0, 1fr) 300px';
+  const bsSutunSayisi = window.sayfaSutunSayisi ? window.sayfaSutunSayisi(_bsResp.width) : 3;
+  const bsTekSutun = bsSutunSayisi === 1;
 
   const isStudent = currentUser?.role === 'student';
   // ⚠ EskiDEN `currentUser.departmentId` okunuyordu; o alan HER ZAMAN ana
@@ -497,24 +504,6 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     };
   }, [isStudent, studentDeptId, currentUser?.studentNumber]);
 
-  // Bildirimleri yükle (yalnızca seçim tamamlanmışsa anlamlı)
-  const loadNotifications = useCallback(async () => {
-    if (!isStudent || !currentUser?.studentNumber) return;
-    setNotifLoading(true);
-    try {
-      const items = await BS_Notifier.fetchForStudent(currentUser.studentNumber, 30);
-      setNotifications(items);
-    } catch (e) {
-      console.warn('Bildirimler alınamadı:', e);
-    } finally {
-      setNotifLoading(false);
-    }
-  }, [isStudent, currentUser?.studentNumber]);
-
-  useEffect(() => {
-    if (!editMode && selectedIds.length > 0) loadNotifications();
-  }, [editMode, selectedIds.length, loadNotifications]);
-
   // Öğrenci profil fotoğrafı yükleme (student_profiles/{öğrenciNo})
   const handlePhotoUpload = async (e) => {
     const file = e.target.files && e.target.files[0];
@@ -600,6 +589,17 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         ? window.derslerimOzeti(myCourseDetails, { tavan: BS_AKTS_CAP })
         : { sayi: myCourseDetails.length, toplamAkts: 0, tavan: BS_AKTS_CAP, kalan: 0, oran: 0 },
     [myCourseDetails]
+  );
+  // Açılır panel düğmelerinin üstündeki özet (ör. "6 ders · 30/42 AKTS").
+  const panelListesi = useMemo(
+    () =>
+      window.sayfaPanelDugmeleri
+        ? window.sayfaPanelDugmeleri({ dersOzet })
+        : [
+            { id: 'dersler', baslik: 'Derslerim', ozet: '' },
+            { id: 'mezuniyet', baslik: 'Mezuniyet Durumum', ozet: '' },
+          ],
+    [dersOzet]
   );
   const dersGruplariListesi = useMemo(
     () =>
@@ -828,28 +828,6 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
-  const handleMarkAllRead = async () => {
-    if (!currentUser?.studentNumber) return;
-    try {
-      await BS_Notifier.markAllRead(currentUser.studentNumber);
-      setNotifications((prev) => prev.map((n) => Object.assign({}, n, { read: true })));
-    } catch (_) {}
-  };
-
-  const handleNotificationClick = async (n) => {
-    try {
-      if (!n.read) {
-        await BS_Notifier.markRead(n.id);
-        setNotifications((prev) =>
-          prev.map((x) => (x.id === n.id ? Object.assign({}, x, { read: true }) : x))
-        );
-      }
-    } catch (_) {}
-    if (n.link && typeof n.link === 'string') {
-      window.location.hash = '#' + n.link.replace(/^#/, '');
-    }
-  };
-
   if (!isStudent) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
@@ -891,7 +869,6 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const hasSelected =
     Array.isArray(studentRecord?.myCourseIds) && studentRecord.myCourseIds.length > 0;
   const deptName = departmentInfo?.name || studentRecord?.departmentName || '—';
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   // ══════════════════════════════════════════════════════════════
   // SEÇİM MODU
@@ -1471,15 +1448,164 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", color: '#191C1E' }}>
+      {/* ══ AÇILIR PANELLER ══
+          Derslerim ve Mezuniyet Durumum artık sütunların içinde değil: ikisi de
+          uzun, ikisi de tablo taşıyor ve 300 piksellik bir sütunda okunmuyordu.
+          Sayfanın sağ üstünde birer düğme olarak duruyorlar; tıklanınca sayfanın
+          ORTASINA açılan ayrı birer pencere olarak geliyorlar. Düğmenin üstünde
+          özet yazar ki panel açılmadan da durum görünsün. */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          marginBottom: 18,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: M3navy }}>Benim Sayfam</h2>
+          <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#6B7280' }}>
+            {deptName} · {bsTermLabel(term.academicYear, term.donem)}
+          </p>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'stretch',
+            flexWrap: 'wrap',
+            gap: 12,
+            flex: bsTekSutun ? '1 1 100%' : '0 1 auto',
+          }}
+        >
+          {panelListesi.map((p) => {
+            const acik = acikPanel === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setAcikPanel(acik ? '' : p.id)}
+                aria-expanded={acik}
+                title={p.baslik + ' — ' + p.ozet}
+                style={{
+                  flex: bsTekSutun ? '1 1 100%' : '0 0 272px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  textAlign: 'left',
+                  padding: '12px 16px',
+                  borderRadius: 14,
+                  border: '1px solid ' + (acik ? M3navy : '#E5E7EB'),
+                  background: acik ? M3navy : '#FFFFFF',
+                  color: acik ? '#FFFFFF' : M3navy,
+                  boxShadow: acik ? 'none' : '0 1px 3px rgba(16,24,40,0.06)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 38,
+                    height: 38,
+                    flexShrink: 0,
+                    borderRadius: 11,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: acik ? 'rgba(255,255,255,0.16)' : '#F3F4F6',
+                    color: acik ? '#FFFFFF' : M3green,
+                  }}
+                >
+                  {p.id === 'dersler' ? (
+                    <svg
+                      width="19"
+                      height="19"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="19"
+                      height="19"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                      <path d="M6 12v5c3 3 9 3 12 0v-5" />
+                    </svg>
+                  )}
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {p.baslik}
+                  </span>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 11.5,
+                      marginTop: 2,
+                      color: acik ? 'rgba(255,255,255,0.78)' : '#6B7280',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {p.ozet}
+                  </span>
+                </span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                  style={{
+                    flexShrink: 0,
+                    opacity: 0.6,
+                    transform: acik ? 'rotate(180deg)' : 'none',
+                  }}
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: bsCalLayout.isWide ? '320px minmax(0, 1fr)' : '1fr',
-          gap: 24,
+          gridTemplateColumns: bsSutunlar,
+          gap: 16,
           alignItems: 'start',
         }}
       >
-        {/* ══ SOL SÜTUN: Profil · Danışman · Bağlantılar · Topluluklar ══ */}
+        {/* ══ SOL: Öğrenci bilgileri · Topluluklar ══ */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
           {/* Profil Kartı */}
           <div style={cardBox}>
@@ -1745,160 +1871,6 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             </div>
           </div>
 
-          {/* Danışman Bilgileri */}
-          <div style={cardBox}>
-            <h3 style={sectionTitle}>
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={M3green}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" />
-              </svg>
-              Danışman Bilgileri
-            </h3>
-            {advisor ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {advisorProf?.photoURL && (
-                    <img
-                      src={advisorProf.photoURL}
-                      alt=""
-                      onClick={() => setLightbox({ url: advisorProf.photoURL, zoomable: false })}
-                      title="Büyütmek için tıklayın"
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: '50%',
-                        objectFit: 'cover',
-                        flexShrink: 0,
-                        border: '1px solid #E5E7EB',
-                        cursor: 'pointer',
-                      }}
-                    />
-                  )}
-                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                    <span style={{ fontSize: 12, color: '#757682' }}>Danışman</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: '#191C1E' }}>
-                      {advisor}
-                    </span>
-                  </div>
-                </div>
-                {advisorProf?.dahili && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#6B7280"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.81.36 1.6.7 2.34a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.74-1.74a2 2 0 012.11-.45c.74.34 1.53.57 2.34.7A2 2 0 0122 16.92z" />
-                    </svg>
-                    <span style={{ fontSize: 13.5, color: '#191C1E' }}>
-                      Dahili: {advisorProf.dahili}
-                    </span>
-                  </div>
-                )}
-                {advisorProf?.email && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#6B7280"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6" />
-                    </svg>
-                    <a
-                      href={'mailto:' + advisorProf.email}
-                      style={{ fontSize: 13.5, color: M3green, textDecoration: 'none' }}
-                    >
-                      {advisorProf.email}
-                    </a>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0, lineHeight: 1.5 }}>
-                Danışman seçilmedi. "Dersleri Düzenle" ile kendi bölümünüzden bir danışman
-                seçebilirsiniz.
-              </p>
-            )}
-          </div>
-
-          {/* Hızlı Bağlantılar */}
-          {pageSettings.quickLinks.length > 0 && (
-            <div style={cardBox}>
-              <h3 style={sectionTitle}>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={M3green}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-                  <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-                </svg>
-                Hızlı Bağlantılar
-              </h3>
-              <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {pageSettings.quickLinks.map((l, i) => (
-                  <a
-                    key={i}
-                    href={/^https?:\/\//i.test(l.url) ? l.url : 'https://' + l.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F3F4F6')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '9px 10px',
-                      borderRadius: 8,
-                      textDecoration: 'none',
-                      color: '#1F2937',
-                      fontSize: 13.5,
-                      fontWeight: 500,
-                      transition: 'background 0.15s',
-                    }}
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#6B7280"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
-                    </svg>
-                    {l.label}
-                  </a>
-                ))}
-              </nav>
-            </div>
-          )}
-
           {/* Takip Ettiğim Topluluklar */}
           {followedClubs.length > 0 && (
             <div style={cardBox}>
@@ -1955,73 +1927,10 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               </div>
             </div>
           )}
-          {/* Yaklaşan Etkinlikler — eskiden üçüncü bir sütundaydı; o sütunda
-              başka hiçbir şey kalmayınca ekranın sağı boş duruyordu. Kart
-              artık kenar çubuğunun sonunda, takvimin hemen yanında. */}
-          <div style={cardBox}>
-            <h3 style={sectionTitle}>
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={M3green}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4 11a9 9 0 019 9M4 4a16 16 0 0116 16M5 19a1 1 0 100-2 1 1 0 000 2z" />
-              </svg>
-              Yaklaşan Etkinlikler
-            </h3>
-            {upcomingEvents.length === 0 ? (
-              <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>Yaklaşan etkinlik yok.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {upcomingEvents.slice(0, 6).map((ev, i) => {
-                  const st = bsEventState(ev);
-                  const d = new Date(ev.date);
-                  return (
-                    <div
-                      key={i}
-                      style={{
-                        borderBottom:
-                          i < Math.min(upcomingEvents.length, 6) - 1 ? '1px solid #F0EDE6' : 'none',
-                        paddingBottom: 10,
-                      }}
-                    >
-                      <div
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}
-                      >
-                        <span
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            background: st.accent,
-                            flexShrink: 0,
-                          }}
-                        />
-                        <span style={{ fontSize: 11.5, color: '#757682', fontWeight: 600 }}>
-                          {d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}
-                          {st.isSoon ? ' · yaklaşıyor' : ''}
-                        </span>
-                      </div>
-                      <div
-                        style={{ fontSize: 13, fontWeight: 600, color: M3navy, lineHeight: 1.4 }}
-                      >
-                        {ev.title || ev.baslik || 'Etkinlik'}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* ══ MERKEZ: Takvim · Kampüs Haritası · Derslerim ══ */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
+        {/* ══ ORTA: Akademik takvim · Kampüs haritası ══ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
           {/* Akademik Takvim */}
           <div style={cardBox}>
             <div
@@ -2236,145 +2145,237 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               </div>
             </div>
           )}
+        </div>
 
-          {/* ══ Bildirimler ══
-              ⚠ BİLDİRİMLER YÜKLENİYOR AMA HİÇBİR YERDE ÇİZİLMİYORDU:
-              `notifications` okunuyor, "okundu" işleyicileri duruyor, ekranda
-              karşılığı yoktu. Dosyanın başındaki açıklama bile "seçim
-              tamamlandıktan sonra kendi dersleri + bildirimler" diyor. Kart
-              geri kondu. */}
-          {(notifications.length > 0 || notifLoading) && (
-            <div style={cardBox}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                  marginBottom: 12,
-                  flexWrap: 'wrap',
-                }}
+        {/* ══ SAĞ: Yaklaşan etkinlikler · Hızlı bağlantılar · Danışman ══ */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+          {/* Yaklaşan Etkinlikler — eskiden üçüncü bir sütundaydı; o sütunda
+              başka hiçbir şey kalmayınca ekranın sağı boş duruyordu. Kart
+              artık kenar çubuğunun sonunda, takvimin hemen yanında. */}
+          <div style={cardBox}>
+            <h3 style={sectionTitle}>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={M3green}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <h3 style={{ ...sectionTitle, margin: 0 }}>
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke={M3green}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" />
-                  </svg>
-                  Bildirimler
-                  {unreadCount > 0 && (
-                    <span
+                <path d="M4 11a9 9 0 019 9M4 4a16 16 0 0116 16M5 19a1 1 0 100-2 1 1 0 000 2z" />
+              </svg>
+              Yaklaşan Etkinlikler
+            </h3>
+            {upcomingEvents.length === 0 ? (
+              <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>Yaklaşan etkinlik yok.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {upcomingEvents.slice(0, 6).map((ev, i) => {
+                  const st = bsEventState(ev);
+                  const d = new Date(ev.date);
+                  return (
+                    <div
+                      key={i}
                       style={{
-                        marginLeft: 2,
-                        padding: '2px 9px',
-                        borderRadius: 999,
-                        background: '#FEE2E2',
-                        color: '#B91C1C',
-                        fontSize: 11.5,
-                        fontWeight: 800,
+                        borderBottom:
+                          i < Math.min(upcomingEvents.length, 6) - 1 ? '1px solid #F0EDE6' : 'none',
+                        paddingBottom: 10,
                       }}
                     >
-                      {unreadCount} yeni
-                    </span>
-                  )}
-                </h3>
-                {unreadCount > 0 && (
-                  <button
-                    onClick={handleMarkAllRead}
-                    style={{
-                      padding: '5px 12px',
-                      borderRadius: 8,
-                      border: '1px solid ' + M3navy + '33',
-                      background: '#fff',
-                      color: M3navy,
-                      fontSize: 12.5,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    Tümünü okundu say
-                  </button>
-                )}
-              </div>
-              {notifLoading && notifications.length === 0 ? (
-                <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>Yükleniyor…</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {notifications.slice(0, 8).map((n) => (
-                    <button
-                      key={n.id}
-                      type="button"
-                      onClick={() => handleNotificationClick(n)}
-                      style={{
-                        textAlign: 'left',
-                        display: 'flex',
-                        gap: 10,
-                        alignItems: 'flex-start',
-                        padding: '10px 12px',
-                        borderRadius: 10,
-                        border: '1px solid ' + (n.read ? '#EEF0F3' : '#BFDBFE'),
-                        background: n.read ? '#fff' : '#EFF6FF',
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          marginTop: 5,
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          flexShrink: 0,
-                          background: n.read ? '#D1D5DB' : '#2563EB',
-                        }}
-                      />
-                      <span style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}
+                      >
                         <span
                           style={{
-                            display: 'block',
-                            fontSize: 13,
-                            fontWeight: n.read ? 600 : 700,
-                            color: M3navy,
-                            lineHeight: 1.4,
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            background: st.accent,
+                            flexShrink: 0,
                           }}
-                        >
-                          {n.title || 'Bildirim'}
+                        />
+                        <span style={{ fontSize: 11.5, color: '#757682', fontWeight: 600 }}>
+                          {d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}
+                          {st.isSoon ? ' · yaklaşıyor' : ''}
                         </span>
-                        {n.body && (
-                          <span
-                            style={{
-                              display: 'block',
-                              fontSize: 12,
-                              color: '#6B7280',
-                              marginTop: 2,
-                              lineHeight: 1.5,
-                            }}
-                          >
-                            {n.body}
-                          </span>
-                        )}
-                        <span
-                          style={{ display: 'block', fontSize: 11, color: '#9CA3AF', marginTop: 4 }}
-                        >
-                          {bsTimeAgo(n.createdAt)}
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
+                      </div>
+                      <div
+                        style={{ fontSize: 13, fontWeight: 600, color: M3navy, lineHeight: 1.4 }}
+                      >
+                        {ev.title || ev.baslik || 'Etkinlik'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Hızlı Bağlantılar */}
+          {pageSettings.quickLinks.length > 0 && (
+            <div style={cardBox}>
+              <h3 style={sectionTitle}>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={M3green}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+                </svg>
+                Hızlı Bağlantılar
+              </h3>
+              <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {pageSettings.quickLinks.map((l, i) => (
+                  <a
+                    key={i}
+                    href={/^https?:\/\//i.test(l.url) ? l.url : 'https://' + l.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F3F4F6')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '9px 10px',
+                      borderRadius: 8,
+                      textDecoration: 'none',
+                      color: '#1F2937',
+                      fontSize: 13.5,
+                      fontWeight: 500,
+                      transition: 'background 0.15s',
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#6B7280"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
+                    </svg>
+                    {l.label}
+                  </a>
+                ))}
+              </nav>
             </div>
           )}
 
+          {/* Danışman Bilgileri */}
+          <div style={cardBox}>
+            <h3 style={sectionTitle}>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={M3green}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" />
+              </svg>
+              Danışman Bilgileri
+            </h3>
+            {advisor ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {advisorProf?.photoURL && (
+                    <img
+                      src={advisorProf.photoURL}
+                      alt=""
+                      onClick={() => setLightbox({ url: advisorProf.photoURL, zoomable: false })}
+                      title="Büyütmek için tıklayın"
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        flexShrink: 0,
+                        border: '1px solid #E5E7EB',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    <span style={{ fontSize: 12, color: '#757682' }}>Danışman</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#191C1E' }}>
+                      {advisor}
+                    </span>
+                  </div>
+                </div>
+                {advisorProf?.dahili && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#6B7280"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.81.36 1.6.7 2.34a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.74-1.74a2 2 0 012.11-.45c.74.34 1.53.57 2.34.7A2 2 0 0122 16.92z" />
+                    </svg>
+                    <span style={{ fontSize: 13.5, color: '#191C1E' }}>
+                      Dahili: {advisorProf.dahili}
+                    </span>
+                  </div>
+                )}
+                {advisorProf?.email && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#6B7280"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6" />
+                    </svg>
+                    <a
+                      href={'mailto:' + advisorProf.email}
+                      style={{ fontSize: 13.5, color: M3green, textDecoration: 'none' }}
+                    >
+                      {advisorProf.email}
+                    </a>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0, lineHeight: 1.5 }}>
+                Danışman seçilmedi. "Dersleri Düzenle" ile kendi bölümünüzden bir danışman
+                seçebilirsiniz.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {acikPanel === 'dersler' && (
+        <BSPopup
+          baslik="Derslerim"
+          altBaslik={bsTermLabel(term.academicYear, term.donem)}
+          genislik={1040}
+          onKapat={() => setAcikPanel('')}
+        >
           {/* ══ Derslerim ══
               ⚠ ESKİ HÂLİ DÜZ BİR KART YIĞINIYDI: kaç ders alındığı, kaç AKTS
               ettiği, tavana ne kadar kaldığı, seçimin kilitli olup olmadığı
@@ -2393,9 +2394,6 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: M3navy }}>
-                  Derslerim
-                </h3>
                 <select
                   value={termKey}
                   onChange={(e) => {
@@ -2806,21 +2804,26 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               </div>
             )}
           </div>
+        </BSPopup>
+      )}
 
-          {/* ══ Mezuniyet Durumum ══
-              ⚠ Bu kart 300 piksellik sağ sütundaydı: transkript tablosu,
-              koşul listesi ve uyarı metni o genişliğe sığmıyor, her satır
-              üç kelimede bir kırılıyordu. Ana sütuna alındı — tablo artık
-              kırpılmadan okunuyor. */}
+      {acikPanel === 'mezuniyet' && (
+        <BSPopup
+          baslik="Mezuniyet Durumum"
+          altBaslik="Transkript ve mezuniyet koşulları"
+          genislik={980}
+          onKapat={() => setAcikPanel('')}
+        >
           <BSMezuniyetDurumu
             currentUser={currentUser}
             studentDeptId={studentDeptId}
             allCourses={allCourses}
             cardBox={cardBox}
             sectionTitle={sectionTitle}
+            gomulu
           />
-        </div>
-      </div>
+        </BSPopup>
+      )}
 
       {profilAcik && (
         <BSProfilDuzenle
@@ -2838,6 +2841,121 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           onClose={() => setLightbox(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// AÇILIR PANEL (Derslerim · Mezuniyet Durumum)
+//
+// Bu iki alan sütunlardan çıkarıldı: ikisi de tablo taşıyor ve 300 piksellik
+// bir kenar sütununda her satır üç kelimede bir kırılıyordu. Artık sayfanın
+// ortasına açılan ayrı birer pencere.
+//
+// ⚠ AÇILAN PENCERENİN KAPANIŞI ÜÇ YOLDAN DA ÇALIŞMALI: ✕ düğmesi, karartının
+// üstüne tıklama ve ESC. Yalnız düğme bırakılırsa panel içinde kaybolan
+// kullanıcının çıkışı kalmıyor — bu sayfada daha önce tam olarak bu oldu
+// (ders seçim ekranına girenin geri dönüşü yoktu).
+// ══════════════════════════════════════════════════════════════
+function BSPopup({ baslik, altBaslik, genislik, onKapat, children }) {
+  useEffect(() => {
+    const esc = (e) => {
+      if (e.key === 'Escape') onKapat();
+    };
+    document.addEventListener('keydown', esc);
+    // Panel açıkken arkadaki sayfa kaymasın: kaydırma pencereye ait.
+    const eskiTasma = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', esc);
+      document.body.style.overflow = eskiTasma;
+    };
+  }, [onKapat]);
+
+  return (
+    <div
+      onClick={onKapat}
+      role="dialog"
+      aria-modal="true"
+      aria-label={baslik}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 4000,
+        background: 'rgba(15,23,42,0.55)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '4vh 16px',
+        overflowY: 'auto',
+        fontFamily: "'Inter', sans-serif",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: genislik || 1000,
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#F7F8FA',
+          borderRadius: 18,
+          overflow: 'hidden',
+          boxShadow: '0 28px 70px rgba(15,23,42,0.32)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 14,
+            padding: '16px 20px',
+            background: '#1B2A4A',
+            color: '#FFFFFF',
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>{baslik}</h2>
+            {altBaslik && (
+              <p
+                style={{
+                  margin: '3px 0 0',
+                  fontSize: 12,
+                  color: 'rgba(255,255,255,0.72)',
+                }}
+              >
+                {altBaslik}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onKapat}
+            title="Kapat (ESC)"
+            aria-label="Kapat"
+            style={{
+              width: 34,
+              height: 34,
+              flexShrink: 0,
+              borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.24)',
+              background: 'rgba(255,255,255,0.12)',
+              color: '#FFFFFF',
+              fontSize: 16,
+              lineHeight: 1,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            ✕
+          </button>
+        </div>
+        <div style={{ padding: 20, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          {children}
+        </div>
+      </div>
     </div>
   );
 }
@@ -3126,7 +3244,14 @@ const BS_TRANSKRIPT_UST_BILGI = [
 // listesi, ders tablosu ve uyarı metni üç kelimede bir kırılıyordu. Artık ana
 // sütunda tam genişlikte duruyor; `dar` yerleşimi ve onunla gelen 200 piksellik
 // iç kaydırma kaldırıldı.
-function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, sectionTitle }) {
+function BSMezuniyetDurumu({
+  currentUser,
+  studentDeptId,
+  allCourses,
+  cardBox,
+  sectionTitle,
+  gomulu,
+}) {
   const [kural, setKural] = useState(null);
   const [kayit, setKayit] = useState(null); // kaydedilmiş akademik kayıt
   const [yukleniyor, setYukleniyor] = useState(true);
@@ -3331,24 +3456,28 @@ function BSMezuniyetDurumu({ currentUser, studentDeptId, allCourses, cardBox, se
   const durumRenk = { gecti: '#059669', kaldi: '#DC2626', belirsiz: '#B45309' };
   const durumEtiket = { gecti: 'Geçti', kaldi: 'Kaldı', belirsiz: 'Belirsiz' };
 
+  // Panel içinde başlık ve çerçeve pencerenin kendisinde: ikinci bir kart
+  // kenarlığı ve aynı adın iki kere yazılması sayfayı çoğaltırdı.
   return (
-    <div style={cardBox}>
-      <h3 style={{ ...sectionTitle, marginBottom: 8 }}>
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#059669"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-          <path d="M6 12v5c3 3 9 3 12 0v-5" />
-        </svg>
-        Mezuniyet Durumum
-      </h3>
+    <div style={gomulu ? {} : cardBox}>
+      {!gomulu && (
+        <h3 style={{ ...sectionTitle, marginBottom: 8 }}>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#059669"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+            <path d="M6 12v5c3 3 9 3 12 0v-5" />
+          </svg>
+          Mezuniyet Durumum
+        </h3>
+      )}
 
       <div
         style={{

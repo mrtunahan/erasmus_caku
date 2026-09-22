@@ -370,6 +370,14 @@ import {
   ozetMetni as derslerimOzetMetni,
 } from './lib/derslerim-ozeti.js';
 import {
+  SAYFA_PANELLERI,
+  SAYFA_SUTUNLARI,
+  kartinSutunu,
+  panelDugmeleri,
+  sutunSablonu,
+  sutunSayisi,
+} from './lib/benim-sayfam-duzeni.js';
+import {
   anketRaporu,
   raporDosyaAdi,
   raporExcelSayfalari,
@@ -14523,6 +14531,16 @@ window.dersAkts = dersAkts;
 window.dersGruplari = dersGruplari;
 window.derslerimOzeti = derslerimOzeti;
 window.derslerimOzetMetni = derslerimOzetMetni;
+
+// ── Benim Sayfam'ın sütun düzeni ──
+// Hangi kartın hangi sütunda durduğu ve hangi genişlikte kaç sütun çizildiği
+// JSX'in içinde dağınıktı; kural tek yerde ve testli (lib/benim-sayfam-duzeni.js).
+window.SAYFA_SUTUNLARI = SAYFA_SUTUNLARI;
+window.SAYFA_PANELLERI = SAYFA_PANELLERI;
+window.sayfaKartinSutunu = kartinSutunu;
+window.sayfaPanelDugmeleri = panelDugmeleri;
+window.sayfaSutunSablonu = sutunSablonu;
+window.sayfaSutunSayisi = sutunSayisi;
 
 // ── Anketin kapsamı ──
 // Anket kaydının kendisi kapsam taşımıyordu: her yetkili her anketi görüyor,
