@@ -14707,6 +14707,127 @@ function SayfaSekmeSeridi({ sekmeler, aktif, onSec, baslik, altBaslik }) {
 
 window.SayfaSekmeSeridi = SayfaSekmeSeridi;
 
+// ══════════════════════════════════════════════════════════════
+// SAYFA PENCERESİ (açılır panel)
+//
+// "Benim Sayfam"ın iki tarafı da bunu kullanır; sekme şeridiyle birlikte
+// iki sayfanın aynı üründen olduğunu koddan alır.
+//
+// ⚠ GENİŞLİK İÇERİĞE GÖRE ESNER AMA EKRANI TAŞMAZ:
+//   width: fit-content      → dar içerik dar pencere alır (boş gri alan yok)
+//   maxWidth: min(cap, 100%) → geniş içerik ekranı aşmaz
+//   gövdede overflow: auto   → on iki aylık gösterge tablosu gibi geniş
+//                              içerikler PENCERE İÇİNDE kayar, sayfayı yana
+//                              kaydırmaz.
+// Sabit bir `maxWidth` yetmiyordu: dar içerik kocaman boş bir kutuda
+// duruyor, geniş tablo ise telefonda pencereyi ekran dışına taşırıyordu.
+//
+// Kapanış üç yoldan da çalışır: ✕ · karartıya tıklama · ESC. Bu sayfada
+// geri dönüşü olmayan bir ekran daha önce yaşandı; tek kapatma yolu
+// bırakmak aynı tuzağı kurar.
+// ══════════════════════════════════════════════════════════════
+function SayfaPenceresi({ baslik, altBaslik, enCokGenislik, onKapat, children }) {
+  useEffect(() => {
+    const esc = (e) => {
+      if (e.key === 'Escape') onKapat();
+    };
+    document.addEventListener('keydown', esc);
+    const eskiTasma = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', esc);
+      document.body.style.overflow = eskiTasma;
+    };
+  }, [onKapat]);
+
+  const cap = Number(enCokGenislik) > 0 ? Number(enCokGenislik) : 1040;
+
+  return (
+    <div
+      onClick={onKapat}
+      role="dialog"
+      aria-modal="true"
+      aria-label={baslik}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 4000,
+        background: 'rgba(15,23,42,0.55)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        padding: '3vh 12px',
+        overflowY: 'auto',
+        fontFamily: "'Inter', sans-serif",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 'fit-content',
+          minWidth: 'min(100%, 320px)',
+          maxWidth: 'min(' + cap + 'px, 100%)',
+          maxHeight: '94vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#F7F8FA',
+          borderRadius: 18,
+          overflow: 'hidden',
+          boxShadow: '0 28px 70px rgba(15,23,42,0.32)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 14,
+            padding: '14px 18px',
+            background: '#1B2A4A',
+            color: '#FFFFFF',
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: 16.5, fontWeight: 700 }}>{baslik}</h2>
+            {altBaslik && (
+              <p style={{ margin: '3px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.72)' }}>
+                {altBaslik}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onKapat}
+            title="Kapat (ESC)"
+            aria-label="Kapat"
+            style={{
+              width: 34,
+              height: 34,
+              flexShrink: 0,
+              borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.24)',
+              background: 'rgba(255,255,255,0.12)',
+              color: '#FFFFFF',
+              fontSize: 16,
+              lineHeight: 1,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            ✕
+          </button>
+        </div>
+        {/* Geniş içerik burada kayar; sayfa yana kaymaz. */}
+        <div style={{ padding: 18, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+window.SayfaPenceresi = SayfaPenceresi;
+
 // ── Dijital yoklama ve randevu kuralları ──
 // Modüller bu iki kuralı bütün olarak okur (kod üretimi, tolerans penceresi,
 // devamsızlık hesabı / görüşme saatleri, randevu kuralları). Tek tek window

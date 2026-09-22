@@ -162,6 +162,9 @@ const ALLOWED_COLLECTIONS = [
   'performance_reports',
   'performance_data',
   'performance_agg_rules',
+  // Bölüm → fakülte gönderim kaydı. Bölüm "gönderdim" demeden değerleri
+  // fakülte toplamına girmez; gönderim bu koleksiyonda durur.
+  'performance_submissions',
   'strateji_izleme',
   'strateji_atama',
   'strateji_fac_ozet',
@@ -546,6 +549,7 @@ const STUDENT_READ_DENY = new Set([
   'performance_forms',
   'performance_reports',
   'performance_agg_rules',
+  'performance_submissions',
   'strateji_izleme',
   'strateji_atama',
   'strateji_fac_ozet',
@@ -1211,6 +1215,56 @@ async function enforceWritePolicies(db, op, user) {
       op.data.duzenlemeKapanmaTarihi = new Date().toISOString();
     }
     return { allow: true };
+  }
+
+  // a2a-5) PERFORMANS GÖNDERİMİ: bölüm yetkilisi YALNIZ KENDİ bölümünü
+  // fakülteye gönderebilir.
+  //
+  // ⚠ Gönderim bir yetki eylemidir: gönderilen bölüm fakülte toplamına
+  // girer. İstemciden gelen `bolumId`ye güvenilseydi bir bölüm yetkilisi
+  // başka bir bölümü "gönderilmiş" işaretleyip o bölümün yarım verisini
+  // fakülte raporuna sokabilirdi. Sade akademisyen hiç gönderemez.
+  if (op.collection === 'performance_submissions') {
+    if (user.role === 'student') {
+      return { allow: false, status: 403, error: 'Öğrenci performans gönderimi yapamaz.' };
+    }
+    const flags = await getActorFlags(db, user);
+    if (!flags.admin && !flags.uniAdmin && !flags.facManager && !flags.deptManager) {
+      return {
+        allow: false,
+        status: 403,
+        error: 'Bölüm verilerini fakülteye yalnız bölüm yetkilisi gönderebilir.',
+      };
+    }
+    // Üniversite/fakülte yetkilisi başka bölüm adına da gönderebilir (bölüm
+    // yetkilisi yokken tıkanmasın); bölüm yetkilisi yalnız kendi bölümünü.
+    if (!flags.admin && !flags.uniAdmin && !flags.facManager) {
+      const benimBolum = String(user.departmentId || '').trim();
+      let profil = null;
+      if (!benimBolum && user.role === 'professor') {
+        try {
+          profil = await profilBul(db, user.identifier);
+        } catch (_) {
+          profil = null;
+        }
+      }
+      const bolum = benimBolum || String((profil && profil.departmentId) || '').trim();
+      const istenen = String((op.data && op.data.bolumId) || '').trim();
+      if (!bolum || (istenen && istenen !== bolum)) {
+        return {
+          allow: false,
+          status: 403,
+          error: 'Yalnız kendi bölümünüzün verilerini gönderebilirsiniz.',
+        };
+      }
+      if (op.data && typeof op.data === 'object') op.data.bolumId = bolum;
+    }
+    // Gönderenin adı istemciden gelmez: "kim gönderdi" sorusunun cevabı
+    // sahteye açık olmamalı.
+    if (op.data && typeof op.data === 'object' && op.type !== 'delete') {
+      op.data.gonderenAd = String(user.identifier || '').trim();
+      op.data.gonderimZamani = new Date().toISOString();
+    }
   }
 
   // b0) SADE AKADEMİSYEN YALNIZ KENDİ KAYDINA DOKUNUR.

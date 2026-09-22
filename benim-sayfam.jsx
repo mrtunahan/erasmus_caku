@@ -270,8 +270,11 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const bsSutunlar = window.sayfaSutunSablonu
     ? window.sayfaSutunSablonu(_bsResp.width)
     : '300px minmax(0, 1fr) 300px';
-  // Sekme şeridi akademisyen sayfasıyla ortak (bkz. shared-components.jsx).
+  // Sekme şeridi ve açılır pencere akademisyen sayfasıyla ORTAK
+  // (bkz. shared-components.jsx). Buradaki ayrı kopya kaldırıldı: pencere
+  // genişliği artık içeriğe göre esniyor ve dar ekranda taşmıyor.
   const BSSekmeSeridi = window.SayfaSekmeSeridi;
+  const BSPencere = window.SayfaPenceresi;
 
   const isStudent = currentUser?.role === 'student';
   // ⚠ EskiDEN `currentUser.departmentId` okunuyordu; o alan HER ZAMAN ana
@@ -2527,11 +2530,11 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         </div>
       </div>
 
-      {acikPanel === 'dersler' && (
-        <BSPopup
+      {BSPencere && acikPanel === 'dersler' && (
+        <BSPencere
           baslik="Derslerim"
           altBaslik={bsTermLabel(term.academicYear, term.donem)}
-          genislik={1040}
+          enCokGenislik={1040}
           onKapat={() => setAcikPanel('')}
         >
           {/* ══ Derslerim ══
@@ -2962,25 +2965,25 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               </div>
             )}
           </div>
-        </BSPopup>
+        </BSPencere>
       )}
 
-      {acikPanel === 'yoklama' && (
-        <BSPopup
+      {BSPencere && acikPanel === 'yoklama' && (
+        <BSPencere
           baslik="Dijital Yoklama"
           altBaslik="Derse katılımınızı karekodla bildirin"
-          genislik={760}
+          enCokGenislik={760}
           onKapat={() => setAcikPanel('')}
         >
           <BSYoklamaPaneli dersDurumlari={dersDurumlari} onOkut={kodOkut} />
-        </BSPopup>
+        </BSPencere>
       )}
 
-      {acikPanel === 'randevu' && (
-        <BSPopup
+      {BSPencere && acikPanel === 'randevu' && (
+        <BSPencere
           baslik="Randevu Al"
           altBaslik="Derslerinizin akademisyenlerinin görüşme saatleri"
-          genislik={1000}
+          enCokGenislik={1000}
           onKapat={() => setAcikPanel('')}
         >
           <BSRandevuPaneli
@@ -2989,14 +2992,14 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             onTalep={randevuTalep}
             onIptal={randevuIptal}
           />
-        </BSPopup>
+        </BSPencere>
       )}
 
-      {acikPanel === 'mezuniyet' && (
-        <BSPopup
+      {BSPencere && acikPanel === 'mezuniyet' && (
+        <BSPencere
           baslik="Mezuniyet Durumum"
           altBaslik="Transkript ve mezuniyet koşulları"
-          genislik={980}
+          enCokGenislik={980}
           onKapat={() => setAcikPanel('')}
         >
           <BSMezuniyetDurumu
@@ -3007,7 +3010,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             sectionTitle={sectionTitle}
             gomulu
           />
-        </BSPopup>
+        </BSPencere>
       )}
 
       {profilAcik && (
@@ -3026,121 +3029,6 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           onClose={() => setLightbox(null)}
         />
       )}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
-// AÇILIR PANEL (Derslerim · Mezuniyet Durumum)
-//
-// Bu iki alan sütunlardan çıkarıldı: ikisi de tablo taşıyor ve 300 piksellik
-// bir kenar sütununda her satır üç kelimede bir kırılıyordu. Artık sayfanın
-// ortasına açılan ayrı birer pencere.
-//
-// ⚠ AÇILAN PENCERENİN KAPANIŞI ÜÇ YOLDAN DA ÇALIŞMALI: ✕ düğmesi, karartının
-// üstüne tıklama ve ESC. Yalnız düğme bırakılırsa panel içinde kaybolan
-// kullanıcının çıkışı kalmıyor — bu sayfada daha önce tam olarak bu oldu
-// (ders seçim ekranına girenin geri dönüşü yoktu).
-// ══════════════════════════════════════════════════════════════
-function BSPopup({ baslik, altBaslik, genislik, onKapat, children }) {
-  useEffect(() => {
-    const esc = (e) => {
-      if (e.key === 'Escape') onKapat();
-    };
-    document.addEventListener('keydown', esc);
-    // Panel açıkken arkadaki sayfa kaymasın: kaydırma pencereye ait.
-    const eskiTasma = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', esc);
-      document.body.style.overflow = eskiTasma;
-    };
-  }, [onKapat]);
-
-  return (
-    <div
-      onClick={onKapat}
-      role="dialog"
-      aria-modal="true"
-      aria-label={baslik}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 4000,
-        background: 'rgba(15,23,42,0.55)',
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        padding: '4vh 16px',
-        overflowY: 'auto',
-        fontFamily: "'Inter', sans-serif",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%',
-          maxWidth: genislik || 1000,
-          maxHeight: '92vh',
-          display: 'flex',
-          flexDirection: 'column',
-          background: '#F7F8FA',
-          borderRadius: 18,
-          overflow: 'hidden',
-          boxShadow: '0 28px 70px rgba(15,23,42,0.32)',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 14,
-            padding: '16px 20px',
-            background: '#1B2A4A',
-            color: '#FFFFFF',
-            flexShrink: 0,
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
-            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>{baslik}</h2>
-            {altBaslik && (
-              <p
-                style={{
-                  margin: '3px 0 0',
-                  fontSize: 12,
-                  color: 'rgba(255,255,255,0.72)',
-                }}
-              >
-                {altBaslik}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={onKapat}
-            title="Kapat (ESC)"
-            aria-label="Kapat"
-            style={{
-              width: 34,
-              height: 34,
-              flexShrink: 0,
-              borderRadius: 10,
-              border: '1px solid rgba(255,255,255,0.24)',
-              background: 'rgba(255,255,255,0.12)',
-              color: '#FFFFFF',
-              fontSize: 16,
-              lineHeight: 1,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            ✕
-          </button>
-        </div>
-        <div style={{ padding: 20, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-          {children}
-        </div>
-      </div>
     </div>
   );
 }

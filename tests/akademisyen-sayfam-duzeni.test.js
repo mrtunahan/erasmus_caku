@@ -21,10 +21,15 @@ describe('sütunlar', () => {
 
   it('kartlar istenen sütunlarda', () => {
     expect(kartinSutunu('bilgiler')).toBe('sol');
-    expect(kartinSutunu('dersler')).toBe('sol');
     expect(kartinSutunu('program')).toBe('orta');
     expect(kartinSutunu('randevular')).toBe('sag');
     expect(kartinSutunu('bugun')).toBe('sag');
+  });
+
+  // Verdiği dersler zaten Dijital Yoklama penceresinde listeleniyor; aynı
+  // listeyi iki yerde tutmak ikisinin ayrışmasına davetiye.
+  it('Derslerim kartı kaldırıldı', () => {
+    expect(kartinSutunu('dersler')).toBe('');
   });
 
   // Aynı kart iki sütuna yazılırsa ekranda iki kere çizilir.
