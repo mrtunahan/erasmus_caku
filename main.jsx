@@ -113,6 +113,12 @@ window.__lazyModules = {
     component: 'KomisyonlarModuluApp',
   },
   benim: { loader: () => import('./benim-sayfam.jsx'), component: 'BenimSayfamApp' },
+  // Aynı modülün akademisyen tarafı: kendi ders programı, bilgileri, randevu
+  // talepleri, dijital yoklama ve görüşme saatleri.
+  benimakademik: {
+    loader: () => import('./akademisyen-sayfam.jsx'),
+    component: 'AkademisyenSayfamApp',
+  },
   performans: {
     loader: () => import('./performans_bilgileri_modul.jsx'),
     component: 'PerformansBilgileriApp',

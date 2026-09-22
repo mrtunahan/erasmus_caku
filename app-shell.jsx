@@ -636,6 +636,7 @@ const Sidebar = ({
     // Saf akademisyen
     if (isProfessor) {
       const base = [
+        'benimakademik',
         'sinav',
         'formlar',
         'dersprogrami',
@@ -2812,7 +2813,16 @@ function AppShell() {
       : isDeptManager || isAdmin || isHierarchyManager
         ? DEPARTMENT_MODULES.filter((m) => m.id !== 'benim').map((m) => m.id)
         : isProfessor
-          ? ['sinav', 'formlar', 'dersprogrami', 'lisansustu', 'projeler', 'staj', 'performans']
+          ? [
+              'benimakademik',
+              'sinav',
+              'formlar',
+              'dersprogrami',
+              'lisansustu',
+              'projeler',
+              'staj',
+              'performans',
+            ]
           : [
               'benim',
               'erasmus',
@@ -3102,6 +3112,7 @@ function AppShell() {
         lisansustu: window.LisansustuApp,
         komisyonlar: window.KomisyonlarModuluApp,
         benim: window.BenimSayfamApp,
+        benimakademik: window.AkademisyenSayfamApp,
         audit: window.AuditLogModuluApp,
         kulupler: window.OgrenciKulupleriApp,
         anket: window.AnketModulu,

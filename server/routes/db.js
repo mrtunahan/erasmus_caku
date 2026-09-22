@@ -82,6 +82,22 @@ router.use((req, res, next) => {
 // İzin verilen koleksiyonlar (güvenlik sınırı)
 const ALLOWED_COLLECTIONS = [
   'students',
+  // ── DİJİTAL YOKLAMA ──
+  // Oturum ve yoklama kaydı OKUNUR (öğrenci kendi devamsızlığını, hoca kendi
+  // listesini görmeli) ama bu kapıdan YAZILAMAZ: ikisi de WRITE_DENY'de.
+  // Yazan tek yer /api/yoklama — kodu doğruladıktan sonra (bkz.
+  // server/routes/yoklama.js). Aksi hâlde öğrenci karekodu hiç okutmadan
+  // doğrudan "durum: var" kaydı gönderirdi.
+  'yoklama_oturumlari',
+  'yoklama_kayitlari',
+  // Dersin devamsızlık sınırı — akademisyen kendi dersi için belirler.
+  'yoklama_ayarlari',
+  // ── RANDEVU / GÖRÜŞME SAATLERİ ──
+  // Akademisyenin haftalık görüşme saatleri (doc id = ad anahtarı).
+  'gorusme_saatleri',
+  // Öğrencinin randevu talebi. Öğrenci YAZABİLİR ama yalnız kendi adına ve
+  // yalnız 'bekliyor' durumunda — kararı akademisyen verir (aşağıya bkz.).
+  'randevu_talepleri',
   // Tanıtım sayfası slaytları (kök adres, giriş öncesi). Okuması anonim
   // (PUBLIC_READ), yazması yalnız üniversite yetkilisinde (TANITIM_YAZ).
   'tanitim_slaytlari',
@@ -279,7 +295,15 @@ const PUBLIC_READ_STRIPPED = { professors: ['name', 'title', 'departmentId'] };
 const ADMIN_READ = new Set(['audit_logs']);
 // ai_usage_logs: maliyet defteri. Yalnız sunucudaki services/ai-usage.js
 // yazar; generic API'den yazılabilirse maliyet kaydı tahrif edilebilir.
-const WRITE_DENY = new Set(['audit_logs', 'ai_usage_logs']);
+// yoklama_oturumlari / yoklama_kayitlari: yoklamanın tüm güvenliği kodun
+// doğrulanmasına dayanır. Genel yazma kapısı açık kalsaydı dönen karekod da,
+// sekiz saniyelik pencere de anlamsız olurdu — kayıt doğrudan yazılabilirdi.
+const WRITE_DENY = new Set([
+  'audit_logs',
+  'ai_usage_logs',
+  'yoklama_oturumlari',
+  'yoklama_kayitlari',
+]);
 
 // Öğrencilerin işlem yapması meşru olan koleksiyonlar (kendi başvuruları,
 // anket yanıtları, portal etkileşimleri, kulüpler, proje başvuruları)
@@ -321,6 +345,9 @@ const STUDENT_WRITABLE = new Set([
   // Transkriptten türetilen akademik kayıt — öğrenci kendi transkriptini
   // yükler, sonuç kendi kaydına yazılır (docId = öğrenci no).
   'ogrenci_akademik_kayit',
+  // Randevu talebi — öğrenci kendi talebini açar/iptal eder. Onay/ret
+  // yetkisi YOKTUR; kural aşağıda (a2a-3).
+  'randevu_talepleri',
 ]);
 
 const STAFF_ROLES = new Set(['professor', 'bolum_yetkilisi', 'admin']);
@@ -919,6 +946,124 @@ async function enforceWritePolicies(db, op, user) {
               kapsam.kapsamTuru === 'universite' ? [] : (kapsam.departmentIds || []).map(String);
           }
         }
+      }
+    }
+  }
+
+  // a2a-4) GÖRÜŞME SAATLERİ ve DEVAMSIZLIK SINIRI: yalnız SAHİBİ yazar.
+  //
+  // ⚠ Bu iki koleksiyon "personel yazabilir" kapısından geçiyordu; yani
+  // herhangi bir akademisyen bir başkasının görüşme saatlerini silebilir ya
+  // da bir başkasının dersinin devamsızlık sınırını değiştirebilirdi.
+  // Kayıt kimin adına yazılıysa yalnız o kişi (ve admin) dokunur.
+  if (
+    (op.collection === 'gorusme_saatleri' || op.collection === 'yoklama_ayarlari') &&
+    (user.role === 'professor' || user.role === 'bolum_yetkilisi')
+  ) {
+    const sadeAd = (v) =>
+      String(v == null ? '' : v)
+        .replace(/(prof\.?|doç\.?|dr\.?|öğr\.?|gör\.?|arş\.?|üyesi)/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLocaleLowerCase('tr');
+    const benim = sadeAd(user.identifier);
+    let mevcut = null;
+    try {
+      mevcut = await findDocByAnyId(db, op.collection, op.docId);
+    } catch (_) {
+      mevcut = null;
+    }
+    // Var olan kayıt başkasının adınaysa dokunulamaz.
+    if (mevcut && mevcut.akademisyen && sadeAd(mevcut.akademisyen) !== benim) {
+      return {
+        allow: false,
+        status: 403,
+        error: 'Bu kayıt başka bir akademisyene ait.',
+      };
+    }
+    // Yeni kayıt her zaman yazanın adına damgalanır: istemcinin gönderdiği
+    // ada güvenilmez.
+    if (op.data && typeof op.data === 'object' && op.type !== 'delete') {
+      op.data.akademisyen = String(user.identifier || '').trim();
+    }
+  }
+
+  // a2a-3) RANDEVU TALEBİ: kim açar, kim karara bağlar.
+  //
+  // ⚠ ÖĞRENCİ KENDİ RANDEVUSUNU ONAYLAYAMAZ. Kayıt öğrencinin yazdığı bir
+  // koleksiyonda duruyor; `durum` alanı istemciden serbest gelseydi öğrenci
+  // talebini doğrudan "onaylandi" yazar, hocanın takviminde kendine yer
+  // açardı. Öğrencinin yazabildiği tek durum 'bekliyor' (açarken) ve
+  // 'iptal' (kendi talebini geri çekerken).
+  //
+  // ⚠ AKADEMİSYEN DE TALEBİN İÇERİĞİNİ DEĞİŞTİREMEZ: kimin, hangi gün ve
+  // saate talep açtığı öğrencinin beyanıdır. Hoca yalnız karar (durum) ve
+  // kendi notunu yazar. Aksi hâlde "onayladım" denip saat kaydırılabilirdi.
+  if (op.collection === 'randevu_talepleri') {
+    const ogrNo = String((user && (user.studentNumber || user.identifier)) || '').trim();
+
+    if (user.role === 'student') {
+      if (op.type === 'add') {
+        if (!op.data || typeof op.data !== 'object') {
+          return { allow: false, status: 400, error: 'Randevu verisi eksik.' };
+        }
+        op.data.studentNumber = ogrNo;
+        op.data.durum = 'bekliyor';
+        delete op.data.akademisyenNotu;
+        delete op.data.kararZamani;
+      } else {
+        let mevcut = null;
+        try {
+          mevcut = await findDocByAnyId(db, 'randevu_talepleri', op.docId);
+        } catch (_) {
+          mevcut = null;
+        }
+        if (!mevcut) return { allow: false, status: 404, error: 'Randevu kaydı bulunamadı.' };
+        if (String(mevcut.studentNumber || '').trim() !== ogrNo) {
+          return { allow: false, status: 403, error: 'Bu randevu size ait değil.' };
+        }
+        if (op.type === 'delete') {
+          return { allow: false, status: 403, error: 'Randevu silinemez; iptal edebilirsiniz.' };
+        }
+        if (op.data && typeof op.data === 'object') {
+          const istenen = String(op.data.durum || '').trim();
+          if (istenen && istenen !== 'iptal') {
+            return {
+              allow: false,
+              status: 403,
+              error: 'Randevuyu yalnız iptal edebilirsiniz; onay akademisyene aittir.',
+            };
+          }
+          delete op.data.akademisyenNotu;
+          delete op.data.kararZamani;
+          delete op.data.akademisyen;
+          delete op.data.studentNumber;
+        }
+      }
+    } else if (user.role === 'professor' || user.role === 'bolum_yetkilisi') {
+      if (op.type === 'add') {
+        return { allow: false, status: 403, error: 'Randevu talebini öğrenci açar.' };
+      }
+      let mevcut = null;
+      try {
+        mevcut = await findDocByAnyId(db, 'randevu_talepleri', op.docId);
+      } catch (_) {
+        mevcut = null;
+      }
+      if (!mevcut) return { allow: false, status: 404, error: 'Randevu kaydı bulunamadı.' };
+      const sade = (v) =>
+        String(v == null ? '' : v)
+          .replace(/(prof\.?|doç\.?|dr\.?|öğr\.?|gör\.?|arş\.?|üyesi)/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .toLocaleLowerCase('tr');
+      if (sade(mevcut.akademisyen) !== sade(user.identifier)) {
+        return { allow: false, status: 403, error: 'Bu randevu size gelmedi.' };
+      }
+      if (op.data && typeof op.data === 'object') {
+        ['studentNumber', 'ogrenciAd', 'gun', 'saat', 'tarih', 'akademisyen', 'konu'].forEach(
+          (k) => delete op.data[k]
+        );
       }
     }
   }

@@ -12,6 +12,7 @@ const tanitimRoutes = require('./routes/tanitim');
 const templateRoutes = require('./routes/templates');
 const semanticRoutes = require('./routes/semantic');
 const aiRoutes = require('./routes/ai');
+const yoklamaRoutes = require('./routes/yoklama');
 const {
   helmetMiddleware,
   authRateLimiter,
@@ -125,6 +126,8 @@ app.use('/api/tanitim', tanitimRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/semantic', semanticRoutes);
 app.use('/api/ai', aiRoutes);
+// Dijital yoklama: kayıt YALNIZ buradan yazılır (bkz. routes/yoklama.js).
+app.use('/api/yoklama', yoklamaRoutes);
 
 // 404 + merkezi hata yakalayıcı (route'lardan sonra mount edilmeli)
 app.use(notFoundHandler);

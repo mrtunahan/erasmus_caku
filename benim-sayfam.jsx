@@ -8,6 +8,18 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 const BS_FirebaseDB = window.DB;
 
+const metin = (v) => String(v == null ? '' : v).trim();
+
+// Kart görünümü bileşen dışında da gerekiyor (yoklama ve randevu panelleri);
+// bileşenin içindeki `cardBox` ile aynı değerler.
+const BS_KART = {
+  background: '#FFFFFF',
+  border: '1px solid #E5E7EB',
+  borderRadius: 12,
+  padding: 18,
+  boxShadow: '0 1px 3px rgba(16,24,40,0.06)',
+};
+
 const BS_SINIF_COLORS = {
   1: { bg: '#DBEAFE', text: '#1E40AF', label: '1. Sınıf' },
   2: { bg: '#DCFCE7', text: '#166534', label: '2. Sınıf' },
@@ -590,17 +602,6 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         : { sayi: myCourseDetails.length, toplamAkts: 0, tavan: BS_AKTS_CAP, kalan: 0, oran: 0 },
     [myCourseDetails]
   );
-  // Açılır panel düğmelerinin üstündeki özet (ör. "6 ders · 30/42 AKTS").
-  const panelListesi = useMemo(
-    () =>
-      window.sayfaPanelDugmeleri
-        ? window.sayfaPanelDugmeleri({ dersOzet })
-        : [
-            { id: 'dersler', baslik: 'Derslerim', ozet: '' },
-            { id: 'mezuniyet', baslik: 'Mezuniyet Durumum', ozet: '' },
-          ],
-    [dersOzet]
-  );
   const dersGruplariListesi = useMemo(
     () =>
       window.dersGruplari
@@ -608,6 +609,293 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         : [{ sinif: 0, etiket: 'Dersler', dersler: myCourseDetails, toplamAkts: 0 }],
     [myCourseDetails]
   );
+
+  // ══════════════════════════════════════════════════════════════
+  // DİJİTAL YOKLAMA ve RANDEVU
+  //
+  // İki panelin verisi burada toplanır: devamsızlık için yoklama
+  // oturumları/kayıtları + akademisyenin koyduğu sınır; randevu için
+  // derslerin akademisyenleri, onların haftalık programı ve görüşme
+  // saatleri.
+  // ══════════════════════════════════════════════════════════════
+  const [yoklamaVerisi, setYoklamaVerisi] = useState({
+    oturumlar: [],
+    kayitlar: [],
+    ayarlar: {},
+  });
+  const [randevuVerisi, setRandevuVerisi] = useState({
+    programDok: [],
+    bolumler: [],
+    musaitlikler: {},
+    randevular: [],
+  });
+  const [bolumAyarHaritasi, setBolumAyarHaritasi] = useState({});
+  const [yrTazele, setYrTazele] = useState(0);
+
+  useEffect(() => {
+    if (!isStudent || !currentUser?.studentNumber) return;
+    let canli = true;
+    (async () => {
+      const [otr, kyt, ayr, prog, bol, rnd] = await Promise.all([
+        window.apiRead('yoklama_oturumlari').catch(() => []),
+        window.apiRead('yoklama_kayitlari').catch(() => []),
+        window.apiRead('yoklama_ayarlari').catch(() => []),
+        window.apiRead('course_schedules').catch(() => []),
+        window.apiRead('departments').catch(() => []),
+        window.apiRead('randevu_talepleri').catch(() => []),
+      ]);
+      if (!canli) return;
+      const ayarHarita = {};
+      (ayr || []).forEach((a) => {
+        const k = metin(a.dersId || a.id);
+        if (k) ayarHarita[k] = a;
+      });
+      setYoklamaVerisi({
+        oturumlar: Array.isArray(otr) ? otr : [],
+        // ⚠ Yalnız KENDİ kayıtları: koleksiyon okumaya açık (öğrenci kendi
+        // devamsızlığını görmeli) ama başkasının katılımı bu ekranda işimize
+        // yaramaz ve hesaba karışmamalı.
+        kayitlar: (kyt || []).filter(
+          (k) => metin(k.studentNumber) === metin(currentUser.studentNumber)
+        ),
+        ayarlar: ayarHarita,
+      });
+      const bolListe = Array.isArray(bol) ? bol.slice() : [];
+      (window.DEPARTMENTS || []).forEach((d) => bolListe.push(d));
+      setRandevuVerisi((v) => ({
+        ...v,
+        programDok: Array.isArray(prog) ? prog : [],
+        bolumler: bolListe,
+        randevular: Array.isArray(rnd) ? rnd : [],
+      }));
+    })();
+    return () => {
+      canli = false;
+    };
+  }, [isStudent, currentUser?.studentNumber, yrTazele]);
+
+  useEffect(() => {
+    if (window.bolumAyarlariniYukle) {
+      window.bolumAyarlariniYukle().then((h) => setBolumAyarHaritasi(h || {}));
+    }
+  }, []);
+
+  // Derslerin akademisyenleri — randevu bu listeden açılır.
+  const dersAkademisyenleri = useMemo(() => {
+    const gorulen = new Map();
+    myCourseDetails.forEach((c) => {
+      (window.dersEgitmenleri ? window.dersEgitmenleri(c) : []).forEach((ad) => {
+        const k = window.RandevuKurali?.akademisyenAnahtari
+          ? window.RandevuKurali.akademisyenAnahtari(ad)
+          : metin(ad).toLocaleLowerCase('tr');
+        if (k && !gorulen.has(k)) gorulen.set(k, metin(ad));
+      });
+    });
+    return [...gorulen.entries()].map(([anahtar, ad]) => ({ anahtar, ad }));
+  }, [myCourseDetails]);
+
+  // Görüşme saatleri belge belge okunur (kişi başına tek belge).
+  useEffect(() => {
+    if (dersAkademisyenleri.length === 0 || !window.apiReadDoc) return;
+    let canli = true;
+    (async () => {
+      const harita = {};
+      for (const a of dersAkademisyenleri) {
+        try {
+          const res = await window.apiReadDoc('gorusme_saatleri', a.anahtar);
+          const doc = res && res.exists ? res.data : null;
+          harita[a.anahtar] = Array.isArray(doc && doc.slotlar) ? doc.slotlar : [];
+        } catch (_) {
+          harita[a.anahtar] = [];
+        }
+      }
+      if (canli) setRandevuVerisi((v) => ({ ...v, musaitlikler: harita }));
+    })();
+    return () => {
+      canli = false;
+    };
+  }, [dersAkademisyenleri, yrTazele]);
+
+  const bsBolumSaatleri = useMemo(() => {
+    const harita = {};
+    (randevuVerisi.bolumler || []).forEach((b) => {
+      const kimlikler = [b.id, b._id, b._docId, b.code].filter(Boolean).map(String);
+      const kanon = kimlikler[0];
+      const coz = window.bolumSaatleri;
+      if (!coz) return;
+      const lisans = coz(bolumAyarHaritasi[kanon], 'lisans');
+      const ustu = coz(bolumAyarHaritasi[kanon], 'lisansustu');
+      kimlikler.forEach((k) => {
+        if (!harita[k + '|lisans']) harita[k + '|lisans'] = lisans;
+        ['lisansustu', 'yukseklisans', 'doktora'].forEach((sv) => {
+          if (!harita[k + '|' + sv]) harita[k + '|' + sv] = ustu;
+        });
+        if (!harita[k]) harita[k] = ustu.length >= lisans.length ? ustu : lisans;
+      });
+    });
+    return harita;
+  }, [randevuVerisi.bolumler, bolumAyarHaritasi]);
+
+  const bsDonem =
+    window.donemEtiketi && window.donemEtiketi(new Date()) === 'Bahar' ? 'bahar' : 'guz';
+
+  const randevuAkademisyenleri = useMemo(() => {
+    const R = window.RandevuKurali;
+    if (!R || !window.akademisyenKayitlari || !window.programIzgarasi) return [];
+    return dersAkademisyenleri.map((a) => {
+      const kayitlar = window.akademisyenKayitlari(randevuVerisi.programDok, {
+        ad: a.ad,
+        donem: bsDonem,
+        bolumler: randevuVerisi.bolumler,
+        bolumSaatleri: bsBolumSaatleri,
+      });
+      const { izgara, doluSaatler } = window.programIzgarasi(kayitlar);
+      // Eksen dolu saatlerden değil, hocanın ders verdiği bölümlerin TÜM
+      // saat listesinden kurulur (bkz. lib/randevu.js → gorusmeEkseni).
+      const saatler = R.gorusmeEkseni
+        ? R.gorusmeEkseni(kayitlar, bsBolumSaatleri, doluSaatler, window.PROGRAM_SAATLERI)
+        : doluSaatler;
+      const musaitlikler = randevuVerisi.musaitlikler[a.anahtar] || [];
+      const hocaninRandevulari = R.randevulariSuz(randevuVerisi.randevular, {
+        akademisyen: a.ad,
+      });
+      return {
+        ad: a.ad,
+        anahtar: a.anahtar,
+        izgara,
+        saatler,
+        musaitlikler,
+        randevular: hocaninRandevulari,
+        ogrenciNo: metin(currentUser?.studentNumber),
+        acikSayisi: R.acikSlotlar(izgara, musaitlikler, saatler).length,
+      };
+    });
+  }, [dersAkademisyenleri, randevuVerisi, bsBolumSaatleri, bsDonem, currentUser?.studentNumber]);
+
+  const randevularim = useMemo(() => {
+    const R = window.RandevuKurali;
+    if (!R) return [];
+    return R.randevulariSirala(
+      R.randevulariSuz(randevuVerisi.randevular, {
+        ogrenciNo: metin(currentUser?.studentNumber),
+      })
+    );
+  }, [randevuVerisi.randevular, currentUser?.studentNumber]);
+
+  // Ders ders devamsızlık — panelin çubukları ve düğmenin özeti bundan.
+  const dersDurumlari = useMemo(() => {
+    const Y = window.YoklamaKurali;
+    if (!Y) return [];
+    return myCourseDetails.map((c) => {
+      const dersId = metin(c.id);
+      const ayar = yoklamaVerisi.ayarlar[dersId] || {};
+      const acilan = yoklamaVerisi.oturumlar.filter(
+        (o) => metin(o.dersId) === dersId && !o.acik
+      ).length;
+      const katildigi = yoklamaVerisi.kayitlar.filter(
+        (k) => metin(k.dersId) === dersId && (k.durum === 'var' || k.durum === 'izinli')
+      ).length;
+      return {
+        dersId,
+        dersKodu: metin(c.code || c.kod),
+        dersAdi: metin(c.name || c.ad),
+        durum: Y.devamsizlikDurumu({
+          acilanYoklama: acilan,
+          katildigi,
+          limitSaat: Number(ayar.limitSaat) || 0,
+          dersSaati: Number(ayar.dersSaati) || Number(c.saat) || 1,
+        }),
+      };
+    });
+  }, [myCourseDetails, yoklamaVerisi]);
+
+  // Düğmelerin üstünde yazacak sayılar — panel açılmadan da durum görünsün.
+  const yoklamaRozeti = useMemo(
+    () => ({
+      dersSayisi: dersDurumlari.length,
+      asan: dersDurumlari.filter((d) => d.durum.asildi).length,
+      riskli: dersDurumlari.filter((d) => d.durum.durum === 'riskli').length,
+    }),
+    [dersDurumlari]
+  );
+  const randevuRozeti = useMemo(
+    () => ({
+      bekleyen: randevularim.filter((r) => (metin(r.durum) || 'bekliyor') === 'bekliyor').length,
+      onayli: randevularim.filter((r) => metin(r.durum) === 'onaylandi').length,
+    }),
+    [randevularim]
+  );
+
+  // Açılır panel düğmelerinin üstündeki özet (ör. "6 ders · 30/42 AKTS").
+  const panelListesi = useMemo(
+    () =>
+      window.sayfaPanelDugmeleri
+        ? window.sayfaPanelDugmeleri({ dersOzet, yoklama: yoklamaRozeti, randevu: randevuRozeti })
+        : [
+            { id: 'dersler', baslik: 'Derslerim', ozet: '' },
+            { id: 'mezuniyet', baslik: 'Mezuniyet Durumum', ozet: '' },
+            { id: 'yoklama', baslik: 'Dijital Yoklama', ozet: '' },
+            { id: 'randevu', baslik: 'Randevu Al', ozet: '' },
+          ],
+    [dersOzet, yoklamaRozeti, randevuRozeti]
+  );
+
+  /** Okutulan kodu sunucuya gönderir; karar SUNUCUDA verilir. */
+  const kodOkut = useCallback(async (kod) => {
+    try {
+      const r = await fetch('/api/yoklama/imzala', {
+        method: 'POST',
+        credentials: 'include',
+        headers: Object.assign(
+          { 'Content-Type': 'application/json' },
+          window.yoklamaBasliklari ? window.yoklamaBasliklari() : {}
+        ),
+        body: JSON.stringify({ kod }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return { ok: false, mesaj: d.error || 'Yoklama alınamadı.' };
+      setYrTazele((t) => t + 1);
+      return {
+        ok: true,
+        mesaj: (d.mesaj || 'Yoklamanız alındı.') + (d.ders ? ' — ' + d.ders : ''),
+      };
+    } catch (e) {
+      return { ok: false, mesaj: 'Sunucuya ulaşılamadı: ' + (e.message || 'ağ hatası') };
+    }
+  }, []);
+
+  const randevuTalep = useCallback(
+    async (talep) => {
+      try {
+        // ⚠ `durum` gönderilmez; sunucu her yeni talebi 'bekliyor' damgalar
+        // (server/routes/db.js a2a-3). Buradan 'onaylandi' göndermek işe
+        // yaramaz — ve yaramamalı.
+        await window.DBWriteGenel('randevu_talepleri', null, {
+          ...talep,
+          studentNumber: metin(currentUser?.studentNumber),
+          ogrenciAd: [studentRecord?.firstName, studentRecord?.lastName].filter(Boolean).join(' '),
+          olusturma: new Date().toISOString(),
+        });
+        setYrTazele((t) => t + 1);
+        return { ok: true };
+      } catch (e) {
+        return { hata: 'Randevu oluşturulamadı: ' + (e.message || 'bilinmeyen hata') };
+      }
+    },
+    [currentUser?.studentNumber, studentRecord]
+  );
+
+  const randevuIptal = useCallback(async (kayit) => {
+    if (!window.confirm('Randevu talebiniz iptal edilecek. Onaylıyor musunuz?')) return;
+    try {
+      await window.DBWriteGenel('randevu_talepleri', metin(kayit.id || kayit._docId), {
+        durum: 'iptal',
+      });
+      setYrTazele((t) => t + 1);
+    } catch (e) {
+      alert('İptal edilemedi: ' + (e.message || 'bilinmeyen hata'));
+    }
+  }, []);
 
   // Seçilen derslerin toplam AKTS'si (42 tavanı) — akts/kredi alanından
   const totalAkts = useMemo(
@@ -1489,7 +1777,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 aria-expanded={acik}
                 title={p.baslik + ' — ' + p.ozet}
                 style={{
-                  flex: bsTekSutun ? '1 1 100%' : '0 0 272px',
+                  flex: bsTekSutun ? '1 1 100%' : '0 0 216px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 12,
@@ -2807,6 +3095,33 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         </BSPopup>
       )}
 
+      {acikPanel === 'yoklama' && (
+        <BSPopup
+          baslik="Dijital Yoklama"
+          altBaslik="Derse katılımınızı karekodla bildirin"
+          genislik={760}
+          onKapat={() => setAcikPanel('')}
+        >
+          <BSYoklamaPaneli dersDurumlari={dersDurumlari} onOkut={kodOkut} />
+        </BSPopup>
+      )}
+
+      {acikPanel === 'randevu' && (
+        <BSPopup
+          baslik="Randevu Al"
+          altBaslik="Derslerinizin akademisyenlerinin görüşme saatleri"
+          genislik={1000}
+          onKapat={() => setAcikPanel('')}
+        >
+          <BSRandevuPaneli
+            akademisyenler={randevuAkademisyenleri}
+            randevularim={randevularim}
+            onTalep={randevuTalep}
+            onIptal={randevuIptal}
+          />
+        </BSPopup>
+      )}
+
       {acikPanel === 'mezuniyet' && (
         <BSPopup
           baslik="Mezuniyet Durumum"
@@ -3955,3 +4270,903 @@ function BSLightbox({ url, zoomable, onClose }) {
 }
 
 window.BenimSayfamApp = BenimSayfamApp;
+
+// ══════════════════════════════════════════════════════════════
+// KAMERA TABANLI KAREKOD TARAYICI
+//
+// İki yol var ve ikisi de gerekli:
+//   1) `BarcodeDetector` — tarayıcının kendi çözücüsü. Hızlı, pil dostu,
+//      Chrome/Android'de var.
+//   2) `jsqr` — saf JavaScript çözücü. iOS Safari'de BarcodeDetector YOK;
+//      yalnız birinciye güvenilseydi iPhone'lu öğrenciler yoklama
+//      veremezdi. Yalnız gerektiğinde indiriliyor (dinamik import), aksi
+//      hâlde herkesin sayfasına boşuna yük binerdi.
+//
+// ⚠ ÜÇÜNCÜ YOL ELLE GİRİŞ: kamera izni reddedilmiş, kamera bozuk ya da
+// sayfa HTTPS değilse tarayıcı hiç açılmaz. Ekrandaki kodu elle yazmak
+// her zaman mümkün olmalı — yoksa öğrencinin yoklama vermesinin başka
+// yolu kalmaz.
+// ══════════════════════════════════════════════════════════════
+function BSKarekodTarayici({ onKod, onKapat }) {
+  const videoRef = useRef(null);
+  const tuvalRef = useRef(null);
+  const [durum, setDurum] = useState('aciliyor'); // aciliyor | calisiyor | hata
+  const [mesaj, setMesaj] = useState('');
+  const [elle, setElle] = useState('');
+  const okunduRef = useRef(false);
+
+  useEffect(() => {
+    let akis = null;
+    let kare = 0;
+    let dedektor = null;
+    let jsQR = null;
+    let durduruldu = false;
+
+    const bitir = (kod) => {
+      if (okunduRef.current) return;
+      okunduRef.current = true;
+      onKod(kod);
+    };
+
+    const tara = async () => {
+      if (durduruldu || okunduRef.current) return;
+      const v = videoRef.current;
+      if (v && v.readyState === 4) {
+        try {
+          if (dedektor) {
+            const bulunan = await dedektor.detect(v);
+            if (bulunan && bulunan.length > 0) return bitir(bulunan[0].rawValue);
+          } else if (jsQR) {
+            const t = tuvalRef.current;
+            const ctx = t.getContext('2d', { willReadFrequently: true });
+            t.width = v.videoWidth;
+            t.height = v.videoHeight;
+            ctx.drawImage(v, 0, 0, t.width, t.height);
+            const im = ctx.getImageData(0, 0, t.width, t.height);
+            const r = jsQR(im.data, im.width, im.height, { inversionAttempts: 'dontInvert' });
+            if (r && r.data) return bitir(r.data);
+          }
+        } catch (_) {
+          /* tek kare okunamadıysa sonrakine geç */
+        }
+      }
+      kare = requestAnimationFrame(tara);
+    };
+
+    (async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Bu tarayıcı kamera erişimini desteklemiyor.');
+        }
+        akis = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false,
+        });
+        if (durduruldu) {
+          akis.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        if (videoRef.current) {
+          videoRef.current.srcObject = akis;
+          await videoRef.current.play().catch(() => {});
+        }
+        if (typeof window.BarcodeDetector === 'function') {
+          try {
+            dedektor = new window.BarcodeDetector({ formats: ['qr_code'] });
+          } catch (_) {
+            dedektor = null;
+          }
+        }
+        if (!dedektor) {
+          const m = await import('jsqr');
+          jsQR = m.default || m;
+        }
+        setDurum('calisiyor');
+        kare = requestAnimationFrame(tara);
+      } catch (e) {
+        setDurum('hata');
+        // ⚠ Tarayıcının kendi hata metni İNGİLİZCEDİR ("Requested device not
+        // found"). Olduğu gibi basmak öğrenciye hiçbir şey anlatmıyor; bilinen
+        // durumlar ayrı ayrı Türkçeleştirilir, kalanı genel metne düşer. Her
+        // durumda çıkış yolu aynı: kodu elle yazmak.
+        const ham = (e && (e.name || '') + ' ' + (e.message || '')) || '';
+        let nicin = 'Kamera açılamadı.';
+        if (/NotAllowed|denied|Permission/i.test(ham)) {
+          nicin = 'Kamera izni verilmedi. Tarayıcı ayarlarından izin verebilirsiniz.';
+        } else if (/NotFound|device not found|DevicesNotFound/i.test(ham)) {
+          nicin = 'Bu cihazda kamera bulunamadı.';
+        } else if (/NotReadable|TrackStart|in use/i.test(ham)) {
+          nicin = 'Kamera başka bir uygulama tarafından kullanılıyor.';
+        } else if (/secure|https/i.test(ham) || window.isSecureContext === false) {
+          nicin = 'Kamera yalnız güvenli (https) bağlantıda açılabilir.';
+        }
+        setMesaj(nicin + ' Aşağıdaki kutuya ekrandaki kodu elle yazabilirsiniz.');
+      }
+    })();
+
+    return () => {
+      durduruldu = true;
+      cancelAnimationFrame(kare);
+      if (akis) akis.getTracks().forEach((t) => t.stop());
+    };
+  }, [onKod]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div
+        style={{
+          position: 'relative',
+          borderRadius: 14,
+          overflow: 'hidden',
+          background: '#0B1220',
+          aspectRatio: '4 / 3',
+          maxHeight: '48vh',
+        }}
+      >
+        { }
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
+        <canvas ref={tuvalRef} style={{ display: 'none' }} />
+        {/* Nişangâh: kamerayı nereye tutacağı belli olsun */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            inset: '14% 22%',
+            border: '3px solid rgba(255,255,255,0.85)',
+            borderRadius: 14,
+            boxShadow: '0 0 0 9999px rgba(0,0,0,0.35)',
+          }}
+        />
+        {durum !== 'calisiyor' && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              fontSize: 13,
+              textAlign: 'center',
+              padding: 24,
+              background: 'rgba(11,18,32,0.9)',
+              lineHeight: 1.6,
+            }}
+          >
+            {durum === 'aciliyor' ? 'Kamera açılıyor…' : mesaj}
+          </div>
+        )}
+      </div>
+
+      <p style={{ margin: 0, fontSize: 12.5, color: '#6B7280', lineHeight: 1.6 }}>
+        Kamerayı tahtadaki karekoda tutun. Kod <b>her 6 saniyede değişir</b>; okutma anında ekranda
+        duran kod geçerlidir.
+      </p>
+
+      {/* ⚠ Kamera çalışmadığında tek çıkış yolu */}
+      <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 12 }}>
+        <label style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600 }}>
+          Kamera çalışmıyorsa: ekranda yazan kodu buraya yazın
+          <div style={{ display: 'flex', gap: 8, marginTop: 5 }}>
+            <input
+              value={elle}
+              onChange={(e) => setElle(e.target.value)}
+              placeholder="yk-… . … . …"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                padding: '9px 12px',
+                borderRadius: 9,
+                border: '1px solid #D1D5DB',
+                fontSize: 13,
+                fontFamily: 'inherit',
+              }}
+            />
+            <button
+              onClick={() => elle.trim() && onKod(elle.trim())}
+              style={{
+                padding: '9px 16px',
+                borderRadius: 9,
+                border: 'none',
+                background: '#1B2A4A',
+                color: '#fff',
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Gönder
+            </button>
+          </div>
+        </label>
+      </div>
+
+      <button
+        onClick={onKapat}
+        style={{
+          alignSelf: 'flex-start',
+          padding: '8px 16px',
+          borderRadius: 9,
+          border: '1px solid #D1D5DB',
+          background: '#fff',
+          color: '#374151',
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        Taramayı kapat
+      </button>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// PANEL — Dijital Yoklama (öğrenci)
+//
+// İki iş bir arada: karekodu okut ve dönemlik devamsızlığını gör.
+// ══════════════════════════════════════════════════════════════
+function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
+  const Y = window.YoklamaKurali || {};
+  const [tarayici, setTarayici] = useState(false);
+  const [sonuc, setSonuc] = useState(null); // { ok, mesaj }
+  const [gonderiliyor, setGonderiliyor] = useState(false);
+
+  const kodGeldi = useCallback(
+    async (kod) => {
+      setTarayici(false);
+      setGonderiliyor(true);
+      setSonuc(null);
+      const r = await onOkut(kod);
+      setSonuc(r);
+      setGonderiliyor(false);
+    },
+    [onOkut]
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={BS_KART}>
+        {!tarayici && (
+          <>
+            <button
+              onClick={() => {
+                setSonuc(null);
+                setTarayici(true);
+              }}
+              disabled={gonderiliyor}
+              style={{
+                width: '100%',
+                padding: '16px 20px',
+                borderRadius: 13,
+                border: 'none',
+                background: gonderiliyor ? '#9CA3AF' : '#059669',
+                color: '#fff',
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: gonderiliyor ? 'default' : 'pointer',
+                fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+              }}
+            >
+              <svg
+                width="21"
+                height="21"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+              {gonderiliyor ? 'Gönderiliyor…' : 'Karekodu Okut'}
+            </button>
+            <p style={{ margin: '10px 0 0', fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 }}>
+              Akademisyeniniz tahtaya karekodu yansıttığında bu düğmeye basın. Kod sürekli değiştiği
+              için ekran görüntüsüyle yoklama verilemez.
+            </p>
+          </>
+        )}
+
+        {tarayici && <BSKarekodTarayici onKod={kodGeldi} onKapat={() => setTarayici(false)} />}
+
+        {sonuc && (
+          <div
+            style={{
+              marginTop: tarayici ? 14 : 12,
+              padding: '12px 14px',
+              borderRadius: 10,
+              background: sonuc.ok ? '#ECFDF5' : '#FEF2F2',
+              border: '1px solid ' + (sonuc.ok ? '#6EE7B7' : '#FCA5A5'),
+              color: sonuc.ok ? '#047857' : '#B91C1C',
+              fontSize: 13,
+              fontWeight: 600,
+              lineHeight: 1.6,
+            }}
+          >
+            {sonuc.mesaj}
+          </div>
+        )}
+      </div>
+
+      {/* ── Dönemlik devamsızlık ── */}
+      <div>
+        <h4
+          style={{
+            margin: '0 0 10px',
+            fontSize: 15,
+            fontWeight: 700,
+            color: '#1B2A4A',
+          }}
+        >
+          Devamsızlık Durumum
+        </h4>
+
+        {dersDurumlari.length === 0 ? (
+          <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>
+            Bu dönem için ders seçiminiz görünmüyor.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {dersDurumlari.map((d) => {
+              const renk = Y.devamsizlikRengi ? Y.devamsizlikRengi(d.durum.durum) : '#6B7280';
+              const kirmizi = d.durum.asildi;
+              return (
+                <div
+                  key={d.dersId}
+                  style={{
+                    ...BS_KART,
+                    padding: '13px 15px',
+                    borderColor: kirmizi ? '#FCA5A5' : '#E5E7EB',
+                    background: kirmizi ? '#FEF2F2' : '#fff',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                      marginBottom: 8,
+                    }}
+                  >
+                    {d.dersKodu && (
+                      <span
+                        style={{
+                          fontSize: 10.5,
+                          fontWeight: 800,
+                          color: '#1E40AF',
+                          background: '#DBEAFE',
+                          padding: '2px 7px',
+                          borderRadius: 6,
+                        }}
+                      >
+                        {d.dersKodu}
+                      </span>
+                    )}
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: '#1B2A4A' }}>
+                      {d.dersAdi}
+                    </span>
+                    <span
+                      style={{
+                        marginLeft: 'auto',
+                        fontSize: 12,
+                        fontWeight: 800,
+                        color: renk,
+                      }}
+                    >
+                      {d.durum.limitSaat
+                        ? 'Kalan hak: ' + d.durum.kalanHak + ' / ' + d.durum.limitSaat + ' saat'
+                        : d.durum.kacirilanSaat + ' saat devamsızlık'}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      height: 9,
+                      borderRadius: 999,
+                      background: '#E5E7EB',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: '100%',
+                        width: Math.round((d.durum.oran || 0) * 100) + '%',
+                        background: renk,
+                        transition: 'width 200ms',
+                      }}
+                    />
+                  </div>
+
+                  {/* Sağdaki rozet zaten "Kalan hak: X / Y saat" diyor; aynı
+                      cümleyi altına da yazmak satırı iki kez okutuyordu.
+                      Burada yalnız UYARI ve katılım ayrıntısı kalır. */}
+                  <p
+                    style={{
+                      margin: '8px 0 0',
+                      fontSize: 11.5,
+                      color: kirmizi ? '#B91C1C' : '#6B7280',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {kirmizi && (
+                      <b>Devamsızlık sınırı aşıldı — devamsızlıktan kalma durumundasınız. </b>
+                    )}
+                    {!kirmizi && d.durum.durum === 'riskli' && (
+                      <b style={{ color: '#B45309' }}>Hakkınız azaldı. </b>
+                    )}
+                    {d.durum.acilan > 0
+                      ? d.durum.acilan + ' yoklamanın ' + d.durum.katilan + ' tanesine katıldınız.'
+                      : 'Bu derste henüz yoklama alınmadı.'}
+                    {!d.durum.limitSaat && d.durum.acilan > 0 && (
+                      <span style={{ color: '#9CA3AF' }}>
+                        {' '}
+                        Akademisyen bu ders için devamsızlık sınırı belirlemedi.
+                      </span>
+                    )}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// PANEL — Randevu / Danışman Görüşmesi (öğrenci)
+//
+// Öğrenci kendi aldığı derslerin akademisyenlerini görür; birini seçince
+// o hocanın HAFTALIK PROGRAMI çizilir. Ders saatleri mavi (dolu), hocanın
+// görüşmeye açtığı saatler yeşil ve tıklanabilir.
+//
+// ⚠ ÖĞRENCİ TALEP AÇAR, KARAR HOCANINDIR. Talep her zaman 'bekliyor'
+// olarak açılır; sunucu da bunu ayrıca zorlar (bkz. server/routes/db.js
+// a2a-3) — istemciden gelen bir `durum` alanı yok sayılır.
+// ══════════════════════════════════════════════════════════════
+function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
+  const R = window.RandevuKurali || {};
+  const [secili, setSecili] = useState(() => (akademisyenler[0] || {}).ad || '');
+  const [konu, setKonu] = useState('');
+  const [slot, setSlot] = useState(null);
+  const [gonderiliyor, setGonderiliyor] = useState(false);
+  const [uyari, setUyari] = useState('');
+
+  const hoca = akademisyenler.find((a) => a.ad === secili) || null;
+  const izgaraTam = R.gorusmeIzgarasi
+    ? R.gorusmeIzgarasi(hoca?.izgara || {}, hoca?.saatler || [], hoca?.musaitlikler || [])
+    : null;
+  // ⚠ Öğrenciye BOŞ SATIR gösterilmez. Eksen hocanın tüm çalışma saatlerini
+  // kapsıyor (akşam saatleri dahil); hoca o satırlara yeni saat açabilmek
+  // için hepsini görmek zorunda, öğrencinin yapacağı bir şey yok. Hiç dersi
+  // ve açık saati olmayan satırlar burada düşürülür — yoksa üç tıklanabilir
+  // hücre için on dört satırlık boş tablo taranıyordu.
+  const izgara = izgaraTam
+    ? {
+        ...izgaraTam,
+        satirlar: izgaraTam.satirlar.filter((s) => s.hucreler.some((h) => h.durum !== 'bos')),
+      }
+    : null;
+
+  const talepEt = async () => {
+    if (!hoca || !slot) {
+      setUyari('Önce yeşil bir saat seçin.');
+      return;
+    }
+    const tarih = R.sonrakiTarih ? R.sonrakiTarih(slot.gun, new Date()) : '';
+    const karar = R.randevuVerilebilirMi
+      ? R.randevuVerilebilirMi({
+          gun: slot.gun,
+          saat: slot.saat,
+          izgara: hoca.izgara,
+          musaitlikler: hoca.musaitlikler,
+          saatler: hoca.saatler,
+          randevular: hoca.randevular,
+          tarih,
+          ogrenciNo: hoca.ogrenciNo,
+        })
+      : { olur: true };
+    if (!karar.olur) {
+      setUyari(R.engelMesaji ? R.engelMesaji(karar.sebep) : 'Randevu oluşturulamadı.');
+      return;
+    }
+    setUyari('');
+    setGonderiliyor(true);
+    const sonuc = await onTalep({
+      akademisyen: hoca.ad,
+      gun: slot.gun,
+      saat: slot.saat,
+      tarih,
+      konu: konu.trim(),
+    });
+    setGonderiliyor(false);
+    if (sonuc && sonuc.hata) setUyari(sonuc.hata);
+    else {
+      setSlot(null);
+      setKonu('');
+    }
+  };
+
+  if (akademisyenler.length === 0) {
+    return (
+      <p style={{ fontSize: 13, color: '#6B7280', margin: 0, lineHeight: 1.6 }}>
+        Randevu, seçtiğiniz derslerin akademisyenlerine açılır. Henüz ders seçmediyseniz ya da
+        derslerinize eğitmen atanmadıysa burada kimse görünmez.
+      </p>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Akademisyen seçimi */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {akademisyenler.map((a) => {
+          const sec = a.ad === secili;
+          return (
+            <button
+              key={a.ad}
+              onClick={() => {
+                setSecili(a.ad);
+                setSlot(null);
+                setUyari('');
+              }}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 10,
+                border: '1px solid ' + (sec ? '#1B2A4A' : '#E5E7EB'),
+                background: sec ? '#1B2A4A' : '#fff',
+                color: sec ? '#fff' : '#1B2A4A',
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {a.ad}
+              <span style={{ marginLeft: 7, fontSize: 11, opacity: 0.7 }}>{a.acikSayisi} saat</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Hocanın haftalık programı */}
+      {hoca && (
+        <div style={BS_KART}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 14,
+              flexWrap: 'wrap',
+              fontSize: 11.5,
+              color: '#6B7280',
+              marginBottom: 12,
+            }}
+          >
+            {[
+              ['Görüşmeye açık', '#DCFCE7', '#166534'],
+              ['Dersi var', '#DBEAFE', '#1E3A8A'],
+              ['Kapalı', '#FAFAFA', '#9CA3AF'],
+            ].map(([e, bg, renk]) => (
+              <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 4,
+                    background: bg,
+                    border: '1px solid ' + renk + '33',
+                  }}
+                />
+                {e}
+              </span>
+            ))}
+          </div>
+
+          {!izgara || izgara.satirlar.length === 0 ? (
+            <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0, lineHeight: 1.6 }}>
+              {(hoca.saatler || []).length === 0
+                ? 'Bu akademisyenin haftalık programı görünmüyor.'
+                : 'Bu akademisyen henüz görüşme saati açmamış. Açtığında burada görünecek.'}
+            </p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 540 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 60 }} />
+                    {izgara.gunler.map((g) => (
+                      <th
+                        key={g}
+                        style={{
+                          padding: '7px 5px',
+                          fontSize: 10.5,
+                          color: '#6B7280',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {g}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {izgara.satirlar.map((satir) => (
+                    <tr key={satir.saat}>
+                      <td
+                        style={{
+                          padding: 5,
+                          fontSize: 10.5,
+                          color: '#9CA3AF',
+                          fontWeight: 700,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {satir.saat}
+                      </td>
+                      {satir.hucreler.map((h) => {
+                        const acik = h.durum === 'acik';
+                        const ders = h.durum === 'ders';
+                        const tarih = R.sonrakiTarih ? R.sonrakiTarih(h.gun, new Date()) : '';
+                        const dolu =
+                          acik && R.slotMesgulMu
+                            ? R.slotMesgulMu(hoca.randevular, h.gun, h.saat, tarih)
+                            : false;
+                        const secili2 = slot && slot.anahtar === h.anahtar;
+                        return (
+                          <td key={h.anahtar} style={{ padding: 3 }}>
+                            <button
+                              type="button"
+                              disabled={!acik || dolu}
+                              onClick={() => {
+                                setSlot(h);
+                                setUyari('');
+                              }}
+                              title={
+                                ders
+                                  ? 'Bu saatte dersi var'
+                                  : dolu
+                                    ? 'Bu saat dolu'
+                                    : acik
+                                      ? 'Randevu istemek için seçin'
+                                      : 'Görüşmeye kapalı'
+                              }
+                              style={{
+                                width: '100%',
+                                minHeight: 38,
+                                borderRadius: 8,
+                                border: secili2
+                                  ? '2px solid #047857'
+                                  : '1px ' +
+                                    (ders
+                                      ? 'solid #BFDBFE'
+                                      : acik
+                                        ? 'solid #6EE7B7'
+                                        : 'dashed #EEF0F3'),
+                                background: ders
+                                  ? '#DBEAFE'
+                                  : dolu
+                                    ? '#F3F4F6'
+                                    : acik
+                                      ? secili2
+                                        ? '#A7F3D0'
+                                        : '#DCFCE7'
+                                      : '#FAFAFA',
+                                color: ders ? '#1E3A8A' : acik ? '#166534' : '#D1D5DB',
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                cursor: acik && !dolu ? 'pointer' : 'not-allowed',
+                                fontFamily: 'inherit',
+                                padding: 3,
+                              }}
+                            >
+                              {ders
+                                ? (h.dersler || [])[0]?.dersKodu || 'Ders'
+                                : dolu
+                                  ? 'Dolu'
+                                  : acik
+                                    ? 'Uygun'
+                                    : ''}
+                            </button>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Talep formu */}
+      {slot && (
+        <div style={{ ...BS_KART, borderColor: '#6EE7B7', background: '#F0FDF4' }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#065F46', marginBottom: 8 }}>
+            {secili} · {slot.gun} {slot.saat}
+          </div>
+          <div style={{ fontSize: 12, color: '#047857', marginBottom: 10 }}>
+            {R.tarihMetni ? R.tarihMetni(R.sonrakiTarih(slot.gun, new Date())) : ''}
+          </div>
+          <label style={{ fontSize: 11.5, color: '#065F46', fontWeight: 600 }}>
+            Görüşme konusu (akademisyen bunu görür)
+            <textarea
+              value={konu}
+              onChange={(e) => setKonu(e.target.value)}
+              rows={3}
+              maxLength={400}
+              placeholder="Örn: Bitirme projesi konusu hakkında görüşmek istiyorum."
+              style={{
+                display: 'block',
+                width: '100%',
+                marginTop: 5,
+                padding: '9px 11px',
+                borderRadius: 9,
+                border: '1px solid #A7F3D0',
+                fontSize: 13,
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                boxSizing: 'border-box',
+              }}
+            />
+          </label>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <button
+              onClick={talepEt}
+              disabled={gonderiliyor}
+              style={{
+                padding: '9px 18px',
+                borderRadius: 9,
+                border: 'none',
+                background: gonderiliyor ? '#9CA3AF' : '#059669',
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: gonderiliyor ? 'default' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {gonderiliyor ? 'Gönderiliyor…' : 'Randevu İste'}
+            </button>
+            <button
+              onClick={() => setSlot(null)}
+              style={{
+                padding: '9px 16px',
+                borderRadius: 9,
+                border: '1px solid #A7F3D0',
+                background: '#fff',
+                color: '#047857',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Vazgeç
+            </button>
+          </div>
+        </div>
+      )}
+
+      {uyari && (
+        <div
+          style={{
+            padding: '11px 13px',
+            borderRadius: 9,
+            background: '#FFFBEB',
+            border: '1px solid #FCD34D',
+            color: '#92400E',
+            fontSize: 12.5,
+            lineHeight: 1.6,
+          }}
+        >
+          {uyari}
+        </div>
+      )}
+
+      {/* Kendi taleplerim */}
+      <div>
+        <h4 style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 700, color: '#1B2A4A' }}>
+          Randevularım
+        </h4>
+        {randevularim.length === 0 ? (
+          <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>
+            Henüz randevu talebiniz yok.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {randevularim.map((r) => {
+              const gor = R.durumGorunumu
+                ? R.durumGorunumu(r.durum)
+                : { bg: '#fff', kenar: '#E5E7EB', renk: '#6B7280', etiket: '' };
+              const acikDurum =
+                (metin(r.durum) || 'bekliyor') !== 'iptal' &&
+                (metin(r.durum) || 'bekliyor') !== 'reddedildi';
+              return (
+                <div
+                  key={metin(r.id || r._docId)}
+                  style={{
+                    border: '1px solid ' + gor.kenar,
+                    background: gor.bg,
+                    borderRadius: 10,
+                    padding: '11px 13px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1B2A4A' }}>
+                      {metin(r.akademisyen)}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 800,
+                        color: gor.renk,
+                        border: '1px solid ' + gor.kenar,
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                      }}
+                    >
+                      {gor.etiket}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#374151', marginTop: 5, fontWeight: 600 }}>
+                    {R.tarihMetni ? R.tarihMetni(r.tarih) : metin(r.tarih)} · {metin(r.saat)}
+                  </div>
+                  {metin(r.konu) && (
+                    <p
+                      style={{
+                        margin: '5px 0 0',
+                        fontSize: 11.5,
+                        color: '#6B7280',
+                        lineHeight: 1.55,
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {metin(r.konu)}
+                    </p>
+                  )}
+                  {acikDurum && (
+                    <button
+                      onClick={() => onIptal(r)}
+                      style={{
+                        marginTop: 8,
+                        padding: '5px 12px',
+                        borderRadius: 7,
+                        border: '1px solid #E5E7EB',
+                        background: '#fff',
+                        color: '#6B7280',
+                        fontSize: 11.5,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      Randevuyu iptal et
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
