@@ -25,6 +25,7 @@ const SB_MODULES = [
   { id: 'performans', label: 'Performans', color: '#0D9488' },
   { id: 'akreditasyon', label: 'Akreditasyon', color: '#0F766E' },
   { id: 'anket', label: 'Anketler', color: '#06B6D4' },
+  { id: 'yoklama', label: 'Ders Devam Listesi', color: '#7C3AED' },
 ];
 // ══════════════════════════════════════════════════════════════
 // GÖRÜNÜM BELİRTECLERİ

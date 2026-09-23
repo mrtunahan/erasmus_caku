@@ -711,14 +711,36 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   const dersinOgrencileri = useCallback(
     (dersId) => {
       const k = metin(dersId);
-      return (ogrenciler || [])
-        .filter((o) =>
-          Array.isArray(o.myCourseIds) ? o.myCourseIds.map(String).includes(k) : false
-        )
-        .map((o) => ({
-          studentNumber: metin(o.studentNumber),
-          adSoyad: [o.firstName, o.lastName].filter(Boolean).join(' '),
-        }));
+      return (
+        (ogrenciler || [])
+          .filter((o) =>
+            Array.isArray(o.myCourseIds) ? o.myCourseIds.map(String).includes(k) : false
+          )
+          // ⚠ Devam listesi künyesi ad/soyad/sınıf/cinsiyeti AYRI sütunlarda
+          // istiyor (bkz. lib/yoklama-listesi.js); tek "adSoyad" alanı yetmez.
+          // Sınıf öğrenci kaydında çoğu zaman boştur — numaradan türetilir.
+          .map((o) => {
+            const sinifSonuc = window.ogrenciSinifi ? window.ogrenciSinifi(o) : null;
+            return {
+              studentNumber: metin(o.studentNumber),
+              adSoyad: [o.firstName, o.lastName].filter(Boolean).join(' '),
+              firstName: metin(o.firstName),
+              lastName: metin(o.lastName),
+              sinif:
+                metin(o.sinif) ||
+                (sinifSonuc && sinifSonuc.sinif != null ? String(sinifSonuc.sinif) : ''),
+              cinsiyet: metin(o.cinsiyet || o.gender),
+            };
+          })
+          // Resmî listede sıra soyada göredir; Türkçe sıralama şart (İ/I).
+          .sort(
+            (a, b) =>
+              String(a.lastName || a.adSoyad).localeCompare(
+                String(b.lastName || b.adSoyad),
+                'tr'
+              ) || String(a.adSoyad).localeCompare(String(b.adSoyad), 'tr')
+          )
+      );
     },
     [ogrenciler]
   );
@@ -792,8 +814,16 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     }
   };
 
-  const limitKaydet = async (ders, limitSaat, dersSaati) => {
+  /**
+   * Dersin yoklama ayarları: devamsızlık sınırı + devam listesi düzeni.
+   * ⚠ Hafta sayısı ve dönem başlangıcı da BURADA durur (aynı doküman):
+   * ikisi de "bu dersin dönemi nasıl işliyor" bilgisidir ve devam listesinin
+   * hafta sütunlarını belirler (bkz. lib/yoklama-listesi.js).
+   */
+  const ayarKaydet = async (ders, ayar) => {
     const dersId = metin(ders.id || ders._docId);
+    const a = ayar || {};
+    const YL = window.YoklamaListesi || {};
     try {
       await window.DBWriteGenel(
         'yoklama_ayarlari',
@@ -802,14 +832,16 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           dersId,
           dersKodu: metin(ders.code || ders.kod),
           dersAdi: metin(ders.name || ders.ad),
-          limitSaat: Math.max(0, Number(limitSaat) || 0),
-          dersSaati: Math.max(1, Number(dersSaati) || 1),
+          limitSaat: Math.max(0, Number(a.limitSaat) || 0),
+          dersSaati: Math.max(1, Number(a.dersSaati) || 1),
+          haftaSayisi: YL.haftaSayisiDuzelt ? YL.haftaSayisiDuzelt(a.haftaSayisi) : 14,
+          donemBaslangici: metin(a.donemBaslangici).slice(0, 10),
         },
         true
       );
       setTazele((t) => t + 1);
     } catch (e) {
-      alert('Sınır kaydedilemedi: ' + (e.message || 'bilinmeyen hata'));
+      alert('Yoklama ayarları kaydedilemedi: ' + (e.message || 'bilinmeyen hata'));
     }
   };
 
@@ -872,6 +904,146 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     } catch (e) {
       alert('Cihaz kaydı sıfırlanamadı: ' + (e.message || 'bilinmeyen hata'));
     }
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  // DEVAM (YOKLAMA) LİSTESİ ÇIKTISI
+  //
+  // Dönem sonunda imzaya/arşive giden liste. İKİ YOL, TEK VERİ:
+  //   • Şablonlar modülüne "Ders Devam Listesi" şablonu yüklendiyse belge
+  //     ondan doldurulur (kurumun kendi antetli biçimi).
+  //   • Yüklenmediyse yerleşik yazdırma biçimi açılır — şablon yüklemek
+  //     zorunlu değildir, kimse listesiz kalmaz.
+  // İkisi de lib/yoklama-listesi.js → listeVerisi çıktısını kullanır; biçim
+  // değişir, VERİ değişmez.
+  // ══════════════════════════════════════════════════════════════
+  const fakulteAdlari = window.useFakulteAdlari ? window.useFakulteAdlari() : {};
+
+  /** Bir dersin devam listesi için gereken bütün bağlam. */
+  const listeBaglami = useCallback(
+    (ders) => {
+      const dersId = metin(ders.id || ders._docId);
+      const ayar = yoklamaAyarlari[dersId] || {};
+      const bolumId = metin(ders.departmentId || profil?.departmentId || activeDepartment);
+      const bolum = (bolumler || []).find((b) =>
+        [b.id, b._id, b._docId, b.code].filter(Boolean).map(String).includes(bolumId)
+      );
+      const fakulteAd = window.fakulteBasligi
+        ? window.fakulteBasligi({
+            aktifBolum: bolumId,
+            bolumler: bolumler || [],
+            kullanici: currentUser,
+            fakulteAdlari,
+            varsayilan: window.TENANT?.facultyName || '',
+          })
+        : window.TENANT?.facultyName || '';
+      return {
+        ders: {
+          code: metin(ders.code || ders.kod),
+          name: metin(ders.name || ders.ad),
+          birlesikDers: metin(ders.birlesikDers),
+        },
+        ogrenciler: dersinOgrencileri(dersId),
+        oturumlar: (oturumlar || []).filter((o) => metin(o.dersId) === dersId),
+        kayitlar: (katilimKayitlari || []).filter((k) => metin(k.dersId) === dersId),
+        haftaSayisi: ayar.haftaSayisi,
+        donemBaslangici: ayar.donemBaslangici,
+        limitSaat: ayar.limitSaat,
+        dersSaati: Number(ayar.dersSaati) || Number(ders.saat) || 1,
+        akademikYil: window.akademikYilBul ? window.akademikYilBul(new Date()) : '',
+        donem,
+        ogretimUyesi: [metin(profil?.title), benimAd].filter(Boolean).join(' '),
+        fakulteAd,
+        bolumAd: metin((bolum && (bolum.name || bolum.ad)) || departmentInfo?.name),
+        kurumAd: window.TENANT?.universityName || '',
+        departmentId: bolumId,
+      };
+    },
+    [
+      yoklamaAyarlari,
+      profil,
+      activeDepartment,
+      bolumler,
+      currentUser,
+      fakulteAdlari,
+      dersinOgrencileri,
+      oturumlar,
+      katilimKayitlari,
+      donem,
+      benimAd,
+      departmentInfo,
+    ]
+  );
+
+  /** Ekranda gösterilen önizleme ile indirilen belge AYNI veridir. */
+  const listeVerisi = useCallback(
+    (ders) => {
+      const YL = window.YoklamaListesi;
+      if (!YL || !ders) return null;
+      return YL.listeVerisi(listeBaglami(ders));
+    },
+    [listeBaglami]
+  );
+
+  /** Yerleşik çıktı: yazdırma penceresi (A4 yatay). */
+  const listeYazdir = (ders) => {
+    const veri = listeVerisi(ders);
+    if (!veri) return;
+    const w = window.open('', '_blank');
+    if (!w) {
+      alert('Yazdırma penceresi açılamadı. Tarayıcının açılır pencere engelini kaldırın.');
+      return;
+    }
+    w.document.write(window.YoklamaListesi.devamListesiHTML(veri));
+    w.document.close();
+    setTimeout(() => w.print(), 500);
+  };
+
+  /**
+   * Şablondan Word belgesi. Şablon yoksa ya da eşlemesi yapılmamışsa
+   * SEBEBİ SÖYLENİR ve yerleşik çıktıya düşülür — sessiz başarısızlık yok.
+   */
+  const listeSablondanIndir = async (ders) => {
+    const veri = listeVerisi(ders);
+    if (!veri) return;
+    const TE = window.TemplateEngine;
+    const baglam = listeBaglami(ders);
+    const dosyaAdi =
+      [metin(ders.code || ders.kod) || 'ders', 'devam listesi', baglam.akademikYil]
+        .filter(Boolean)
+        .join(' ')
+        .replace(/[\\/:*?"<>|]/g, '-') + '.docx';
+    if (TE && TE.produceFromTemplate) {
+      const sonuc = await TE.produceFromTemplate({
+        module: 'yoklama',
+        docType: 'devam-listesi',
+        departmentId: baglam.departmentId,
+        staticData: veri.staticData,
+        rows: veri.rows,
+        stripRowBold: true,
+        filename: dosyaAdi,
+      });
+      if (sonuc && sonuc.ok) return;
+      const sebep = sonuc && sonuc.reason;
+      if (sebep === 'no-template') {
+        alert(
+          'Bu bölüm için "Ders Devam Listesi" şablonu yüklenmemiş. Yerleşik çıktı açılıyor.\n\nKurumun kendi antetli biçimini kullanmak için bölüm yetkilisi Şablonlar modülünden .docx yükleyip alanları eşlemelidir.'
+        );
+      } else if (sebep === 'no-mapping') {
+        alert(
+          'Şablon yüklü ama alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp "Alanları Eşle" ile künye ve hafta sütunlarını bağlayın. Şimdilik yerleşik çıktı açılıyor.'
+        );
+      } else if (sebep === 'not-docx') {
+        alert(
+          'Devam listesi şablonu Word (.docx) olmalı. Yüklü dosya başka biçimde; yerleşik çıktı açılıyor.'
+        );
+      } else if (sebep) {
+        alert(
+          'Şablondan belge üretilemedi (' + (sonuc.message || sebep) + '). Yerleşik çıktı açılıyor.'
+        );
+      }
+    }
+    listeYazdir(ders);
   };
 
   const musaitlikDegistir = async (anahtar) => {
@@ -1022,7 +1194,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
       {Pencere && sekme === 'yoklama' && (
         <Pencere
           baslik="Dijital Yoklama"
-          altBaslik="Dersi seçin, karekod tam ekran açılır"
+          altBaslik="Yoklama alın, devam listesini indirin, sınırı belirleyin"
           enCokGenislik={1080}
           onKapat={() => setSekme('genel')}
         >
@@ -1031,9 +1203,13 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
             ayarlar={yoklamaAyarlari}
             oturumlar={oturumlar}
             devamsizlik={dersDevamsizligi}
+            listeVerisi={listeVerisi}
+            baglam={listeBaglami}
             onBaslat={yoklamaBaslat}
-            onLimit={limitKaydet}
+            onAyar={ayarKaydet}
             onCihazSifirla={cihazSifirla}
+            onYazdir={listeYazdir}
+            onSablon={listeSablondanIndir}
           />
         </Pencere>
       )}
@@ -1980,29 +2156,398 @@ function ASBugun({ gun, dersler }) {
 // ══════════════════════════════════════════════════════════════
 // PANEL — Dijital Yoklama
 //
-// Dersi seç → tam ekran karekod. Altında o dersin devamsızlık tablosu:
-// sınırı aşanlar kırmızı alanla işaretli.
+// ÜÇ İŞ VAR, ÜÇÜ BİR EKRANDAYDI. Panel tek uzun kaydırmaydı: karekod
+// düğmesi, sınır kutuları ve devamsızlık tablosu alt alta duruyordu; dönem
+// sonunda imzaya gidecek DEVAM LİSTESİ ise hiç yoktu. Artık önce ders, sonra
+// yapılacak iş seçilir:
+//
+//   Yoklama al    → tam ekran karekod + o dersin devamsızlık tablosu
+//   Devam listesi → hafta sütunlu resmî liste (şablondan ya da yerleşik)
+//   Ayarlar       → devamsızlık sınırı + dönem düzeni (hafta/başlangıç)
+//
+// Liste ekranında görünen tablo ile indirilen belge AYNI veridir
+// (lib/yoklama-listesi.js); "ekranda başka, belgede başka" olamaz.
 // ══════════════════════════════════════════════════════════════
+const AS_YOKLAMA_ISLERI = [
+  { id: 'al', ad: 'Yoklama al' },
+  { id: 'liste', ad: 'Devam listesi' },
+  { id: 'ayar', ad: 'Ayarlar' },
+];
+
+/** Panelin içindeki iş seçimi — sekme şeridinin küçük kardeşi. */
+function ASAltSerit({ isler, aktif, onSec }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 4,
+        padding: 4,
+        borderRadius: 11,
+        background: '#F3F4F6',
+        border: '1px solid #E5E7EB',
+        flexWrap: 'wrap',
+      }}
+    >
+      {isler.map((i) => {
+        const sec = i.id === aktif;
+        return (
+          <button
+            key={i.id}
+            onClick={() => onSec(i.id)}
+            style={{
+              flex: '1 1 120px',
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: 'none',
+              background: sec ? '#fff' : 'transparent',
+              boxShadow: sec ? '0 1px 3px rgba(0,0,0,.12)' : 'none',
+              color: sec ? AS_NAVY : '#6B7280',
+              fontSize: 12.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            {i.ad}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Etiketli sayı/tarih kutusu (ayar ekranı). */
+function ASAlan({ etiket, ipucu, ...giris }) {
+  return (
+    <label style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600, minWidth: 0 }}>
+      {etiket}
+      <input
+        {...giris}
+        style={{
+          display: 'block',
+          width: giris.genislik || 150,
+          marginTop: 4,
+          padding: '8px 10px',
+          borderRadius: 8,
+          border: '1px solid #D1D5DB',
+          fontSize: 13,
+          fontFamily: 'inherit',
+        }}
+      />
+      {ipucu && (
+        <span style={{ display: 'block', fontSize: 10.5, color: '#9CA3AF', marginTop: 3 }}>
+          {ipucu}
+        </span>
+      )}
+    </label>
+  );
+}
+
+/** Küçük sayı rozeti (öğrenci sayısı, alınan yoklama…). */
+function ASRozet({ sayi, etiket, renk }) {
+  return (
+    <div
+      style={{
+        flex: '1 1 110px',
+        padding: '10px 12px',
+        borderRadius: 10,
+        background: '#FAFAFA',
+        border: '1px solid #EEF0F3',
+      }}
+    >
+      <div style={{ fontSize: 18, fontWeight: 800, color: renk || AS_NAVY }}>{sayi}</div>
+      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{etiket}</div>
+    </div>
+  );
+}
+
+/**
+ * Şablon durumu — "yükleyin" demeden önce yüklü mü diye bakar.
+ * 'var' | 'eslemesiz' | 'yok' | 'bilinmiyor'
+ */
+function useSablonDurumu(departmentId) {
+  const [durum, setDurum] = useState('bilinmiyor');
+  useEffect(() => {
+    let iptal = false;
+    let token = '';
+    try {
+      token = localStorage.getItem('caku_auth_token') || '';
+    } catch (_) {
+      token = '';
+    }
+    fetch(
+      '/api/templates/resolve?module=yoklama&docType=devam-listesi&departmentId=' +
+        encodeURIComponent(departmentId || ''),
+      { headers: token ? { Authorization: 'Bearer ' + token } : {}, credentials: 'include' }
+    )
+      .then((r) => r.json())
+      .then((d) => {
+        if (iptal) return;
+        const t = d && d.template;
+        if (!t) setDurum('yok');
+        else if (!(t.fields || []).some((f) => f && f.variable)) setDurum('eslemesiz');
+        else setDurum('var');
+      })
+      .catch(() => {
+        if (!iptal) setDurum('bilinmiyor');
+      });
+    return () => {
+      iptal = true;
+    };
+  }, [departmentId]);
+  return durum;
+}
+
+const AS_SABLON_METNI = {
+  var: {
+    renk: '#065F46',
+    zemin: '#D1FAE5',
+    kenar: '#A7F3D0',
+    metin: 'Şablon yüklü ve eşlenmiş — belge kurumun antetli biçiminde çıkar.',
+  },
+  eslemesiz: {
+    renk: '#92400E',
+    zemin: '#FFFBEB',
+    kenar: '#FDE68A',
+    metin:
+      'Şablon yüklü ama alanları eşlenmemiş. Şablonlar modülünden "Alanları Eşle" yapılana kadar yerleşik çıktı kullanılır.',
+  },
+  yok: {
+    renk: '#475569',
+    zemin: '#F8FAFC',
+    kenar: '#E2E8F0',
+    metin:
+      'Bu bölüm için şablon yüklenmemiş — yerleşik çıktı kullanılır. Kurumun kendi biçimi için bölüm yetkilisi Şablonlar modülünden .docx yükleyebilir.',
+  },
+  bilinmiyor: {
+    renk: '#475569',
+    zemin: '#F8FAFC',
+    kenar: '#E2E8F0',
+    metin: 'Şablon durumu okunamadı; indirme sırasında yeniden denenecek.',
+  },
+};
+
+/** Devam listesi ekranı: özet · uyarılar · önizleme · çıktı düğmeleri. */
+function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
+  const sablon = useSablonDurumu(departmentId);
+  const s = AS_SABLON_METNI[sablon] || AS_SABLON_METNI.bilinmiyor;
+  if (!veri) {
+    return (
+      <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>
+        Liste kuralları yüklenemedi; sayfayı yenileyin.
+      </p>
+    );
+  }
+  const k = veri.staticData || {};
+  const haftalar = veri.haftalar || [];
+  const satirlar = veri.rows || [];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Künye — belgenin başına ne yazılacağı burada görünür */}
+      <div style={AS_KART}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: AS_NAVY }}>{k.baslik}</div>
+        <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4, lineHeight: 1.6 }}>
+          {k.dersKodAd}
+          {k.fakulteAd ? ' · ' + k.fakulteAd : ''}
+          {k.bolumAd ? ' · ' + k.bolumAd : ''}
+          <br />
+          {k.ogretimUyesi} · {k.tarih}
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+          <ASRozet sayi={k.ogrenciSayisi} etiket="öğrenci" />
+          <ASRozet sayi={k.alinanYoklama} etiket="alınan yoklama" renk={AS_GREEN} />
+          <ASRozet sayi={k.haftaSayisi} etiket="hafta sütunu" />
+          <ASRozet
+            sayi={k.devamsizlikSiniri === '' ? '—' : k.devamsizlikSiniri}
+            etiket="devamsızlık sınırı (saat)"
+          />
+        </div>
+      </div>
+
+      {/* Uyarılar: listeyi yanlış okutacak her durum burada YAZILI durur */}
+      {(veri.uyarilar || []).length > 0 && (
+        <div
+          style={{
+            ...AS_KART,
+            background: '#FFFBEB',
+            borderColor: '#FDE68A',
+            color: '#92400E',
+            fontSize: 12,
+            lineHeight: 1.65,
+          }}
+        >
+          {veri.uyarilar.map((u, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8 }}>
+              <span aria-hidden="true">•</span>
+              <span>{u}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Önizleme — indirilen belgenin aynısı */}
+      <div style={{ ...AS_KART, padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 14px', borderBottom: '1px solid #EEF0F3' }}>
+          <h4 style={{ ...AS_BASLIK, fontSize: 13.5, margin: 0 }}>Önizleme</h4>
+          <p style={{ margin: '4px 0 0', fontSize: 11, color: '#9CA3AF' }}>
+            + katıldı · - katılmadı · İ izinli · boş hücre: o hafta yoklama alınmadı
+          </p>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ borderCollapse: 'collapse', fontSize: 11, width: '100%' }}>
+            <thead>
+              <tr>
+                {['No', 'Öğrenci No', 'Adı', 'Soyadı', 'Sınıfı', 'Devam'].map((b) => (
+                  <th key={b} style={AS_TH}>
+                    {b}
+                  </th>
+                ))}
+                {haftalar.map((h) => (
+                  <th key={h.anahtar} style={{ ...AS_TH, minWidth: 34 }}>
+                    {h.no}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {satirlar.length === 0 ? (
+                <tr>
+                  <td colSpan={6 + haftalar.length} style={{ ...AS_TD, color: '#9CA3AF' }}>
+                    Bu derse kayıtlı öğrenci bulunamadı.
+                  </td>
+                </tr>
+              ) : (
+                satirlar.map((r) => (
+                  <tr key={r.ogrenciNo || r.sira}>
+                    <td style={{ ...AS_TD, textAlign: 'center' }}>{r.sira}</td>
+                    <td style={AS_TD}>{r.ogrenciNo}</td>
+                    <td style={AS_TD}>{r.ad}</td>
+                    <td style={AS_TD}>{r.soyad}</td>
+                    <td style={{ ...AS_TD, textAlign: 'center' }}>{r.sinif}</td>
+                    <td
+                      style={{
+                        ...AS_TD,
+                        textAlign: 'center',
+                        color: r.devam === 'Yok' ? '#B91C1C' : '#065F46',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {r.devam}
+                    </td>
+                    {haftalar.map((h) => (
+                      <td key={h.anahtar} style={{ ...AS_TD, textAlign: 'center' }}>
+                        {r[h.anahtar]}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Çıktı */}
+      <div style={AS_KART}>
+        <div
+          style={{
+            padding: '9px 11px',
+            borderRadius: 9,
+            background: s.zemin,
+            border: '1px solid ' + s.kenar,
+            color: s.renk,
+            fontSize: 11.5,
+            lineHeight: 1.6,
+          }}
+        >
+          {s.metin}
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+          <button
+            onClick={() => onSablon(ders)}
+            style={{
+              padding: '11px 18px',
+              borderRadius: 10,
+              border: 'none',
+              background: AS_NAVY,
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Şablondan Word indir
+          </button>
+          <button
+            onClick={() => onYazdir(ders)}
+            style={{
+              padding: '11px 18px',
+              borderRadius: 10,
+              border: '1px solid #D1D5DB',
+              background: '#fff',
+              color: AS_NAVY,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Yazdır (yerleşik biçim)
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const AS_TH = {
+  padding: '7px 8px',
+  borderBottom: '1px solid #E5E7EB',
+  background: '#F8FAFC',
+  color: '#475569',
+  fontSize: 10.5,
+  fontWeight: 700,
+  textAlign: 'left',
+  whiteSpace: 'nowrap',
+};
+const AS_TD = {
+  padding: '6px 8px',
+  borderBottom: '1px solid #F1F2F4',
+  color: '#1F2937',
+  whiteSpace: 'nowrap',
+};
+
 function ASYoklamaPaneli({
   dersler,
   ayarlar,
   oturumlar,
   devamsizlik,
+  listeVerisi,
+  baglam,
   onBaslat,
-  onLimit,
+  onAyar,
   onCihazSifirla,
+  onYazdir,
+  onSablon,
 }) {
   const Y = window.YoklamaKurali || {};
+  const YL = window.YoklamaListesi || {};
   const [secili, setSecili] = useState(() => metin(dersler[0]?.id || dersler[0]?._docId));
+  const [is, setIs] = useState('al');
   const ders = dersler.find((d) => metin(d.id || d._docId) === secili) || null;
-  const ayar = ders ? ayarlar[metin(ders.id || ders._docId)] || {} : {};
-  const [limit, setLimit] = useState(String(ayar.limitSaat ?? ''));
-  const [dersSaati, setDersSaati] = useState(String(ayar.dersSaati ?? 1));
+  const [limit, setLimit] = useState('');
+  const [dersSaati, setDersSaati] = useState('1');
+  const [hafta, setHafta] = useState('');
+  const [baslangic, setBaslangic] = useState('');
 
   useEffect(() => {
     const a = ders ? ayarlar[metin(ders.id || ders._docId)] || {} : {};
     setLimit(String(a.limitSaat ?? ''));
     setDersSaati(String(a.dersSaati ?? ders?.saat ?? 1));
+    setHafta(String(a.haftaSayisi ?? ''));
+    setBaslangic(metin(a.donemBaslangici));
   }, [secili, ders, ayarlar]);
 
   const satirlar = ders ? devamsizlik(ders) : [];
@@ -2010,6 +2555,8 @@ function ASYoklamaPaneli({
     ? oturumlar.filter((o) => metin(o.dersId) === metin(ders.id || ders._docId) && !o.acik)
     : [];
   const asanlar = satirlar.filter((s) => s.durum && s.durum.asildi);
+  const veri = ders && listeVerisi ? listeVerisi(ders) : null;
+  const dersBaglami = ders && baglam ? baglam(ders) : null;
 
   if (dersler.length === 0) {
     return (
@@ -2021,8 +2568,8 @@ function ASYoklamaPaneli({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Ders seçimi */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* 1) Ders seçimi */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {dersler.map((d) => {
           const id = metin(d.id || d._docId);
@@ -2031,6 +2578,7 @@ function ASYoklamaPaneli({
             <button
               key={id}
               onClick={() => setSecili(id)}
+              title={metin(d.name || d.ad)}
               style={{
                 padding: '8px 14px',
                 borderRadius: 10,
@@ -2051,106 +2599,262 @@ function ASYoklamaPaneli({
 
       {ders && (
         <>
-          <div
-            style={{
-              ...AS_KART,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 14,
-              flexWrap: 'wrap',
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: AS_NAVY }}>
-                {metin(ders.name || ders.ad)}
-              </div>
-              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
-                {satirlar.length} öğrenci · {gecmis.length} yoklama alındı
-              </div>
-            </div>
-            <button
-              onClick={() => onBaslat(ders)}
-              style={{
-                padding: '11px 20px',
-                borderRadius: 11,
-                border: 'none',
-                background: AS_GREEN,
-                color: '#fff',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <svg
-                width="17"
-                height="17"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="3" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" />
-                <path d="M14 14h3v3h-3zM18 18h3v3h-3z" />
-              </svg>
-              Tam ekran karekodu aç
-            </button>
-          </div>
+          {/* 2) Ne yapılacak? */}
+          <ASAltSerit isler={AS_YOKLAMA_ISLERI} aktif={is} onSec={setIs} />
 
-          {/* Devamsızlık sınırı */}
-          <div style={AS_KART}>
-            <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 10 }}>Devamsızlık sınırı</h4>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <label style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600 }}>
-                Hak (saat)
-                <input
+          {is === 'al' && (
+            <>
+              <div
+                style={{
+                  ...AS_KART,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 14,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: AS_NAVY }}>
+                    {metin(ders.name || ders.ad)}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
+                    {satirlar.length} öğrenci · {gecmis.length} yoklama alındı
+                  </div>
+                </div>
+                <button
+                  onClick={() => onBaslat(ders)}
+                  style={{
+                    padding: '11px 20px',
+                    borderRadius: 11,
+                    border: 'none',
+                    background: AS_GREEN,
+                    color: '#fff',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <svg
+                    width="17"
+                    height="17"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                    <path d="M14 14h3v3h-3zM18 18h3v3h-3z" />
+                  </svg>
+                  Tam ekran karekodu aç
+                </button>
+              </div>
+
+              {/* Devamsızlık tablosu */}
+              <div style={AS_KART}>
+                <h4
+                  style={{
+                    ...AS_BASLIK,
+                    fontSize: 14,
+                    marginBottom: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  Devamsızlık durumu
+                  {asanlar.length > 0 && (
+                    <span
+                      style={{
+                        marginLeft: 'auto',
+                        padding: '2px 9px',
+                        borderRadius: 999,
+                        background: '#FEE2E2',
+                        color: '#B91C1C',
+                        fontSize: 11.5,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {asanlar.length} öğrenci sınırı aştı
+                    </span>
+                  )}
+                </h4>
+
+                {satirlar.length === 0 ? (
+                  <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>
+                    Bu derse kayıtlı öğrenci bulunamadı.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {satirlar.map((s) => {
+                      const d = s.durum || {};
+                      const renk = Y.devamsizlikRengi ? Y.devamsizlikRengi(d.durum) : '#6B7280';
+                      const kirmizi = d.asildi;
+                      return (
+                        <div
+                          key={s.studentNumber}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            padding: '9px 12px',
+                            borderRadius: 9,
+                            // ⚠ Sınırı aşan öğrenci kırmızı alanla ayrılır:
+                            // listeyi tarayıp hesap yapmak zorunda kalmasın.
+                            background: kirmizi ? '#FEF2F2' : '#FAFAFA',
+                            border: '1px solid ' + (kirmizi ? '#FCA5A5' : '#EEF0F3'),
+                          }}
+                        >
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span
+                              style={{
+                                display: 'block',
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: kirmizi ? '#B91C1C' : AS_NAVY,
+                              }}
+                            >
+                              {s.adSoyad || s.studentNumber}
+                            </span>
+                            <span style={{ display: 'block', fontSize: 11, color: '#9CA3AF' }}>
+                              {s.studentNumber}
+                              {/* ⚠ CİHAZ BAĞLAMA BU DÜĞME OLMADAN BİR TUZAKTIR:
+                                  telefonu bozulan ya da kotasını tüketen öğrenci
+                                  dönem boyunca yoklama veremez hâle gelir. */}
+                              {' · '}
+                              <button
+                                onClick={() => onCihazSifirla(s.studentNumber, s.adSoyad)}
+                                title="Öğrenci telefon değiştirdiyse ya da cihaz hakkı dolduysa sıfırlayın"
+                                style={{
+                                  padding: 0,
+                                  border: 'none',
+                                  background: 'none',
+                                  color: '#2563EB',
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  fontFamily: 'inherit',
+                                  textDecoration: 'underline',
+                                }}
+                              >
+                                cihazı sıfırla
+                              </button>
+                            </span>
+                          </span>
+                          <span style={{ width: 120, flexShrink: 0 }}>
+                            <span
+                              style={{
+                                display: 'block',
+                                height: 6,
+                                borderRadius: 999,
+                                background: '#E5E7EB',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: 'block',
+                                  height: '100%',
+                                  width: Math.round((d.oran || 0) * 100) + '%',
+                                  background: renk,
+                                }}
+                              />
+                            </span>
+                            <span
+                              style={{
+                                display: 'block',
+                                fontSize: 10.5,
+                                color: renk,
+                                fontWeight: 700,
+                                marginTop: 4,
+                                textAlign: 'right',
+                              }}
+                            >
+                              {d.kacirilanSaat || 0}
+                              {d.limitSaat ? ' / ' + d.limitSaat : ''} saat
+                            </span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {is === 'liste' && (
+            <ASDevamListesi
+              ders={ders}
+              veri={veri}
+              departmentId={dersBaglami ? dersBaglami.departmentId : ''}
+              onYazdir={onYazdir}
+              onSablon={onSablon}
+            />
+          )}
+
+          {is === 'ayar' && (
+            <div style={AS_KART}>
+              <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>
+                {metin(ders.code || ders.kod)} — yoklama ayarları
+              </h4>
+              <p style={{ margin: '0 0 12px', fontSize: 11.5, color: '#9CA3AF', lineHeight: 1.6 }}>
+                Ayarlar yalnız bu ders içindir. Sınır öğrencinin kendi sayfasındaki &quot;kalan
+                hak&quot; çubuğunu, hafta düzeni ise devam listesinin sütunlarını belirler.
+              </p>
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <ASAlan
+                  etiket="Devamsızlık hakkı (saat)"
+                  ipucu="Boş bırakılırsa Var/Yok kararı verilmez"
                   type="number"
                   min="0"
                   value={limit}
                   onChange={(e) => setLimit(e.target.value)}
-                  style={{
-                    display: 'block',
-                    width: 110,
-                    marginTop: 4,
-                    padding: '8px 10px',
-                    borderRadius: 8,
-                    border: '1px solid #D1D5DB',
-                    fontSize: 13,
-                    fontFamily: 'inherit',
-                  }}
                 />
-              </label>
-              <label style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600 }}>
-                Haftalık ders saati
-                <input
+                <ASAlan
+                  etiket="Haftalık ders saati"
+                  ipucu="Bir yoklama = bu kadar saat"
                   type="number"
                   min="1"
                   value={dersSaati}
                   onChange={(e) => setDersSaati(e.target.value)}
-                  style={{
-                    display: 'block',
-                    width: 140,
-                    marginTop: 4,
-                    padding: '8px 10px',
-                    borderRadius: 8,
-                    border: '1px solid #D1D5DB',
-                    fontSize: 13,
-                    fontFamily: 'inherit',
-                  }}
                 />
-              </label>
+                <ASAlan
+                  etiket="Dönem hafta sayısı"
+                  ipucu={'Listedeki hafta sütunu sayısı (en çok ' + (YL.HAFTA_SINIRI || 20) + ')'}
+                  type="number"
+                  min="1"
+                  max={YL.HAFTA_SINIRI || 20}
+                  value={hafta}
+                  onChange={(e) => setHafta(e.target.value)}
+                />
+                <ASAlan
+                  etiket="Dönem başlangıcı"
+                  ipucu="Yoklamalar bu tarihe göre haftalara düşer"
+                  type="date"
+                  value={baslangic}
+                  onChange={(e) => setBaslangic(e.target.value)}
+                />
+              </div>
               <button
-                onClick={() => onLimit(ders, limit, dersSaati)}
+                onClick={() =>
+                  onAyar(ders, {
+                    limitSaat: limit,
+                    dersSaati,
+                    haftaSayisi: hafta,
+                    donemBaslangici: baslangic,
+                  })
+                }
                 style={{
-                  padding: '9px 16px',
+                  marginTop: 14,
+                  padding: '9px 18px',
                   borderRadius: 9,
                   border: 'none',
                   background: AS_NAVY,
@@ -2163,134 +2867,12 @@ function ASYoklamaPaneli({
               >
                 Kaydet
               </button>
-            </div>
-            <p style={{ margin: '10px 0 0', fontSize: 11.5, color: '#9CA3AF', lineHeight: 1.6 }}>
-              Sınırı her ders için ayrı belirlersiniz. Öğrenci kendi sayfasında kalan hakkını görür.
-              Sınır boş bırakılırsa sayı görünür ama &quot;kaldı&quot; kararı verilmez.
-            </p>
-          </div>
-
-          {/* Devamsızlık tablosu */}
-          <div style={AS_KART}>
-            <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 10 }}>
-              Devamsızlık durumu
-              {asanlar.length > 0 && (
-                <span
-                  style={{
-                    marginLeft: 'auto',
-                    padding: '2px 9px',
-                    borderRadius: 999,
-                    background: '#FEE2E2',
-                    color: '#B91C1C',
-                    fontSize: 11.5,
-                    fontWeight: 800,
-                  }}
-                >
-                  {asanlar.length} öğrenci sınırı aştı
-                </span>
-              )}
-            </h4>
-
-            {satirlar.length === 0 ? (
-              <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>
-                Bu derse kayıtlı öğrenci bulunamadı.
+              <p style={{ margin: '12px 0 0', fontSize: 11.5, color: '#9CA3AF', lineHeight: 1.6 }}>
+                Dönem başlangıcı girilmezse hafta sütunları yoklama sırasına göre numaralanır; ara
+                tatil varsa sütunlar kayabilir. Doğru hizalama için başlangıç tarihini girin.
               </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {satirlar.map((s) => {
-                  const d = s.durum || {};
-                  const renk = Y.devamsizlikRengi ? Y.devamsizlikRengi(d.durum) : '#6B7280';
-                  const kirmizi = d.asildi;
-                  return (
-                    <div
-                      key={s.studentNumber}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        padding: '9px 12px',
-                        borderRadius: 9,
-                        // ⚠ Sınırı aşan öğrenci kırmızı alanla ayrılır:
-                        // listeyi tarayıp hesap yapmak zorunda kalmasın.
-                        background: kirmizi ? '#FEF2F2' : '#FAFAFA',
-                        border: '1px solid ' + (kirmizi ? '#FCA5A5' : '#EEF0F3'),
-                      }}
-                    >
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span
-                          style={{
-                            display: 'block',
-                            fontSize: 13,
-                            fontWeight: 700,
-                            color: kirmizi ? '#B91C1C' : AS_NAVY,
-                          }}
-                        >
-                          {s.adSoyad || s.studentNumber}
-                        </span>
-                        <span style={{ display: 'block', fontSize: 11, color: '#9CA3AF' }}>
-                          {s.studentNumber}
-                          {/* ⚠ CİHAZ BAĞLAMA BU DÜĞME OLMADAN BİR TUZAKTIR:
-                              telefonu bozulan ya da kotasını tüketen öğrenci
-                              dönem boyunca yoklama veremez hâle gelir. */}
-                          {' · '}
-                          <button
-                            onClick={() => onCihazSifirla(s.studentNumber, s.adSoyad)}
-                            title="Öğrenci telefon değiştirdiyse ya da cihaz hakkı dolduysa sıfırlayın"
-                            style={{
-                              padding: 0,
-                              border: 'none',
-                              background: 'none',
-                              color: '#2563EB',
-                              fontSize: 11,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              fontFamily: 'inherit',
-                              textDecoration: 'underline',
-                            }}
-                          >
-                            cihazı sıfırla
-                          </button>
-                        </span>
-                      </span>
-                      <span style={{ width: 120, flexShrink: 0 }}>
-                        <span
-                          style={{
-                            display: 'block',
-                            height: 6,
-                            borderRadius: 999,
-                            background: '#E5E7EB',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: 'block',
-                              height: '100%',
-                              width: Math.round((d.oran || 0) * 100) + '%',
-                              background: renk,
-                            }}
-                          />
-                        </span>
-                        <span
-                          style={{
-                            display: 'block',
-                            fontSize: 10.5,
-                            color: renk,
-                            fontWeight: 700,
-                            marginTop: 4,
-                            textAlign: 'right',
-                          }}
-                        >
-                          {d.kacirilanSaat || 0}
-                          {d.limitSaat ? ' / ' + d.limitSaat : ''} saat
-                        </span>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </>
       )}
     </div>
