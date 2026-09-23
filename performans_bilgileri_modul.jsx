@@ -9,7 +9,6 @@ import {
   varsayilanGorunum,
 } from './lib/performans-gorunum.js';
 import {
-  bolumKapsamiCozuldu,
   fakulteKapsamiCozuldu,
   fakulteyeGirenAkademisyenler,
   gonderimAnahtari,
@@ -17,8 +16,8 @@ import {
   gonderimOzetMetni,
   gonderimVarMi,
   gorunurAkademisyenler,
+  kapsamBolumleri,
   kapsamOzetMetni,
-  secilebilirBolumler,
   veriKapsami,
 } from './lib/performans-kapsam.js';
 
@@ -208,6 +207,11 @@ export default function PerformansBilgileri({
 }) {
   // Akademisyen listesi (API'den yüklenir)
   const [akademisyenlerList, setAkademisyenlerList] = useState([]);
+  // ⚠ BÖLÜM LİSTESİ AKADEMİSYENLERDEN TÜRETİLEMEZ. Henüz akademisyen kaydı
+  // girilmemiş bir bölüm (ör. İstatistik) seçim listesinde hiç görünmüyordu;
+  // "bölüm yok" ile "bölümde veri yok" birbirine karışıyordu. Org yapısı
+  // ayrı tutulur. [{ id, ad, fakulteId, fakulteAdi }]
+  const [bolumKayitlari, setBolumKayitlari] = useState([]);
   const [loadingAkad, setLoadingAkad] = useState(true);
 
   // ── YETKİ MANTIĞI ──
@@ -566,6 +570,20 @@ export default function PerformansBilgileri({
           const id = f._docId || f.id || (f._id && f._id.toString());
           if (id) facById[id] = f.name || id;
         });
+        // Org yapısı: bölümler (akademisyeni olsun olmasın hepsi)
+        setBolumKayitlari(
+          (Array.isArray(depts) ? depts : [])
+            .map((d) => {
+              const id = d._docId || d.id || (d._id && d._id.toString()) || '';
+              return {
+                id: String(id),
+                ad: d.name || String(id),
+                fakulteId: String(d.facultyId || ''),
+                fakulteAdi: facById[d.facultyId] || '',
+              };
+            })
+            .filter((d) => d.id || d.ad)
+        );
         const list = (Array.isArray(profs) ? profs : [])
           .map((p) => {
             const dep = deptById[p.departmentId];
@@ -599,14 +617,9 @@ export default function PerformansBilgileri({
 
   // Uyumlu referanslar
   const AKADEMISYENLER = akademisyenlerList;
-  const BOLUMLER = useMemo(
-    () => [...new Set(akademisyenlerList.map((a) => a.bolum))].filter(Boolean),
-    [akademisyenlerList]
-  );
-  const FAKULTELER = useMemo(
-    () => [...new Set(akademisyenlerList.map((a) => a.fakulte))].filter(Boolean),
-    [akademisyenlerList]
-  );
+  // ⚠ BOLUMLER/FAKULTELER kaldırıldı: ikisi de akademisyen listesinden
+  // türetiliyordu ve akademisyen kaydı olmayan bölüm/fakülte hiç
+  // görünmüyordu. Org yapısı `bolumKayitlari`nda (departments) duruyor.
 
   // Giriş yapan akademisyeni bul (professor rolü için)
   const TITLES = [
@@ -699,6 +712,7 @@ export default function PerformansBilgileri({
       veriKapsami({
         profil: matchedAkademisyen,
         departmentId: currentUser?.departmentId || activeDepartment,
+        fakulteId: currentUser?.facultyId || '',
         dept: capDept,
         faculty: capFaculty,
         uni: isUniAdmin,
@@ -736,29 +750,14 @@ export default function PerformansBilgileri({
     setElleSecildi(true);
     setActiveView(hedef);
   };
-  // ── GÖMÜLÜ KİPTE KAPSAM SEÇİMİ ──
-  // Akademisyen kendi verisini girer; bölüm yetkilisi kendi bölümünün
-  // özetini, fakülte yetkilisi kendi fakültesinin GÖNDERİLMİŞ toplamını da
-  // buradan görebilmeli — ayrı bir modüle gitmesin. Kapsamı çözülemeyen
-  // görünüm hiç sunulmaz (yanlış fakültenin verisini göstermektense
-  // sekmeyi hiç açmamak doğru).
-  const gomuluGorunumler = useMemo(() => {
-    if (!gomulu) return [];
-    const liste = [];
-    if (capOwn) liste.push({ id: 'own', ad: 'Verilerim' });
-    if (capDept && bolumKapsamiCozuldu(kapsam)) liste.push({ id: 'dept', ad: 'Bölümüm' });
-    if (capFaculty && fakulteKapsamiCozuldu(kapsam)) liste.push({ id: 'faculty', ad: 'Fakültem' });
-    return liste;
-  }, [gomulu, capOwn, capDept, capFaculty, kapsam]);
-
   useEffect(() => {
-    // Gömülü kipte görünüm yalnız bu sekmenin kapsamları arasında gezinir;
-    // modülün genel düzeltmesi onu buradan çıkarırdı.
+    // ⚠ GÖMÜLÜ KİPTE YALNIZ "VERİLERİM" VAR.
+    // Akademisyenin "Benim Sayfam → Veri Girişi" sekmesi bir GİRİŞ ekranıdır:
+    // kişi kendi göstergelerini girer, değerler oradan performans modülüne
+    // akar ve yetkili bölüm/fakülte özetini ORADA görür. Bölüm ve fakülte
+    // özetini buraya da koymak aynı raporu iki ayrı yerde tutmak olurdu.
     if (gomulu) {
-      if (gomuluGorunumler.length === 0) return;
-      if (!gomuluGorunumler.some((g) => g.id === activeView)) {
-        setActiveView(gomuluGorunumler[0].id);
-      }
+      if (activeView !== VERI_GIRISI_GORUNUMU) setActiveView(VERI_GIRISI_GORUNUMU);
       return;
     }
     // Kapalı bir görünümde kalınmaz; düzeltme AYNI BÖLÜMDE kalmaya çalışır —
@@ -766,7 +765,7 @@ export default function PerformansBilgileri({
     // ekrana değil, "Stratejik Plan / Bölümüm"e iner.
     const hedef = elleSecildi ? gorunumDuzelt(activeView, yetkiler) : varsayilanGorunum(yetkiler);
     if (hedef && hedef !== activeView) setActiveView(hedef);
-  }, [gomulu, gomuluGorunumler, yetkiler, activeView, elleSecildi]);
+  }, [gomulu, yetkiler, activeView, elleSecildi]);
 
   const gezinme = useMemo(() => gezinmeDurumu(activeView, yetkiler), [activeView, yetkiler]);
 
@@ -779,9 +778,10 @@ export default function PerformansBilgileri({
   // geçmek o bölümün verisini görmek demekti. Kapsam artık kişinin KENDİ
   // kaydından gelir. Yalnız fakülte/üniversite yetkilisi bölüm seçebilir ve
   // seçebildikleri de kendi kapsamlarıyla sınırlıdır.
+  // Org yapısından; akademisyeni olmayan bölüm de listede durur.
   const secilebilirler = useMemo(
-    () => secilebilirBolumler(AKADEMISYENLER, kapsam),
-    [AKADEMISYENLER, kapsam]
+    () => kapsamBolumleri(bolumKayitlari, kapsam),
+    [bolumKayitlari, kapsam]
   );
   const deptForSummary = useMemo(() => {
     if (!kapsam.uni && !kapsam.faculty) return kapsam.departmentId;
@@ -818,6 +818,37 @@ export default function PerformansBilgileri({
     () => (capFaculty ? secilebilirler.map((b) => b.ad).filter(Boolean) : []),
     [capFaculty, secilebilirler]
   );
+
+  // Bölüm seçici — yalnız fakülte/üniversite yetkilisinde ve yalnız kendi
+  // kapsamındaki bölümler. Liste org yapısından geldiği için akademisyeni
+  // olmayan bölüm de seçilebilir.
+  const bolumSecici =
+    isFacMgr || isUniAdmin ? (
+      <select
+        value={selectedBolum}
+        onChange={(e) => setSelectedBolum(e.target.value)}
+        aria-label="Bölüm"
+        style={{
+          padding: '6px 11px',
+          borderRadius: 7,
+          border: `1px solid ${C.border}`,
+          background: C.surfaceAlt,
+          color: C.accent,
+          fontSize: 12.5,
+          fontWeight: 700,
+          fontFamily: F,
+          outline: 'none',
+          cursor: 'pointer',
+          maxWidth: 240,
+        }}
+      >
+        {fakulteBolumleri.map((b) => (
+          <option key={b} value={b}>
+            {b}
+          </option>
+        ))}
+      </select>
+    ) : null;
 
   // Fakülte scope id'si — fakülte adı stabil bir kimlik olarak kullanılır.
   // Faculty yetkilisi/üniversite yetkilisi kendi fakültesi için kural belirler.
@@ -960,45 +991,6 @@ export default function PerformansBilgileri({
         </div>
       )}
 
-      {/* ── Gömülü kipte kapsam seçimi ── */}
-      {gomulu && gomuluGorunumler.length > 1 && (
-        <div
-          style={{
-            display: 'inline-flex',
-            padding: 3,
-            borderRadius: 10,
-            background: '#F3F4F6',
-            gap: 2,
-            margin: '0 0 14px',
-            flexWrap: 'wrap',
-          }}
-        >
-          {gomuluGorunumler.map((g) => {
-            const on = activeView === g.id;
-            return (
-              <button
-                key={g.id}
-                onClick={() => setActiveView(g.id)}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: on ? '#fff' : 'transparent',
-                  color: on ? '#1B2A4A' : '#6B7280',
-                  fontSize: 12.5,
-                  fontWeight: on ? 700 : 600,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  boxShadow: on ? '0 1px 2px rgba(16,24,40,0.1)' : 'none',
-                }}
-              >
-                {g.ad}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
       {/* ── Gezinme: iki boyut, iki satır (bkz. PerformansGezinme) ── */}
       {!gomulu && (
         <PerformansGezinme
@@ -1078,76 +1070,31 @@ export default function PerformansBilgileri({
           </div>
         ) : (
           <div>
-            {/* ── Bağlam: yıl + bölüm + o ekranın ne yaptığı, TEK şeritte ──
-                Eskiden yıl kutusu, bölüm kutusu ve bilgi çubuğu üst üste üç
-                ayrı kutuydu; veriye inmeden ekranın yarısı doluyordu. */}
-            <BaglamCubugu
-              yil={selectedYil}
-              setYil={setSelectedYil}
-              bolumSecici={
-                // Bölüm seçimi hem gösterge özetini hem stratejik plan
-                // bölüm izlemesini besliyor (ikisi de `deptForSummary`
-                // kullanıyor); eskiden yalnız gösterge ekranında çiziliyordu
-                // ve fakülte yetkilisi stratejik planda bölüm değiştiremiyordu.
-                (activeView === 'dept' || activeView === 'strateji') && (isFacMgr || isUniAdmin) ? (
-                  <select
-                    value={selectedBolum}
-                    onChange={(e) => setSelectedBolum(e.target.value)}
-                    style={{
-                      padding: '6px 11px',
-                      borderRadius: 7,
-                      border: `1px solid ${C.border}`,
-                      background: C.surfaceAlt,
-                      color: C.accent,
-                      fontSize: 12.5,
-                      fontWeight: 700,
-                      fontFamily: F,
-                      outline: 'none',
-                      cursor: 'pointer',
-                      maxWidth: 260,
-                    }}
-                  >
-                    {/* Fakülte yetkilisi yalnız kendi fakültesinin bölümlerini
-                        görür; tüm bölümlere (BOLUMLER) düşüş yalnız üni
-                        yetkilisi içindir. */}
-                    {(fakulteBolumleri.length
-                      ? fakulteBolumleri
-                      : isUniAdmin
-                        ? BOLUMLER
-                        : fakulteBolumleri
-                    ).map((b) => (
-                      <option key={b} value={b}>
-                        {b}
-                      </option>
-                    ))}
-                  </select>
-                ) : null
-              }
-              aciklama={GORUNUM_ACIKLAMA[activeView] || ''}
-            />
-
             {/* ── VERİLERİM: kullanıcı sistemde akademisyense değer girer ── */}
             {activeView === 'own' && (
               <>
-                <Hdr
-                  title="Gösterge Verilerini Girin"
-                  sub={`${currentAkad?.ad} — ${currentAkad?.bolum} • ${selectedYil} yılı`}
+                <EkranUstu
+                  baslik="Gösterge Verilerini Girin"
+                  altBaslik={`${currentAkad?.ad || ''}${currentAkad?.bolum ? ' — ' + currentAkad.bolum : ''}`}
+                  yil={selectedYil}
+                  setYil={setSelectedYil}
+                  aciklama={kapsamOzetMetni(kapsam, 'own') + ' ' + (GORUNUM_ACIKLAMA.own || '')}
+                  eylemler={
+                    capDept ? (
+                      <AddQuestionBar
+                        show={showAddQ}
+                        setShow={setShowAddQ}
+                        newQ={newQ}
+                        setNewQ={setNewQ}
+                        saving={savingQ}
+                        onAdd={addQuestion}
+                        categories={mergedGostergeler}
+                        isEdit={!!editQId}
+                        onCancel={cancelQuestion}
+                      />
+                    ) : null
+                  }
                 />
-                <KapsamSeridi metin={kapsamOzetMetni(kapsam, 'own')} />
-                {/* Yeni gösterge yalnızca bölüm/fakülte yetkilisi ekleyebilir */}
-                {capDept && (
-                  <AddQuestionBar
-                    show={showAddQ}
-                    setShow={setShowAddQ}
-                    newQ={newQ}
-                    setNewQ={setNewQ}
-                    saving={savingQ}
-                    onAdd={addQuestion}
-                    categories={mergedGostergeler}
-                    isEdit={!!editQId}
-                    onCancel={cancelQuestion}
-                  />
-                )}
 
                 <ScrollWrap>
                   {/* Tüm kategoriler TEK tabloda: ay başlığı bir kez yazılır. */}
@@ -1181,55 +1128,63 @@ export default function PerformansBilgileri({
             {/* ── BÖLÜM ÖZETİ ── */}
             {activeView === 'dept' && (
               <>
-                <Hdr
-                  title="Bölüm Gösterge Özeti"
-                  sub={`${departmentInfo?.name || selectedBolum || bolumAkademisyenleri[0]?.bolum || ''} — ${selectedYil} yılı`}
+                <EkranUstu
+                  baslik="Bölüm Gösterge Özeti"
+                  altBaslik={
+                    secilebilirler.find((b) => b.id === deptForSummary)?.ad ||
+                    departmentInfo?.name ||
+                    selectedBolum ||
+                    ''
+                  }
+                  yil={selectedYil}
+                  setYil={setSelectedYil}
+                  bolumSecici={bolumSecici}
+                  aciklama={kapsamOzetMetni(kapsam, 'dept') + ' ' + (GORUNUM_ACIKLAMA.dept || '')}
+                  durum={
+                    /* ⚠ Bölüm "gönderdim" demeden değerleri fakülte toplamına
+                       GİRMEZ. Ay içinde eksik rakamlarla çalışan bölümün yarım
+                       verisi fakülte raporunu sessizce bozardı. */
+                    capDept && deptForSummary ? (
+                      <GonderimSeridi
+                        gonderilmis={gonderimVarMi(gonderimler, deptForSummary, selectedYil)}
+                        kayit={gonderimler.find(
+                          (g) => g && g.id === gonderimAnahtari(deptForSummary, selectedYil)
+                        )}
+                        yil={selectedYil}
+                        gonderiliyor={gonderiliyor}
+                        onGonder={fakulteyeGonder}
+                      />
+                    ) : null
+                  }
+                  eylemler={
+                    capDept ? (
+                      <>
+                        <AddQuestionBar
+                          show={showAddQ}
+                          setShow={setShowAddQ}
+                          newQ={newQ}
+                          setNewQ={setNewQ}
+                          saving={savingQ}
+                          onAdd={addQuestion}
+                          categories={mergedGostergeler}
+                          isEdit={!!editQId}
+                          onCancel={cancelQuestion}
+                        />
+                        <UcAylikCiktiBar
+                          scope="dept"
+                          deptId={deptForSummary}
+                          deptName={
+                            departmentInfo?.name || selectedBolum || bolumAkademisyenleri[0]?.bolum
+                          }
+                          yil={selectedYil}
+                          academicianIds={bolumAkademisyenleri.map((a) => a.id)}
+                          gostergeler={allGostergeFlat}
+                          akademisyenData={akademisyenData}
+                        />
+                      </>
+                    ) : null
+                  }
                 />
-                <KapsamSeridi metin={kapsamOzetMetni(kapsam, 'dept')} />
-                {/* ── Fakülteye gönderim ──
-                    ⚠ Bölüm "gönderdim" demeden değerleri fakülte toplamına
-                    GİRMEZ. Ay içinde eksik rakamlarla çalışan bölümün yarım
-                    verisi fakülte raporunu sessizce bozardı. */}
-                {capDept && deptForSummary && (
-                  <GonderimSeridi
-                    gonderilmis={gonderimVarMi(gonderimler, deptForSummary, selectedYil)}
-                    kayit={gonderimler.find(
-                      (g) => g && g.id === gonderimAnahtari(deptForSummary, selectedYil)
-                    )}
-                    yil={selectedYil}
-                    gonderiliyor={gonderiliyor}
-                    onGonder={fakulteyeGonder}
-                  />
-                )}
-                {/* Yeni gösterge yalnızca bölüm/fakülte yetkilisi ekleyebilir */}
-                {capDept && (
-                  <AddQuestionBar
-                    show={showAddQ}
-                    setShow={setShowAddQ}
-                    newQ={newQ}
-                    setNewQ={setNewQ}
-                    saving={savingQ}
-                    onAdd={addQuestion}
-                    categories={mergedGostergeler}
-                    isEdit={!!editQId}
-                    onCancel={cancelQuestion}
-                  />
-                )}
-
-                {/* Üç aylık gösterge çıktısı — bölüm kapsamı */}
-                {capDept && (
-                  <UcAylikCiktiBar
-                    scope="dept"
-                    deptId={deptForSummary}
-                    deptName={
-                      departmentInfo?.name || selectedBolum || bolumAkademisyenleri[0]?.bolum
-                    }
-                    yil={selectedYil}
-                    academicianIds={bolumAkademisyenleri.map((a) => a.id)}
-                    gostergeler={allGostergeFlat}
-                    akademisyenData={akademisyenData}
-                  />
-                )}
 
                 {/* Akademisyen bazlı detay */}
                 <ScrollWrap>
@@ -1407,25 +1362,32 @@ export default function PerformansBilgileri({
             {/* ── FAKÜLTE ÖZETİ ── */}
             {activeView === 'faculty' && (
               <>
-                <Hdr
-                  title="Fakülte Genel Toplam"
-                  sub={`Bölümlerin gönderdiği değerlerin toplamı — ${selectedYil} yılı`}
-                />
-                <KapsamSeridi metin={kapsamOzetMetni(kapsam, 'faculty')} />
-                {/* ⚠ Toplamın NEYİ kapsadığı görünmeden ona güvenilemez:
-                    hangi bölüm gönderdi, hangisi toplama girmedi. */}
-                <GonderimDurumSeridi
-                  durum={gonderimDurumu(AKADEMISYENLER, kapsam, gonderimler, selectedYil)}
-                />
-                {/* Üç aylık gösterge çıktısı — fakülte kapsamı */}
-                <UcAylikCiktiBar
-                  scope="faculty"
-                  deptId=""
-                  deptName={isUniAdmin ? 'Universite' : userFacultyName}
+                <EkranUstu
+                  baslik="Fakülte Genel Toplam"
+                  altBaslik={isUniAdmin ? 'Üniversite geneli' : userFacultyName}
                   yil={selectedYil}
-                  academicianIds={facultyAkademisyenIds}
-                  gostergeler={allGostergeFlat}
-                  akademisyenData={akademisyenData}
+                  setYil={setSelectedYil}
+                  aciklama={
+                    kapsamOzetMetni(kapsam, 'faculty') + ' ' + (GORUNUM_ACIKLAMA.faculty || '')
+                  }
+                  durum={
+                    /* ⚠ Toplamın NEYİ kapsadığı görünmeden ona güvenilemez:
+                       hangi bölüm gönderdi, hangisi toplama girmedi. */
+                    <GonderimDurumSeridi
+                      durum={gonderimDurumu(bolumKayitlari, kapsam, gonderimler, selectedYil)}
+                    />
+                  }
+                  eylemler={
+                    <UcAylikCiktiBar
+                      scope="faculty"
+                      deptId=""
+                      deptName={isUniAdmin ? 'Universite' : userFacultyName}
+                      yil={selectedYil}
+                      academicianIds={facultyAkademisyenIds}
+                      gostergeler={allGostergeFlat}
+                      akademisyenData={akademisyenData}
+                    />
+                  }
                 />
 
                 <div style={{ marginTop: 16, borderTop: `2px solid ${C.purple}`, paddingTop: 14 }}>
@@ -1547,6 +1509,27 @@ export default function PerformansBilgileri({
                 seçici hiç çizilmiyordu, kullanıcı bu ekranlarda yılı
                 değiştiremiyordu (değer prop olarak geçiyor ama kutu yok).
                 Artık aynı bağlam çubuğunu paylaşıyorlar. */}
+            {(activeView === 'strateji' || activeView === 'strateji-fac') && (
+              <EkranUstu
+                baslik={
+                  activeView === 'strateji'
+                    ? 'Stratejik Plan · Bölümüm'
+                    : 'Stratejik Plan · Fakülte'
+                }
+                altBaslik={
+                  activeView === 'strateji'
+                    ? secilebilirler.find((b) => b.id === deptForSummary)?.ad || selectedBolum || ''
+                    : isUniAdmin
+                      ? 'Üniversite geneli'
+                      : userFacultyName
+                }
+                yil={selectedYil}
+                setYil={setSelectedYil}
+                bolumSecici={activeView === 'strateji' ? bolumSecici : null}
+                aciklama={GORUNUM_ACIKLAMA[activeView] || ''}
+              />
+            )}
+
             {activeView === 'strateji' && (
               <StratejikPlanIzleme
                 deptId={deptForSummary}
@@ -2942,13 +2925,8 @@ function UcAylikCiktiBar({
   return (
     <div
       style={{
-        border: `1px solid ${C.border}`,
-        borderRadius: 10,
-        padding: 12,
-        marginBottom: 14,
-        background: C.surfaceAlt,
         display: 'flex',
-        gap: 10,
+        gap: 8,
         alignItems: 'center',
         flexWrap: 'wrap',
       }}
@@ -3017,8 +2995,9 @@ function AddQuestionBar({
   isEdit,
   onCancel,
 }) {
+  // Kendi kutusu/boşluğu yok: ortak eylem satırının içinde duruyor.
   return (
-    <div style={{ marginBottom: 14 }}>
+    <div style={{ display: 'contents' }}>
       {!show ? (
         <button
           onClick={() => setShow(true)}
@@ -3316,99 +3295,6 @@ function PerformansGezinme({ durum, onBolum, onKapsam }) {
 // üst üste diziliyordu; veriye inmeden önce ekranın yarısı doluyordu.
 // Üçü tek şeritte birleşti: solda seçimler, sağda o ekranın ne yaptığını
 // söyleyen tek cümle.
-// ══════════════════════════════════════════════════════════════
-function BaglamCubugu({ yil, setYil, bolumSecici, aciklama }) {
-  const etiket = {
-    fontSize: 10.5,
-    fontWeight: 700,
-    color: C.textDim,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  };
-  const secim = {
-    padding: '6px 11px',
-    borderRadius: 7,
-    border: `1px solid ${C.border}`,
-    background: C.surfaceAlt,
-    color: C.accent,
-    fontSize: 12.5,
-    fontWeight: 700,
-    fontFamily: F,
-    outline: 'none',
-    cursor: 'pointer',
-    maxWidth: 260,
-  };
-  return (
-    <div
-      style={{
-        background: C.surface,
-        border: `1px solid ${C.border}`,
-        borderRadius: 10,
-        padding: '11px 14px',
-        marginBottom: 16,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        flexWrap: 'wrap',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={etiket}>Yıl</span>
-        <select value={yil} onChange={(e) => setYil(e.target.value)} style={secim}>
-          {YILLAR.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
-      </div>
-      {bolumSecici && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={etiket}>Bölüm</span>
-          {bolumSecici}
-        </div>
-      )}
-      {aciklama && (
-        <span
-          style={{
-            marginLeft: 'auto',
-            fontSize: 11.5,
-            color: C.textDim,
-            lineHeight: 1.5,
-            maxWidth: 520,
-          }}
-        >
-          {aciklama}
-        </span>
-      )}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
-// KAPSAM ŞERİDİ — "bu ekranda kimin verisi var" tek cümlede.
-// Kullanıcı gördüğü toplamın neyi kapsadığını bilmeden ona güvenemez.
-// ══════════════════════════════════════════════════════════════
-function KapsamSeridi({ metin }) {
-  if (!metin) return null;
-  return (
-    <div
-      style={{
-        margin: '0 0 14px',
-        padding: '9px 13px',
-        borderRadius: 9,
-        background: '#F3F6FB',
-        border: '1px solid #DDE5F0',
-        color: '#334155',
-        fontSize: 12.5,
-        lineHeight: 1.6,
-      }}
-    >
-      {metin}
-    </div>
-  );
-}
-
 /** Bölüm yetkilisinin "fakülteye gönder" şeridi. */
 function GonderimSeridi({ gonderilmis, kayit, yil, gonderiliyor, onGonder }) {
   const tarih = kayit && kayit.gonderimZamani ? new Date(kayit.gonderimZamani) : null;
@@ -3482,6 +3368,86 @@ function GonderimDurumSeridi({ durum }) {
       }}
     >
       {gonderimOzetMetni(d)}
+    </div>
+  );
+}
+
+/**
+ * EKRAN ÜSTÜ — başlık, bağlam ve eylemler TEK kartta.
+ *
+ * ⚠ ESKİDEN ÜST ÜSTE ALTI AYRI ŞERİT VARDI: yıl/bölüm çubuğu, başlık,
+ * kapsam kutusu, gönderim kutusu, "yeni gösterge" düğmesi ve üç aylık çıktı
+ * kutusu. Her biri kendi kenarlığı ve rengiyle ayrı bir bant çiziyor, ekranın
+ * yarısı tabloya gelmeden doluyordu; hangisinin neye ait olduğu da
+ * anlaşılmıyordu. Hepsi tek kartta üç satıra indi:
+ *
+ *   1) başlık + alt başlık   (sol)   ·   yıl + bölüm seçici (sağ)
+ *   2) bu ekranın ne gösterdiği — tek cümle
+ *   3) eylemler: gönderim · yeni gösterge · çıktı  (tek hizada)
+ */
+function EkranUstu({ baslik, altBaslik, yil, setYil, bolumSecici, aciklama, durum, eylemler }) {
+  const varEylem = React.Children.toArray(eylemler).some(Boolean);
+  return (
+    <div
+      style={{
+        border: `1px solid ${C.border}`,
+        borderRadius: 12,
+        background: C.surface,
+        padding: '14px 16px',
+        marginBottom: 16,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 14,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.text }}>{baslik}</h2>
+          {altBaslik && (
+            <p style={{ margin: '3px 0 0', fontSize: 12.5, color: C.textMuted }}>{altBaslik}</p>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <YearSelector yil={yil} setYil={setYil} />
+          {bolumSecici}
+        </div>
+      </div>
+
+      {aciklama && (
+        <p
+          style={{
+            margin: '10px 0 0',
+            fontSize: 12,
+            color: C.textMuted,
+            lineHeight: 1.6,
+          }}
+        >
+          {aciklama}
+        </p>
+      )}
+
+      {durum}
+
+      {varEylem && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            marginTop: 12,
+            paddingTop: 12,
+            borderTop: `1px solid ${C.border}`,
+          }}
+        >
+          {eylemler}
+        </div>
+      )}
     </div>
   );
 }
@@ -3768,21 +3734,16 @@ function GostergeTable({
   );
 }
 
+/**
+ * Yıl seçici.
+ *
+ * ⚠ Kendi kutusu, kendi açıklama cümlesi ve alt boşluğu KALDIRILDI: artık
+ * ekran başlığının (EkranUstu) sağ ucunda duruyor. Kutu içinde kutu, satır
+ * altında satır — üst alanı karmaşık gösteren şeylerden biri buydu.
+ */
 function YearSelector({ yil, setYil }) {
   return (
-    <div
-      style={{
-        background: C.surface,
-        border: `1px solid ${C.border}`,
-        borderRadius: 10,
-        padding: '12px 14px',
-        marginBottom: 16,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        flexWrap: 'wrap',
-      }}
-    >
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span
           style={{
@@ -3817,12 +3778,6 @@ function YearSelector({ yil, setYil }) {
             </option>
           ))}
         </select>
-      </div>
-      {/* Ay listesini burada TEKRAR yazmak gereksizdi: tablonun başlık satırı
-          zaten OCA…ARA sütunlarını gösteriyor. Yerine ne yapıldığını söyleyen
-          tek satır. */}
-      <div style={{ marginLeft: 'auto', fontSize: 11, color: C.textDim }}>
-        Veriler yıl bazında ve aylık girilir; her yıl ayrı kaydedilir.
       </div>
     </div>
   );

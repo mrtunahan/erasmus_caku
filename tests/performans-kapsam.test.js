@@ -9,8 +9,8 @@ import {
   gonderimOzetMetni,
   gonderimVarMi,
   gorunurAkademisyenler,
+  kapsamBolumleri,
   kapsamOzetMetni,
-  secilebilirBolumler,
   veriKapsami,
 } from '../lib/performans-kapsam.js';
 
@@ -19,6 +19,15 @@ const AKAD = [
   { id: 'a2', ad: 'Bora', departmentId: 'bm', bolum: 'Bilgisayar Müh.', fakulte: 'Mühendislik' },
   { id: 'a3', ad: 'Cem', departmentId: 'mak', bolum: 'Makine Müh.', fakulte: 'Mühendislik' },
   { id: 'a4', ad: 'Derya', departmentId: 'fiz', bolum: 'Fizik', fakulte: 'Fen' },
+];
+
+// ⚠ ORG YAPISI: İstatistik bölümünün HİÇ akademisyen kaydı yok. Bölüm
+// listesi akademisyenlerden türetilirse bu bölüm hiç görünmezdi.
+const BOLUMLER = [
+  { id: 'bm', ad: 'Bilgisayar Müh.', fakulteId: 'muh', fakulteAdi: 'Mühendislik' },
+  { id: 'mak', ad: 'Makine Müh.', fakulteId: 'muh', fakulteAdi: 'Mühendislik' },
+  { id: 'ist', ad: 'İstatistik', fakulteId: 'muh', fakulteAdi: 'Mühendislik' },
+  { id: 'fiz', ad: 'Fizik', fakulteId: 'fen', fakulteAdi: 'Fen' },
 ];
 
 const AKADEMISYEN = veriKapsami({ profil: AKAD[0], dept: false, faculty: false, uni: false });
@@ -106,30 +115,44 @@ describe('gorunurAkademisyenler', () => {
   });
 });
 
-describe('secilebilirBolumler', () => {
-  it('fakülte yetkilisi kendi fakültesinin bölümlerini seçebilir', () => {
-    expect(secilebilirBolumler(AKAD, FAKULTE_Y).map((b) => b.id)).toEqual(['bm', 'mak']);
+describe('kapsamBolumleri', () => {
+  // ⚠ ASIL HATA: akademisyen kaydı olmayan bölüm listede hiç görünmüyordu;
+  // "bölüm yok" ile "bölümde veri yok" birbirine karışıyordu.
+  it('akademisyeni olmayan bölüm de listede durur', () => {
+    const b = kapsamBolumleri(BOLUMLER, FAKULTE_Y);
+    expect(b.map((x) => x.id)).toEqual(['bm', 'ist', 'mak']);
+    // Akademisyen listesinden türetilseydi 'ist' hiç çıkmazdı.
+    expect([...new Set(AKAD.map((a) => a.departmentId))]).not.toContain('ist');
   });
 
-  it('bölüm yetkilisi yalnız kendi bölümünü', () => {
-    expect(secilebilirBolumler(AKAD, BOLUM_Y).map((b) => b.id)).toEqual(['bm']);
+  it('bölüm yetkilisi yalnız kendi bölümünü görür', () => {
+    expect(kapsamBolumleri(BOLUMLER, BOLUM_Y).map((x) => x.id)).toEqual(['bm']);
   });
 
-  it('üniversite yetkilisi hepsini', () => {
-    expect(secilebilirBolumler(AKAD, UNI).map((b) => b.id)).toEqual(['bm', 'fiz', 'mak']);
+  it('üniversite yetkilisi hepsini görür', () => {
+    expect(kapsamBolumleri(BOLUMLER, UNI)).toHaveLength(4);
   });
 
-  it('kapsamsızda boş', () => {
-    expect(secilebilirBolumler(AKAD, KAYITSIZ_FAK)).toEqual([]);
+  it('fakülte kimliği yoksa ada göre eşleşir', () => {
+    const adla = BOLUMLER.map((b) => ({ ...b, fakulteId: '' }));
+    expect(kapsamBolumleri(adla, FAKULTE_Y).map((x) => x.id)).toEqual(['bm', 'ist', 'mak']);
   });
 
-  // Türkçe sıralama: Fizik < Makine
+  it('kapsam çözülemezse boş', () => {
+    expect(kapsamBolumleri(BOLUMLER, KAYITSIZ_FAK)).toEqual([]);
+  });
+
   it('Türkçe ada göre sıralı', () => {
-    expect(secilebilirBolumler(AKAD, UNI).map((b) => b.ad)).toEqual([
+    expect(kapsamBolumleri(BOLUMLER, UNI).map((x) => x.ad)).toEqual([
       'Bilgisayar Müh.',
       'Fizik',
+      'İstatistik',
       'Makine Müh.',
     ]);
+  });
+
+  it('boş girdide çökmez', () => {
+    expect(kapsamBolumleri(null, UNI)).toEqual([]);
   });
 });
 
@@ -168,30 +191,30 @@ describe('gönderim', () => {
     expect(fakulteyeGirenAkademisyenler(AKAD, FAKULTE_Y, [], 2026)).toEqual([]);
   });
 
+  // Akademisyeni olmayan bölüm de "bekleyen" sayılır: fakülte yetkilisi o
+  // bölümün eksik olduğunu görmeli.
   it('durum gönderen ve bekleyeni ayırır', () => {
-    const d = gonderimDurumu(AKAD, FAKULTE_Y, GONDERIMLER, 2026);
-    expect(d.toplam).toBe(2);
+    const d = gonderimDurumu(BOLUMLER, FAKULTE_Y, GONDERIMLER, 2026);
+    expect(d.toplam).toBe(3);
     expect(d.gonderen.map((b) => b.id)).toEqual(['bm']);
-    expect(d.bekleyen.map((b) => b.id)).toEqual(['mak']);
+    expect(d.bekleyen.map((b) => b.id)).toEqual(['ist', 'mak']);
   });
 
   it('özet metni eksikleri adıyla sayar', () => {
-    const d = gonderimDurumu(AKAD, FAKULTE_Y, GONDERIMLER, 2026);
-    expect(gonderimOzetMetni(d)).toMatch(/1 \/ 2 bölüm gönderdi/);
+    const d = gonderimDurumu(BOLUMLER, FAKULTE_Y, GONDERIMLER, 2026);
+    expect(gonderimOzetMetni(d)).toMatch(/1 \/ 3 bölüm gönderdi/);
     expect(gonderimOzetMetni(d)).toMatch(/Makine Müh\./);
+    expect(gonderimOzetMetni(d)).toMatch(/İstatistik/);
   });
 
   it('tamamı gönderdiyse ayrı cümle', () => {
-    const hepsi = [
-      { bolumId: 'bm', yil: '2026' },
-      { bolumId: 'mak', yil: '2026' },
-    ];
-    const d = gonderimDurumu(AKAD, FAKULTE_Y, hepsi, 2026);
+    const hepsi = ['bm', 'mak', 'ist'].map((b) => ({ bolumId: b, yil: '2026' }));
+    const d = gonderimDurumu(BOLUMLER, FAKULTE_Y, hepsi, 2026);
     expect(gonderimOzetMetni(d)).toMatch(/tamamı/);
   });
 
   it('hiçbiri göndermediyse uyarır', () => {
-    const d = gonderimDurumu(AKAD, FAKULTE_Y, [], 2026);
+    const d = gonderimDurumu(BOLUMLER, FAKULTE_Y, [], 2026);
     expect(gonderimOzetMetni(d)).toMatch(/Hiçbir bölüm/);
   });
 });
