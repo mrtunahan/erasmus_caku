@@ -185,6 +185,44 @@ describe('cinsiyetSayimi', () => {
   });
 });
 
+describe('bilinmeyen bilgi sütuna dönüşmez', () => {
+  const cinsiyetsiz = OGRENCILER.map((o) => ({ ...o, cinsiyet: '' }));
+
+  it('hiç cinsiyet bilinmiyorsa künye "0 / 0" YAZMAZ', () => {
+    expect(cinsiyetSayimi(cinsiyetsiz).biliniyor).toBe(false);
+    const k = listeKunyesi({ ...GIRDI, ogrenciler: cinsiyetsiz });
+    expect(k.kadinErkek).toBe('');
+    expect(k.kadinSayisi).toBe('');
+    expect(k.erkekSayisi).toBe('');
+  });
+
+  it('yerleşik çıktıda kadın/erkek satırı hiç basılmaz', () => {
+    const html = devamListesiHTML(listeVerisi({ ...GIRDI, ogrenciler: cinsiyetsiz }));
+    expect(html).not.toContain('Kadın/Erkek');
+    expect(html).not.toContain('0 / 0');
+  });
+
+  it('sınır yoksa "Devam" sütunu hiç çıkmaz', () => {
+    const v = listeVerisi({ ...GIRDI, limitSaat: 0 });
+    expect(v.devamSutunu).toBe(false);
+    const html = devamListesiHTML(v);
+    expect(html).not.toContain('>Devam<');
+    // Sabit sütunlar 5'e düşer; hafta sütunları değişmez.
+    expect(html).toContain('<th colspan="15">HAFTALAR</th>');
+  });
+
+  it('sınır varsa "Devam" sütunu geri gelir', () => {
+    const v = listeVerisi(GIRDI);
+    expect(v.devamSutunu).toBe(true);
+    expect(devamListesiHTML(v)).toContain('>Devam<');
+  });
+
+  it('öğrencisiz listede sütun sayısı başlıklarla tutarlı', () => {
+    const html = devamListesiHTML(listeVerisi({ ...GIRDI, ogrenciler: [], limitSaat: 0 }));
+    expect(html).toContain('colspan="20"'); // 5 sabit + 15 hafta
+  });
+});
+
 describe('adSoyadAyir', () => {
   it('ayrı alanlar korunur', () => {
     expect(adSoyadAyir({ firstName: 'Ayşe', lastName: 'Yılmaz' })).toEqual({
