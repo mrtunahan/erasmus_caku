@@ -1003,45 +1003,86 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
    * Şablondan Word belgesi. Şablon yoksa ya da eşlemesi yapılmamışsa
    * SEBEBİ SÖYLENİR ve yerleşik çıktıya düşülür — sessiz başarısızlık yok.
    */
+  /** Yüklü şablonu çözer (biçimi öğrenmek için — üreticiler de kendi çözer). */
+  const sablonuCoz = async (departmentId) => {
+    let token = '';
+    try {
+      token = localStorage.getItem('caku_auth_token') || '';
+    } catch (_) {
+      token = '';
+    }
+    const url =
+      '/api/templates/resolve?module=yoklama&docType=devam-listesi&departmentId=' +
+      encodeURIComponent(departmentId || '');
+    try {
+      const r = await fetch(url, {
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
+        credentials: 'include',
+      });
+      const d = await r.json().catch(() => ({}));
+      return d.template || null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  /**
+   * Şablondan belge. Şablon EXCEL de olabilir WORD de: kurum hangisini
+   * yüklediyse o üretici çalışır (xlsx satır çoğaltma / docx satır klonlama).
+   * Şablon yoksa ya da eşlemesi yapılmamışsa SEBEBİ SÖYLENİR ve yerleşik
+   * çıktıya düşülür — sessiz başarısızlık yok.
+   */
   const listeSablondanIndir = async (ders) => {
     const veri = listeVerisi(ders);
     if (!veri) return;
     const TE = window.TemplateEngine;
     const baglam = listeBaglami(ders);
-    const dosyaAdi =
-      [metin(ders.code || ders.kod) || 'ders', 'devam listesi', baglam.akademikYil]
-        .filter(Boolean)
-        .join(' ')
-        .replace(/[\\/:*?"<>|]/g, '-') + '.docx';
-    if (TE && TE.produceFromTemplate) {
-      const sonuc = await TE.produceFromTemplate({
-        module: 'yoklama',
-        docType: 'devam-listesi',
-        departmentId: baglam.departmentId,
-        staticData: veri.staticData,
-        rows: veri.rows,
+    const govdeAdi = [metin(ders.code || ders.kod) || 'ders', 'devam listesi', baglam.akademikYil]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/[\\/:*?"<>|]/g, '-');
+    const tpl = await sablonuCoz(baglam.departmentId);
+    const uzanti = metin(tpl && tpl.file && tpl.file.extension).toLocaleLowerCase('tr');
+    const excel = uzanti === 'xlsx' || uzanti === 'xls';
+    const ortak = {
+      module: 'yoklama',
+      docType: 'devam-listesi',
+      departmentId: baglam.departmentId,
+      staticData: veri.staticData,
+      rows: veri.rows,
+    };
+    let sonuc = null;
+    if (TE && excel && TE.produceRowsXlsx) {
+      sonuc = await TE.produceRowsXlsx({ ...ortak, filename: govdeAdi + '.xlsx' });
+    } else if (TE && TE.produceFromTemplate) {
+      sonuc = await TE.produceFromTemplate({
+        ...ortak,
         stripRowBold: true,
-        filename: dosyaAdi,
+        filename: govdeAdi + '.docx',
       });
-      if (sonuc && sonuc.ok) return;
-      const sebep = sonuc && sonuc.reason;
-      if (sebep === 'no-template') {
-        alert(
-          'Bu bölüm için "Ders Devam Listesi" şablonu yüklenmemiş. Yerleşik çıktı açılıyor.\n\nKurumun kendi antetli biçimini kullanmak için bölüm yetkilisi Şablonlar modülünden .docx yükleyip alanları eşlemelidir.'
-        );
-      } else if (sebep === 'no-mapping') {
-        alert(
-          'Şablon yüklü ama alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp "Alanları Eşle" ile künye ve hafta sütunlarını bağlayın. Şimdilik yerleşik çıktı açılıyor.'
-        );
-      } else if (sebep === 'not-docx') {
-        alert(
-          'Devam listesi şablonu Word (.docx) olmalı. Yüklü dosya başka biçimde; yerleşik çıktı açılıyor.'
-        );
-      } else if (sebep) {
-        alert(
-          'Şablondan belge üretilemedi (' + (sonuc.message || sebep) + '). Yerleşik çıktı açılıyor.'
-        );
-      }
+    }
+    if (sonuc && sonuc.ok) return;
+    const sebep = sonuc && sonuc.reason;
+    if (!sonuc || sebep === 'no-template') {
+      alert(
+        'Bu bölüm için "Ders Devam Listesi" şablonu yüklenmemiş. Yerleşik çıktı açılıyor.\n\nKurumun kendi biçimini kullanmak için bölüm yetkilisi Şablonlar modülünden .xlsx ya da .docx yükleyip alanları eşlemelidir.'
+      );
+    } else if (sebep === 'no-mapping') {
+      alert(
+        'Şablon yüklü ama alan eşlemesi yapılmamış. Şablonlar modülünden şablonu açıp "Alanları Eşle" ile künye ve hafta sütunlarını bağlayın. Şimdilik yerleşik çıktı açılıyor.'
+      );
+    } else if (sebep === 'no-row-token') {
+      alert(
+        'Şablonda öğrenci satırı bulunamadı: veri satırındaki {{Öğrenci No}} / {{Adı}} gibi yer tutucular silinmiş olabilir. Yerleşik çıktı açılıyor.'
+      );
+    } else if (sebep === 'not-docx' || sebep === 'not-xlsx') {
+      alert(
+        'Yüklü şablonun biçimi okunamadı (yalnız .xlsx ve .docx desteklenir). Yerleşik çıktı açılıyor.'
+      );
+    } else if (sebep) {
+      alert(
+        'Şablondan belge üretilemedi (' + (sonuc.message || sebep) + '). Yerleşik çıktı açılıyor.'
+      );
     }
     listeYazdir(ders);
   };
@@ -2317,7 +2358,7 @@ const AS_SABLON_METNI = {
     zemin: '#F8FAFC',
     kenar: '#E2E8F0',
     metin:
-      'Bu bölüm için şablon yüklenmemiş — yerleşik çıktı kullanılır. Kurumun kendi biçimi için bölüm yetkilisi Şablonlar modülünden .docx yükleyebilir.',
+      'Bu bölüm için şablon yüklenmemiş — yerleşik çıktı kullanılır. Kurumun kendi biçimi için bölüm yetkilisi Şablonlar modülünden .xlsx ya da .docx yükleyebilir.',
   },
   bilinmiyor: {
     renk: '#475569',
@@ -2341,6 +2382,13 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
   const k = veri.staticData || {};
   const haftalar = veri.haftalar || [];
   const satirlar = veri.rows || [];
+  // SİSTEMİN BİLMEDİĞİ SÜTUN ÇİZİLMEZ: "Devam" kararı ancak devamsızlık
+  // sınırı girilince verilebilir (bkz. lib/yoklama-listesi.js). Önizleme ile
+  // indirilen belge aynı sütunları taşımalı.
+  const devamVar = veri.devamSutunu !== false;
+  const sabitBasliklar = ['No', 'Öğrenci No', 'Adı', 'Soyadı', 'Sınıfı'].concat(
+    devamVar ? ['Devam'] : []
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -2398,7 +2446,7 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
           <table style={{ borderCollapse: 'collapse', fontSize: 11, width: '100%' }}>
             <thead>
               <tr>
-                {['No', 'Öğrenci No', 'Adı', 'Soyadı', 'Sınıfı', 'Devam'].map((b) => (
+                {sabitBasliklar.map((b) => (
                   <th key={b} style={AS_TH}>
                     {b}
                   </th>
@@ -2413,7 +2461,10 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
             <tbody>
               {satirlar.length === 0 ? (
                 <tr>
-                  <td colSpan={6 + haftalar.length} style={{ ...AS_TD, color: '#9CA3AF' }}>
+                  <td
+                    colSpan={sabitBasliklar.length + haftalar.length}
+                    style={{ ...AS_TD, color: '#9CA3AF' }}
+                  >
                     Bu derse kayıtlı öğrenci bulunamadı.
                   </td>
                 </tr>
@@ -2425,16 +2476,18 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
                     <td style={AS_TD}>{r.ad}</td>
                     <td style={AS_TD}>{r.soyad}</td>
                     <td style={{ ...AS_TD, textAlign: 'center' }}>{r.sinif}</td>
-                    <td
-                      style={{
-                        ...AS_TD,
-                        textAlign: 'center',
-                        color: r.devam === 'Yok' ? '#B91C1C' : '#065F46',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {r.devam}
-                    </td>
+                    {devamVar && (
+                      <td
+                        style={{
+                          ...AS_TD,
+                          textAlign: 'center',
+                          color: r.devam === 'Yok' ? '#B91C1C' : '#065F46',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {r.devam}
+                      </td>
+                    )}
                     {haftalar.map((h) => (
                       <td key={h.anahtar} style={{ ...AS_TD, textAlign: 'center' }}>
                         {r[h.anahtar]}
@@ -2478,7 +2531,7 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
               fontFamily: 'inherit',
             }}
           >
-            Şablondan Word indir
+            Şablondan indir (Excel / Word)
           </button>
           <button
             onClick={() => onYazdir(ders)}
