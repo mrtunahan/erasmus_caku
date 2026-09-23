@@ -52,6 +52,8 @@ const ALLOWED_MODULES = new Set([
   'anket',
   'akreditasyon',
   'yataygecis',
+  // Ders devam (yoklama) listesi — akademisyenin dönem çıktısı.
+  'yoklama',
 ]);
 
 // İzinli dosya uzantıları + MIME

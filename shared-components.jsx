@@ -378,6 +378,8 @@ import {
   sutunSayisi,
 } from './lib/benim-sayfam-duzeni.js';
 import * as YoklamaKurali from './lib/yoklama.js';
+import * as YoklamaListesi from './lib/yoklama-listesi.js';
+import { YOKLAMA_LISTE_ROWS, YOKLAMA_LISTE_STATIC } from './lib/yoklama-listesi.js';
 import * as RandevuKurali from './lib/randevu.js';
 import * as CihazKimligi from './lib/cihaz-kimlik.js';
 import * as AkademisyenBilgi from './lib/akademisyen-bilgi.js';
@@ -3441,6 +3443,16 @@ window.TEMPLATE_VARS = {
     bolum: { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
     fakulte: { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
     default: { static: DERSPROGRAMI_STATIC, row: DERSPROGRAMI_ROWS },
+  },
+  // ── Ders Devam (Yoklama) Listesi ──
+  // Akademisyenin imzaya/arşive verdiği liste: künye + öğrenciler + HAFTA
+  // sütunları. Hafta sayısı dönemden döneme değiştiği için satır tarafında
+  // `hafta1 … hafta20` diye NUMARALI değişkenler var: şablonda kaç hafta
+  // sütunu varsa o kadarı dolar (bkz. lib/yoklama-listesi.js).
+  yoklama: {
+    docTypes: [{ id: 'devam-listesi', label: 'Ders Devam (Yoklama) Listesi' }],
+    'devam-listesi': { static: YOKLAMA_LISTE_STATIC, row: YOKLAMA_LISTE_ROWS },
+    default: { static: YOKLAMA_LISTE_STATIC, row: YOKLAMA_LISTE_ROWS },
   },
   akreditasyon: {
     docTypes: [{ id: 'odr', label: 'Öz Değerlendirme Raporu (ÖDR)' }],
@@ -14870,6 +14882,9 @@ window.SayfaPenceresi = SayfaPenceresi;
 // alanı açmak yerine modülün kendisi veriliyor: kural dosyasına yeni bir
 // fonksiyon eklendiğinde burada ikinci bir satır unutulmuş olmaz.
 window.YoklamaKurali = YoklamaKurali;
+// Devam (yoklama) listesi çıktısı: şablon değişkenleri, satır üretimi ve
+// şablon yoksa kullanılan yerleşik yazdırma biçimi tek dosyada.
+window.YoklamaListesi = YoklamaListesi;
 window.RandevuKurali = RandevuKurali;
 window.CihazKimligi = CihazKimligi;
 
