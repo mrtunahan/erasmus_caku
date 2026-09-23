@@ -36,6 +36,12 @@ function kural() {
   return kuralSozu;
 }
 
+let cihazKuraliSozu = null;
+function cihazKurali() {
+  if (!cihazKuraliSozu) cihazKuraliSozu = import('../../lib/cihaz-kimlik.js');
+  return cihazKuraliSozu;
+}
+
 const router = express.Router();
 
 // Canlı liste hız sınırı.
@@ -61,6 +67,15 @@ const oturumListeLimiter = rateLimit({
 
 const OTURUMLAR = 'yoklama_oturumlari';
 const KAYITLAR = 'yoklama_kayitlari';
+const CIHAZLAR = 'student_devices';
+
+/** Akademik dönem anahtarı — cihaz değiştirme kotası dönem başına sıfırlanır. */
+function donemAnahtari(d) {
+  const t = d instanceof Date ? d : new Date();
+  const ay = t.getMonth() + 1;
+  // Şubat–Temmuz bahar, kalanı güz (fakültenin takvimiyle kabaca aynı).
+  return ay >= 2 && ay <= 7 ? t.getFullYear() + '-bahar' : t.getFullYear() + '-guz';
+}
 
 const metin = (v) => String(v == null ? '' : v).trim();
 
@@ -229,6 +244,74 @@ router.post('/imzala', requireAuth, async (req, res) => {
       });
     }
 
+    // ══════════════════════════════════════════════════════════════
+    // CİHAZ KONTROLLERİ
+    //
+    // Tehdit: A şifresini B'ye verir, B kendi telefonundan A'nın hesabına
+    // girip okutur. Dönen karekod bunu görmez — kod gerçekten o sınıftan,
+    // o anda okunmuştur. Kural ve gerekçeler lib/cihaz-kimlik.js'te.
+    //
+    // ⚠ PARMAK İZİ İSTEMCİDEN GELİR ve geliştirici konsolu açabilen biri
+    // onu değiştirebilir. Bu katman "şifreni ver" kolaylığını ortadan
+    // kaldırır ve iz bırakır; kararlı bir saldırganı durdurmaz. Son söz
+    // akademisyenin canlı listesindedir.
+    // ══════════════════════════════════════════════════════════════
+    const { oturumdaBaskasiKullandiMi, baglamaKarari, baglamaYamasi, cihazMesaji } =
+      await cihazKurali();
+    const gelenCihaz = (req.body || {}).cihaz || {};
+    const cihaz = { id: metin(gelenCihaz.id).slice(0, 80), iz: metin(gelenCihaz.iz).slice(0, 80) };
+    const donem = donemAnahtari();
+
+    // 1) OTURUM İÇİ TEKİLLİK — bir cihaz, bir öğrenci.
+    const oturumKayitlari = await db
+      .collection(KAYITLAR)
+      .find({ oturumId: oturum.id })
+      .project({ studentNumber: 1, cihazId: 1, cihazIz: 1, _id: 0 })
+      .toArray();
+    const cakisma = oturumdaBaskasiKullandiMi(oturumKayitlari, cihaz, ogrNo);
+    if (cakisma.cakisma) {
+      // Denemenin kendisi de kayda değer: hoca "kim kimin yerine okutmaya
+      // çalıştı" sorusunu sonradan sorabilmeli.
+      try {
+        await db.collection('yoklama_uyarilari').insertOne({
+          id: 'yk-u-' + crypto.randomBytes(8).toString('hex'),
+          oturumId: oturum.id,
+          dersId: metin(oturum.dersId),
+          tarih: metin(oturum.tarih),
+          tur: 'cihaz_paylasimi',
+          studentNumber: ogrNo,
+          cakisanOgrenci: metin(cakisma.ogrenciNo),
+          cihazId: cihaz.id,
+          cihazIz: cihaz.iz,
+          zaman: new Date().toISOString(),
+        });
+      } catch (_) {
+        /* uyarı kaydı yazılamazsa da asıl karar değişmez */
+      }
+      return res
+        .status(403)
+        .json({ ok: false, sebep: 'cihaz_paylasimi', error: cihazMesaji('cihaz_paylasimi') });
+    }
+
+    // 2) HESABA BAĞLI CİHAZ — kota ile esner, kilitlemez.
+    const cihazKaydi = await db.collection(CIHAZLAR).findOne({ id: ogrNo });
+    const karar = baglamaKarari(cihazKaydi, cihaz, { donem });
+    if (karar.durum === 'kilitli') {
+      return res
+        .status(403)
+        .json({ ok: false, sebep: 'cihaz_kilitli', error: cihazMesaji('cihaz_kilitli') });
+    }
+    if (karar.baglanacak) {
+      const yama = baglamaYamasi(cihazKaydi, cihaz, karar, { donem });
+      await db
+        .collection(CIHAZLAR)
+        .updateOne(
+          { id: ogrNo },
+          { $set: Object.assign({ id: ogrNo, studentNumber: ogrNo }, yama) },
+          { upsert: true }
+        );
+    }
+
     await db.collection(KAYITLAR).insertOne({
       id: 'yk-k-' + crypto.randomBytes(8).toString('hex'),
       oturumId: oturum.id,
@@ -247,10 +330,21 @@ router.post('/imzala', requireAuth, async (req, res) => {
       // Gecikme kayda geçer: sürekli sınırda okutan bir numara, ekran
       // görüntüsü paylaşımının izidir.
       gecikmeMs: Number(sonuc.gecikmeMs) || 0,
+      // Cihaz izi kayda geçer: oturum içi tekillik kontrolü bunu okur ve
+      // akademisyen "yeni cihaz" işaretini listede görür.
+      cihazId: cihaz.id,
+      cihazIz: cihaz.iz,
+      yeniCihaz: karar.durum === 'degisti',
       zaman: new Date().toISOString(),
     });
 
-    return res.json({ ok: true, zaten: false, ders: oturum.dersAdi, mesaj: 'Yoklamanız alındı.' });
+    return res.json({
+      ok: true,
+      zaten: false,
+      ders: oturum.dersAdi,
+      mesaj: 'Yoklamanız alındı.',
+      uyari: karar.durum === 'degisti' ? cihazMesaji('cihaz_degisti', karar) : '',
+    });
   } catch (e) {
     return res.status(500).json({ error: e.message || 'Yoklama alınamadı.' });
   }
@@ -270,7 +364,7 @@ router.get('/oturum/:id', requireAuth, oturumListeLimiter, async (req, res) => {
     const katilimlar = await db
       .collection(KAYITLAR)
       .find({ oturumId: oturum.id })
-      .project({ studentNumber: 1, adSoyad: 1, durum: 1, zaman: 1, elle: 1, _id: 0 })
+      .project({ studentNumber: 1, adSoyad: 1, durum: 1, zaman: 1, elle: 1, yeniCihaz: 1, _id: 0 })
       .toArray();
     return res.json({
       oturum: oturumuTemizle(oturum, sahibiMi(oturum, req.user)),
@@ -331,6 +425,52 @@ router.post('/kapat', requireAuth, async (req, res) => {
     return res.json({ ok: true });
   } catch (e) {
     return res.status(500).json({ error: e.message || 'Yoklama kapatılamadı.' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// POST /api/yoklama/cihaz-sifirla — öğrencinin cihaz kaydını temizle
+//
+// ⚠ BU KAPI OLMADAN CİHAZ BAĞLAMA BİR TUZAKTIR: telefonu bozulan, çalınan
+// ya da kotasını tüketen öğrenci dönem boyunca yoklama veremez hâle gelir.
+// Sıfırlamayı akademisyen/bölüm yetkilisi yapar ve kim sıfırladığı kayda
+// geçer.
+// ══════════════════════════════════════════════════════════════
+router.post('/cihaz-sifirla', requireAuth, async (req, res) => {
+  try {
+    const user = req.user;
+    if (
+      !user ||
+      (user.role !== 'professor' && user.role !== 'bolum_yetkilisi' && user.role !== 'admin')
+    ) {
+      return res.status(403).json({ error: 'Cihaz kaydını yalnız akademisyen sıfırlayabilir.' });
+    }
+    const ogrNo = metin((req.body || {}).studentNumber);
+    if (!ogrNo) return res.status(400).json({ error: 'Öğrenci numarası gerekli.' });
+
+    const db = await getDbSafe();
+    await db.collection(CIHAZLAR).updateOne(
+      { id: ogrNo },
+      {
+        $set: {
+          id: ogrNo,
+          studentNumber: ogrNo,
+          cihazId: '',
+          cihazIz: '',
+          degisimSayisi: 0,
+          donem: donemAnahtari(),
+          sifirlayan: metin(user.identifier),
+          sifirlamaZamani: new Date().toISOString(),
+        },
+      },
+      { upsert: true }
+    );
+    return res.json({
+      ok: true,
+      mesaj: 'Cihaz kaydı sıfırlandı; öğrenci yeni cihaz bağlayabilir.',
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message || 'Cihaz kaydı sıfırlanamadı.' });
   }
 });
 

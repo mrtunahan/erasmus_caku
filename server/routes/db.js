@@ -90,6 +90,12 @@ const ALLOWED_COLLECTIONS = [
   // doğrudan "durum: var" kaydı gönderirdi.
   'yoklama_oturumlari',
   'yoklama_kayitlari',
+  // Öğrencinin hesabına bağlı cihaz + dönemlik değişim sayacı, ve "başkası
+  // yerine okutma" denemelerinin kaydı. İkisi de YALNIZ /api/yoklama
+  // tarafından yazılır (WRITE_DENY): öğrenci kendi cihaz kaydını
+  // düzenleyebilseydi sayacı sıfırlar ve kontrolün tamamı anlamsız kalırdı.
+  'student_devices',
+  'yoklama_uyarilari',
   // Dersin devamsızlık sınırı — akademisyen kendi dersi için belirler.
   'yoklama_ayarlari',
   // ── RANDEVU / GÖRÜŞME SAATLERİ ──
@@ -306,6 +312,8 @@ const WRITE_DENY = new Set([
   'ai_usage_logs',
   'yoklama_oturumlari',
   'yoklama_kayitlari',
+  'student_devices',
+  'yoklama_uyarilari',
 ]);
 
 // Öğrencilerin işlem yapması meşru olan koleksiyonlar (kendi başvuruları,
@@ -543,6 +551,10 @@ const STUDENT_DELETE_OWNED = new Set(['portal_posts', 'portal_posts_comments']);
 
 // Öğrencilerin hiç okuyamayacağı koleksiyonlar (personel modülleri)
 const STUDENT_READ_DENY = new Set([
+  // Cihaz kayıtları ve "başkası yerine okutma" denemeleri: öğrencinin
+  // sınıftaki herkesin cihaz izini okuyabilmesi, taklit edebilmesi demektir.
+  'student_devices',
+  'yoklama_uyarilari',
   'performance_data',
   'performance_indicators',
   'performance_targets',

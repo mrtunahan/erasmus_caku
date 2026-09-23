@@ -411,6 +411,27 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600 }}>
                         {s.ad}
+                        {/* ⚠ Kayıtlı olmayan bir cihazdan verilen yoklama:
+                            "arkadaşımın telefonundan verdim" tam olarak
+                            böyle görünür. Engellenmez — sahibi telefon da
+                            değiştirmiş olabilir — ama hoca görür. */}
+                        {s.yeniCihaz && (
+                          <span
+                            title="Yoklama kayıtlı olmayan bir cihazdan verildi"
+                            style={{
+                              marginLeft: 7,
+                              padding: '1px 7px',
+                              borderRadius: 999,
+                              background: 'rgba(245,158,11,0.22)',
+                              border: '1px solid rgba(245,158,11,0.55)',
+                              color: '#FCD34D',
+                              fontSize: 10,
+                              fontWeight: 800,
+                            }}
+                          >
+                            yeni cihaz
+                          </span>
+                        )}
                       </span>
                       <span
                         style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}
@@ -826,6 +847,33 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     }
   };
 
+  /**
+   * Öğrencinin cihaz kaydını sıfırlar.
+   * Telefonunu değiştiren ya da dönemlik cihaz hakkını tüketen öğrenci
+   * aksi hâlde yoklama veremez hâle gelir.
+   */
+  const cihazSifirla = async (ogrenciNo, adSoyad) => {
+    const kim = metin(adSoyad) || metin(ogrenciNo);
+    if (!window.confirm(kim + ' için cihaz kaydı sıfırlansın mı? Yeni cihazdan yoklama verebilir.'))
+      return;
+    try {
+      const r = await fetch('/api/yoklama/cihaz-sifirla', {
+        method: 'POST',
+        credentials: 'include',
+        headers: Object.assign(
+          { 'Content-Type': 'application/json' },
+          window.yoklamaBasliklari ? window.yoklamaBasliklari() : {}
+        ),
+        body: JSON.stringify({ studentNumber: metin(ogrenciNo) }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Sıfırlanamadı.');
+      alert(d.mesaj || 'Cihaz kaydı sıfırlandı.');
+    } catch (e) {
+      alert('Cihaz kaydı sıfırlanamadı: ' + (e.message || 'bilinmeyen hata'));
+    }
+  };
+
   const musaitlikDegistir = async (anahtar) => {
     const yeni = musaitlikler.includes(anahtar)
       ? musaitlikler.filter((x) => x !== anahtar)
@@ -985,6 +1033,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
             devamsizlik={dersDevamsizligi}
             onBaslat={yoklamaBaslat}
             onLimit={limitKaydet}
+            onCihazSifirla={cihazSifirla}
           />
         </Pencere>
       )}
@@ -1934,7 +1983,15 @@ function ASBugun({ gun, dersler }) {
 // Dersi seç → tam ekran karekod. Altında o dersin devamsızlık tablosu:
 // sınırı aşanlar kırmızı alanla işaretli.
 // ══════════════════════════════════════════════════════════════
-function ASYoklamaPaneli({ dersler, ayarlar, oturumlar, devamsizlik, onBaslat, onLimit }) {
+function ASYoklamaPaneli({
+  dersler,
+  ayarlar,
+  oturumlar,
+  devamsizlik,
+  onBaslat,
+  onLimit,
+  onCihazSifirla,
+}) {
   const Y = window.YoklamaKurali || {};
   const [secili, setSecili] = useState(() => metin(dersler[0]?.id || dersler[0]?._docId));
   const ders = dersler.find((d) => metin(d.id || d._docId) === secili) || null;
@@ -2172,6 +2229,27 @@ function ASYoklamaPaneli({ dersler, ayarlar, oturumlar, devamsizlik, onBaslat, o
                         </span>
                         <span style={{ display: 'block', fontSize: 11, color: '#9CA3AF' }}>
                           {s.studentNumber}
+                          {/* ⚠ CİHAZ BAĞLAMA BU DÜĞME OLMADAN BİR TUZAKTIR:
+                              telefonu bozulan ya da kotasını tüketen öğrenci
+                              dönem boyunca yoklama veremez hâle gelir. */}
+                          {' · '}
+                          <button
+                            onClick={() => onCihazSifirla(s.studentNumber, s.adSoyad)}
+                            title="Öğrenci telefon değiştirdiyse ya da cihaz hakkı dolduysa sıfırlayın"
+                            style={{
+                              padding: 0,
+                              border: 'none',
+                              background: 'none',
+                              color: '#2563EB',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
+                              textDecoration: 'underline',
+                            }}
+                          >
+                            cihazı sıfırla
+                          </button>
                         </span>
                       </span>
                       <span style={{ width: 120, flexShrink: 0 }}>

@@ -379,6 +379,7 @@ import {
 } from './lib/benim-sayfam-duzeni.js';
 import * as YoklamaKurali from './lib/yoklama.js';
 import * as RandevuKurali from './lib/randevu.js';
+import * as CihazKimligi from './lib/cihaz-kimlik.js';
 import * as AkademisyenBilgi from './lib/akademisyen-bilgi.js';
 import * as AkademisyenSayfaDuzeni from './lib/akademisyen-sayfam-duzeni.js';
 import {
@@ -14870,6 +14871,53 @@ window.SayfaPenceresi = SayfaPenceresi;
 // fonksiyon eklendiğinde burada ikinci bir satır unutulmuş olmaz.
 window.YoklamaKurali = YoklamaKurali;
 window.RandevuKurali = RandevuKurali;
+window.CihazKimligi = CihazKimligi;
+
+/**
+ * Bu tarayıcının cihaz kimliği ve parmak izi.
+ *
+ * `id`  → tarayıcıda saklanan rastgele değer (kararlı, ama silinebilir)
+ * `iz`  → cihaz sinyallerinden türetilen özet (silinemez, ama benzersiz
+ *         olduğu garanti değil)
+ * İkisi birlikte kullanılır: kimlik silinse bile iz eşleşir, iz aynı model
+ * iki telefonda çakışsa bile kimlik ayırır.
+ *
+ * ⚠ İZİN İSTEYEN HİÇBİR ŞEY OKUNMAZ (konum, kamera, kişiler yok). Yalnız
+ * tarayıcının zaten sayfaya açtığı ekran/dil/saat dilimi gibi bilgiler
+ * kullanılır ve tek yönlü özetlenir; ham değerler sunucuya gitmez.
+ */
+window.cihazBilgisi = function cihazBilgisi() {
+  let id = '';
+  try {
+    id = localStorage.getItem(CihazKimligi.CIHAZ_ANAHTARI) || '';
+    if (!id) {
+      id = CihazKimligi.cihazKimligiUret('');
+      localStorage.setItem(CihazKimligi.CIHAZ_ANAHTARI, id);
+    }
+  } catch (_) {
+    // Gizli sekme / depolama kapalı: kimlik üretilemez, iz tek başına kalır.
+    id = '';
+  }
+  let iz = '';
+  try {
+    const n = window.navigator || {};
+    const e = window.screen || {};
+    iz = CihazKimligi.parmakIzi({
+      ajan: n.userAgent,
+      platform: n.platform,
+      dil: n.language,
+      saatDilimi: (window.Intl && Intl.DateTimeFormat().resolvedOptions().timeZone) || '',
+      ekran: [e.width, e.height, e.colorDepth].filter((x) => x != null).join('x'),
+      pikselOrani: window.devicePixelRatio,
+      cekirdek: n.hardwareConcurrency,
+      bellek: n.deviceMemory,
+      dokunma: n.maxTouchPoints,
+    });
+  } catch (_) {
+    iz = '';
+  }
+  return { id, iz };
+};
 
 // ── Akademisyen "Benim Sayfam" ──
 // Bilgi alanları (e-posta · dahili · fotoğraf) Bölüm Yönetimi'ndeki

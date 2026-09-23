@@ -257,6 +257,14 @@ describe('yoklamaSatirlari', () => {
     expect(s[1].durum).toBe('yok');
   });
 
+  // Akademisyen, kayıtlı olmayan bir cihazdan gelen yoklamayı listede
+  // görmeli: "arkadaşımın telefonundan verdim" tam olarak böyle görünür.
+  it('yeni cihaz işareti satıra taşınır', () => {
+    const s = yoklamaSatirlari(ogrenciler, [{ studentNumber: '222', yeniCihaz: true }]);
+    expect(s[1].yeniCihaz).toBe(true);
+    expect(s[0].yeniCihaz).toBe(false);
+  });
+
   it('adı olmayan satır numarayla görünür', () => {
     expect(yoklamaSatirlari([{ studentNumber: '999' }], [])[0].ad).toBe('999');
   });
