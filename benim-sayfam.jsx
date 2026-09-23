@@ -853,7 +853,11 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           { 'Content-Type': 'application/json' },
           window.yoklamaBasliklari ? window.yoklamaBasliklari() : {}
         ),
-        body: JSON.stringify({ kod }),
+        // ⚠ Cihaz kimliği de gider: bir yoklama oturumunda bir cihazdan
+        // yalnız bir öğrenci yoklama verebilir. "Arkadaşımın hesabına girip
+        // onun yerine okutayım" tam olarak burada kırılır
+        // (bkz. lib/cihaz-kimlik.js, server/routes/yoklama.js).
+        body: JSON.stringify({ kod, cihaz: window.cihazBilgisi ? window.cihazBilgisi() : {} }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) return { ok: false, mesaj: d.error || 'Yoklama alınamadı.' };
@@ -861,6 +865,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       return {
         ok: true,
         mesaj: (d.mesaj || 'Yoklamanız alındı.') + (d.ders ? ' — ' + d.ders : ''),
+        // Yeni cihazdan verilen yoklama akademisyene işaretli görünür;
+        // öğrenci de bunu bilmeli.
+        uyari: metin(d.uyari),
       };
     } catch (e) {
       return { ok: false, mesaj: 'Sunucuya ulaşılamadı: ' + (e.message || 'ağ hatası') };
@@ -4340,6 +4347,23 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
         )}
 
         {tarayici && <BSKarekodTarayici onKod={kodGeldi} onKapat={() => setTarayici(false)} />}
+
+        {sonuc && sonuc.ok && metin(sonuc.uyari) && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: '10px 13px',
+              borderRadius: 10,
+              background: '#FFFBEB',
+              border: '1px solid #FCD34D',
+              color: '#92400E',
+              fontSize: 12.5,
+              lineHeight: 1.6,
+            }}
+          >
+            {sonuc.uyari}
+          </div>
+        )}
 
         {sonuc && (
           <div
