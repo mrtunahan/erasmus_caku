@@ -14,10 +14,12 @@ import {
   haftaAnahtari,
   haftaBasligi,
   haftaListesi,
+  haftaNotMetni,
   haftaSayisiDuzelt,
   listeKunyesi,
   listeSatirlari,
   listeVerisi,
+  notluHaftalar,
   oturumHaftalari,
   oturumHaftasi,
 } from '../lib/yoklama-listesi.js';
@@ -85,7 +87,12 @@ describe('hafta sütunları', () => {
   it('liste istenen uzunlukta', () => {
     expect(haftaListesi(15)).toHaveLength(15);
     expect(haftaListesi(7)).toHaveLength(7);
-    expect(haftaListesi(15)[14]).toEqual({ no: 15, anahtar: 'hafta15', baslik: '15.Hafta' });
+    expect(haftaListesi(15)[14]).toEqual({
+      no: 15,
+      anahtar: 'hafta15',
+      baslik: '15.Hafta',
+      not: '',
+    });
   });
   it('sözlükte HAFTA_SINIRI kadar hafta değişkeni var', () => {
     const haftalar = YOKLAMA_LISTE_ROWS.filter((r) => /^hafta\d+$/.test(r.id));
@@ -147,9 +154,9 @@ describe('oturumHaftalari', () => {
 });
 
 describe('durumIsareti', () => {
-  it('varsayılan işaretler', () => {
-    expect(durumIsareti('var')).toBe('+');
-    expect(durumIsareti('yok')).toBe('-');
+  it('varsayılan işaretler — gelen TİK, gelmeyen ÇARPI', () => {
+    expect(durumIsareti('var')).toBe('✓');
+    expect(durumIsareti('yok')).toBe('✗');
     expect(durumIsareti('izinli')).toBe('İ');
     expect(durumIsareti('')).toBe('');
   });
@@ -248,17 +255,17 @@ describe('listeSatirlari', () => {
 
   it('hafta hücreleri oturum tarihine denk gelir', () => {
     const ayse = satirlar[0];
-    expect(ayse.hafta1).toBe('+');
+    expect(ayse.hafta1).toBe('✓');
     expect(ayse.hafta2).toBe(''); // o hafta yoklama alınmadı → boş
-    expect(ayse.hafta3).toBe('+');
-    expect(ayse.hafta4).toBe('+');
+    expect(ayse.hafta3).toBe('✓');
+    expect(ayse.hafta4).toBe('✓');
   });
 
-  it('yoklama alınan haftada katılmayan öğrenci "-" alır', () => {
+  it('yoklama alınan haftada katılmayan öğrenci ÇARPI alır', () => {
     const burak = satirlar[1];
-    expect(burak.hafta1).toBe('+');
-    expect(burak.hafta3).toBe('-');
-    expect(burak.hafta4).toBe('-');
+    expect(burak.hafta1).toBe('✓');
+    expect(burak.hafta3).toBe('✗');
+    expect(burak.hafta4).toBe('✗');
   });
 
   it('izinli ayrı işaretlenir ama devamsızlığa yazılmaz', () => {
@@ -302,16 +309,53 @@ describe('listeSatirlari', () => {
     expect(acikli[1].devamsizlikSaati).toBe(4); // değişmedi
   });
 
-  it('bir haftada iki oturum varsa birine katılmak yeter', () => {
-    const s = listeSatirlari({
+  // ⚠ Aynı haftada birden çok yoklama alınabilir (blok ders, telafi).
+  // "Birine geldiyse geldi saymak" devamsızlığı gizlerdi.
+  it('aynı haftada iki yoklama: bir kısmına katılan "1/2" görür', () => {
+    const iki = {
       ...GIRDI,
       oturumlar: [
         { id: 'o1', tarih: '2026-09-21', acik: false },
         { id: 'o2', tarih: '2026-09-22', acik: false },
       ],
       kayitlar: [{ oturumId: 'o2', studentNumber: '260905002', durum: 'var' }],
-    });
-    expect(s[1].hafta1).toBe('+');
+    };
+    expect(listeSatirlari(iki)[1].hafta1).toBe('1/2');
+  });
+
+  it('aynı haftada iki yoklama: ikisine de katılan TİK alır', () => {
+    const iki = {
+      ...GIRDI,
+      oturumlar: [
+        { id: 'o1', tarih: '2026-09-21', acik: false },
+        { id: 'o2', tarih: '2026-09-22', acik: false },
+      ],
+      kayitlar: [
+        { oturumId: 'o1', studentNumber: '260905002', durum: 'var' },
+        { oturumId: 'o2', studentNumber: '260905002', durum: 'var' },
+      ],
+    };
+    expect(listeSatirlari(iki)[1].hafta1).toBe('✓');
+  });
+
+  it('aynı haftada iki yoklama: hiçbirine katılmayan ÇARPI alır', () => {
+    const iki = {
+      ...GIRDI,
+      oturumlar: [
+        { id: 'o1', tarih: '2026-09-21', acik: false },
+        { id: 'o2', tarih: '2026-09-22', acik: false },
+      ],
+      kayitlar: [],
+    };
+    expect(listeSatirlari(iki)[1].hafta1).toBe('✗');
+  });
+
+  // Akademisyen o hafta ders yapmadıysa (bayram, sınav haftası) sütunda
+  // işaret olmaz; sebebi başlıkta yazar.
+  it('notlu haftada işaret basılmaz', () => {
+    const s = listeSatirlari({ ...GIRDI, haftaNotlari: { 1: 'Bayram' } });
+    expect(s[0].hafta1).toBe('');
+    expect(s[0].hafta3).toBe('✓');
   });
 
   it('boş girdi patlamaz', () => {
@@ -337,6 +381,30 @@ describe('listeKunyesi', () => {
   it('kurum adı varsayılanı var', () => {
     expect(k.kurumAd).toBe('Çankırı Karatekin Üniversitesi');
     expect(listeKunyesi({ kurumAd: 'X Üniversitesi' }).kurumAd).toBe('X Üniversitesi');
+  });
+});
+
+describe('hafta notları', () => {
+  it('notlu hafta sütun başlığında sebebini taşır', () => {
+    const v = listeVerisi({ ...GIRDI, haftaNotlari: { 3: 'Bayram', 7: 'Sınav haftası' } });
+    expect(v.haftalar[2].not).toBe('Bayram');
+    expect(v.haftalar[6].not).toBe('Sınav haftası');
+    expect(v.haftalar[0].not).toBe('');
+  });
+
+  it('künyede tek cümlelik özet var (şablon için)', () => {
+    const v = listeVerisi({ ...GIRDI, haftaNotlari: { 3: 'Bayram' } });
+    expect(v.staticData.haftaNotlari).toBe('3. hafta: Bayram');
+  });
+
+  it('yerleşik çıktı notu başlıkta yazar', () => {
+    const html = devamListesiHTML(listeVerisi({ ...GIRDI, haftaNotlari: { 3: 'Bayram' } }));
+    expect(html).toContain('Bayram');
+  });
+
+  it('notlu hafta metni boşsa sayılmaz', () => {
+    expect(notluHaftalar({ 3: '', 5: 'Tatil' })).toEqual([5]);
+    expect(haftaNotMetni([{ no: 1, not: '' }])).toBe('');
   });
 });
 
