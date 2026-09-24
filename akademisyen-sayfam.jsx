@@ -486,9 +486,13 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   const [ogrenciler, setOgrenciler] = useState([]);
   const [randevular, setRandevular] = useState([]);
   const [musaitlikler, setMusaitlikler] = useState([]);
+  // Bir görüşme saatine en çok kaç öğrenci alınır (0 = sınırsız).
+  const [kontenjan, setKontenjan] = useState(0);
   const [yoklamaAyarlari, setYoklamaAyarlari] = useState({});
   const [oturumlar, setOturumlar] = useState([]);
   const [katilimKayitlari, setKatilimKayitlari] = useState([]);
+  // Öğrencilerin dönem bazlı ders seçimleri (student_courses).
+  const [dersSecimleri, setDersSecimleri] = useState([]);
 
   const [seviye, setSeviye] = useState('hepsi');
   // Aktif sekme ('genel' | 'yoklama' | 'gorusme' | 'veri'). Kural ve yetki
@@ -509,7 +513,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     setYukleniyor(true);
     setHata('');
     try {
-      const [profs, ders, prog, bol, ogr, rnd, ayar, otr, kyt] = await Promise.all([
+      const [profs, ders, prog, bol, ogr, rnd, ayar, otr, kyt, dersSecim] = await Promise.all([
         window.apiRead('professors').catch(() => []),
         window.apiRead('sinav_dersler').catch(() => []),
         window.apiRead('course_schedules').catch(() => []),
@@ -519,6 +523,11 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         window.apiRead('yoklama_ayarlari').catch(() => []),
         window.apiRead('yoklama_oturumlari').catch(() => []),
         window.apiRead('yoklama_kayitlari').catch(() => []),
+        // ⚠ DERS SEÇİMİ ARTIK BURADA: öğrenci Benim Sayfam'da dönem bazlı
+        // seçim yapıyor ve kayıt student_courses'a yazılıyor. Yoklama listesi
+        // yalnız eski `students.myCourseIds` alanına bakıyordu; yeni yoldan
+        // ders seçen öğrenci listede HİÇ görünmüyordu (lib/ogrenci-ders-secimi.js).
+        window.apiRead('student_courses').catch(() => []),
       ]);
 
       const esit = (a, b) =>
@@ -548,11 +557,13 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
       setYoklamaAyarlari(ayarHarita);
       setOturumlar((otr || []).filter((o) => esit(o.akademisyen, benimAd)));
       setKatilimKayitlari(Array.isArray(kyt) ? kyt : []);
+      setDersSecimleri(Array.isArray(dersSecim) ? dersSecim : []);
 
       if (window.apiReadDoc && benimAnahtar) {
         const res = await window.apiReadDoc('gorusme_saatleri', benimAnahtar).catch(() => null);
         const doc = res && res.exists ? res.data : null;
         setMusaitlikler(Array.isArray(doc && doc.slotlar) ? doc.slotlar : []);
+        setKontenjan(R.kontenjanCoz ? R.kontenjanCoz(doc && doc.kontenjan) : 0);
       }
     } catch (e) {
       setHata(e?.message || 'Sayfa yüklenemedi.');
@@ -702,43 +713,17 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   /**
    * Randevu kararı.
    *
-   * ⚠ AYNI SAATE BİRDEN ÇOK TALEP GELEBİLİR (bekleyen talep saati kapatmaz;
-   * bkz. lib/randevu.js). Biri onaylanınca diğerleri açıkta bırakılamaz:
-   * saat artık dolu olduğu hâlde öğrencide "bekliyor" yazmaya devam eder ve
-   * kimse sonucu öğrenemez. Onayla birlikte aynı saatteki diğer bekleyen
-   * talepler de sonuçlandırılır — hocaya kaç kişi olduğu SORULARAK.
+   * ⚠ AYNI SAATE BİRDEN ÇOK ÖĞRENCİ ONAYLANABİLİR. Grup görüşmesi
+   * (proje ekibi, ortak soru) gerçek bir ihtiyaç; bir onay saati kapatmaz ve
+   * diğer talepleri DÜŞÜRMEZ. Saat yalnız hocanın koyduğu kontenjan dolunca
+   * yeni talebe kapanır (bkz. lib/randevu.js).
    */
   const randevuKarar = async (kayit, durum) => {
-    const R = window.RandevuKurali || {};
-    const rakipler =
-      durum === 'onaylandi' && R.ayniSlotBekleyenler
-        ? R.ayniSlotBekleyenler(randevular, kayit)
-        : [];
-    if (rakipler.length > 0) {
-      const onay = window.confirm(
-        'Bu saate ' +
-          (rakipler.length + 1) +
-          ' öğrenci talep göndermiş. ' +
-          metin(kayit.ogrenciAd || kayit.studentNumber) +
-          ' onaylanacak, diğer ' +
-          rakipler.length +
-          ' talep reddedilecek. Onaylıyor musunuz?'
-      );
-      if (!onay) return;
-    }
-    const zaman = new Date().toISOString();
     try {
       await window.DBWriteGenel('randevu_talepleri', metin(kayit.id || kayit._docId), {
         durum,
-        kararZamani: zaman,
+        kararZamani: new Date().toISOString(),
       });
-      for (const r of rakipler) {
-        await window.DBWriteGenel('randevu_talepleri', metin(r.id || r._docId), {
-          durum: 'reddedildi',
-          kararZamani: zaman,
-          akademisyenNotu: 'Bu saat başka bir öğrenciye verildi.',
-        });
-      }
       setTazele((t) => t + 1);
     } catch (e) {
       alert('Randevu güncellenemedi: ' + (e.message || 'bilinmeyen hata'));
@@ -749,11 +734,25 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   const dersinOgrencileri = useCallback(
     (dersId) => {
       const k = metin(dersId);
+      // Öğrenci numarası → o öğrencinin seçtiği ders kimlikleri.
+      // İKİ KAYNAK: dönem bazlı `student_courses` (yeni yol) ve eski
+      // `students.myCourseIds`. Karar tek yerde: lib/ogrenci-ders-secimi.js.
+      const secimHarita = new Map();
+      (dersSecimleri || []).forEach((d) => {
+        const no = metin(d && (d.studentNumber || String(d.id || '').split('__')[0]));
+        if (!no) return;
+        if (!secimHarita.has(no)) secimHarita.set(no, []);
+        secimHarita.get(no).push(d);
+      });
+      const dersleri = (o) =>
+        window.secilenDersIdleri
+          ? window.secilenDersIdleri(secimHarita.get(metin(o.studentNumber)) || [], o)
+          : Array.isArray(o.myCourseIds)
+            ? o.myCourseIds.map(String)
+            : [];
       return (
         (ogrenciler || [])
-          .filter((o) =>
-            Array.isArray(o.myCourseIds) ? o.myCourseIds.map(String).includes(k) : false
-          )
+          .filter((o) => dersleri(o).map(String).includes(k))
           // ⚠ Devam listesi künyesi ad/soyad/sınıf/cinsiyeti AYRI sütunlarda
           // istiyor (bkz. lib/yoklama-listesi.js); tek "adSoyad" alanı yetmez.
           // Sınıf öğrenci kaydında çoğu zaman boştur — numaradan türetilir.
@@ -780,7 +779,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           )
       );
     },
-    [ogrenciler]
+    [ogrenciler, dersSecimleri]
   );
 
   // ── Devamsızlık tablosu (ders başına) ──
@@ -862,6 +861,13 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     const dersId = metin(ders.id || ders._docId);
     const a = ayar || {};
     const YL = window.YoklamaListesi || {};
+    const dersSaati = Math.max(1, Number(a.dersSaati) || 1);
+    const birim = Y.limitBirimi ? Y.limitBirimi(a.limitBirimi) : 'saat';
+    // ⚠ HESAP HER ZAMAN SAAT ÜZERİNDEN. Hoca hafta yazdıysa saate çevrilir;
+    // `limitSaat` alanı bu yüzden KORUNUR (öğrenci ekranı, devam listesi ve
+    // eski kayıtlar onu okuyor). Hocanın yazdığı hâli de saklanır ki ayar
+    // ekranı "3 hafta" diye geri açılsın.
+    const limitSaat = Y.limitSaate ? Y.limitSaate(a.limitDegeri, birim, dersSaati) : 0;
     try {
       await window.DBWriteGenel(
         'yoklama_ayarlari',
@@ -870,8 +876,10 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           dersId,
           dersKodu: metin(ders.code || ders.kod),
           dersAdi: metin(ders.name || ders.ad),
-          limitSaat: Math.max(0, Number(a.limitSaat) || 0),
-          dersSaati: Math.max(1, Number(a.dersSaati) || 1),
+          limitSaat,
+          limitDegeri: Math.max(0, Number(a.limitDegeri) || 0),
+          limitBirimi: birim,
+          dersSaati,
           haftaSayisi: YL.haftaSayisiDuzelt ? YL.haftaSayisiDuzelt(a.haftaSayisi) : 14,
           donemBaslangici: metin(a.donemBaslangici).slice(0, 10),
         },
@@ -1143,6 +1151,25 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     }
   };
 
+  /** Saat başına öğrenci kontenjanı (0 = sınırsız). */
+  const kontenjanKaydet = async (deger) => {
+    const R2 = window.RandevuKurali || {};
+    const n = R2.kontenjanCoz ? R2.kontenjanCoz(deger) : Math.max(0, Number(deger) || 0);
+    const onceki = kontenjan;
+    setKontenjan(n);
+    try {
+      await window.DBWriteGenel(
+        'gorusme_saatleri',
+        benimAnahtar,
+        { akademisyen: benimAd, kontenjan: n },
+        true
+      );
+    } catch (e) {
+      setKontenjan(onceki);
+      alert('Kontenjan kaydedilemedi: ' + (e.message || 'bilinmeyen hata'));
+    }
+  };
+
   // ══════════════════════════════════════════════════════════════
   if (!benimAd) {
     return (
@@ -1305,6 +1332,8 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
             saatler={tamSaatler}
             musaitlikler={musaitlikler}
             onDegistir={musaitlikDegistir}
+            kontenjan={kontenjan}
+            onKontenjan={kontenjanKaydet}
           />
         </Pencere>
       )}
@@ -2122,8 +2151,8 @@ function ASRandevular({ bekleyenler, onaylilar, ozet, cakisanlar, onKarar }) {
                       lineHeight: 1.5,
                     }}
                   >
-                    Bu saati {r.rakipSayisi + 1} öğrenci istedi. Birini onaylarsanız diğerleri
-                    otomatik reddedilir.
+                    Bu saati {r.rakipSayisi + 1} öğrenci istedi. Dilerseniz hepsini
+                    onaylayabilirsiniz — aynı saate birden çok öğrenci alabilirsiniz.
                   </div>
                 )}
                 {metin(r.konu) && (
@@ -2270,47 +2299,9 @@ const AS_YOKLAMA_ISLERI = [
   { id: 'ayar', ad: 'Ayarlar' },
 ];
 
-/** Panelin içindeki iş seçimi — sekme şeridinin küçük kardeşi. */
-function ASAltSerit({ isler, aktif, onSec }) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 4,
-        padding: 4,
-        borderRadius: 11,
-        background: '#F3F4F6',
-        border: '1px solid #E5E7EB',
-        flexWrap: 'wrap',
-      }}
-    >
-      {isler.map((i) => {
-        const sec = i.id === aktif;
-        return (
-          <button
-            key={i.id}
-            onClick={() => onSec(i.id)}
-            style={{
-              flex: '1 1 120px',
-              padding: '8px 12px',
-              borderRadius: 8,
-              border: 'none',
-              background: sec ? '#fff' : 'transparent',
-              boxShadow: sec ? '0 1px 3px rgba(0,0,0,.12)' : 'none',
-              color: sec ? AS_NAVY : '#6B7280',
-              fontSize: 12.5,
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            {i.ad}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+// Panel içi iş şeridi ve özet rozeti ORTAK bileşenlerdir: öğrenci tarafındaki
+// Dijital Yoklama paneli de aynılarını kullanıyor (shared-components.jsx).
+const ASAltSerit = window.SayfaAltSerit;
 
 /** Etiketli sayı/tarih kutusu (ayar ekranı). */
 function ASAlan({ etiket, ipucu, ...giris }) {
@@ -2339,23 +2330,7 @@ function ASAlan({ etiket, ipucu, ...giris }) {
   );
 }
 
-/** Küçük sayı rozeti (öğrenci sayısı, alınan yoklama…). */
-function ASRozet({ sayi, etiket, renk }) {
-  return (
-    <div
-      style={{
-        flex: '1 1 110px',
-        padding: '10px 12px',
-        borderRadius: 10,
-        background: '#FAFAFA',
-        border: '1px solid #EEF0F3',
-      }}
-    >
-      <div style={{ fontSize: 18, fontWeight: 800, color: renk || AS_NAVY }}>{sayi}</div>
-      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{etiket}</div>
-    </div>
-  );
-}
+const ASRozet = window.SayfaRozet;
 
 /**
  * Şablon durumu — "yükleyin" demeden önce yüklü mü diye bakar.
@@ -2646,13 +2621,18 @@ function ASYoklamaPaneli({
   const [is, setIs] = useState('al');
   const ders = dersler.find((d) => metin(d.id || d._docId) === secili) || null;
   const [limit, setLimit] = useState('');
+  const [birim, setBirim] = useState('saat');
   const [dersSaati, setDersSaati] = useState('1');
   const [hafta, setHafta] = useState('');
   const [baslangic, setBaslangic] = useState('');
 
   useEffect(() => {
     const a = ders ? ayarlar[metin(ders.id || ders._docId)] || {} : {};
-    setLimit(String(a.limitSaat ?? ''));
+    const b = Y.limitBirimi ? Y.limitBirimi(a.limitBirimi) : 'saat';
+    setBirim(b);
+    // Eski kayıtlarda yalnız `limitSaat` var; birim 'saat' olduğu için
+    // doğrudan görünür. Hafta seçiliyse kayıttaki değer zaten hafta.
+    setLimit(String(a.limitDegeri ?? a.limitSaat ?? ''));
     setDersSaati(String(a.dersSaati ?? ders?.saat ?? 1));
     setHafta(String(a.haftaSayisi ?? ''));
     setBaslangic(metin(a.donemBaslangici));
@@ -2663,6 +2643,7 @@ function ASYoklamaPaneli({
     ? oturumlar.filter((o) => metin(o.dersId) === metin(ders.id || ders._docId) && !o.acik)
     : [];
   const asanlar = satirlar.filter((s) => s.durum && s.durum.asildi);
+  const riskliler = satirlar.filter((s) => s.durum && s.durum.durum === 'riskli');
   const veri = ders && listeVerisi ? listeVerisi(ders) : null;
   const dersBaglami = ders && baglam ? baglam(ders) : null;
 
@@ -2707,7 +2688,27 @@ function ASYoklamaPaneli({
 
       {ders && (
         <>
-          {/* 2) Ne yapılacak? */}
+          {/* 2) Özet — öğrenci tarafındaki panelle AYNI kutular */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {ASRozet ? (
+              <>
+                <ASRozet sayi={satirlar.length} etiket="öğrenci" />
+                <ASRozet sayi={gecmis.length} etiket="alınan yoklama" renk={AS_GREEN} />
+                <ASRozet
+                  sayi={riskliler.length}
+                  etiket="hakkı azalan"
+                  renk={riskliler.length > 0 ? '#B45309' : undefined}
+                />
+                <ASRozet
+                  sayi={asanlar.length}
+                  etiket="sınırı aşan"
+                  renk={asanlar.length > 0 ? '#B91C1C' : undefined}
+                />
+              </>
+            ) : null}
+          </div>
+
+          {/* 3) Ne yapılacak? */}
           <ASAltSerit isler={AS_YOKLAMA_ISLERI} aktif={is} onSec={setIs} />
 
           {is === 'al' && (
@@ -2727,7 +2728,7 @@ function ASYoklamaPaneli({
                     {metin(ders.name || ders.ad)}
                   </div>
                   <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
-                    {satirlar.length} öğrenci · {gecmis.length} yoklama alındı
+                    Karekod tahtaya yansıtılır; öğrenciler kendi telefonundan okutur.
                   </div>
                 </div>
                 <button
@@ -2885,8 +2886,11 @@ function ASYoklamaPaneli({
                                 textAlign: 'right',
                               }}
                             >
-                              {d.kacirilanSaat || 0}
-                              {d.limitSaat ? ' / ' + d.limitSaat : ''} saat
+                              {Y.hakMetni
+                                ? Y.hakMetni(d, birim, Number(dersSaati) || 1)
+                                : (d.kacirilanSaat || 0) +
+                                  (d.limitSaat ? ' / ' + d.limitSaat : '') +
+                                  ' saat'}
                             </span>
                           </span>
                         </div>
@@ -2918,14 +2922,53 @@ function ASYoklamaPaneli({
                 hak&quot; çubuğunu, hafta düzeni ise devam listesinin sütunlarını belirler.
               </p>
               <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                <ASAlan
-                  etiket="Devamsızlık hakkı (saat)"
-                  ipucu="Boş bırakılırsa Var/Yok kararı verilmez"
-                  type="number"
-                  min="0"
-                  value={limit}
-                  onChange={(e) => setLimit(e.target.value)}
-                />
+                {/* ── SINIR: SAAT Mİ, HAFTA MI? ──
+                    Yönetmelik saat konuşur, hocaların çoğu hafta sayar
+                    ("üç hafta gelmeyen kalır"). Çevirmeyi hocaya bırakmak
+                    sessiz hata üretiyordu; birim burada seçilir, hesap
+                    lib/yoklama.js'te saate çevrilir. */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <ASAlan
+                    etiket="Devamsızlık hakkı"
+                    ipucu="Boş bırakılırsa Var/Yok kararı verilmez"
+                    type="number"
+                    min="0"
+                    value={limit}
+                    onChange={(e) => setLimit(e.target.value)}
+                    genislik={110}
+                  />
+                  <label style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600 }}>
+                    Birim
+                    <select
+                      value={birim}
+                      onChange={(e) => setBirim(e.target.value)}
+                      style={{
+                        display: 'block',
+                        width: 110,
+                        marginTop: 4,
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        border: '1px solid #D1D5DB',
+                        fontSize: 13,
+                        fontFamily: 'inherit',
+                        background: '#fff',
+                      }}
+                    >
+                      <option value="saat">saat</option>
+                      <option value="hafta">hafta</option>
+                    </select>
+                    <span
+                      style={{ display: 'block', fontSize: 10.5, color: '#9CA3AF', marginTop: 3 }}
+                    >
+                      {birim === 'hafta'
+                        ? (Number(limit) || 0) +
+                          ' hafta = ' +
+                          (Y.limitSaate ? Y.limitSaate(limit, 'hafta', dersSaati) : 0) +
+                          ' saat'
+                        : 'Saat üzerinden hesaplanır'}
+                    </span>
+                  </label>
+                </div>
                 <ASAlan
                   etiket="Haftalık ders saati"
                   ipucu="Bir yoklama = bu kadar saat"
@@ -2954,7 +2997,8 @@ function ASYoklamaPaneli({
               <button
                 onClick={() =>
                   onAyar(ders, {
-                    limitSaat: limit,
+                    limitDegeri: limit,
+                    limitBirimi: birim,
                     dersSaati,
                     haftaSayisi: hafta,
                     donemBaslangici: baslangic,
@@ -2993,7 +3037,7 @@ function ASYoklamaPaneli({
 // Hocanın KENDİ ders programı üzerinde çalışır: dolu saatler zaten dersle
 // kaplıdır, tıklanamaz. Boş saate tıklamak onu öğrenciye açar.
 // ══════════════════════════════════════════════════════════════
-function ASGorusmePaneli({ izgara, saatler, musaitlikler, onDegistir }) {
+function ASGorusmePaneli({ izgara, saatler, musaitlikler, onDegistir, kontenjan, onKontenjan }) {
   const R = window.RandevuKurali || {};
   const g = R.gorusmeIzgarasi ? R.gorusmeIzgarasi(izgara, saatler, musaitlikler) : null;
 
@@ -3016,6 +3060,48 @@ function ASGorusmePaneli({ izgara, saatler, musaitlikler, onDegistir }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* ── SAAT BAŞINA KONTENJAN ──
+          Bir görüşme saatine birden çok öğrenci alınabilir (proje ekibi,
+          ortak soru). Sınır koymak isteyen hoca buraya yazar; boş/0
+          bırakılırsa saat hiç kapanmaz. */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flexWrap: 'wrap',
+          padding: '10px 12px',
+          borderRadius: 10,
+          background: '#F8FAFC',
+          border: '1px solid #E5E7EB',
+        }}
+      >
+        <label style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>
+          Bir saatte en çok
+          <input
+            type="number"
+            min="0"
+            value={kontenjan || ''}
+            placeholder="sınırsız"
+            onChange={(e) => onKontenjan(e.target.value)}
+            style={{
+              width: 92,
+              margin: '0 8px',
+              padding: '6px 9px',
+              borderRadius: 8,
+              border: '1px solid #D1D5DB',
+              fontSize: 13,
+              fontFamily: 'inherit',
+            }}
+          />
+          öğrenci
+        </label>
+        <span style={{ fontSize: 11.5, color: '#6B7280', lineHeight: 1.5, flex: '1 1 240px' }}>
+          Boş bırakırsanız sınır olmaz: aynı saate istediğiniz kadar öğrenciyi onaylayabilirsiniz.
+          Sınır koyarsanız kontenjan dolunca o saat yeni taleplere kapanır.
+        </span>
+      </div>
+
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 11.5, color: '#6B7280' }}>
         {[
           ['Görüşmeye açık', '#DCFCE7', '#166534'],

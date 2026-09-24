@@ -638,6 +638,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     bolumler: [],
     musaitlikler: {},
     randevular: [],
+    kontenjanlar: {},
   });
   const [bolumAyarHaritasi, setBolumAyarHaritasi] = useState({});
   const [yrTazele, setYrTazele] = useState(0);
@@ -710,16 +711,25 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     let canli = true;
     (async () => {
       const harita = {};
+      // Saat başına kontenjan da aynı belgede: hoca "bu saate en çok 5 kişi"
+      // diyebiliyor, boş bırakırsa sınır yok (bkz. lib/randevu.js).
+      const kontenjanlar = {};
       for (const a of dersAkademisyenleri) {
         try {
           const res = await window.apiReadDoc('gorusme_saatleri', a.anahtar);
           const doc = res && res.exists ? res.data : null;
           harita[a.anahtar] = Array.isArray(doc && doc.slotlar) ? doc.slotlar : [];
+          kontenjanlar[a.anahtar] = window.RandevuKurali?.kontenjanCoz
+            ? window.RandevuKurali.kontenjanCoz(doc && doc.kontenjan)
+            : 0;
         } catch (_) {
           harita[a.anahtar] = [];
+          kontenjanlar[a.anahtar] = 0;
         }
       }
-      if (canli) setRandevuVerisi((v) => ({ ...v, musaitlikler: harita }));
+      if (canli) {
+        setRandevuVerisi((v) => ({ ...v, musaitlikler: harita, kontenjanlar }));
+      }
     })();
     return () => {
       canli = false;
@@ -777,6 +787,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         musaitlikler,
         randevular: hocaninRandevulari,
         ogrenciNo: metin(currentUser?.studentNumber),
+        kontenjan: (randevuVerisi.kontenjanlar || {})[a.anahtar] || 0,
         acikSayisi: R.acikSlotlar(izgara, musaitlikler, saatler).length,
       };
     });
@@ -805,15 +816,20 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       const katildigi = yoklamaVerisi.kayitlar.filter(
         (k) => metin(k.dersId) === dersId && (k.durum === 'var' || k.durum === 'izinli')
       ).length;
+      const dersSaati = Number(ayar.dersSaati) || Number(c.saat) || 1;
       return {
         dersId,
         dersKodu: metin(c.code || c.kod),
         dersAdi: metin(c.name || c.ad),
+        // Akademisyen sınırı saat ya da HAFTA olarak koymuş olabilir; öğrenci
+        // de hocasının konuştuğu birimde görsün (lib/yoklama.js → hakMetni).
+        birim: Y.limitBirimi ? Y.limitBirimi(ayar.limitBirimi) : 'saat',
+        dersSaati,
         durum: Y.devamsizlikDurumu({
           acilanYoklama: acilan,
           katildigi,
           limitSaat: Number(ayar.limitSaat) || 0,
-          dersSaati: Number(ayar.dersSaati) || Number(c.saat) || 1,
+          dersSaati,
         }),
       };
     });
@@ -2985,7 +3001,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       {BSPencere && acikPanel === 'yoklama' && (
         <BSPencere
           baslik="Dijital Yoklama"
-          altBaslik="Derse katılımınızı karekodla bildirin"
+          altBaslik="Karekodu okutun, devamsızlık hakkınızı izleyin"
           enCokGenislik={760}
           onKapat={() => setAcikPanel('')}
         >
@@ -4287,6 +4303,9 @@ function BSKarekodTarayici({ onKod, onKapat }) {
 // ══════════════════════════════════════════════════════════════
 function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
   const Y = window.YoklamaKurali || {};
+  const AltSerit = window.SayfaAltSerit;
+  const Rozet = window.SayfaRozet;
+  const [is, setIs] = useState('ver');
   const [tarayici, setTarayici] = useState(false);
   const [sonuc, setSonuc] = useState(null); // { ok, mesaj }
   const [gonderiliyor, setGonderiliyor] = useState(false);
@@ -4303,217 +4322,251 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
     [onOkut]
   );
 
+  const asan = dersDurumlari.filter((d) => d.durum.asildi).length;
+  const riskli = dersDurumlari.filter((d) => d.durum.durum === 'riskli').length;
+  const alinan = dersDurumlari.reduce((t, d) => t + (d.durum.acilan || 0), 0);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={BS_KART}>
-        {!tarayici && (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* ── ÖZET ──
+          Akademisyen tarafındaki panelle AYNI kutular (shared-components →
+          SayfaRozet): iki sayfa aynı ekranı görsün diye. */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {Rozet ? (
           <>
-            <button
-              onClick={() => {
-                setSonuc(null);
-                setTarayici(true);
-              }}
-              disabled={gonderiliyor}
-              style={{
-                width: '100%',
-                padding: '16px 20px',
-                borderRadius: 13,
-                border: 'none',
-                background: gonderiliyor ? '#9CA3AF' : '#059669',
-                color: '#fff',
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: gonderiliyor ? 'default' : 'pointer',
-                fontFamily: 'inherit',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 10,
-              }}
-            >
-              <svg
-                width="21"
-                height="21"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
-                <circle cx="12" cy="13" r="4" />
-              </svg>
-              {gonderiliyor ? 'Gönderiliyor…' : 'Karekodu Okut'}
-            </button>
-            <p style={{ margin: '10px 0 0', fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 }}>
-              Akademisyeniniz tahtaya karekodu yansıttığında bu düğmeye basın. Kod sürekli değiştiği
-              için ekran görüntüsüyle yoklama verilemez.
-            </p>
+            <Rozet sayi={dersDurumlari.length} etiket="ders" />
+            <Rozet sayi={alinan} etiket="alınan yoklama" renk="#059669" />
+            <Rozet sayi={riskli} etiket="hakkı azalan" renk={riskli > 0 ? '#B45309' : undefined} />
+            <Rozet sayi={asan} etiket="sınırı aşan" renk={asan > 0 ? '#B91C1C' : undefined} />
           </>
-        )}
-
-        {tarayici && <BSKarekodTarayici onKod={kodGeldi} onKapat={() => setTarayici(false)} />}
-
-        {sonuc && sonuc.ok && metin(sonuc.uyari) && (
-          <div
-            style={{
-              marginTop: 10,
-              padding: '10px 13px',
-              borderRadius: 10,
-              background: '#FFFBEB',
-              border: '1px solid #FCD34D',
-              color: '#92400E',
-              fontSize: 12.5,
-              lineHeight: 1.6,
-            }}
-          >
-            {sonuc.uyari}
-          </div>
-        )}
-
-        {sonuc && (
-          <div
-            style={{
-              marginTop: tarayici ? 14 : 12,
-              padding: '12px 14px',
-              borderRadius: 10,
-              background: sonuc.ok ? '#ECFDF5' : '#FEF2F2',
-              border: '1px solid ' + (sonuc.ok ? '#6EE7B7' : '#FCA5A5'),
-              color: sonuc.ok ? '#047857' : '#B91C1C',
-              fontSize: 13,
-              fontWeight: 600,
-              lineHeight: 1.6,
-            }}
-          >
-            {sonuc.mesaj}
-          </div>
-        )}
+        ) : null}
       </div>
 
-      {/* ── Dönemlik devamsızlık ── */}
-      <div>
-        <h4
-          style={{
-            margin: '0 0 10px',
-            fontSize: 15,
-            fontWeight: 700,
-            color: '#1B2A4A',
-          }}
-        >
-          Devamsızlık Durumum
-        </h4>
+      {/* ── İŞ ŞERİDİ ── akademisyendeki "Yoklama al / Devam listesi / Ayarlar"ın karşılığı */}
+      {AltSerit ? (
+        <AltSerit
+          isler={[
+            { id: 'ver', ad: 'Yoklama ver' },
+            { id: 'durum', ad: 'Devamsızlığım', sayi: dersDurumlari.length },
+          ]}
+          aktif={is}
+          onSec={setIs}
+        />
+      ) : null}
 
-        {dersDurumlari.length === 0 ? (
-          <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>
-            Bu dönem için ders seçiminiz görünmüyor.
-          </p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {dersDurumlari.map((d) => {
-              const renk = Y.devamsizlikRengi ? Y.devamsizlikRengi(d.durum.durum) : '#6B7280';
-              const kirmizi = d.durum.asildi;
-              return (
-                <div
-                  key={d.dersId}
+      {is === 'ver' && (
+        <>
+          <div style={BS_KART}>
+            {!tarayici && (
+              <>
+                <button
+                  onClick={() => {
+                    setSonuc(null);
+                    setTarayici(true);
+                  }}
+                  disabled={gonderiliyor}
                   style={{
-                    ...BS_KART,
-                    padding: '13px 15px',
-                    borderColor: kirmizi ? '#FCA5A5' : '#E5E7EB',
-                    background: kirmizi ? '#FEF2F2' : '#fff',
+                    width: '100%',
+                    padding: '16px 20px',
+                    borderRadius: 13,
+                    border: 'none',
+                    background: gonderiliyor ? '#9CA3AF' : '#059669',
+                    color: '#fff',
+                    fontSize: 16,
+                    fontWeight: 700,
+                    cursor: gonderiliyor ? 'default' : 'pointer',
+                    fontFamily: 'inherit',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 10,
                   }}
                 >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'baseline',
-                      gap: 8,
-                      flexWrap: 'wrap',
-                      marginBottom: 8,
-                    }}
+                  <svg
+                    width="21"
+                    height="21"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   >
-                    {d.dersKodu && (
-                      <span
-                        style={{
-                          fontSize: 10.5,
-                          fontWeight: 800,
-                          color: '#1E40AF',
-                          background: '#DBEAFE',
-                          padding: '2px 7px',
-                          borderRadius: 6,
-                        }}
-                      >
-                        {d.dersKodu}
-                      </span>
-                    )}
-                    <span style={{ fontSize: 13.5, fontWeight: 700, color: '#1B2A4A' }}>
-                      {d.dersAdi}
-                    </span>
-                    <span
+                    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
+                  {gonderiliyor ? 'Gönderiliyor…' : 'Karekodu Okut'}
+                </button>
+                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 }}>
+                  Akademisyeniniz tahtaya karekodu yansıttığında bu düğmeye basın. Kod sürekli
+                  değiştiği için ekran görüntüsüyle yoklama verilemez.
+                </p>
+              </>
+            )}
+
+            {tarayici && <BSKarekodTarayici onKod={kodGeldi} onKapat={() => setTarayici(false)} />}
+
+            {sonuc && sonuc.ok && metin(sonuc.uyari) && (
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: '10px 13px',
+                  borderRadius: 10,
+                  background: '#FFFBEB',
+                  border: '1px solid #FCD34D',
+                  color: '#92400E',
+                  fontSize: 12.5,
+                  lineHeight: 1.6,
+                }}
+              >
+                {sonuc.uyari}
+              </div>
+            )}
+
+            {sonuc && (
+              <div
+                style={{
+                  marginTop: tarayici ? 14 : 12,
+                  padding: '12px 14px',
+                  borderRadius: 10,
+                  background: sonuc.ok ? '#ECFDF5' : '#FEF2F2',
+                  border: '1px solid ' + (sonuc.ok ? '#6EE7B7' : '#FCA5A5'),
+                  color: sonuc.ok ? '#047857' : '#B91C1C',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  lineHeight: 1.6,
+                }}
+              >
+                {sonuc.mesaj}
+              </div>
+            )}
+          </div>
+          <p style={{ margin: 0, fontSize: 11.5, color: '#9CA3AF', lineHeight: 1.6 }}>
+            Yoklama yalnız kendi cihazınızdan verilir: hesabınız bir cihaza bağlanır ve aynı
+            cihazdan ikinci bir öğrenci kod okutamaz. Telefonunuz değiştiyse akademisyeniniz cihaz
+            kaydınızı sıfırlayabilir.
+          </p>
+        </>
+      )}
+
+      {is === 'durum' && (
+        <>
+          <div>
+            {dersDurumlari.length === 0 ? (
+              <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0 }}>
+                Bu dönem için ders seçiminiz görünmüyor.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {dersDurumlari.map((d) => {
+                  const renk = Y.devamsizlikRengi ? Y.devamsizlikRengi(d.durum.durum) : '#6B7280';
+                  const kirmizi = d.durum.asildi;
+                  return (
+                    <div
+                      key={d.dersId}
                       style={{
-                        marginLeft: 'auto',
-                        fontSize: 12,
-                        fontWeight: 800,
-                        color: renk,
+                        ...BS_KART,
+                        padding: '13px 15px',
+                        borderColor: kirmizi ? '#FCA5A5' : '#E5E7EB',
+                        background: kirmizi ? '#FEF2F2' : '#fff',
                       }}
                     >
-                      {d.durum.limitSaat
-                        ? 'Kalan hak: ' + d.durum.kalanHak + ' / ' + d.durum.limitSaat + ' saat'
-                        : d.durum.kacirilanSaat + ' saat devamsızlık'}
-                    </span>
-                  </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'baseline',
+                          gap: 8,
+                          flexWrap: 'wrap',
+                          marginBottom: 8,
+                        }}
+                      >
+                        {d.dersKodu && (
+                          <span
+                            style={{
+                              fontSize: 10.5,
+                              fontWeight: 800,
+                              color: '#1E40AF',
+                              background: '#DBEAFE',
+                              padding: '2px 7px',
+                              borderRadius: 6,
+                            }}
+                          >
+                            {d.dersKodu}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#1B2A4A' }}>
+                          {d.dersAdi}
+                        </span>
+                        <span
+                          style={{
+                            marginLeft: 'auto',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            color: renk,
+                          }}
+                        >
+                          {Y.hakMetni
+                            ? Y.hakMetni(d.durum, d.birim, d.dersSaati)
+                            : d.durum.kacirilanSaat + ' saat devamsızlık'}
+                        </span>
+                      </div>
 
-                  <div
-                    style={{
-                      height: 9,
-                      borderRadius: 999,
-                      background: '#E5E7EB',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        height: '100%',
-                        width: Math.round((d.durum.oran || 0) * 100) + '%',
-                        background: renk,
-                        transition: 'width 200ms',
-                      }}
-                    />
-                  </div>
+                      <div
+                        style={{
+                          height: 9,
+                          borderRadius: 999,
+                          background: '#E5E7EB',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: '100%',
+                            width: Math.round((d.durum.oran || 0) * 100) + '%',
+                            background: renk,
+                            transition: 'width 200ms',
+                          }}
+                        />
+                      </div>
 
-                  {/* Sağdaki rozet zaten "Kalan hak: X / Y saat" diyor; aynı
+                      {/* Sağdaki rozet zaten "Kalan hak: X / Y saat" diyor; aynı
                       cümleyi altına da yazmak satırı iki kez okutuyordu.
                       Burada yalnız UYARI ve katılım ayrıntısı kalır. */}
-                  <p
-                    style={{
-                      margin: '8px 0 0',
-                      fontSize: 11.5,
-                      color: kirmizi ? '#B91C1C' : '#6B7280',
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {kirmizi && (
-                      <b>Devamsızlık sınırı aşıldı — devamsızlıktan kalma durumundasınız. </b>
-                    )}
-                    {!kirmizi && d.durum.durum === 'riskli' && (
-                      <b style={{ color: '#B45309' }}>Hakkınız azaldı. </b>
-                    )}
-                    {d.durum.acilan > 0
-                      ? d.durum.acilan + ' yoklamanın ' + d.durum.katilan + ' tanesine katıldınız.'
-                      : 'Bu derste henüz yoklama alınmadı.'}
-                    {!d.durum.limitSaat && d.durum.acilan > 0 && (
-                      <span style={{ color: '#9CA3AF' }}>
-                        {' '}
-                        Akademisyen bu ders için devamsızlık sınırı belirlemedi.
-                      </span>
-                    )}
-                  </p>
-                </div>
-              );
-            })}
+                      <p
+                        style={{
+                          margin: '8px 0 0',
+                          fontSize: 11.5,
+                          color: kirmizi ? '#B91C1C' : '#6B7280',
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {kirmizi && (
+                          <b>Devamsızlık sınırı aşıldı — devamsızlıktan kalma durumundasınız. </b>
+                        )}
+                        {!kirmizi && d.durum.durum === 'riskli' && (
+                          <b style={{ color: '#B45309' }}>Hakkınız azaldı. </b>
+                        )}
+                        {d.durum.acilan > 0
+                          ? d.durum.acilan +
+                            ' yoklamanın ' +
+                            d.durum.katilan +
+                            ' tanesine katıldınız.'
+                          : 'Bu derste henüz yoklama alınmadı.'}
+                        {!d.durum.limitSaat && d.durum.acilan > 0 && (
+                          <span style={{ color: '#9CA3AF' }}>
+                            {' '}
+                            Akademisyen bu ders için devamsızlık sınırı belirlemedi.
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }
@@ -4569,6 +4622,7 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
           randevular: hoca.randevular,
           tarih,
           ogrenciNo: hoca.ogrenciNo,
+          kontenjan: hoca.kontenjan,
         })
       : { olur: true };
     if (!karar.olur) {
@@ -4650,8 +4704,9 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
             {[
               ['Görüşmeye açık', '#DCFCE7', '#166534'],
               ['Talebiniz var', '#FFFBEB', '#92400E'],
+              ['Randevunuz var', '#ECFDF5', '#047857'],
               ['Dersi var', '#DBEAFE', '#1E3A8A'],
-              ['Dolu (onaylanmış)', '#F3F4F6', '#6B7280'],
+              ['Kontenjan doldu', '#F3F4F6', '#6B7280'],
               ['Kapalı', '#FAFAFA', '#9CA3AF'],
             ].map(([e, bg, renk]) => (
               <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -4670,9 +4725,10 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
           </div>
 
           <p style={{ margin: '0 0 12px', fontSize: 11.5, color: '#6B7280', lineHeight: 1.6 }}>
-            Bir saatte &quot;2 talep&quot; yazıyorsa o saati başka öğrenciler de istemiş demektir;
-            siz de isteyebilirsiniz, seçimi akademisyen yapar. Saat ancak bir talep
-            <b> onaylandığında</b> kapanır.
+            Bir saatte &quot;3 kişi · 2 talep&quot; yazıyorsa o saate başka öğrenciler de geliyor
+            demektir; siz de isteyebilirsiniz. Akademisyen aynı saate
+            <b> birden çok öğrenci</b> alabilir; saat ancak koyduğu
+            <b> kontenjan dolunca</b> kapanır.
           </p>
 
           {!izgara || izgara.satirlar.length === 0 ? (
@@ -4726,12 +4782,19 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                         // Saati kapatan tek şey ONAYDIR (lib/randevu.js).
                         const talep =
                           acik && R.slotTalepleri
-                            ? R.slotTalepleri(hoca.randevular, h.gun, h.saat, tarih, hoca.ogrenciNo)
-                            : { onayli: false, bekleyen: 0, benimTalebim: false };
-                        const dolu = talep.onayli;
+                            ? R.slotTalepleri(
+                                hoca.randevular,
+                                h.gun,
+                                h.saat,
+                                tarih,
+                                hoca.ogrenciNo,
+                                hoca.kontenjan
+                              )
+                            : { dolu: false, bekleyen: 0, onayliSayisi: 0, benimTalebim: false };
+                        const dolu = talep.dolu;
                         // Kendi talebini ikinci kez göndermesin; saat yine de
                         // "kapalı" değildir, yalnız bu öğrenciye kapalıdır.
-                        const kilitli = dolu || talep.benimTalebim;
+                        const kilitli = dolu || talep.benimTalebim || talep.benimOnayim;
                         const rozet = R.slotTalepMetni ? R.slotTalepMetni(talep) : 'Uygun';
                         const secili2 = slot && slot.anahtar === h.anahtar;
                         return (
@@ -4747,15 +4810,20 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                                 ders
                                   ? 'Bu saatte dersi var'
                                   : dolu
-                                    ? 'Bu saat başka bir öğrenciye onaylandı'
-                                    : talep.benimTalebim
-                                      ? 'Bu saat için talebiniz yanıt bekliyor'
-                                      : acik
-                                        ? talep.bekleyen > 0
-                                          ? talep.bekleyen +
-                                            ' öğrenci bu saati istedi; siz de isteyebilirsiniz, seçimi akademisyen yapar'
-                                          : 'Randevu istemek için seçin'
-                                        : 'Görüşmeye kapalı'
+                                    ? 'Bu saatin kontenjanı doldu (' +
+                                      talep.onayliSayisi +
+                                      '/' +
+                                      talep.kontenjan +
+                                      ')'
+                                    : talep.benimOnayim
+                                      ? 'Bu saatte onaylanmış randevunuz var'
+                                      : talep.benimTalebim
+                                        ? 'Bu saat için talebiniz yanıt bekliyor'
+                                        : acik
+                                          ? talep.onayliSayisi > 0 || talep.bekleyen > 0
+                                            ? 'Bu saate başka öğrenciler de geliyor; akademisyen aynı saate birden çok öğrenci alabilir'
+                                            : 'Randevu istemek için seçin'
+                                          : 'Görüşmeye kapalı'
                               }
                               style={{
                                 width: '100%',
@@ -4773,13 +4841,15 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                                   ? '#DBEAFE'
                                   : dolu
                                     ? '#F3F4F6'
-                                    : talep.benimTalebim
-                                      ? '#FFFBEB'
-                                      : acik
-                                        ? secili2
-                                          ? '#A7F3D0'
-                                          : '#DCFCE7'
-                                        : '#FAFAFA',
+                                    : talep.benimOnayim
+                                      ? '#ECFDF5'
+                                      : talep.benimTalebim
+                                        ? '#FFFBEB'
+                                        : acik
+                                          ? secili2
+                                            ? '#A7F3D0'
+                                            : '#DCFCE7'
+                                          : '#FAFAFA',
                                 color: ders
                                   ? '#1E3A8A'
                                   : talep.benimTalebim

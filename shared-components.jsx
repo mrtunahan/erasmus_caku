@@ -14880,6 +14880,88 @@ function SayfaPenceresi({ baslik, altBaslik, enCokGenislik, onKapat, children })
 
 window.SayfaPenceresi = SayfaPenceresi;
 
+// ══════════════════════════════════════════════════════════════
+// PANEL İÇİ İŞ ŞERİDİ (SayfaAltSerit)
+//
+// Açılır pencerenin İÇİNDEKİ seçim: "Yoklama al / Devam listesi / Ayarlar"
+// ya da öğrenci tarafında "Yoklama ver / Devamsızlığım". Sekme şeridinin
+// küçük kardeşi.
+//
+// ⚠ ORTAK OLMASININ SEBEBİ SİMETRİ: aynı iş iki sayfada iki ayrı bileşenle
+// çizilirse zamanla ikisi ayrışır (biri kart, biri hap; biri tek satır, biri
+// sarmalı). Öğrenci ile akademisyen aynı ekranı görmeli — benzerliği koddan
+// almalı, iyi niyetten değil.
+// ══════════════════════════════════════════════════════════════
+function SayfaAltSerit({ isler, aktif, onSec }) {
+  const liste = Array.isArray(isler) ? isler : [];
+  if (liste.length === 0) return null;
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 4,
+        padding: 4,
+        borderRadius: 11,
+        background: '#F3F4F6',
+        border: '1px solid #E5E7EB',
+        flexWrap: 'wrap',
+      }}
+    >
+      {liste.map((i) => {
+        const sec = i.id === aktif;
+        return (
+          <button
+            key={i.id}
+            type="button"
+            onClick={() => onSec(i.id)}
+            style={{
+              flex: '1 1 120px',
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: 'none',
+              background: sec ? '#fff' : 'transparent',
+              boxShadow: sec ? '0 1px 3px rgba(0,0,0,.12)' : 'none',
+              color: sec ? '#1B2A4A' : '#6B7280',
+              fontSize: 12.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            {i.ad}
+            {i.sayi != null && i.sayi !== '' && (
+              <span style={{ marginLeft: 6, opacity: 0.65, fontWeight: 600 }}>{i.sayi}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+window.SayfaAltSerit = SayfaAltSerit;
+
+// ── Panel özet rozeti ──
+// "3 öğrenci · 2 yoklama" gibi sayılar iki sayfada da aynı kutuda durur.
+function SayfaRozet({ sayi, etiket, renk }) {
+  return (
+    <div
+      style={{
+        flex: '1 1 110px',
+        padding: '10px 12px',
+        borderRadius: 10,
+        background: '#FAFAFA',
+        border: '1px solid #EEF0F3',
+      }}
+    >
+      <div style={{ fontSize: 18, fontWeight: 800, color: renk || '#1B2A4A' }}>{sayi}</div>
+      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{etiket}</div>
+    </div>
+  );
+}
+
+window.SayfaRozet = SayfaRozet;
+
 // ── Dijital yoklama ve randevu kuralları ──
 // Modüller bu iki kuralı bütün olarak okur (kod üretimi, tolerans penceresi,
 // devamsızlık hesabı / görüşme saatleri, randevu kuralları). Tek tek window
