@@ -675,13 +675,17 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   );
 
   // ── Randevular ──
-  const bekleyenler = useMemo(
-    () =>
-      R.randevulariSirala
-        ? R.randevulariSirala(R.randevulariSuz(randevular, { durumlar: ['bekliyor'] }))
-        : [],
-    [R, randevular]
-  );
+  // Bekleyen talepler. Aynı saati isteyen kaç kişi olduğu KARTTA yazar:
+  // hoca "bu saati üç kişi istemiş" bilgisini görmeden seçim yapamaz
+  // (bekleyen talep saati kapatmıyor — bkz. lib/randevu.js).
+  const bekleyenler = useMemo(() => {
+    if (!R.randevulariSirala) return [];
+    const liste = R.randevulariSirala(R.randevulariSuz(randevular, { durumlar: ['bekliyor'] }));
+    return liste.map((r) => ({
+      ...r,
+      rakipSayisi: R.ayniSlotBekleyenler ? R.ayniSlotBekleyenler(randevular, r).length : 0,
+    }));
+  }, [R, randevular]);
   const onaylilar = useMemo(
     () =>
       R.randevulariSirala
@@ -695,12 +699,46 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     [R, randevular, tamIzgara]
   );
 
+  /**
+   * Randevu kararı.
+   *
+   * ⚠ AYNI SAATE BİRDEN ÇOK TALEP GELEBİLİR (bekleyen talep saati kapatmaz;
+   * bkz. lib/randevu.js). Biri onaylanınca diğerleri açıkta bırakılamaz:
+   * saat artık dolu olduğu hâlde öğrencide "bekliyor" yazmaya devam eder ve
+   * kimse sonucu öğrenemez. Onayla birlikte aynı saatteki diğer bekleyen
+   * talepler de sonuçlandırılır — hocaya kaç kişi olduğu SORULARAK.
+   */
   const randevuKarar = async (kayit, durum) => {
+    const R = window.RandevuKurali || {};
+    const rakipler =
+      durum === 'onaylandi' && R.ayniSlotBekleyenler
+        ? R.ayniSlotBekleyenler(randevular, kayit)
+        : [];
+    if (rakipler.length > 0) {
+      const onay = window.confirm(
+        'Bu saate ' +
+          (rakipler.length + 1) +
+          ' öğrenci talep göndermiş. ' +
+          metin(kayit.ogrenciAd || kayit.studentNumber) +
+          ' onaylanacak, diğer ' +
+          rakipler.length +
+          ' talep reddedilecek. Onaylıyor musunuz?'
+      );
+      if (!onay) return;
+    }
+    const zaman = new Date().toISOString();
     try {
       await window.DBWriteGenel('randevu_talepleri', metin(kayit.id || kayit._docId), {
         durum,
-        kararZamani: new Date().toISOString(),
+        kararZamani: zaman,
       });
+      for (const r of rakipler) {
+        await window.DBWriteGenel('randevu_talepleri', metin(r.id || r._docId), {
+          durum: 'reddedildi',
+          kararZamani: zaman,
+          akademisyenNotu: 'Bu saat başka bir öğrenciye verildi.',
+        });
+      }
       setTazele((t) => t + 1);
     } catch (e) {
       alert('Randevu güncellenemedi: ' + (e.message || 'bilinmeyen hata'));
@@ -2071,6 +2109,23 @@ function ASRandevular({ bekleyenler, onaylilar, ozet, cakisanlar, onKarar }) {
                 <div style={{ fontSize: 12, color: '#374151', marginTop: 6, fontWeight: 600 }}>
                   {R.tarihMetni ? R.tarihMetni(r.tarih) : metin(r.tarih)} · {metin(r.saat)}
                 </div>
+                {r.rakipSayisi > 0 && (
+                  <div
+                    style={{
+                      marginTop: 6,
+                      padding: '5px 8px',
+                      borderRadius: 7,
+                      background: '#FFFBEB',
+                      border: '1px solid #FDE68A',
+                      color: '#92400E',
+                      fontSize: 11,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Bu saati {r.rakipSayisi + 1} öğrenci istedi. Birini onaylarsanız diğerleri
+                    otomatik reddedilir.
+                  </div>
+                )}
                 {metin(r.konu) && (
                   <p
                     style={{

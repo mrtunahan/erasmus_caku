@@ -25,6 +25,9 @@ const {
 } = require('../lib/memur-kapsam');
 const { kapsamNumaralari } = require('../lib/ogrenci-baglanti');
 const { duyuruyaDokunabilir } = require('../lib/duyuru-sahip');
+// Öğrenci okumasında başkasının kaydını slot alanlarına indirger — randevu
+// taleplerinin adı/konusu sınıfça okunabiliyordu (bkz. server/lib/ogrenci-maske.js).
+const { STUDENT_READ_MASKED, ogrenciMaskesiUygula } = require('../lib/ogrenci-maske');
 const { auditWrites } = require('../middleware/auditLog');
 const { softAuth } = require('../middleware/softAuth');
 const { JWT_SECRET } = require('../middleware/auth');
@@ -2276,6 +2279,10 @@ router.get('/:collection', async (req, res) => {
       if (STUDENT_READ_STRIPPED[collection]) {
         decision.strip = STUDENT_READ_STRIPPED[collection];
       }
+      if (STUDENT_READ_MASKED[collection]) {
+        decision.maske = STUDENT_READ_MASKED[collection];
+        decision.maskeSahibi = user.studentNumber || user.identifier || '';
+      }
     }
 
     const db = await getDbSafe();
@@ -2373,6 +2380,15 @@ router.get('/:collection', async (req, res) => {
 
     const result = docs.map((doc) => {
       const { _id, _docId, ...rest } = doc;
+      // Öğrenci okuması: BAŞKASININ kaydı slot alanlarına indirgenir, kendi
+      // kaydı olduğu gibi döner (bkz. STUDENT_READ_MASKED).
+      if (decision.maske) {
+        return ogrenciMaskesiUygula(
+          { ...rest, id: _docId || _id.toString() },
+          decision.maske,
+          decision.maskeSahibi
+        );
+      }
       // Anonim erişimde yalnız izinli alanları döndür (örn. giriş ekranı
       // akademisyen araması: ad/unvan/bölüm — e-posta ve bayraklar sızmasın)
       if (decision.strip) {
@@ -2440,6 +2456,10 @@ router.get('/:collection/:docId', async (req, res) => {
       if (STUDENT_READ_STRIPPED[collection]) {
         decision.strip = STUDENT_READ_STRIPPED[collection];
       }
+      if (STUDENT_READ_MASKED[collection]) {
+        decision.maske = STUDENT_READ_MASKED[collection];
+        decision.maskeSahibi = user.studentNumber || user.identifier || '';
+      }
     }
 
     const db = await getDbSafe();
@@ -2500,6 +2520,10 @@ router.get('/:collection/:docId', async (req, res) => {
     }
 
     const { _id, _docId, ...rest } = doc;
+    if (decision.maske) {
+      const maskeli = ogrenciMaskesiUygula(rest, decision.maske, decision.maskeSahibi);
+      return res.json({ exists: true, data: maskeli, id: _docId || _id.toString() });
+    }
     if (decision.strip) {
       const stripped = {};
       decision.strip.forEach((f) => {

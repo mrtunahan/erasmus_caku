@@ -12,6 +12,7 @@ import {
   profilDurumu,
   profilHatalari,
   profilNormalle,
+  profilYazmaYamasi,
   profilOzetMetni,
   tarihTr,
   tcGecerliMi,
@@ -137,6 +138,32 @@ describe('alanSuzgeci', () => {
 
   it('adres serbest metin — süzülmez', () => {
     expect(alanSuzgeci('address', 'Cumhuriyet Mah. No:3 D:5')).toBe('Cumhuriyet Mah. No:3 D:5');
+  });
+});
+
+describe('profilYazmaYamasi', () => {
+  // Silinen alanın geri gelmesi buradan çıkmıştı: merge:true yazmada eksik
+  // alan "değişmedi" demektir. Yama her alanı taşır.
+  it('boşaltılan alan boş dize olarak YAZILIR', () => {
+    const yama = profilYazmaYamasi({ phone: '', email: 'a@b.com' });
+    expect(yama.phone).toBe('');
+    expect(yama.email).toBe('a@b.com');
+    expect(Object.prototype.hasOwnProperty.call(yama, 'phone')).toBe(true);
+  });
+
+  it('sözlükteki her alan yamada bulunur', () => {
+    const yama = profilYazmaYamasi({});
+    PROFIL_ALANLARI.forEach((a) => {
+      expect(yama[a.anahtar]).toBe('');
+    });
+  });
+
+  it('tanınmayan alan yamaya girmez', () => {
+    expect(profilYazmaYamasi({ bilinmeyen: 'x' }).bilinmeyen).toBeUndefined();
+  });
+
+  it('değerler kırpılır', () => {
+    expect(profilYazmaYamasi({ phone: '  0555 111 22 33  ' }).phone).toBe('0555 111 22 33');
   });
 });
 
