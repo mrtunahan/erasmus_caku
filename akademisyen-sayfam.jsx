@@ -911,6 +911,9 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           dersSaati,
           haftaSayisi: YL.haftaSayisiDuzelt ? YL.haftaSayisiDuzelt(a.haftaSayisi) : 14,
           donemBaslangici: metin(a.donemBaslangici).slice(0, 10),
+          // Ders yapılmayan haftalar: {3:'Bayram'} — devam listesinde o
+          // sütun işaret yerine sebebini gösterir.
+          haftaNotlari: a.haftaNotlari && typeof a.haftaNotlari === 'object' ? a.haftaNotlari : {},
         },
         true
       );
@@ -1030,6 +1033,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           ? P.parcaKayitlari(katilimKayitlari, dersId, p)
           : (katilimKayitlari || []).filter((k) => metin(k.dersId) === dersId),
         haftaSayisi: ayar.haftaSayisi,
+        haftaNotlari: ayar.haftaNotlari,
         donemBaslangici: ayar.donemBaslangici,
         limitSaat: ayar.limitSaat,
         dersSaati: P.parcaSaati ? P.parcaSaati(ders, p, ayar) : Number(ders.saat) || 1,
@@ -1352,7 +1356,6 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           <ASYoklamaPaneli
             dersler={dersler}
             ayarlar={yoklamaAyarlari}
-            oturumlar={oturumlar}
             devamsizlik={dersDevamsizligi}
             listeVerisi={listeVerisi}
             baglam={listeBaglami}
@@ -2479,7 +2482,6 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
           <ASRozet sayi={k.ogrenciSayisi} etiket="öğrenci" />
-          <ASRozet sayi={k.alinanYoklama} etiket="alınan yoklama" renk={AS_GREEN} />
           <ASRozet sayi={k.haftaSayisi} etiket="hafta sütunu" />
           <ASRozet
             sayi={k.devamsizlikSiniri === '' ? '—' : k.devamsizlikSiniri}
@@ -2514,7 +2516,8 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
         <div style={{ padding: '12px 14px', borderBottom: '1px solid #EEF0F3' }}>
           <h4 style={{ ...AS_BASLIK, fontSize: 13.5, margin: 0 }}>Önizleme</h4>
           <p style={{ margin: '4px 0 0', fontSize: 11, color: '#9CA3AF' }}>
-            + katıldı · - katılmadı · İ izinli · boş hücre: o hafta yoklama alınmadı
+            ✓ derse geldi · ✗ gelmedi · İ izinli · &quot;1/2&quot; o haftaki iki yoklamanın birine
+            geldi · boş hücre: o hafta yoklama alınmadı
           </p>
         </div>
         <div style={{ overflowX: 'auto' }}>
@@ -2527,8 +2530,19 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
                   </th>
                 ))}
                 {haftalar.map((h) => (
-                  <th key={h.anahtar} style={{ ...AS_TH, minWidth: 34 }}>
-                    {h.no}
+                  <th
+                    key={h.anahtar}
+                    title={h.not || h.baslik}
+                    style={{
+                      ...AS_TH,
+                      minWidth: 34,
+                      // Ders yapılmayan hafta sarı başlıkla ayrılır: sütunun
+                      // neden boş olduğu tabloya bakınca anlaşılsın.
+                      background: h.not ? '#FFFBEB' : AS_TH.background,
+                      color: h.not ? '#92400E' : AS_TH.color,
+                    }}
+                  >
+                    {h.not ? h.not.slice(0, 6) : h.no}
                   </th>
                 ))}
               </tr>
@@ -2650,7 +2664,6 @@ const AS_TD = {
 function ASYoklamaPaneli({
   dersler,
   ayarlar,
-  oturumlar,
   devamsizlik,
   listeVerisi,
   baglam,
@@ -2667,7 +2680,15 @@ function ASYoklamaPaneli({
   // Uygulaması olan ders iki satır olarak listelenir (Teori / Uygulama) ve
   // her biri kendi yoklamasını, kendi devamsızlık sınırını, kendi devam
   // listesini taşır. Uygulaması olmayan derste ekran hiç değişmez: tek satır.
-  const secenekler = P.parcaliDersler ? P.parcaliDersler(dersler) : [];
+  // ⚠ BU LİSTE MEMOLANMAK ZORUNDA. Her render'da yeniden üretildiğinde
+  // aşağıdaki efektin bağımlılıkları da her render değişiyor, efekt yeniden
+  // çalışıp kutulara YAZILAN DEĞERİ kayıttaki eski değerle eziyordu:
+  // "devamsızlık hakkı girilmiyor" şikâyetinin sebebi buydu (her tuşta
+  // state sıfırlanıyor).
+  const secenekler = useMemo(
+    () => (P.parcaliDersler ? P.parcaliDersler(dersler) : []),
+    [P, dersler]
+  );
   const [secili, setSecili] = useState(() => (secenekler[0] ? secenekler[0].anahtar : ''));
   const [is, setIs] = useState('al');
   const secim = secenekler.find((x) => x.anahtar === secili) || secenekler[0] || null;
@@ -2678,6 +2699,9 @@ function ASYoklamaPaneli({
   const [dersSaati, setDersSaati] = useState('1');
   const [hafta, setHafta] = useState('');
   const [baslangic, setBaslangic] = useState('');
+  // Ders yapılmayan haftalar: {3: 'Bayram'} — devam listesinde o sütun
+  // işaret yerine sebebini gösterir.
+  const [notlar, setNotlar] = useState({});
 
   useEffect(() => {
     const a = secim ? ayarlar[secim.anahtar] || {} : {};
@@ -2691,13 +2715,13 @@ function ASYoklamaPaneli({
     );
     setHafta(String(a.haftaSayisi ?? ''));
     setBaslangic(metin(a.donemBaslangici));
-  }, [secili, secim, ders, parca, ayarlar]);
+    setNotlar(a.haftaNotlari && typeof a.haftaNotlari === 'object' ? a.haftaNotlari : {});
+    // ⚠ BAĞIMLILIK YALNIZ SEÇİM VE AYAR KAYDI. `secim`/`ders` her render
+    // yeniden üretilen nesnelerdir; listeye konursa efekt her render çalışır
+    // ve kullanıcının yazdığı değeri siler (yukarıdaki nota bakın).
+  }, [secili, ayarlar]);
 
   const satirlar = ders ? devamsizlik(ders, parca) : [];
-  const gecmis =
-    ders && P.parcaKayitlari
-      ? P.parcaKayitlari(oturumlar, metin(ders.id || ders._docId), parca).filter((o) => !o.acik)
-      : [];
   const asanlar = satirlar.filter((s) => s.durum && s.durum.asildi);
   const riskliler = satirlar.filter((s) => s.durum && s.durum.durum === 'riskli');
   const veri = ders && listeVerisi ? listeVerisi(ders, parca) : null;
@@ -2786,7 +2810,6 @@ function ASYoklamaPaneli({
             {ASRozet ? (
               <>
                 <ASRozet sayi={satirlar.length} etiket="öğrenci" />
-                <ASRozet sayi={gecmis.length} etiket="alınan yoklama" renk={AS_GREEN} />
                 <ASRozet
                   sayi={riskliler.length}
                   etiket="hakkı azalan"
@@ -3006,30 +3029,37 @@ function ASYoklamaPaneli({
           )}
 
           {is === 'ayar' && (
-            <div style={AS_KART}>
-              <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>
-                {secim ? secim.etiket : metin(ders.code || ders.kod)} — yoklama ayarları
-              </h4>
-              <p style={{ margin: '0 0 12px', fontSize: 11.5, color: '#9CA3AF', lineHeight: 1.6 }}>
-                Ayarlar yalnız bu {secim && secim.uygulamali ? 'parça' : 'ders'} içindir. Sınır
-                öğrencinin kendi sayfasındaki &quot;kalan hak&quot; çubuğunu, hafta düzeni ise devam
-                listesinin sütunlarını belirler.
-              </p>
-              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                {/* ── SINIR: SAAT Mİ, HAFTA MI? ──
-                    Yönetmelik saat konuşur, hocaların çoğu hafta sayar
-                    ("üç hafta gelmeyen kalır"). Çevirmeyi hocaya bırakmak
-                    sessiz hata üretiyordu; birim burada seçilir, hesap
-                    lib/yoklama.js'te saate çevrilir. */}
-                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* ── 1) DEVAMSIZLIK SINIRI ──
+                  Ekran daha önce tek kartta altı kutuydu; hangi kutunun neye
+                  yaradığı okunmuyordu. İki ayrı işe iki ayrı kart: sınır
+                  öğrencinin "kalan hak" çubuğunu, dönem düzeni devam
+                  listesinin sütunlarını belirler. */}
+              <div style={AS_KART}>
+                <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>
+                  Devamsızlık sınırı
+                  <span
+                    style={{ marginLeft: 8, fontSize: 11.5, fontWeight: 600, color: '#9CA3AF' }}
+                  >
+                    {secim ? secim.etiket : metin(ders.code || ders.kod)}
+                  </span>
+                </h4>
+                <p
+                  style={{ margin: '0 0 12px', fontSize: 11.5, color: '#9CA3AF', lineHeight: 1.6 }}
+                >
+                  Öğrenci kendi sayfasında kalan hakkını bu sınıra göre görür. Boş bırakırsanız
+                  sayılar yine tutulur ama &quot;kaldı&quot; kararı verilmez.
+                </p>
+                <div
+                  style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}
+                >
                   <ASAlan
-                    etiket="Devamsızlık hakkı"
-                    ipucu="Boş bırakılırsa Var/Yok kararı verilmez"
+                    etiket="Hak"
                     type="number"
                     min="0"
                     value={limit}
                     onChange={(e) => setLimit(e.target.value)}
-                    genislik={110}
+                    genislik={100}
                   />
                   <label style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600 }}>
                     Birim
@@ -3051,43 +3081,118 @@ function ASYoklamaPaneli({
                       <option value="saat">saat</option>
                       <option value="hafta">hafta</option>
                     </select>
-                    <span
-                      style={{ display: 'block', fontSize: 10.5, color: '#9CA3AF', marginTop: 3 }}
-                    >
-                      {birim === 'hafta'
-                        ? (Number(limit) || 0) +
-                          ' hafta = ' +
-                          (Y.limitSaate ? Y.limitSaate(limit, 'hafta', dersSaati) : 0) +
-                          ' saat'
-                        : 'Saat üzerinden hesaplanır'}
-                    </span>
                   </label>
+                  <ASAlan
+                    etiket="Haftalık ders saati"
+                    type="number"
+                    min="1"
+                    value={dersSaati}
+                    onChange={(e) => setDersSaati(e.target.value)}
+                    genislik={140}
+                  />
                 </div>
-                <ASAlan
-                  etiket="Haftalık ders saati"
-                  ipucu="Bir yoklama = bu kadar saat"
-                  type="number"
-                  min="1"
-                  value={dersSaati}
-                  onChange={(e) => setDersSaati(e.target.value)}
-                />
-                <ASAlan
-                  etiket="Dönem hafta sayısı"
-                  ipucu={'Listedeki hafta sütunu sayısı (en çok ' + (YL.HAFTA_SINIRI || 20) + ')'}
-                  type="number"
-                  min="1"
-                  max={YL.HAFTA_SINIRI || 20}
-                  value={hafta}
-                  onChange={(e) => setHafta(e.target.value)}
-                />
-                <ASAlan
-                  etiket="Dönem başlangıcı"
-                  ipucu="Yoklamalar bu tarihe göre haftalara düşer"
-                  type="date"
-                  value={baslangic}
-                  onChange={(e) => setBaslangic(e.target.value)}
-                />
+                {/* Yönetmelik saat konuşur, hocaların çoğu hafta sayar;
+                    çeviriyi hocaya bırakmak sessiz hata üretiyordu. */}
+                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#374151', fontWeight: 600 }}>
+                  {Number(limit) > 0
+                    ? birim === 'hafta'
+                      ? Number(limit) +
+                        ' hafta = ' +
+                        (Y.limitSaate ? Y.limitSaate(limit, 'hafta', dersSaati) : 0) +
+                        ' saat devamsızlık hakkı'
+                      : Number(limit) + ' saat devamsızlık hakkı'
+                    : 'Sınır girilmedi — Var/Yok kararı verilmez.'}
+                </p>
               </div>
+
+              {/* ── 2) DÖNEM DÜZENİ ── */}
+              <div style={AS_KART}>
+                <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>Dönem düzeni</h4>
+                <p
+                  style={{ margin: '0 0 12px', fontSize: 11.5, color: '#9CA3AF', lineHeight: 1.6 }}
+                >
+                  Devam listesindeki hafta sütunlarını belirler. Dönem başlangıcı girilmezse
+                  yoklamalar sırayla numaralanır ve ara tatil sütunları kaydırabilir.
+                </p>
+                <div
+                  style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}
+                >
+                  <ASAlan
+                    etiket="Hafta sayısı"
+                    ipucu={'En çok ' + (YL.HAFTA_SINIRI || 20)}
+                    type="number"
+                    min="1"
+                    max={YL.HAFTA_SINIRI || 20}
+                    value={hafta}
+                    onChange={(e) => setHafta(e.target.value)}
+                    genislik={120}
+                  />
+                  <ASAlan
+                    etiket="Dönem başlangıcı"
+                    ipucu="Yoklamalar bu tarihe göre haftalara düşer"
+                    type="date"
+                    value={baslangic}
+                    onChange={(e) => setBaslangic(e.target.value)}
+                    genislik={160}
+                  />
+                </div>
+              </div>
+
+              {/* ── 3) DERS YAPILMAYAN HAFTALAR ──
+                  Bayram, sınav haftası, resmî tatil… O haftayı boş bırakmak
+                  listeyi okuyanı yanıltıyordu ("neden kimse gelmemiş?").
+                  Yazılan metin devam listesinde o sütunun başlığına geçer ve
+                  sütuna işaret basılmaz. */}
+              <div style={AS_KART}>
+                <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>
+                  Ders yapılmayan haftalar
+                </h4>
+                <p
+                  style={{ margin: '0 0 12px', fontSize: 11.5, color: '#9CA3AF', lineHeight: 1.6 }}
+                >
+                  O hafta ders yapmadıysanız sebebini yazın (bayram, sınav haftası…). Devam
+                  listesinde o sütun işaret yerine bu metni gösterir.
+                </p>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+                    gap: 8,
+                  }}
+                >
+                  {(YL.haftaListesi ? YL.haftaListesi(hafta, notlar) : []).map((h) => (
+                    <label key={h.no} style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600 }}>
+                      {h.baslik}
+                      <input
+                        type="text"
+                        value={notlar[h.no] || ''}
+                        placeholder="ders yapıldı"
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setNotlar((n) => {
+                            const y = Object.assign({}, n);
+                            if (metin(v)) y[h.no] = v;
+                            else delete y[h.no];
+                            return y;
+                          });
+                        }}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          marginTop: 4,
+                          padding: '7px 9px',
+                          borderRadius: 8,
+                          border: '1px solid ' + (notlar[h.no] ? '#FCD34D' : '#D1D5DB'),
+                          background: notlar[h.no] ? '#FFFBEB' : '#fff',
+                          fontSize: 12.5,
+                          fontFamily: 'inherit',
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <button
                 onClick={() =>
                   onAyar(ders, {
@@ -3097,27 +3202,24 @@ function ASYoklamaPaneli({
                     dersSaati,
                     haftaSayisi: hafta,
                     donemBaslangici: baslangic,
+                    haftaNotlari: notlar,
                   })
                 }
                 style={{
-                  marginTop: 14,
-                  padding: '9px 18px',
-                  borderRadius: 9,
+                  alignSelf: 'flex-start',
+                  padding: '10px 20px',
+                  borderRadius: 10,
                   border: 'none',
                   background: AS_NAVY,
                   color: '#fff',
-                  fontSize: 12.5,
+                  fontSize: 13,
                   fontWeight: 700,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                 }}
               >
-                Kaydet
+                Ayarları kaydet
               </button>
-              <p style={{ margin: '12px 0 0', fontSize: 11.5, color: '#9CA3AF', lineHeight: 1.6 }}>
-                Dönem başlangıcı girilmezse hafta sütunları yoklama sırasına göre numaralanır; ara
-                tatil varsa sütunlar kayabilir. Doğru hizalama için başlangıç tarihini girin.
-              </p>
             </div>
           )}
         </>
