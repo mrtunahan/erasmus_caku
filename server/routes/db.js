@@ -28,6 +28,15 @@ const { duyuruyaDokunabilir } = require('../lib/duyuru-sahip');
 // Öğrenci okumasında başkasının kaydını slot alanlarına indirger — randevu
 // taleplerinin adı/konusu sınıfça okunabiliyordu (bkz. server/lib/ogrenci-maske.js).
 const { STUDENT_READ_MASKED, ogrenciMaskesiUygula } = require('../lib/ogrenci-maske');
+
+// Muafiyet yeniden gönderim kuralı ESM'dir ve İSTEMCİYLE AYNI DOSYADIR:
+// hangi satırın düzeltilebileceğine iki taraf da oradan karar verir. İkinci
+// bir kopya tutulsaydı biri değişip öteki kalırdı (bkz. lib/muafiyet-yeniden.js).
+let muafiyetKuraliSozu = null;
+function muafiyetKurali() {
+  if (!muafiyetKuraliSozu) muafiyetKuraliSozu = import('../../lib/muafiyet-yeniden.js');
+  return muafiyetKuraliSozu;
+}
 const { auditWrites } = require('../middleware/auditLog');
 const { softAuth } = require('../middleware/softAuth');
 const { JWT_SECRET } = require('../middleware/auth');
@@ -1639,6 +1648,18 @@ async function enforceWritePolicies(db, op, user) {
         typeof op.data === 'object'
       ) {
         const ALLOWED = new Set([
+          // ── REDDEDİLEN DERSİN DÜZELTİLMESİ ──
+          // ⚠ `matches` öğrenciye AÇIK DEĞİLDİR; yalnız bu kapıdan geçer ve
+          // sunucu diziyi MEVCUT KAYITTAN yeniden kurar: onaylanmış ve karar
+          // bekleyen satırlar gelen veriye bakılmadan olduğu gibi korunur,
+          // reddedilen satırda yalnız ders alanları alınır, notlara ve karar
+          // alanlarına dokunulmaz (bkz. lib/muafiyet-yeniden.js).
+          'matches',
+          'pendingReviewCount',
+          'approvedCount',
+          'rejectedCount',
+          'status',
+          'sonGonderim',
           'stage',
           'stageHistory',
           'notDonusumLink',
@@ -1677,6 +1698,34 @@ async function enforceWritePolicies(db, op, user) {
           !(existing.stage === 'on_onay' && op.data.stage === 'belge_teslim')
         ) {
           return { allow: false, status: 403, error: 'Geçersiz faz geçişi.' };
+        }
+
+        // ── YENİDEN GÖNDERİM: SUNUCU DİZİYİ KENDİ KURAR ──
+        // İstemcinin gönderdiği `matches` doğrudan yazılmaz. Kural dosyası
+        // her satırı mevcut hâliyle karşılaştırır: düzeltilemez satır gelen
+        // veriyi YOK SAYAR. Sayaçlar ve durum da istemciden alınmaz.
+        if ('matches' in op.data) {
+          const K = await muafiyetKurali();
+          const karar = K.ogrenciDuzenleyebilirMi(existing);
+          if (!karar.izin) {
+            return { allow: false, status: 403, error: karar.neden };
+          }
+          const sonuc = K.yenidenGonderim(existing.matches, op.data.matches, new Date());
+          if (sonuc.hata) {
+            return { allow: false, status: 400, error: sonuc.hata };
+          }
+          op.data.matches = sonuc.matches;
+          Object.assign(op.data, K.sayaclar(sonuc.matches));
+          op.data.sonGonderim = new Date().toISOString();
+        } else {
+          // Sayaç/durum alanları YALNIZ yeniden gönderimle birlikte yazılır;
+          // tek başlarına gelirlerse öğrenci kendi talebini "onaylı" ya da
+          // "karar beklemiyor" gösterebilirdi.
+          ['pendingReviewCount', 'approvedCount', 'rejectedCount', 'status', 'sonGonderim'].forEach(
+            (alan) => {
+              delete op.data[alan];
+            }
+          );
         }
       }
       return { allow: true };

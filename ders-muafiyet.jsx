@@ -1711,6 +1711,33 @@ var MuafiyetDB = {
     return { matches: matches, degisiklikler: degisiklikler, kayit: data };
   },
 
+  // ── ÖĞRENCİNİN YENİDEN GÖNDERİMİ ──
+  // Reddedilen satırlar düzeltilir, karar alanları temizlenir ve satır
+  // yeniden akademisyenin kuyruğuna girer. Kural (hangi satır düzeltilebilir,
+  // hangi alanlar alınır) lib/muafiyet-yeniden.js'te ve SUNUCU DA aynı
+  // dosyayı uygular — istemcinin gönderdiği dizi olduğu gibi yazılmaz.
+  async ogrenciYenidenGonder(recordId, istekler) {
+    var MY = window.MuafiyetYeniden || {};
+    var result = await window.apiReadDoc('muafiyet_records', String(recordId));
+    if (!result.exists) throw new Error('Kayıt bulunamadı');
+    var data = result.data;
+    var karar = MY.ogrenciDuzenleyebilirMi(data);
+    if (!karar.izin) throw new Error(karar.neden);
+    var sonuc = MY.yenidenGonderim(data.matches, istekler, new Date());
+    if (sonuc.hata) throw new Error(sonuc.hata);
+    var sayac = MY.sayaclar(sonuc.matches);
+    await window.DBWrite.update(
+      'muafiyet_records',
+      String(recordId),
+      Object.assign({ matches: sonuc.matches, updatedAt: new Date().toISOString() }, sayac)
+    );
+    if (window.audit)
+      window.audit('muafiyet_ogrenci_yeniden', 'muafiyet_records', String(recordId), {
+        meta: { degisen: sonuc.degisen, ogrenci: data.studentNo || '' },
+      });
+    return { matches: sonuc.matches, degisen: sonuc.degisen, kayit: data, sayac: sayac };
+  },
+
   // Onaylanmış bir eşleştirmenin geçmiş kaydını yeni değerlerle günceller.
   // Anahtar (sigKey) ders kodlarından türediği için o da yeniden hesaplanır.
   async gecmisiTazele(recordId, kayit, eskiSatir, yeniSatir) {
@@ -6214,6 +6241,359 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   );
 };
 
+// ══════════════════════════════════════════════════════════════
+// ÖĞRENCİ DÜZELTME PANELİ — REDDEDİLEN DERSLERİ YENİDEN GÖNDER
+//
+// ⚠ BU PANEL BİR ÇIKMAZDAN DOĞDU. Muafiyet ve yaz intibakı talepleri çoğu
+// zaman on-yirmi ders içeriyor. Akademisyen bunlardan BİRİNİ reddettiğinde
+// (öğrenci ÇAKÜ dersini yanlış müfredattan seçmiş, karşı kurumun kodunu
+// yanlış yazmış) öğrencinin yapabileceği hiçbir şey yoktu: talep kilitliydi
+// ve tek çıkar yol baştan yeni talep açmaktı — onaylanmış on beş ders
+// yeniden akademisyenin önüne düşüyordu.
+//
+// Panel YALNIZ reddedilen satırları gösterir. Onaylanmış satır burada hiç
+// görünmez; kural (ve sunucu denetimi) lib/muafiyet-yeniden.js'tedir.
+// ══════════════════════════════════════════════════════════════
+const OgrenciDuzeltmePaneli = ({ record, cakSecenekleri, onYenidenGonder }) => {
+  const MY = window.MuafiyetYeniden || {};
+  const [formlar, setFormlar] = useState({});
+  const [hata, setHata] = useState('');
+  const [mesaj, setMesaj] = useState('');
+  const [gonderiyor, setGonderiyor] = useState(false);
+
+  const matches = record.matches || [];
+  const karar = MY.ogrenciDuzenleyebilirMi ? MY.ogrenciDuzenleyebilirMi(record) : { izin: false };
+  const indeksler = MY.duzeltilebilirIndeksler ? MY.duzeltilebilirIndeksler(record) : [];
+
+  // Talep kapandıysa ya da karar bekleniyorsa: neden düzenlenemediği YAZILI
+  // durur. Sessiz bir kilit, öğrenciye "sistem bozuk" gibi görünüyordu.
+  //
+  // ⚠ BAŞARI MESAJI BU DALDA DA GÖRÜNÜR. Gönderim bitince düzeltilecek satır
+  // kalmadığı için panel kapanıyor; mesaj yalnız açık dalda çizilseydi
+  // öğrenci gönderiminin geçip geçmediğini hiç öğrenemezdi.
+  if (!karar.izin) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {mesaj && (
+          <div
+            style={{
+              padding: '11px 13px',
+              borderRadius: 10,
+              background: DS.greenBg,
+              border: '1px solid ' + DS.green + '55',
+              color: DS.green,
+              fontSize: 12.5,
+              fontWeight: 600,
+              lineHeight: 1.6,
+            }}
+          >
+            {mesaj}
+          </div>
+        )}
+        <div
+          style={{
+            padding: '11px 13px',
+            borderRadius: 10,
+            background: DS.bg,
+            border: '1px solid ' + DS.borderLight,
+            color: DS.textSecondary,
+            fontSize: 12.5,
+            lineHeight: 1.6,
+          }}
+        >
+          {karar.neden}
+        </div>
+      </div>
+    );
+  }
+
+  const formAl = (idx) => {
+    if (formlar[idx]) return formlar[idx];
+    const m = matches[idx] || {};
+    const yerel = m.localCourse || m.target || {};
+    const kaynak = m.sourceCourse || m.source || {};
+    return {
+      secim: '',
+      vazgec: false,
+      localCode: yerel.code || '',
+      localName: yerel.name || '',
+      localAkts: yerel.akts == null ? '' : String(yerel.akts),
+      localStatu: yerel.statu || '',
+      localDonem: yerel.donem || '',
+      localBologna: yerel.bolognaLink || '',
+      localIcerik: yerel.weeklyContent || yerel.content || '',
+      sourceCode: kaynak.code || '',
+      sourceName: kaynak.name || '',
+      sourceAkts: kaynak.akts == null ? '' : String(kaynak.akts),
+    };
+  };
+
+  const yaz = (idx, yama) => {
+    setHata('');
+    setMesaj('');
+    setFormlar((f) => Object.assign({}, f, { [idx]: Object.assign({}, formAl(idx), yama) }));
+  };
+
+  const dersSec = (idx, anahtar) => {
+    const opt = window.cakuSecenekBul ? window.cakuSecenekBul(cakSecenekleri, anahtar) : null;
+    if (!opt) {
+      yaz(idx, { secim: anahtar });
+      return;
+    }
+    yaz(idx, {
+      secim: anahtar,
+      localCode: opt.code || '',
+      localName: opt.name || '',
+      localAkts: String(opt.akts || ''),
+      localStatu: opt.statu || '',
+      localDonem: opt.donem || '',
+      localBologna: opt.bolognaLink || '',
+      localIcerik: opt.content || formAl(idx).localIcerik,
+    });
+  };
+
+  const gonder = async () => {
+    setHata('');
+    setMesaj('');
+    // Sunucuya giden dizi MEVCUT satır sayısıyla aynı uzunlukta: öğrenci
+    // satır ekleyip silemez, yalnız reddedilenleri düzeltir (kural dosyası
+    // bunu ayrıca uygular).
+    const istekler = matches.map((m, idx) => {
+      const f = formlar[idx];
+      if (!f) return {};
+      if (f.vazgec) return { ogrenciVazgecti: true };
+      return {
+        localCourse: {
+          code: f.localCode,
+          name: f.localName,
+          akts: f.localAkts,
+          statu: f.localStatu,
+          donem: f.localDonem,
+          bolognaLink: f.localBologna,
+          weeklyContent: f.localIcerik,
+        },
+        sourceCourse: { code: f.sourceCode, name: f.sourceName, akts: f.sourceAkts },
+      };
+    });
+    setGonderiyor(true);
+    const sonuc = await onYenidenGonder(record.id, istekler);
+    setGonderiyor(false);
+    if (!sonuc || sonuc.ok !== true) {
+      setHata((sonuc && sonuc.hata) || 'Yeniden gönderilemedi.');
+      return;
+    }
+    setFormlar({});
+    setMesaj(sonuc.ozet || 'Düzeltmeniz akademisyen onayına gönderildi.');
+  };
+
+  const giris = {
+    width: '100%',
+    padding: '8px 10px',
+    borderRadius: 8,
+    border: '1px solid ' + DS.border,
+    fontSize: 12.5,
+    fontFamily: 'inherit',
+    background: '#fff',
+  };
+  const etiket = {
+    display: 'block',
+    fontSize: 10.5,
+    fontWeight: 700,
+    color: DS.textMuted,
+    letterSpacing: 0.3,
+    marginBottom: 4,
+  };
+
+  return (
+    <div
+      style={{
+        marginTop: 14,
+        padding: 14,
+        borderRadius: 12,
+        background: DS.amberLight,
+        border: '1px solid ' + DS.amber + '66',
+      }}
+    >
+      <div style={{ fontSize: 13.5, fontWeight: 800, color: '#8A5A00', marginBottom: 4 }}>
+        {indeksler.length} ders reddedildi — düzeltip yeniden gönderebilirsiniz
+      </div>
+      <p style={{ margin: '0 0 12px', fontSize: 12, color: '#8A5A00', lineHeight: 1.6 }}>
+        Onaylanan dersleriniz yerinde kalır; yalnız aşağıdaki dersler yeniden akademisyen onayına
+        gider. Bir dersten vazgeçerseniz talebiniz o ders olmadan kapanır.
+      </p>
+
+      {indeksler.map((idx) => {
+        const m = matches[idx] || {};
+        const kaynak = m.sourceCourse || m.source || {};
+        const f = formAl(idx);
+        return (
+          <div
+            key={idx}
+            style={{
+              marginBottom: 12,
+              padding: 12,
+              borderRadius: 10,
+              background: '#fff',
+              border: '1px solid ' + DS.borderLight,
+            }}
+          >
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: DS.text }}>
+              {(kaynak.code ? kaynak.code + ' — ' : '') + (kaynak.name || 'Karşı kurum dersi')}
+            </div>
+            {/* Reddin gerekçesi hep görünür: öğrenci neyi düzelteceğini
+                bilmeden düzeltemez. */}
+            <div
+              style={{
+                margin: '6px 0 10px',
+                padding: '7px 10px',
+                borderRadius: 8,
+                background: DS.redLight,
+                color: DS.red,
+                fontSize: 11.5,
+                lineHeight: 1.5,
+              }}
+            >
+              <b>Red gerekçesi:</b> {m.adminNote || 'Gerekçe yazılmamış.'}
+            </div>
+
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 10,
+                cursor: 'pointer',
+                fontSize: 12.5,
+                color: DS.textSecondary,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={!!f.vazgec}
+                onChange={(e) => yaz(idx, { vazgec: e.target.checked })}
+                style={{ width: 15, height: 15, cursor: 'pointer' }}
+              />
+              Bu dersten vazgeçiyorum (talebimden çıksın)
+            </label>
+
+            {!f.vazgec && (
+              <>
+                <label style={{ display: 'block', marginBottom: 10 }}>
+                  <span style={etiket}>ÇAKÜ DERSİ (listeden seçin)</span>
+                  <select
+                    value={f.secim}
+                    onChange={(e) => dersSec(idx, e.target.value)}
+                    style={Object.assign({}, giris, { cursor: 'pointer' })}
+                  >
+                    <option value="">
+                      {(cakSecenekleri || []).length
+                        ? '— Ders seçin (ya da aşağıdan elle yazın) —'
+                        : 'Ders listesi yüklenemedi — aşağıdan elle yazın'}
+                    </option>
+                    {(cakSecenekleri || []).map((o) => (
+                      <option key={o.key} value={o.key}>
+                        {(o.code ? o.code + ' — ' : '') + o.name}
+                        {o.akts ? ' (AKTS ' + o.akts + ')' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: 10,
+                  }}
+                >
+                  <label>
+                    <span style={etiket}>ÇAKÜ DERS KODU</span>
+                    <input
+                      value={f.localCode}
+                      onChange={(e) => yaz(idx, { localCode: e.target.value })}
+                      style={giris}
+                    />
+                  </label>
+                  <label>
+                    <span style={etiket}>ÇAKÜ DERS ADI</span>
+                    <input
+                      value={f.localName}
+                      onChange={(e) => yaz(idx, { localName: e.target.value })}
+                      style={giris}
+                    />
+                  </label>
+                  <label>
+                    <span style={etiket}>ÇAKÜ AKTS</span>
+                    <input
+                      value={f.localAkts}
+                      onChange={(e) => yaz(idx, { localAkts: e.target.value })}
+                      style={giris}
+                    />
+                  </label>
+                  <label>
+                    <span style={etiket}>KARŞI KURUM DERS KODU</span>
+                    <input
+                      value={f.sourceCode}
+                      onChange={(e) => yaz(idx, { sourceCode: e.target.value })}
+                      style={giris}
+                    />
+                  </label>
+                  <label>
+                    <span style={etiket}>KARŞI KURUM DERS ADI</span>
+                    <input
+                      value={f.sourceName}
+                      onChange={(e) => yaz(idx, { sourceName: e.target.value })}
+                      style={giris}
+                    />
+                  </label>
+                  <label>
+                    <span style={etiket}>KARŞI KURUM AKTS</span>
+                    <input
+                      value={f.sourceAkts}
+                      onChange={(e) => yaz(idx, { sourceAkts: e.target.value })}
+                      style={giris}
+                    />
+                  </label>
+                </div>
+                {/* ⚠ NOT ALANI YOK: başarı notunu öğrenci yazamaz, notu
+                    akademisyen belirler (kural dosyası da bunu uygular). */}
+              </>
+            )}
+          </div>
+        );
+      })}
+
+      {hata && (
+        <div style={{ marginBottom: 10, fontSize: 12.5, color: DS.red, fontWeight: 600 }}>
+          {hata}
+        </div>
+      )}
+      {mesaj && (
+        <div style={{ marginBottom: 10, fontSize: 12.5, color: DS.green, fontWeight: 600 }}>
+          {mesaj}
+        </div>
+      )}
+
+      <button
+        onClick={gonder}
+        disabled={gonderiyor}
+        style={{
+          padding: '10px 18px',
+          borderRadius: 10,
+          border: 'none',
+          background: gonderiyor ? DS.textMuted : DS.navy,
+          color: '#fff',
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: gonderiyor ? 'default' : 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        {gonderiyor ? 'Gönderiliyor…' : 'Düzeltmeyi yeniden gönder'}
+      </button>
+    </div>
+  );
+};
+
 const ReviewPanel = ({
   record,
   onDecision,
@@ -6414,10 +6794,23 @@ const ReviewPanel = ({
         var isPending = m.tier === 'review' && !decided;
         var score = Math.round((m.score || m.contentScore || 0) * 100);
         var aktsOk = m.aktsPass !== false;
+        // Öğrenci reddedilen satırı düzeltip yeniden gönderdiyse akademisyen
+        // bunu görmeli: önüne gelen satır ilk gönderilen satır değil.
+        var ogrenciDuzeltti = !!m.ogrenciDuzeltti;
+        var oncekiRed =
+          ogrenciDuzeltti && Array.isArray(m.oncekiHaller) && m.oncekiHaller.length
+            ? m.oncekiHaller[m.oncekiHaller.length - 1]
+            : null;
 
         // Satırın durumu (sol kenar rengi + rozet)
         var durum, dColor, dBg;
-        if (decided === 'confirmed') {
+        if (m.ogrenciVazgecti) {
+          // Öğrenci reddedilen dersten vazgeçti: satır SİLİNMEDİ, red kaydı
+          // da vazgeçme kaydı da duruyor — ama kimseyi beklemiyor.
+          durum = 'Öğrenci vazgeçti';
+          dColor = DS.textMuted;
+          dBg = DS.bg;
+        } else if (decided === 'confirmed') {
           durum = 'Onaylandı';
           dColor = DS.green;
           dBg = DS.greenBg;
@@ -6456,6 +6849,43 @@ const ReviewPanel = ({
               background: 'white',
             }}
           >
+            {/* ── ÖĞRENCİ DÜZELTMESİ ──
+                Reddedilen ders öğrenci tarafından düzeltilip yeniden
+                gönderildiyse, kararı verecek akademisyen ÖNCEKİ HÂLİ ve kendi
+                red gerekçesini görmeli: önüne gelen satır ilk gönderilen satır
+                değildir (bkz. lib/muafiyet-yeniden.js). */}
+            {ogrenciDuzeltti && (
+              <div
+                style={{
+                  background: DS.blueLight || '#EEF2FF',
+                  border: '1px solid #C7D2FE',
+                  borderRadius: DS.radiusSm,
+                  padding: '7px 10px',
+                  marginBottom: 10,
+                  fontSize: 11.5,
+                  color: '#3730A3',
+                  lineHeight: 1.55,
+                }}
+              >
+                <b>Öğrenci reddedilen dersi düzeltip yeniden gönderdi</b>
+                {m.ogrenciDuzeltmeZamani
+                  ? ' · ' + new Date(m.ogrenciDuzeltmeZamani).toLocaleDateString('tr-TR')
+                  : ''}
+                {oncekiRed && (
+                  <div style={{ marginTop: 3 }}>
+                    Önceki hâli:{' '}
+                    <s>
+                      {(oncekiRed.sourceCourse || {}).code || '—'} →{' '}
+                      {(oncekiRed.localCourse || {}).code || '—'}
+                    </s>
+                    {oncekiRed.red && oncekiRed.red.gerekce
+                      ? ' · Red gerekçeniz: ' + oncekiRed.red.gerekce
+                      : ''}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── DÜZELTME İZİ ──
                 Kararı verecek akademisyen, önüne gelen satırın öğrencinin
                 gönderdiğinden farklı olduğunu GÖRMEK zorunda. Öğrenci de
@@ -7492,6 +7922,8 @@ const ExemptionHistory = ({
   cakSecenekleri,
   onMatchEdit,
   onMatchRemove,
+  // Öğrencinin REDDEDİLEN derslerini düzeltip yeniden göndermesi.
+  onYenidenGonder,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedReview, setExpandedReview] = useState(null);
@@ -8087,6 +8519,21 @@ const ExemptionHistory = ({
 
               {/* İnceleme/Talep Paneli — akademisyende karar verilebilir,
                   öğrencide salt-okunur (talebini nasıl yaptıysa görür) */}
+              {/* ── ÖĞRENCİ: REDDEDİLEN DERSLERİ DÜZELT ──
+                  Akademisyen bir dersi reddettiğinde talep kilitli kalıyor,
+                  öğrenci baştan yeni talep açmak zorunda kalıyordu. Panel
+                  yalnız reddedilen satırları açar; hepsi onaylandığında
+                  kendiliğinden kapanır (lib/muafiyet-yeniden.js). */}
+              {isExpanded && isStudent && onYenidenGonder && (
+                <div style={{ padding: '0 20px 16px' }}>
+                  <OgrenciDuzeltmePaneli
+                    record={rec}
+                    cakSecenekleri={cakSecenekleri}
+                    onYenidenGonder={onYenidenGonder}
+                  />
+                </div>
+              )}
+
               {isExpanded && (onUpdateDecision || isStudent) && (
                 <div style={{ padding: '0 20px 16px' }}>
                   <ReviewPanel
@@ -10362,10 +10809,13 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
     [activeDepartment, isStudent, currentUser?.studentNumber]
   );
 
-  // Bölümün dersleri — yalnız personel tarafında gerekir (düzeltme paneli).
+  // Bölümün dersleri — iki düzeltme panelinde de gerekir: yetkilinin satır
+  // düzeltmesinde ve ÖĞRENCİNİN reddedilen dersi yeniden seçmesinde. Öğrenci
+  // aynı listeyi "Yeni Talep" sihirbazında zaten görüyor; yeni bir veri
+  // açılmıyor. (Eskiden yalnız personel için yükleniyordu ve öğrencinin
+  // düzeltme panelinde ders seçici boş kalıyordu.)
   useEffect(
     function () {
-      if (isStudent) return undefined;
       var alive = true;
       (async function () {
         try {
@@ -10395,7 +10845,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         alive = false;
       };
     },
-    [activeDepartment, isStudent]
+    [activeDepartment]
   );
 
   const cakSecenekleri = useMemo(
@@ -10829,6 +11279,29 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
   // ── ÜNİVERSİTE YETKİLİSİ DÜZELTMESİ ──
   // Bekleyen bir satırdaki ÇAKÜ/karşı ders bilgisi yerinde düzeltilir; talep
   // reddedilip öğrenciye geri gönderilmez. Yetki kuralı lib tarafında.
+  // Öğrenci reddedilen dersleri düzeltip yeniden gönderir. Onaylanmış
+  // satırlara dokunulmaz; hepsi onaylandığında panel kendiliğinden kapanır.
+  const handleYenidenGonder = async function (recordId, istekler) {
+    try {
+      var sonuc = await MuafiyetDB.ogrenciYenidenGonder(recordId, istekler);
+      setRecords(function (prev) {
+        return prev.map(function (r) {
+          return r.id === recordId
+            ? Object.assign({}, r, { matches: sonuc.matches }, sonuc.sayac)
+            : r;
+        });
+      });
+      return {
+        ok: true,
+        ozet: window.MuafiyetYeniden
+          ? window.MuafiyetYeniden.yenidenGonderimOzeti(sonuc)
+          : 'Düzeltmeniz gönderildi.',
+      };
+    } catch (e) {
+      return { ok: false, hata: e.message || 'Yeniden gönderilemedi.' };
+    }
+  };
+
   const handleMatchEdit = async function (recordId, matchIndex, istenen) {
     try {
       var sonuc = await MuafiyetDB.updateMatchFields(recordId, matchIndex, istenen, currentUser);
@@ -11225,6 +11698,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
             cakSecenekleri={cakSecenekleri}
             onMatchEdit={isStudent ? null : handleMatchEdit}
             onMatchRemove={isStudent ? null : handleMatchRemove}
+            onYenidenGonder={isStudent ? handleYenidenGonder : null}
             emptyText={
               isStudent
                 ? '"' +

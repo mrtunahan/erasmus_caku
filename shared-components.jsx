@@ -381,6 +381,7 @@ import {
 import * as YoklamaKurali from './lib/yoklama.js';
 import * as YoklamaListesi from './lib/yoklama-listesi.js';
 import * as DersParcasi from './lib/ders-parcasi.js';
+import * as MuafiyetYeniden from './lib/muafiyet-yeniden.js';
 import { YOKLAMA_LISTE_ROWS, YOKLAMA_LISTE_STATIC } from './lib/yoklama-listesi.js';
 import * as RandevuKurali from './lib/randevu.js';
 import * as CihazKimligi from './lib/cihaz-kimlik.js';
@@ -14975,6 +14976,9 @@ window.YoklamaListesi = YoklamaListesi;
 // Teori/uygulama ayrımı: dersin parçaları, ayar belgesi kimliği ve eski
 // (parçasız) kayıtların hangi parçaya sayılacağı tek dosyada.
 window.DersParcasi = DersParcasi;
+// Reddedilen dersin öğrenci eliyle düzeltilip yeniden gönderilmesi. Kural
+// SUNUCUDA DA aynı dosyadan okunur (server/routes/db.js dinamik import).
+window.MuafiyetYeniden = MuafiyetYeniden;
 window.RandevuKurali = RandevuKurali;
 window.CihazKimligi = CihazKimligi;
 
