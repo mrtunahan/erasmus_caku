@@ -246,24 +246,31 @@ describe('slotMesgulMu', () => {
     { gun: 'Cuma', saat: '09:30', tarih: '2026-03-06', durum: 'reddedildi' },
   ];
 
-  it('onaylı randevu slotu kapatır', () => {
-    expect(slotMesgulMu(randevular, 'Salı', '13:15', '2026-03-10')).toBe(true);
+  // ⚠ KURAL: onay tek başına saati KAPATMAZ — hoca aynı saate beş öğrenciyi
+  // birden çağırabilir. Saat ancak KONTENJAN dolunca kapanır.
+  it('kontenjan yoksa onaylı randevu slotu kapatmaz', () => {
+    expect(slotMesgulMu(randevular, 'Salı', '13:15', '2026-03-10')).toBe(false);
+  });
+
+  it('kontenjan dolunca kapanır', () => {
+    expect(slotMesgulMu(randevular, 'Salı', '13:15', '2026-03-10', 1)).toBe(true);
+    expect(slotMesgulMu(randevular, 'Salı', '13:15', '2026-03-10', 2)).toBe(false);
   });
 
   // Aynı slot ama BAŞKA hafta — boştur.
   it('başka tarih meşgul değil', () => {
-    expect(slotMesgulMu(randevular, 'Salı', '13:15', '2026-03-17')).toBe(false);
+    expect(slotMesgulMu(randevular, 'Salı', '13:15', '2026-03-17', 1)).toBe(false);
   });
 
   it('reddedilmiş randevu slotu kapatmaz', () => {
-    expect(slotMesgulMu(randevular, 'Cuma', '09:30', '2026-03-06')).toBe(false);
+    expect(slotMesgulMu(randevular, 'Cuma', '09:30', '2026-03-06', 1)).toBe(false);
   });
 
   // ⚠ KURAL DEĞİŞTİ: bekleyen TALEP saati kapatmaz — aynı saate birden çok
   // öğrenci talep gönderebilir, seçimi hoca yapar.
   it('bekleyen talep slotu KAPATMAZ', () => {
     const bekleyen = [{ gun: 'Salı', saat: '13:15', tarih: '2026-03-10', durum: 'bekliyor' }];
-    expect(slotMesgulMu(bekleyen, 'Salı', '13:15', '2026-03-10')).toBe(false);
+    expect(slotMesgulMu(bekleyen, 'Salı', '13:15', '2026-03-10', 1)).toBe(false);
     expect(DOLU_DURUMLAR).not.toContain('bekliyor');
     // MESGUL_DURUMLAR "sonuçlanmamış randevu" anlamını korur (çakışma uyarısı).
     expect(MESGUL_DURUMLAR).toContain('bekliyor');
@@ -308,7 +315,25 @@ describe('slotTalepleri', () => {
 
   it('bekleyen talepler sayılır, reddedilen sayılmaz', () => {
     const d = slotTalepleri(randevular, 'Salı', '13:15', '2026-03-10');
-    expect(d).toMatchObject({ onayli: false, bekleyen: 2 });
+    expect(d).toMatchObject({ onayliSayisi: 0, bekleyen: 2, dolu: false });
+  });
+
+  it('onaylılar sayılır; kontenjan dolunca dolu olur', () => {
+    const grup = [
+      { gun: 'Salı', saat: '13:15', tarih: '2026-03-10', durum: 'onaylandi', studentNumber: '1' },
+      { gun: 'Salı', saat: '13:15', tarih: '2026-03-10', durum: 'onaylandi', studentNumber: '2' },
+    ];
+    expect(slotTalepleri(grup, 'Salı', '13:15', '2026-03-10').onayliSayisi).toBe(2);
+    expect(slotTalepleri(grup, 'Salı', '13:15', '2026-03-10', '', 5).dolu).toBe(false);
+    expect(slotTalepleri(grup, 'Salı', '13:15', '2026-03-10', '', 2).dolu).toBe(true);
+  });
+
+  it('öğrenci kendi ONAYLI randevusunu tanır', () => {
+    const grup = [
+      { gun: 'Salı', saat: '13:15', tarih: '2026-03-10', durum: 'onaylandi', studentNumber: '7' },
+    ];
+    expect(slotTalepleri(grup, 'Salı', '13:15', '2026-03-10', '7').benimOnayim).toBe(true);
+    expect(slotTalepleri(grup, 'Salı', '13:15', '2026-03-10', '8').benimOnayim).toBe(false);
   });
 
   it('öğrenci kendi talebini tanır', () => {
@@ -316,14 +341,17 @@ describe('slotTalepleri', () => {
     expect(slotTalepleri(randevular, 'Salı', '13:15', '2026-03-10', '9').benimTalebim).toBe(false);
   });
 
-  it('onaylı slot dolu görünür', () => {
-    expect(slotTalepleri(randevular, 'Salı', '13:15', '2026-03-17').onayli).toBe(true);
+  it('kontenjansız slot onaylı randevuyla bile dolu görünmez', () => {
+    expect(slotTalepleri(randevular, 'Salı', '13:15', '2026-03-17').dolu).toBe(false);
+    expect(slotTalepleri(randevular, 'Salı', '13:15', '2026-03-17').onayliSayisi).toBe(1);
   });
 
   it('rozet metni duruma göre', () => {
-    expect(slotTalepMetni({ onayli: true })).toBe('Dolu');
+    expect(slotTalepMetni({ dolu: true, onayliSayisi: 5, kontenjan: 5 })).toBe('Dolu (5/5)');
     expect(slotTalepMetni({ bekleyen: 2 })).toBe('2 talep');
+    expect(slotTalepMetni({ onayliSayisi: 3, bekleyen: 2 })).toBe('3 kişi · 2 talep');
     expect(slotTalepMetni({ bekleyen: 1, benimTalebim: true })).toBe('Talebiniz var');
+    expect(slotTalepMetni({ onayliSayisi: 2, benimOnayim: true })).toBe('Randevunuz var');
     expect(slotTalepMetni({ bekleyen: 0 })).toBe('Uygun');
     expect(slotTalepMetni(null)).toBe('Uygun');
   });
@@ -411,14 +439,45 @@ describe('randevuVerilebilirMi', () => {
     );
   });
 
-  it('ONAYLANMIŞ slota verilmez', () => {
+  // Grup görüşmesi: onaylı randevu olması yeni talebi engellemez.
+  it('başkasının ONAYLI randevusu engellemez (kontenjan yoksa)', () => {
     const r = randevuVerilebilirMi({
       ...temel,
       gun: 'Salı',
       saat: '13:15',
-      randevular: [{ gun: 'Salı', saat: '13:15', tarih: '2026-03-10', durum: 'onaylandi' }],
+      ogrenciNo: '2',
+      randevular: [
+        { gun: 'Salı', saat: '13:15', tarih: '2026-03-10', durum: 'onaylandi', studentNumber: '1' },
+      ],
+    });
+    expect(r.olur).toBe(true);
+  });
+
+  it('KONTENJAN dolduysa verilmez', () => {
+    const r = randevuVerilebilirMi({
+      ...temel,
+      gun: 'Salı',
+      saat: '13:15',
+      ogrenciNo: '2',
+      kontenjan: 1,
+      randevular: [
+        { gun: 'Salı', saat: '13:15', tarih: '2026-03-10', durum: 'onaylandi', studentNumber: '1' },
+      ],
     });
     expect(r.sebep).toBe('dolu');
+  });
+
+  it('aynı saate ikinci kez randevu istenmez', () => {
+    const r = randevuVerilebilirMi({
+      ...temel,
+      gun: 'Salı',
+      saat: '13:15',
+      ogrenciNo: '1',
+      randevular: [
+        { gun: 'Salı', saat: '13:15', tarih: '2026-03-10', durum: 'onaylandi', studentNumber: '1' },
+      ],
+    });
+    expect(r.sebep).toBe('zaten_randevum_var');
   });
 
   // Asıl istenen: aynı saate ikinci, üçüncü öğrenci de talep gönderebilmeli.

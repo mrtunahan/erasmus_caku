@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   ADIM_MS,
+  birimdeDeger,
+  hakMetni,
+  limitBirimi,
+  limitSaate,
   TOLERANS_MS,
   anlikKod,
   devamsizlikDurumu,
@@ -312,5 +316,50 @@ describe('oturumKayitlari', () => {
 
   it('ders saati verilmezse 1', () => {
     expect(oturumKayitlari({ id: 'o' }, [{ ogrenciNo: '1', durum: 'var' }])[0].dersSaati).toBe(1);
+  });
+});
+
+// ── SINIR: SAAT Mİ, HAFTA MI? ──
+// Hocaların çoğu hafta sayar ("üç hafta gelmeyen kalır"); çeviriyi onlara
+// bırakmak sessiz hata üretiyordu (2 saatlik derse "3" yazan hoca üç HAFTA
+// sandığı hakkı üç SAATE indiriyordu).
+describe('devamsızlık sınırının birimi', () => {
+  it('hafta, ders saatiyle çarpılarak saate çevrilir', () => {
+    expect(limitSaate(3, 'hafta', 2)).toBe(6);
+    expect(limitSaate(3, 'hafta', 1)).toBe(3);
+  });
+
+  it('saat olduğu gibi kalır', () => {
+    expect(limitSaate(6, 'saat', 2)).toBe(6);
+  });
+
+  it('tanınmayan birim saat sayılır (eski kayıtlar)', () => {
+    expect(limitBirimi('')).toBe('saat');
+    expect(limitBirimi('gün')).toBe('saat');
+    expect(limitBirimi('hafta')).toBe('hafta');
+    expect(limitSaate(6, undefined, 2)).toBe(6);
+  });
+
+  it('boş sınır 0 kalır — "sınır yok" demektir', () => {
+    expect(limitSaate('', 'hafta', 2)).toBe(0);
+    expect(limitSaate(0, 'saat', 2)).toBe(0);
+  });
+
+  it('saat değeri seçilen birimde geri yazılır', () => {
+    expect(birimdeDeger(6, 'hafta', 2)).toBe(3);
+    expect(birimdeDeger(6, 'saat', 2)).toBe(6);
+    // Blok derste tek saat kaçırmak yarım haftadır; yuvarlanmaz, yazılır.
+    expect(birimdeDeger(3, 'hafta', 2)).toBe(1.5);
+  });
+
+  it('ekran cümlesi hocanın birimiyle kurulur', () => {
+    const d = devamsizlikDurumu({ acilanYoklama: 3, katildigi: 1, limitSaat: 6, dersSaati: 2 });
+    expect(hakMetni(d, 'hafta', 2)).toBe('2 / 3 hafta');
+    expect(hakMetni(d, 'saat', 2)).toBe('4 / 6 saat');
+  });
+
+  it('sınır yoksa yalnız devamsızlık yazılır', () => {
+    const d = devamsizlikDurumu({ acilanYoklama: 2, katildigi: 0, limitSaat: 0, dersSaati: 2 });
+    expect(hakMetni(d, 'hafta', 2)).toBe('2 hafta devamsızlık');
   });
 });

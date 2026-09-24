@@ -222,9 +222,39 @@ router.post('/imzala', requireAuth, async (req, res) => {
     // ── Öğrenci bu dersi alıyor mu? ──
     // Almıyorsa yoklama kaydı açmak listeyi kirletir; hoca tanımadığı bir
     // numarayı silmek zorunda kalır.
+    //
+    // ⚠ SEÇİM İKİ YERDE OLABİLİR: dönem bazlı `student_courses` (yeni yol,
+    // Benim Sayfam oraya yazıyor) ve eski `students.myCourseIds`. Yalnız
+    // eskisine bakmak, yeni yoldan ders seçen öğrenciyi "kayıtlı değil"
+    // sayardı — karar istemcide lib/ogrenci-ders-secimi.js'te, burada da
+    // aynı birleşim uygulanır.
     const ogrenci = await db.collection('students').findOne({ studentNumber: ogrNo });
-    const dersleri = Array.isArray(ogrenci && ogrenci.myCourseIds) ? ogrenci.myCourseIds : [];
-    if (dersleri.length > 0 && !dersleri.map(String).includes(metin(oturum.dersId))) {
+    // Belge kimliği `{öğrenciNo}__{dönem}`; `studentNumber` alanı sunucu
+    // tarafında damgalanıyor ama ondan ÖNCE yazılmış kayıtlarda olmayabilir.
+    // Numara JWT'den gelir; yine de desene kaçış uygulanır.
+    const noDeseni = ogrNo.replace(/[^A-Za-z0-9]/g, '');
+    const donemKayitlari = await db
+      .collection('student_courses')
+      .find(
+        noDeseni
+          ? { $or: [{ studentNumber: ogrNo }, { _docId: { $regex: '^' + noDeseni + '__' } }] }
+          : { studentNumber: ogrNo }
+      )
+      .toArray()
+      .catch(() => []);
+    const dersKumesi = new Set();
+    (Array.isArray(donemKayitlari) ? donemKayitlari : []).forEach((d) => {
+      (Array.isArray(d && d.courseIds) ? d.courseIds : []).forEach((id) => {
+        const v = metin(id);
+        if (v) dersKumesi.add(v);
+      });
+    });
+    (Array.isArray(ogrenci && ogrenci.myCourseIds) ? ogrenci.myCourseIds : []).forEach((id) => {
+      const v = metin(id);
+      if (v) dersKumesi.add(v);
+    });
+    const dersleri = [...dersKumesi];
+    if (dersleri.length > 0 && !dersleri.includes(metin(oturum.dersId))) {
       return res
         .status(403)
         .json({ ok: false, sebep: 'kayitli_degil', error: dogrulamaMesaji('kayitli_degil') });
