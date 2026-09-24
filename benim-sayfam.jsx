@@ -658,7 +658,11 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       if (!canli) return;
       const ayarHarita = {};
       (ayr || []).forEach((a) => {
-        const k = metin(a.dersId || a.id);
+        // ⚠ ANAHTAR BELGE KİMLİĞİDİR, dersId DEĞİL: teori ve uygulama aynı
+        // dersin iki ayrı ayar belgesidir ('<dersId>' ve '<dersId>__uygulama').
+        // dersId ile anahtarlamak ikisini birbirinin üzerine yazardı. Eski
+        // belgelerde kimlik zaten dersId olduğu için davranış değişmez.
+        const k = metin(a.id || a._docId || a.dersId);
         if (k) ayarHarita[k] = a;
       });
       setYoklamaVerisi({
@@ -807,20 +811,40 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const dersDurumlari = useMemo(() => {
     const Y = window.YoklamaKurali;
     if (!Y) return [];
-    return myCourseDetails.map((c) => {
-      const dersId = metin(c.id);
-      const ayar = yoklamaVerisi.ayarlar[dersId] || {};
-      const acilan = yoklamaVerisi.oturumlar.filter(
-        (o) => metin(o.dersId) === dersId && !o.acik
-      ).length;
-      const katildigi = yoklamaVerisi.kayitlar.filter(
-        (k) => metin(k.dersId) === dersId && (k.durum === 'var' || k.durum === 'izinli')
-      ).length;
-      const dersSaati = Number(ayar.dersSaati) || Number(c.saat) || 1;
+    const P = window.DersParcasi || {};
+    // ⚠ TEORİ VE UYGULAMA AYRI SATIRDIR. Dersin uygulaması varsa öğrenci iki
+    // ayrı devamsızlık çubuğu görür: laboratuvara gelmeyen öğrenci teoriye
+    // geldi diye "devamlı" görünmemeli (bkz. lib/ders-parcasi.js).
+    const secenekler = P.parcaliDersler
+      ? P.parcaliDersler(myCourseDetails)
+      : myCourseDetails.map((c) => ({
+          ders: c,
+          dersId: metin(c.id),
+          parca: 'teori',
+          anahtar: metin(c.id),
+          ad: metin(c.name || c.ad),
+          uygulamali: false,
+        }));
+    return secenekler.map((x) => {
+      const c = x.ders;
+      const ayar = yoklamaVerisi.ayarlar[x.anahtar] || {};
+      const oturumlar = P.parcaKayitlari
+        ? P.parcaKayitlari(yoklamaVerisi.oturumlar, x.dersId, x.parca)
+        : yoklamaVerisi.oturumlar.filter((o) => metin(o.dersId) === x.dersId);
+      const acilan = oturumlar.filter((o) => !o.acik).length;
+      const kayitlar = P.parcaKayitlari
+        ? P.parcaKayitlari(yoklamaVerisi.kayitlar, x.dersId, x.parca)
+        : yoklamaVerisi.kayitlar.filter((k) => metin(k.dersId) === x.dersId);
+      const katildigi = kayitlar.filter((k) => k.durum === 'var' || k.durum === 'izinli').length;
+      const dersSaati = P.parcaSaati
+        ? P.parcaSaati(c, x.parca, ayar)
+        : Number(ayar.dersSaati) || Number(c.saat) || 1;
       return {
-        dersId,
+        dersId: x.anahtar,
         dersKodu: metin(c.code || c.kod),
-        dersAdi: metin(c.name || c.ad),
+        dersAdi: x.ad,
+        parca: x.parca,
+        uygulamali: x.uygulamali,
         // Akademisyen sınırı saat ya da HAFTA olarak koymuş olabilir; öğrenci
         // de hocasının konuştuğu birimde görsün (lib/yoklama.js → hakMetni).
         birim: Y.limitBirimi ? Y.limitBirimi(ayar.limitBirimi) : 'saat',
@@ -4494,8 +4518,26 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
                             {d.dersKodu}
                           </span>
                         )}
+                        {/* Teori ve uygulama AYRI satırdır; hangisi olduğu
+                            rozetten okunur (uygulaması olmayan derste çıkmaz). */}
+                        {d.uygulamali && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 800,
+                              color: d.parca === 'uygulama' ? '#5B21B6' : '#3730A3',
+                              background: d.parca === 'uygulama' ? '#EDE9FE' : '#EEF2FF',
+                              padding: '2px 7px',
+                              borderRadius: 999,
+                            }}
+                          >
+                            {d.parca === 'uygulama' ? 'UYGULAMA' : 'TEORİ'}
+                          </span>
+                        )}
                         <span style={{ fontSize: 13.5, fontWeight: 700, color: '#1B2A4A' }}>
-                          {d.dersAdi}
+                          {d.uygulamali
+                            ? String(d.dersAdi).replace(/\s*\((Teori|Uygulama)\)$/, '')
+                            : d.dersAdi}
                         </span>
                         <span
                           style={{

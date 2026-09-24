@@ -94,6 +94,8 @@ function oturumuTemizle(o, sirrDahil) {
   const g = {
     id: metin(o.id || o._id),
     dersId: metin(o.dersId),
+    // Eski oturumlarda alan yok; teori sayılır (lib/ders-parcasi.js).
+    parca: metin(o.parca) === 'uygulama' ? 'uygulama' : 'teori',
     dersKodu: metin(o.dersKodu),
     dersAdi: metin(o.dersAdi),
     dersSaati: Number(o.dersSaati) > 0 ? Number(o.dersSaati) : 1,
@@ -152,10 +154,19 @@ router.post('/oturum', requireAuth, async (req, res) => {
       }
     }
 
-    // Aynı ders için açık bir oturum varsa ikincisini açma: iki ekran iki
-    // farklı gizli anahtarla dönerse öğrencinin okuttuğu kod "başka oturum"
-    // diye reddedilir.
-    const mevcut = await db.collection(OTURUMLAR).findOne({ dersId, acik: true });
+    // ── TEORİ Mİ, UYGULAMA MI? ──
+    // Uygulaması olan derste iki ayrı yoklama yürür; oturum hangi parçaya
+    // ait olduğunu taşır. ⚠ `parca` alanı OLMAYAN eski oturumlar TEORİ
+    // sayılır (istemcideki kuralla aynı: lib/ders-parcasi.js).
+    const parca = metin(g.parca).toLocaleLowerCase('tr') === 'uygulama' ? 'uygulama' : 'teori';
+    // Aynı ders+parça için açık bir oturum varsa ikincisini açma: iki ekran
+    // iki farklı gizli anahtarla dönerse öğrencinin okuttuğu kod "başka
+    // oturum" diye reddedilir. Teori ile uygulama BİRBİRİNİ ENGELLEMEZ.
+    const parcaSuzgeci =
+      parca === 'uygulama'
+        ? { parca: 'uygulama' }
+        : { $or: [{ parca: 'teori' }, { parca: { $exists: false } }, { parca: '' }] };
+    const mevcut = await db.collection(OTURUMLAR).findOne({ dersId, acik: true, ...parcaSuzgeci });
     if (mevcut) {
       return res.json({ oturum: oturumuTemizle(mevcut, true), sunucuZamani: Date.now() });
     }
@@ -165,6 +176,7 @@ router.post('/oturum', requireAuth, async (req, res) => {
       // 32 baytlık gizli anahtar — oturuma özel, her açılışta yeniden üretilir.
       sirr: crypto.randomBytes(32).toString('hex'),
       dersId,
+      parca,
       dersKodu: metin(g.dersKodu || (ders && (ders.code || ders.kod))),
       dersAdi: metin(g.dersAdi || (ders && (ders.name || ders.ad))),
       dersSaati: Number(g.dersSaati) > 0 ? Number(g.dersSaati) : 1,
@@ -346,6 +358,9 @@ router.post('/imzala', requireAuth, async (req, res) => {
       id: 'yk-k-' + crypto.randomBytes(8).toString('hex'),
       oturumId: oturum.id,
       dersId: metin(oturum.dersId),
+      // Oturum hangi parçanınsa kayıt da onundur; eski kayıtlarda alan yok
+      // ve okuyanlar onları teoriye sayar (lib/ders-parcasi.js).
+      parca: metin(oturum.parca) === 'uygulama' ? 'uygulama' : 'teori',
       dersKodu: metin(oturum.dersKodu),
       dersAdi: metin(oturum.dersAdi),
       dersSaati: Number(oturum.dersSaati) > 0 ? Number(oturum.dersSaati) : 1,
