@@ -380,6 +380,7 @@ import {
 } from './lib/benim-sayfam-duzeni.js';
 import * as YoklamaKurali from './lib/yoklama.js';
 import * as YoklamaListesi from './lib/yoklama-listesi.js';
+import * as DersParcasi from './lib/ders-parcasi.js';
 import { YOKLAMA_LISTE_ROWS, YOKLAMA_LISTE_STATIC } from './lib/yoklama-listesi.js';
 import * as RandevuKurali from './lib/randevu.js';
 import * as CihazKimligi from './lib/cihaz-kimlik.js';
@@ -14971,6 +14972,9 @@ window.YoklamaKurali = YoklamaKurali;
 // Devam (yoklama) listesi çıktısı: şablon değişkenleri, satır üretimi ve
 // şablon yoksa kullanılan yerleşik yazdırma biçimi tek dosyada.
 window.YoklamaListesi = YoklamaListesi;
+// Teori/uygulama ayrımı: dersin parçaları, ayar belgesi kimliği ve eski
+// (parçasız) kayıtların hangi parçaya sayılacağı tek dosyada.
+window.DersParcasi = DersParcasi;
 window.RandevuKurali = RandevuKurali;
 window.CihazKimligi = CihazKimligi;
 

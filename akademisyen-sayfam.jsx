@@ -551,7 +551,11 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
 
       const ayarHarita = {};
       (ayar || []).forEach((a) => {
-        const k = metin(a.dersId || a.id);
+        // ⚠ ANAHTAR BELGE KİMLİĞİDİR, dersId DEĞİL: teori ve uygulama aynı
+        // dersin iki ayrı ayar belgesidir ('<dersId>' ve '<dersId>__uygulama').
+        // dersId ile anahtarlamak ikisini birbirinin üzerine yazardı. Eski
+        // belgelerde kimlik zaten dersId olduğu için davranış değişmez.
+        const k = metin(a.id || a._docId || a.dersId);
         if (k) ayarHarita[k] = a;
       });
       setYoklamaAyarlari(ayarHarita);
@@ -784,13 +788,25 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
 
   // ── Devamsızlık tablosu (ders başına) ──
   const dersDevamsizligi = useCallback(
-    (ders) => {
+    (ders, parca) => {
       const dersId = metin(ders.id || ders._docId);
-      const ayar = yoklamaAyarlari[dersId] || {};
+      // ⚠ TEORİ VE UYGULAMA AYRI SAYILIR. Ayar belgesi de ayrıdır; teoride
+      // kimlik DEĞİŞMEDİ (eski kayıtlar olduğu gibi okunur), uygulama için
+      // ikinci belge açılır (bkz. lib/ders-parcasi.js).
+      const P = window.DersParcasi || {};
+      const p = P.parcaCoz ? P.parcaCoz(parca) : 'teori';
+      const ayar = yoklamaAyarlari[P.parcaAnahtari ? P.parcaAnahtari(dersId, p) : dersId] || {};
       const limitSaat = Number(ayar.limitSaat) || 0;
-      const dersSaati = Number(ayar.dersSaati) || Number(ders.saat) || 1;
-      const acilan = oturumlar.filter((o) => metin(o.dersId) === dersId && !o.acik).length;
-      const kendi = katilimKayitlari.filter((k) => metin(k.dersId) === dersId);
+      const dersSaati = P.parcaSaati
+        ? P.parcaSaati(ders, p, ayar)
+        : Number(ayar.dersSaati) || Number(ders.saat) || 1;
+      // Parçası olmayan ESKİ oturum ve kayıtlar teoriye sayılır.
+      const acilan = (P.parcaKayitlari ? P.parcaKayitlari(oturumlar, dersId, p) : oturumlar).filter(
+        (o) => !o.acik
+      ).length;
+      const kendi = P.parcaKayitlari
+        ? P.parcaKayitlari(katilimKayitlari, dersId, p)
+        : katilimKayitlari.filter((k) => metin(k.dersId) === dersId);
       const sayac = new Map();
       kendi.forEach((k) => {
         if (k.durum !== 'var' && k.durum !== 'izinli') return;
@@ -819,8 +835,11 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   );
 
   // ── Yoklama başlat ──
-  const yoklamaBaslat = async (ders) => {
+  const yoklamaBaslat = async (ders, parca) => {
     const dersId = metin(ders.id || ders._docId);
+    const P = window.DersParcasi || {};
+    const p = P.parcaCoz ? P.parcaCoz(parca) : 'teori';
+    const ayarAnahtari = P.parcaAnahtari ? P.parcaAnahtari(dersId, p) : dersId;
     try {
       const r = await fetch('/api/yoklama/oturum', {
         method: 'POST',
@@ -831,9 +850,13 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         ),
         body: JSON.stringify({
           dersId,
+          // Hangi parça için yoklama alınıyor: teori mi, uygulama mı.
+          parca: p,
           dersKodu: metin(ders.code || ders.kod),
-          dersAdi: metin(ders.name || ders.ad),
-          dersSaati: Number((yoklamaAyarlari[dersId] || {}).dersSaati) || Number(ders.saat) || 1,
+          dersAdi: P.parcaliDersAdi ? P.parcaliDersAdi(ders, p) : metin(ders.name || ders.ad),
+          dersSaati: P.parcaSaati
+            ? P.parcaSaati(ders, p, yoklamaAyarlari[ayarAnahtari])
+            : Number(ders.saat) || 1,
           departmentId: metin(ders.departmentId || activeDepartment),
         }),
       });
@@ -861,6 +884,11 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     const dersId = metin(ders.id || ders._docId);
     const a = ayar || {};
     const YL = window.YoklamaListesi || {};
+    const P = window.DersParcasi || {};
+    const parca = P.parcaCoz ? P.parcaCoz(a.parca) : 'teori';
+    // Teorinin belge kimliği dersin kimliğidir (değişmedi); uygulama için
+    // ikinci belge: `<dersId>__uygulama`.
+    const belgeId = P.parcaAnahtari ? P.parcaAnahtari(dersId, parca) : dersId;
     const dersSaati = Math.max(1, Number(a.dersSaati) || 1);
     const birim = Y.limitBirimi ? Y.limitBirimi(a.limitBirimi) : 'saat';
     // ⚠ HESAP HER ZAMAN SAAT ÜZERİNDEN. Hoca hafta yazdıysa saate çevrilir;
@@ -871,11 +899,12 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     try {
       await window.DBWriteGenel(
         'yoklama_ayarlari',
-        dersId,
+        belgeId,
         {
           dersId,
+          parca,
           dersKodu: metin(ders.code || ders.kod),
-          dersAdi: metin(ders.name || ders.ad),
+          dersAdi: P.parcaliDersAdi ? P.parcaliDersAdi(ders, parca) : metin(ders.name || ders.ad),
           limitSaat,
           limitDegeri: Math.max(0, Number(a.limitDegeri) || 0),
           limitBirimi: birim,
@@ -967,9 +996,11 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
 
   /** Bir dersin devam listesi için gereken bütün bağlam. */
   const listeBaglami = useCallback(
-    (ders) => {
+    (ders, parca) => {
       const dersId = metin(ders.id || ders._docId);
-      const ayar = yoklamaAyarlari[dersId] || {};
+      const P = window.DersParcasi || {};
+      const p = P.parcaCoz ? P.parcaCoz(parca) : 'teori';
+      const ayar = yoklamaAyarlari[P.parcaAnahtari ? P.parcaAnahtari(dersId, p) : dersId] || {};
       const bolumId = metin(ders.departmentId || profil?.departmentId || activeDepartment);
       const bolum = (bolumler || []).find((b) =>
         [b.id, b._id, b._docId, b.code].filter(Boolean).map(String).includes(bolumId)
@@ -986,16 +1017,22 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
       return {
         ders: {
           code: metin(ders.code || ders.kod),
-          name: metin(ders.name || ders.ad),
+          // ⚠ ŞABLON DEĞİŞMEZ: uygulama listesi de aynı şablondan üretilir,
+          // yalnız ders adı parçayı söyler ("Programlama I (Uygulama)").
+          name: P.parcaliDersAdi ? P.parcaliDersAdi(ders, p) : metin(ders.name || ders.ad),
           birlesikDers: metin(ders.birlesikDers),
         },
         ogrenciler: dersinOgrencileri(dersId),
-        oturumlar: (oturumlar || []).filter((o) => metin(o.dersId) === dersId),
-        kayitlar: (katilimKayitlari || []).filter((k) => metin(k.dersId) === dersId),
+        oturumlar: P.parcaKayitlari
+          ? P.parcaKayitlari(oturumlar, dersId, p)
+          : (oturumlar || []).filter((o) => metin(o.dersId) === dersId),
+        kayitlar: P.parcaKayitlari
+          ? P.parcaKayitlari(katilimKayitlari, dersId, p)
+          : (katilimKayitlari || []).filter((k) => metin(k.dersId) === dersId),
         haftaSayisi: ayar.haftaSayisi,
         donemBaslangici: ayar.donemBaslangici,
         limitSaat: ayar.limitSaat,
-        dersSaati: Number(ayar.dersSaati) || Number(ders.saat) || 1,
+        dersSaati: P.parcaSaati ? P.parcaSaati(ders, p, ayar) : Number(ders.saat) || 1,
         akademikYil: window.akademikYilBul ? window.akademikYilBul(new Date()) : '',
         donem,
         ogretimUyesi: [metin(profil?.title), benimAd].filter(Boolean).join(' '),
@@ -1023,17 +1060,17 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
 
   /** Ekranda gösterilen önizleme ile indirilen belge AYNI veridir. */
   const listeVerisi = useCallback(
-    (ders) => {
+    (ders, parca) => {
       const YL = window.YoklamaListesi;
       if (!YL || !ders) return null;
-      return YL.listeVerisi(listeBaglami(ders));
+      return YL.listeVerisi(listeBaglami(ders, parca));
     },
     [listeBaglami]
   );
 
   /** Yerleşik çıktı: yazdırma penceresi (A4 yatay). */
-  const listeYazdir = (ders) => {
-    const veri = listeVerisi(ders);
+  const listeYazdir = (ders, parca) => {
+    const veri = listeVerisi(ders, parca);
     if (!veri) return;
     const w = window.open('', '_blank');
     if (!w) {
@@ -1078,12 +1115,20 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
    * Şablon yoksa ya da eşlemesi yapılmamışsa SEBEBİ SÖYLENİR ve yerleşik
    * çıktıya düşülür — sessiz başarısızlık yok.
    */
-  const listeSablondanIndir = async (ders) => {
-    const veri = listeVerisi(ders);
+  const listeSablondanIndir = async (ders, parca) => {
+    const veri = listeVerisi(ders, parca);
     if (!veri) return;
     const TE = window.TemplateEngine;
-    const baglam = listeBaglami(ders);
-    const govdeAdi = [metin(ders.code || ders.kod) || 'ders', 'devam listesi', baglam.akademikYil]
+    const baglam = listeBaglami(ders, parca);
+    const P = window.DersParcasi || {};
+    const parcaEki =
+      P.uygulamaliMi && P.uygulamaliMi(ders) ? (P.parcaAdi ? P.parcaAdi(parca) : '') : '';
+    const govdeAdi = [
+      metin(ders.code || ders.kod) || 'ders',
+      parcaEki,
+      'devam listesi',
+      baglam.akademikYil,
+    ]
       .filter(Boolean)
       .join(' ')
       .replace(/[\\/:*?"<>|]/g, '-');
@@ -1130,7 +1175,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         'Şablondan belge üretilemedi (' + (sonuc.message || sebep) + '). Yerleşik çıktı açılıyor.'
       );
     }
-    listeYazdir(ders);
+    listeYazdir(ders, parca);
   };
 
   const musaitlikDegistir = async (anahtar) => {
@@ -2617,9 +2662,17 @@ function ASYoklamaPaneli({
 }) {
   const Y = window.YoklamaKurali || {};
   const YL = window.YoklamaListesi || {};
-  const [secili, setSecili] = useState(() => metin(dersler[0]?.id || dersler[0]?._docId));
+  const P = window.DersParcasi || {};
+  // ── SEÇİM DERS DEĞİL, DERS + PARÇADIR ──
+  // Uygulaması olan ders iki satır olarak listelenir (Teori / Uygulama) ve
+  // her biri kendi yoklamasını, kendi devamsızlık sınırını, kendi devam
+  // listesini taşır. Uygulaması olmayan derste ekran hiç değişmez: tek satır.
+  const secenekler = P.parcaliDersler ? P.parcaliDersler(dersler) : [];
+  const [secili, setSecili] = useState(() => (secenekler[0] ? secenekler[0].anahtar : ''));
   const [is, setIs] = useState('al');
-  const ders = dersler.find((d) => metin(d.id || d._docId) === secili) || null;
+  const secim = secenekler.find((x) => x.anahtar === secili) || secenekler[0] || null;
+  const ders = secim ? secim.ders : null;
+  const parca = secim ? secim.parca : 'teori';
   const [limit, setLimit] = useState('');
   const [birim, setBirim] = useState('saat');
   const [dersSaati, setDersSaati] = useState('1');
@@ -2627,25 +2680,28 @@ function ASYoklamaPaneli({
   const [baslangic, setBaslangic] = useState('');
 
   useEffect(() => {
-    const a = ders ? ayarlar[metin(ders.id || ders._docId)] || {} : {};
+    const a = secim ? ayarlar[secim.anahtar] || {} : {};
     const b = Y.limitBirimi ? Y.limitBirimi(a.limitBirimi) : 'saat';
     setBirim(b);
     // Eski kayıtlarda yalnız `limitSaat` var; birim 'saat' olduğu için
     // doğrudan görünür. Hafta seçiliyse kayıttaki değer zaten hafta.
     setLimit(String(a.limitDegeri ?? a.limitSaat ?? ''));
-    setDersSaati(String(a.dersSaati ?? ders?.saat ?? 1));
+    setDersSaati(
+      String(a.dersSaati ?? (P.parcaSaati && ders ? P.parcaSaati(ders, parca, null) : 1))
+    );
     setHafta(String(a.haftaSayisi ?? ''));
     setBaslangic(metin(a.donemBaslangici));
-  }, [secili, ders, ayarlar]);
+  }, [secili, secim, ders, parca, ayarlar]);
 
-  const satirlar = ders ? devamsizlik(ders) : [];
-  const gecmis = ders
-    ? oturumlar.filter((o) => metin(o.dersId) === metin(ders.id || ders._docId) && !o.acik)
-    : [];
+  const satirlar = ders ? devamsizlik(ders, parca) : [];
+  const gecmis =
+    ders && P.parcaKayitlari
+      ? P.parcaKayitlari(oturumlar, metin(ders.id || ders._docId), parca).filter((o) => !o.acik)
+      : [];
   const asanlar = satirlar.filter((s) => s.durum && s.durum.asildi);
   const riskliler = satirlar.filter((s) => s.durum && s.durum.durum === 'riskli');
-  const veri = ders && listeVerisi ? listeVerisi(ders) : null;
-  const dersBaglami = ders && baglam ? baglam(ders) : null;
+  const veri = ders && listeVerisi ? listeVerisi(ders, parca) : null;
+  const dersBaglami = ders && baglam ? baglam(ders, parca) : null;
 
   if (dersler.length === 0) {
     return (
@@ -2658,33 +2714,70 @@ function ASYoklamaPaneli({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* 1) Ders seçimi */}
+      {/* 1) Ders (ve varsa parça) seçimi */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {dersler.map((d) => {
-          const id = metin(d.id || d._docId);
-          const sec = id === secili;
+        {secenekler.map((x) => {
+          const sec = x.anahtar === secili;
+          const uyg = x.uygulamali && x.parca === 'uygulama';
           return (
             <button
-              key={id}
-              onClick={() => setSecili(id)}
-              title={metin(d.name || d.ad)}
+              key={x.anahtar}
+              onClick={() => setSecili(x.anahtar)}
+              title={x.ad}
               style={{
                 padding: '8px 14px',
                 borderRadius: 10,
-                border: '1px solid ' + (sec ? AS_NAVY : '#E5E7EB'),
-                background: sec ? AS_NAVY : '#fff',
-                color: sec ? '#fff' : AS_NAVY,
+                border: '1px solid ' + (sec ? (uyg ? '#7C3AED' : AS_NAVY) : '#E5E7EB'),
+                background: sec ? (uyg ? '#7C3AED' : AS_NAVY) : '#fff',
+                color: sec ? '#fff' : uyg ? '#5B21B6' : AS_NAVY,
                 fontSize: 12.5,
                 fontWeight: 700,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
               }}
             >
-              {metin(d.code || d.kod) || metin(d.name || d.ad)}
+              {x.etiket}
+              {x.uygulamali && (
+                <span
+                  style={{
+                    padding: '1px 6px',
+                    borderRadius: 999,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    background: sec ? 'rgba(255,255,255,.22)' : uyg ? '#EDE9FE' : '#EEF2FF',
+                    color: sec ? '#fff' : uyg ? '#5B21B6' : '#3730A3',
+                  }}
+                >
+                  {x.parca === 'uygulama' ? 'U' : 'T'}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
+
+      {/* Parçalı derste hangi listede olunduğu kartın üstünde de yazar:
+          yanlış listeye yoklama almak geri alınması zor bir hatadır. */}
+      {secim && secim.uygulamali && (
+        <div
+          style={{
+            padding: '8px 11px',
+            borderRadius: 9,
+            background: parca === 'uygulama' ? '#F5F3FF' : '#EEF2FF',
+            border: '1px solid ' + (parca === 'uygulama' ? '#DDD6FE' : '#C7D2FE'),
+            color: parca === 'uygulama' ? '#5B21B6' : '#3730A3',
+            fontSize: 11.5,
+            lineHeight: 1.6,
+          }}
+        >
+          <b>{secim.ad}</b> — bu dersin teori ve uygulama yoklaması ayrı tutulur. Şu an{' '}
+          <b>{parca === 'uygulama' ? 'uygulama' : 'teori'}</b> listesindesiniz; devamsızlık sınırı
+          ve devam listesi de yalnız bu parçaya aittir.
+        </div>
+      )}
 
       {ders && (
         <>
@@ -2732,7 +2825,7 @@ function ASYoklamaPaneli({
                   </div>
                 </div>
                 <button
-                  onClick={() => onBaslat(ders)}
+                  onClick={() => onBaslat(ders, parca)}
                   style={{
                     padding: '11px 20px',
                     borderRadius: 11,
@@ -2907,19 +3000,20 @@ function ASYoklamaPaneli({
               ders={ders}
               veri={veri}
               departmentId={dersBaglami ? dersBaglami.departmentId : ''}
-              onYazdir={onYazdir}
-              onSablon={onSablon}
+              onYazdir={(d) => onYazdir(d, parca)}
+              onSablon={(d) => onSablon(d, parca)}
             />
           )}
 
           {is === 'ayar' && (
             <div style={AS_KART}>
               <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>
-                {metin(ders.code || ders.kod)} — yoklama ayarları
+                {secim ? secim.etiket : metin(ders.code || ders.kod)} — yoklama ayarları
               </h4>
               <p style={{ margin: '0 0 12px', fontSize: 11.5, color: '#9CA3AF', lineHeight: 1.6 }}>
-                Ayarlar yalnız bu ders içindir. Sınır öğrencinin kendi sayfasındaki &quot;kalan
-                hak&quot; çubuğunu, hafta düzeni ise devam listesinin sütunlarını belirler.
+                Ayarlar yalnız bu {secim && secim.uygulamali ? 'parça' : 'ders'} içindir. Sınır
+                öğrencinin kendi sayfasındaki &quot;kalan hak&quot; çubuğunu, hafta düzeni ise devam
+                listesinin sütunlarını belirler.
               </p>
               <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
                 {/* ── SINIR: SAAT Mİ, HAFTA MI? ──
@@ -2997,6 +3091,7 @@ function ASYoklamaPaneli({
               <button
                 onClick={() =>
                   onAyar(ders, {
+                    parca,
                     limitDegeri: limit,
                     limitBirimi: birim,
                     dersSaati,

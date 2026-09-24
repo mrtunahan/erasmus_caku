@@ -742,6 +742,11 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
     bolognaLink: '',
     statu: '', // Z/S — bilinçli seçim zorunlu, varsayılan yok
     seviye: 'lisans', // lisans | yukseklisans | doktora
+    // Teori/uygulama: bayrak açıksa dersin yoklaması iki ayrı liste olarak
+    // alınır (bkz. lib/ders-parcasi.js).
+    uygulamaVar: false,
+    teoriSaati: '',
+    uygulamaSaati: '',
   });
   const [saving, setSaving] = useState(false);
   const [filterClass, setFilterClass] = useState('all');
@@ -806,6 +811,9 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
       bolognaLink: c.bolognaLink || '',
       statu: c.statu || (c.sinif === 5 ? 'S' : ''),
       seviye: c.seviye || 'lisans',
+      uygulamaVar: !!c.uygulamaVar,
+      teoriSaati: c.teoriSaati ? String(c.teoriSaati) : '',
+      uygulamaSaati: c.uygulamaSaati ? String(c.uygulamaSaati) : '',
     });
   };
 
@@ -822,6 +830,9 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
       bolognaLink: '',
       statu: '',
       seviye: 'lisans',
+      uygulamaVar: false,
+      teoriSaati: '',
+      uygulamaSaati: '',
     });
   };
 
@@ -846,6 +857,9 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
         bolognaLink: bolognaLink,
         statu: form.statu,
         seviye: form.seviye || 'lisans',
+        // Teori/uygulama alanları tek yerden normalize edilir; bayrak
+        // kapatılsa bile saatler korunur (lib/ders-parcasi.js).
+        ...(window.DersParcasi ? window.DersParcasi.parcaAlanlari(form) : {}),
         departmentId: activeDepartment || 'bilgisayar',
         updatedAt: new Date().toISOString(),
       };
@@ -1242,7 +1256,28 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                         {c.code}
                       </Badge>
                     </td>
-                    <td style={{ padding: '12px 16px', fontWeight: 500 }}>{c.name}</td>
+                    <td style={{ padding: '12px 16px', fontWeight: 500 }}>
+                      {c.name}
+                      {/* Uygulaması olan ders listede de görünür: yoklama iki
+                          liste hâlinde alınacak, kimse şaşırmasın. */}
+                      {c.uygulamaVar && (
+                        <span
+                          title="Teori ve uygulama yoklaması ayrı alınır"
+                          style={{
+                            marginLeft: 8,
+                            padding: '1px 7px',
+                            borderRadius: 999,
+                            background: '#EDE9FE',
+                            color: '#5B21B6',
+                            fontSize: 10.5,
+                            fontWeight: 800,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          T + U
+                        </span>
+                      )}
+                    </td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                       {c.sinif === 5 ? 'Seçmeli' : `${c.sinif}. Sınıf`}
                     </td>
@@ -1456,6 +1491,79 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                 ))}
               </Select>
             </FormField>
+
+            {/* ── TEORİ / UYGULAMA ──
+                Bazı dersler haftada iki saat amfide, iki saat laboratuvarda
+                yürür. İkisinin yoklaması AYRI alınır ve devamsızlık hakkı
+                AYRI işler; laboratuvara gelmeyen öğrenci teoriye geldi diye
+                "devamlı" görünmemeli. Bayrak açılınca Dijital Yoklama ekranı
+                dersi iki satır gösterir (bkz. lib/ders-parcasi.js).
+                ⚠ Bayrağı kapatmak uygulama kayıtlarını SİLMEZ; yalnız
+                ekranlarda görünmez olur. */}
+            <div style={dyTamSatir}>
+              <DYAyrac>Teori / Uygulama</DYAyrac>
+            </div>
+            <div style={dyTamSatir}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  cursor: 'pointer',
+                  padding: '10px 12px',
+                  borderRadius: 9,
+                  border: '1px solid ' + (form.uygulamaVar ? '#A5B4FC' : '#E5E7EB'),
+                  background: form.uygulamaVar ? '#EEF2FF' : '#FAFAFA',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!form.uygulamaVar}
+                  onChange={(e) => setForm({ ...form, uygulamaVar: e.target.checked })}
+                  style={{ marginTop: 2, width: 16, height: 16, cursor: 'pointer' }}
+                />
+                <span>
+                  <b style={{ fontSize: 13.5, color: '#1F2937' }}>
+                    Bu dersin ayrıca uygulaması var
+                  </b>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 11.5,
+                      color: '#6B7280',
+                      marginTop: 3,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    Yoklama teori ve uygulama için AYRI alınır; devamsızlık hakkı ve dönem sonu
+                    devam listesi de ayrı olur. Kapatırsanız alınmış uygulama yoklamaları silinmez,
+                    yalnız görünmez olur.
+                  </span>
+                </span>
+              </label>
+            </div>
+            {form.uygulamaVar && (
+              <>
+                <FormField label="Teori — haftalık saat">
+                  <Input
+                    type="number"
+                    min="0"
+                    value={form.teoriSaati}
+                    onChange={(e) => setForm({ ...form, teoriSaati: e.target.value })}
+                    placeholder="Örn: 2"
+                  />
+                </FormField>
+                <FormField label="Uygulama — haftalık saat">
+                  <Input
+                    type="number"
+                    min="0"
+                    value={form.uygulamaSaati}
+                    onChange={(e) => setForm({ ...form, uygulamaSaati: e.target.value })}
+                    placeholder="Örn: 2"
+                  />
+                </FormField>
+              </>
+            )}
 
             <DYAyrac>Akademisyen ve Kaynak</DYAyrac>
             {/* ── İlgili akademisyen(ler) ──
