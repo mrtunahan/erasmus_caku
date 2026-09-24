@@ -349,6 +349,7 @@ import {
   profilDurumu,
   profilHatalari,
   profilNormalle,
+  profilYazmaYamasi,
   profilOzetMetni,
   tcGecerliMi,
 } from './lib/ogrenci-profil.js';
@@ -14545,6 +14546,9 @@ window.profilBelgeDegerleri = profilBelgeDegerleri;
 window.profilDurumu = profilDurumu;
 window.profilHatalari = profilHatalari;
 window.profilNormalle = profilNormalle;
+// Silinen alan da yazılsın diye: merge:true yazmada eksik alan "değişmedi"
+// demektir (bkz. lib/ogrenci-profil.js → profilYazmaYamasi).
+window.profilYazmaYamasi = profilYazmaYamasi;
 window.profilOzetMetni = profilOzetMetni;
 window.profilFormaUygula = profilFormaUygula;
 window.tcGecerliMi = tcGecerliMi;

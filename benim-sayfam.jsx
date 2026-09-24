@@ -558,17 +558,24 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   // Kişisel bilgileri kaydet (student_profiles/{öğrenciNo}) — merge:true
   // olduğundan photoURL gibi diğer alanlar korunur. Denetim lib'te: geçersiz
   // bir T.C. kimlik ya da e-posta kaydedilmez, çünkü belgeye aynen geçer.
+  //
+  // ⚠ SİLİNEN ALAN DA YAZILMALI. Eskiden yalnız DOLU alanlar gönderiliyordu;
+  // merge:true yazmada eksik alan "değişmedi" demek olduğu için silinen
+  // telefon/e-posta sunucuda eski değeriyle kalıyor, başka sekmeye gidip
+  // dönünce geri geliyordu. Yama artık sözlükteki her alanı taşır
+  // (bkz. lib/ogrenci-profil.js → profilYazmaYamasi).
   const handleProfilKaydet = async (yeniDegerler) => {
     if (!currentUser?.studentNumber) return false;
     const temiz = window.profilNormalle ? window.profilNormalle(yeniDegerler) : yeniDegerler || {};
     const hatalar = window.profilHatalari ? window.profilHatalari(temiz) : {};
     if (Object.keys(hatalar).length > 0) return hatalar;
+    const yama = window.profilYazmaYamasi ? window.profilYazmaYamasi(yeniDegerler) : temiz;
     setProfilKaydediliyor(true);
     try {
       await window.DBWrite.set(
         'student_profiles',
         String(currentUser.studentNumber),
-        { studentNumber: String(currentUser.studentNumber), ...temiz },
+        { studentNumber: String(currentUser.studentNumber), ...yama },
         true
       );
       setProfil(temiz);
@@ -4642,7 +4649,9 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
           >
             {[
               ['Görüşmeye açık', '#DCFCE7', '#166534'],
+              ['Talebiniz var', '#FFFBEB', '#92400E'],
               ['Dersi var', '#DBEAFE', '#1E3A8A'],
+              ['Dolu (onaylanmış)', '#F3F4F6', '#6B7280'],
               ['Kapalı', '#FAFAFA', '#9CA3AF'],
             ].map(([e, bg, renk]) => (
               <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -4659,6 +4668,12 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
               </span>
             ))}
           </div>
+
+          <p style={{ margin: '0 0 12px', fontSize: 11.5, color: '#6B7280', lineHeight: 1.6 }}>
+            Bir saatte &quot;2 talep&quot; yazıyorsa o saati başka öğrenciler de istemiş demektir;
+            siz de isteyebilirsiniz, seçimi akademisyen yapar. Saat ancak bir talep
+            <b> onaylandığında</b> kapanır.
+          </p>
 
           {!izgara || izgara.satirlar.length === 0 ? (
             <p style={{ fontSize: 12.5, color: '#9CA3AF', margin: 0, lineHeight: 1.6 }}>
@@ -4706,16 +4721,24 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                         const acik = h.durum === 'acik';
                         const ders = h.durum === 'ders';
                         const tarih = R.sonrakiTarih ? R.sonrakiTarih(h.gun, new Date()) : '';
-                        const dolu =
-                          acik && R.slotMesgulMu
-                            ? R.slotMesgulMu(hoca.randevular, h.gun, h.saat, tarih)
-                            : false;
+                        // ⚠ BEKLEYEN TALEP SAATİ KAPATMAZ: aynı saate birden
+                        // çok öğrenci talep gönderebilir, seçimi hoca yapar.
+                        // Saati kapatan tek şey ONAYDIR (lib/randevu.js).
+                        const talep =
+                          acik && R.slotTalepleri
+                            ? R.slotTalepleri(hoca.randevular, h.gun, h.saat, tarih, hoca.ogrenciNo)
+                            : { onayli: false, bekleyen: 0, benimTalebim: false };
+                        const dolu = talep.onayli;
+                        // Kendi talebini ikinci kez göndermesin; saat yine de
+                        // "kapalı" değildir, yalnız bu öğrenciye kapalıdır.
+                        const kilitli = dolu || talep.benimTalebim;
+                        const rozet = R.slotTalepMetni ? R.slotTalepMetni(talep) : 'Uygun';
                         const secili2 = slot && slot.anahtar === h.anahtar;
                         return (
                           <td key={h.anahtar} style={{ padding: 3 }}>
                             <button
                               type="button"
-                              disabled={!acik || dolu}
+                              disabled={!acik || kilitli}
                               onClick={() => {
                                 setSlot(h);
                                 setUyari('');
@@ -4724,10 +4747,15 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                                 ders
                                   ? 'Bu saatte dersi var'
                                   : dolu
-                                    ? 'Bu saat dolu'
-                                    : acik
-                                      ? 'Randevu istemek için seçin'
-                                      : 'Görüşmeye kapalı'
+                                    ? 'Bu saat başka bir öğrenciye onaylandı'
+                                    : talep.benimTalebim
+                                      ? 'Bu saat için talebiniz yanıt bekliyor'
+                                      : acik
+                                        ? talep.bekleyen > 0
+                                          ? talep.bekleyen +
+                                            ' öğrenci bu saati istedi; siz de isteyebilirsiniz, seçimi akademisyen yapar'
+                                          : 'Randevu istemek için seçin'
+                                        : 'Görüşmeye kapalı'
                               }
                               style={{
                                 width: '100%',
@@ -4745,26 +4773,28 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                                   ? '#DBEAFE'
                                   : dolu
                                     ? '#F3F4F6'
+                                    : talep.benimTalebim
+                                      ? '#FFFBEB'
+                                      : acik
+                                        ? secili2
+                                          ? '#A7F3D0'
+                                          : '#DCFCE7'
+                                        : '#FAFAFA',
+                                color: ders
+                                  ? '#1E3A8A'
+                                  : talep.benimTalebim
+                                    ? '#92400E'
                                     : acik
-                                      ? secili2
-                                        ? '#A7F3D0'
-                                        : '#DCFCE7'
-                                      : '#FAFAFA',
-                                color: ders ? '#1E3A8A' : acik ? '#166534' : '#D1D5DB',
+                                      ? '#166534'
+                                      : '#D1D5DB',
                                 fontSize: 10.5,
                                 fontWeight: 700,
-                                cursor: acik && !dolu ? 'pointer' : 'not-allowed',
+                                cursor: acik && !kilitli ? 'pointer' : 'not-allowed',
                                 fontFamily: 'inherit',
                                 padding: 3,
                               }}
                             >
-                              {ders
-                                ? (h.dersler || [])[0]?.dersKodu || 'Ders'
-                                : dolu
-                                  ? 'Dolu'
-                                  : acik
-                                    ? 'Uygun'
-                                    : ''}
+                              {ders ? (h.dersler || [])[0]?.dersKodu || 'Ders' : acik ? rozet : ''}
                             </button>
                           </td>
                         );
