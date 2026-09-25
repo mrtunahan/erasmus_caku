@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   ADIM_MS,
+  KISA_ADIM_MS,
+  KISA_TOLERANS_MS,
+  anlikKisaKod,
+  kisaGovde,
+  kisaKod,
+  kisaKodBicimle,
+  kisaKodDogrula,
+  kisaKodNormalle,
   birimdeDeger,
   hakMetni,
   limitBirimi,
@@ -361,5 +369,101 @@ describe('devamsızlık sınırının birimi', () => {
   it('sınır yoksa yalnız devamsızlık yazılır', () => {
     const d = devamsizlikDurumu({ acilanYoklama: 2, katildigi: 0, limitSaat: 0, dersSaati: 2 });
     expect(hakMetni(d, 'hafta', 2)).toBe('2 hafta devamsızlık');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// ELLE YAZILAN KISA KOD
+// Kamerası olmayan/çalışmayan öğrenci de yoklama verebilmeli; kod ekranda
+// karekodun yanında durur.
+// ══════════════════════════════════════════════════════════════
+describe('kısa kod', () => {
+  const SIRR = 'ab'.repeat(32);
+  const OTURUM = 'yk-abc123';
+  // Dilim başına hizalı bir an: pencere hesapları buradan ölçülür.
+  const BAS = Math.floor(1700000000000 / KISA_ADIM_MS) * KISA_ADIM_MS;
+
+  it('altı hanedir ve her dilimde değişir', () => {
+    const a = kisaKod(SIRR, OTURUM, 100);
+    const b = kisaKod(SIRR, OTURUM, 101);
+    expect(a).toMatch(/^\d{6}$/);
+    expect(b).toMatch(/^\d{6}$/);
+    expect(a).not.toBe(b);
+  });
+
+  it('başka oturumda başka kod çıkar', () => {
+    expect(kisaKod(SIRR, OTURUM, 100)).not.toBe(kisaKod(SIRR, 'yk-baska', 100));
+  });
+
+  it('karekodun imzasıyla aynı gövdeyi imzalamaz', () => {
+    // Kısa kodu gören biri karekodun imzasını türetememeli.
+    expect(kisaGovde(OTURUM, 5)).not.toBe(OTURUM + '.5');
+  });
+
+  it('boşluk ve tire ayıklanır, altı hane değilse kod sayılmaz', () => {
+    expect(kisaKodNormalle(' 481-902 ')).toBe('481902');
+    expect(kisaKodNormalle('481.902')).toBe('481902');
+    expect(kisaKodNormalle('48190')).toBe('');
+    expect(kisaKodNormalle('yk-1.2.abcdef')).toBe('');
+    expect(kisaKodNormalle('')).toBe('');
+  });
+
+  it('ekranda üçerli okunur', () => {
+    expect(kisaKodBicimle('481902')).toBe('481 902');
+  });
+
+  it('ekrandaki kod kabul edilir (boşluklu yazılsa da)', () => {
+    const kod = anlikKisaKod(SIRR, OTURUM, BAS);
+    const s = kisaKodDogrula(kisaKodBicimle(kod), {
+      sirr: SIRR,
+      oturumId: OTURUM,
+      simdi: BAS + 3000,
+    });
+    expect(s.gecerli).toBe(true);
+  });
+
+  it('yazmaya yetecek kadar süre tanır — ekrandan kalktıktan sonra da', () => {
+    const kod = anlikKisaKod(SIRR, OTURUM, BAS);
+    // Kod ekranda KISA_ADIM_MS kadar durur; bundan sonra da bir süre geçerli.
+    expect(
+      kisaKodDogrula(kod, { sirr: SIRR, oturumId: OTURUM, simdi: BAS + KISA_ADIM_MS + 5000 })
+        .gecerli
+    ).toBe(true);
+  });
+
+  it('pencere dolunca reddedilir', () => {
+    const kod = anlikKisaKod(SIRR, OTURUM, BAS);
+    const s = kisaKodDogrula(kod, {
+      sirr: SIRR,
+      oturumId: OTURUM,
+      simdi: BAS + KISA_TOLERANS_MS + 1000,
+    });
+    expect(s.gecerli).toBe(false);
+    expect(s.sebep).toBe('kisa_kod');
+  });
+
+  it('pencere dilim sınırına göre kaymaz', () => {
+    // Kodu dilimin SONUNDA görüp yazan öğrenci de yetişmeli.
+    const gecAn = BAS + KISA_ADIM_MS - 1000;
+    const kod = anlikKisaKod(SIRR, OTURUM, gecAn);
+    expect(
+      kisaKodDogrula(kod, { sirr: SIRR, oturumId: OTURUM, simdi: gecAn + 15000 }).gecerli
+    ).toBe(true);
+  });
+
+  it('başka oturumun kodu bu oturumda geçmez', () => {
+    const kod = anlikKisaKod(SIRR, 'yk-baska', BAS);
+    expect(kisaKodDogrula(kod, { sirr: SIRR, oturumId: OTURUM, simdi: BAS }).gecerli).toBe(false);
+  });
+
+  it('uydurma kod geçmez', () => {
+    expect(kisaKodDogrula('000000', { sirr: SIRR, oturumId: OTURUM, simdi: BAS }).sebep).toBe(
+      'kisa_kod'
+    );
+    expect(kisaKodDogrula('abc', { sirr: SIRR, oturumId: OTURUM, simdi: BAS }).sebep).toBe('bicim');
+  });
+
+  it('karekodun tam kodu kısa kod sayılmaz', () => {
+    expect(kisaKodNormalle('yk-1.56666.9f3a')).toBe('');
   });
 });

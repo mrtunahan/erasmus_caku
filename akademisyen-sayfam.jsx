@@ -16,6 +16,13 @@
 // ══════════════════════════════════════════════════════════════
 
 import qrOlustur from 'qrcode-generator';
+// ⚠ KURAL DOSYASI DOĞRUDAN İÇERİ ALINIR, `window` ÜZERİNDEN DEĞİL.
+// Yoklama kodunu üreten kural `window.YoklamaKurali`ndan okunuyordu; o nesne
+// shared-components yüklenirken atanıyor. Bu dosya (tembel yüklenen bir
+// parça) ondan önce çizilirse `anlikKod` YOKTUR: kod boş string olur ve
+// ekranda karekod ÇİZİLMEZ — sınıfta "karekod görünmedi" budur. Doğrudan
+// import, çizimin yükleme sırasına bağlı kalmasını bitirir.
+import * as YoklamaKuraliModulu from './lib/yoklama.js';
 
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
@@ -106,7 +113,7 @@ function KarekodSVG({ veri, boyut }) {
 // veremezdi.
 // ══════════════════════════════════════════════════════════════
 function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
-  const Y = window.YoklamaKurali || {};
+  const Y = window.YoklamaKurali || YoklamaKuraliModulu;
   const [simdi, setSimdi] = useState(() => Date.now());
   const [katilimlar, setKatilimlar] = useState([]);
   const [elleDurumlar, setElleDurumlar] = useState({});
@@ -162,6 +169,12 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
   const duzeltilmis = Y.duzeltilmisZaman ? Y.duzeltilmisZaman(simdi, saatFarki) : simdi;
   const kod = Y.anlikKod ? Y.anlikKod(oturum.sirr, oturum.id, duzeltilmis, Y.ADIM_MS) : '';
   const kalan = Y.kalanOran ? Y.kalanOran(duzeltilmis, Y.ADIM_MS) : 1;
+  // ── ELLE YAZILAN KOD KAREKODLA BİRLİKTE DURUR ──
+  // Kamerası olmayan/çalışmayan öğrenci "ekranda yazan kodu girin" diyen
+  // kutuyu görüyor ama ekranda yazan bir kod YOKTU. İkisi aynı anda görünür:
+  // isteyen okutur, isteyen yazar.
+  const kisa = Y.anlikKisaKod ? Y.anlikKisaKod(oturum.sirr, oturum.id, duzeltilmis) : '';
+  const kisaKalan = Y.kalanOran && Y.KISA_ADIM_MS ? Y.kalanOran(duzeltilmis, Y.KISA_ADIM_MS) : 1;
 
   const satirlar = useMemo(
     () =>
@@ -298,9 +311,91 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
             minWidth: 0,
           }}
         >
-          <div style={{ padding: 18, background: '#fff', borderRadius: 18 }}>
-            <KarekodSVG veri={kod} boyut={Math.min(440, Math.max(240, window.innerHeight - 320))} />
-          </div>
+          {/* ⚠ KOD ÜRETİLEMEZSE EKRAN SESSİZCE BOŞ KALMAZ. Eskiden karekod
+              çizilemediğinde bu alan bomboş görünüyordu ve akademisyen niçin
+              olduğunu anlayamıyordu; sebep artık ekranda yazar. */}
+          {kod ? (
+            <div style={{ padding: 18, background: '#fff', borderRadius: 18 }}>
+              <KarekodSVG
+                veri={kod}
+                boyut={Math.min(440, Math.max(240, (window.innerHeight || 800) - 380))}
+              />
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: '22px 26px',
+                borderRadius: 16,
+                background: 'rgba(220,38,38,0.14)',
+                border: '1px solid rgba(248,113,113,0.5)',
+                color: '#FECACA',
+                fontSize: 14,
+                lineHeight: 1.7,
+                maxWidth: 460,
+                textAlign: 'center',
+              }}
+            >
+              <b style={{ display: 'block', fontSize: 16, marginBottom: 6 }}>Karekod üretilemedi</b>
+              Sayfayı yenileyip yoklamayı yeniden açın. Sürerse yoklamayı elle alın (öğrencileri
+              sağdaki listeden işaretleyin) ve bu ekranı bölüm yetkilinize bildirin.
+            </div>
+          )}
+
+          {/* ── ELLE GİRİŞ KODU ── karekodun yanında, aynı anda */}
+          {kisa && (
+            <div
+              style={{
+                width: 'min(440px, 86vw)',
+                padding: '14px 18px 16px',
+                borderRadius: 16,
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.16)',
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: 'rgba(255,255,255,0.65)',
+                  letterSpacing: 0.2,
+                }}
+              >
+                Kamerası olmayan öğrenciler bu kodu yazar
+              </div>
+              <div
+                style={{
+                  margin: '6px 0 8px',
+                  fontSize: 'clamp(34px, 6vw, 54px)',
+                  fontWeight: 800,
+                  letterSpacing: 6,
+                  fontVariantNumeric: 'tabular-nums',
+                  fontFamily: "'SF Mono', 'Menlo', 'Consolas', monospace",
+                }}
+              >
+                {Y.kisaKodBicimle ? Y.kisaKodBicimle(kisa) : kisa}
+              </div>
+              <div
+                style={{
+                  height: 6,
+                  borderRadius: 999,
+                  background: 'rgba(255,255,255,0.14)',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    height: '100%',
+                    width: Math.round(kisaKalan * 100) + '%',
+                    background: kisaKalan > 0.3 ? '#60A5FA' : '#F59E0B',
+                    transition: 'width 200ms linear',
+                  }}
+                />
+              </div>
+              <div style={{ marginTop: 7, fontSize: 11.5, color: 'rgba(255,255,255,0.5)' }}>
+                Bu kod {Math.round((Y.KISA_ADIM_MS || 30000) / 1000)} saniyede bir değişir
+              </div>
+            </div>
+          )}
 
           {/* Geri sayım: kodun ne kadar ömrü kaldı */}
           <div style={{ width: 'min(440px, 80vw)' }}>
@@ -330,7 +425,7 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
               }}
             >
               Öğrenciler: <b style={{ color: '#fff' }}>Benim Sayfam → Dijital Yoklama</b> →
-              &quot;Karekodu Okut&quot;
+              &quot;Karekodu Okut&quot; ya da &quot;Kodu elle gir&quot;
             </p>
           </div>
         </div>
@@ -463,7 +558,7 @@ window.AS_BASLIK = AS_BASLIK;
 // ══════════════════════════════════════════════════════════════
 function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   const R = window.RandevuKurali || {};
-  const Y = window.YoklamaKurali || {};
+  const Y = window.YoklamaKurali || YoklamaKuraliModulu;
   const SayfaDuzeni = window.AkademisyenSayfaDuzeni || {};
   const SekmeSeridi = window.SayfaSekmeSeridi;
   const Pencere = window.SayfaPenceresi;
@@ -2673,7 +2768,7 @@ function ASYoklamaPaneli({
   onYazdir,
   onSablon,
 }) {
-  const Y = window.YoklamaKurali || {};
+  const Y = window.YoklamaKurali || YoklamaKuraliModulu;
   const YL = window.YoklamaListesi || {};
   const P = window.DersParcasi || {};
   // ── SEÇİM DERS DEĞİL, DERS + PARÇADIR ──

@@ -4263,12 +4263,14 @@ function BSKarekodTarayici({ onKod, onKapat }) {
       {/* ⚠ Kamera çalışmadığında tek çıkış yolu */}
       <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 12 }}>
         <label style={{ fontSize: 11.5, color: '#6B7280', fontWeight: 600 }}>
-          Kamera çalışmıyorsa: ekranda yazan kodu buraya yazın
+          Kamera çalışmıyorsa: ekranda karekodun altında yazan kodu buraya yazın
           <div style={{ display: 'flex', gap: 8, marginTop: 5 }}>
             <input
               value={elle}
               onChange={(e) => setElle(e.target.value)}
-              placeholder="yk-… . … . …"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder={'0'.repeat((window.YoklamaKurali || {}).KISA_KOD_UZUNLUGU || 6)}
               style={{
                 flex: 1,
                 minWidth: 0,
@@ -4320,6 +4322,84 @@ function BSKarekodTarayici({ onKod, onKapat }) {
   );
 }
 
+// ── ELLE KOD GİRİŞİ ──
+// Karekod okutmak herkeste çalışmıyor: kamera izni kapalı, kamera bozuk,
+// telefon eski ya da sınıfın arkasından projeksiyon okunmuyor. Bu öğrenciler
+// yoklamada "yok" görünüyordu. Ekranda karekodun yanında duran altı haneli
+// kod buraya yazılır; kararı yine SUNUCU verir (lib/yoklama.js → kisaKodDogrula).
+function BSElleKod({ gonderiliyor, onKod }) {
+  const Y = window.YoklamaKurali || {};
+  const [kod, setKod] = useState('');
+  const uzunluk = Y.KISA_KOD_UZUNLUGU || 6;
+  const hazir = (Y.kisaKodNormalle ? Y.kisaKodNormalle(kod) : kod.trim()).length === uzunluk;
+  const gonder = () => {
+    if (!hazir || gonderiliyor) return;
+    onKod(kod.trim());
+    setKod('');
+  };
+  return (
+    <div
+      style={{
+        marginTop: 14,
+        paddingTop: 14,
+        borderTop: '1px dashed #E5E7EB',
+      }}
+    >
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: '#374151', marginBottom: 7 }}>
+        Kameranız yoksa: ekrandaki {uzunluk} haneli kodu yazın
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={kod}
+          onChange={(e) => setKod(e.target.value.replace(/[^0-9\s-]/g, '').slice(0, 9))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') gonder();
+          }}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          placeholder={'0'.repeat(uzunluk)}
+          aria-label="Ekrandaki yoklama kodu"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: '12px 14px',
+            borderRadius: 11,
+            border: '1px solid #D1D5DB',
+            fontSize: 20,
+            fontWeight: 700,
+            letterSpacing: 4,
+            textAlign: 'center',
+            fontFamily: 'inherit',
+            color: '#1B2A4A',
+          }}
+        />
+        <button
+          onClick={gonder}
+          disabled={!hazir || gonderiliyor}
+          style={{
+            padding: '12px 20px',
+            borderRadius: 11,
+            border: 'none',
+            background: hazir && !gonderiliyor ? '#1B2A4A' : '#D1D5DB',
+            color: '#fff',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: hazir && !gonderiliyor ? 'pointer' : 'default',
+            fontFamily: 'inherit',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Gönder
+        </button>
+      </div>
+      <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#9CA3AF', lineHeight: 1.6 }}>
+        Kod {Math.round((Y.KISA_ADIM_MS || 30000) / 1000)} saniyede bir değişir; ekranda o an duran
+        kodu yazın.
+      </p>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════
 // PANEL — Dijital Yoklama (öğrenci)
 //
@@ -4328,7 +4408,6 @@ function BSKarekodTarayici({ onKod, onKapat }) {
 function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
   const Y = window.YoklamaKurali || {};
   const AltSerit = window.SayfaAltSerit;
-  const Rozet = window.SayfaRozet;
   const [is, setIs] = useState('ver');
   const [tarayici, setTarayici] = useState(false);
   const [sonuc, setSonuc] = useState(null); // { ok, mesaj }
@@ -4346,32 +4425,19 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
     [onOkut]
   );
 
-  const asan = dersDurumlari.filter((d) => d.durum.asildi).length;
-  const riskli = dersDurumlari.filter((d) => d.durum.durum === 'riskli').length;
-  const alinan = dersDurumlari.reduce((t, d) => t + (d.durum.acilan || 0), 0);
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* ── ÖZET ──
-          Akademisyen tarafındaki panelle AYNI kutular (shared-components →
-          SayfaRozet): iki sayfa aynı ekranı görsün diye. */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {Rozet ? (
-          <>
-            <Rozet sayi={dersDurumlari.length} etiket="ders" />
-            <Rozet sayi={alinan} etiket="alınan yoklama" renk="#059669" />
-            <Rozet sayi={riskli} etiket="hakkı azalan" renk={riskli > 0 ? '#B45309' : undefined} />
-            <Rozet sayi={asan} etiket="sınırı aşan" renk={asan > 0 ? '#B91C1C' : undefined} />
-          </>
-        ) : null}
-      </div>
+      {/* ⚠ ÖZET ROZETLERİ BİLEREK YOK. Öğrencinin tek sorusu "hakkım ne kadar
+          kaldı"dır ve cevabı Devamsızlığım listesinde ders ders yazıyor;
+          üstteki sayı şeridi aynı bilgiyi ikinci kez, daha bulanık
+          söylüyordu. Ders SAYISI da sekme adının yanında gereksizdi. */}
 
       {/* ── İŞ ŞERİDİ ── akademisyendeki "Yoklama al / Devam listesi / Ayarlar"ın karşılığı */}
       {AltSerit ? (
         <AltSerit
           isler={[
             { id: 'ver', ad: 'Yoklama ver' },
-            { id: 'durum', ad: 'Devamsızlığım', sayi: dersDurumlari.length },
+            { id: 'durum', ad: 'Devamsızlığım' },
           ]}
           aktif={is}
           onSec={setIs}
@@ -4425,6 +4491,13 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
                   Akademisyeniniz tahtaya karekodu yansıttığında bu düğmeye basın. Kod sürekli
                   değiştiği için ekran görüntüsüyle yoklama verilemez.
                 </p>
+
+                {/* ── İKİNCİ YOL: EKRANDAKİ KODU YAZMAK ──
+                    Kamerası olmayan, izin vermeyen ya da sınıfın arkasından
+                    karekodu okutamayan öğrenci için. Aynı ekranda, kamerayı
+                    hiç açmadan. Akademisyenin ekranında karekodun ALTINDA
+                    duran altı haneli kod budur. */}
+                <BSElleKod gonderiliyor={gonderiliyor} onKod={kodGeldi} />
               </>
             )}
 
