@@ -373,20 +373,43 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
     }
 
     try {
-      const newRoadmapData = {
-        ...roadmapData,
-        steps: {
-          ...roadmapData.steps,
-          [stepIdx]: {
+      // ── KÖR YAZMA YOK ──
+      // Eskiden ekran AÇILDIĞINDA yüklenmiş `roadmapData`nın tamamı geri
+      // yazılıyordu: bu arada akademisyen başka bir adımı onayladıysa o onay
+      // siliniyordu. Artık kayıt TAZE okunur ve yalnız BU adım yazılır
+      // (bkz. lib/staj-adim-yaz.js).
+      const SA = window.StajAdimYaz || {};
+      const oku = window.apiReadDocFresh || window.apiReadDoc;
+      let mevcutAdimlar = roadmapData.steps || {};
+      try {
+        const taze = await oku('internship_roadmap', String(myApplication.id));
+        if (taze && taze.exists && taze.data && taze.data.steps) mevcutAdimlar = taze.data.steps;
+      } catch (_) {
+        /* okunamadıysa elimizdekiyle devam: yazılan yine TEK adım */
+      }
+      const yeniAdim = SA.tamamlandiAdimi
+        ? SA.tamamlandiAdimi(mevcutAdimlar[stepIdx], studentId, new Date())
+        : {
+            ...(mevcutAdimlar[stepIdx] || {}),
             status: 'pending_approval',
             completedByStudent: studentId,
             completedAt: new Date().toISOString(),
-          },
-        },
+          };
+      const yama = SA.adimYamasi
+        ? SA.adimYamasi(stepIdx, yeniAdim)
+        : { steps: { ...mevcutAdimlar, [stepIdx]: yeniAdim } };
+      const newRoadmapData = {
+        ...roadmapData,
+        steps: { ...mevcutAdimlar, [stepIdx]: yeniAdim },
         updatedAt: new Date().toISOString(),
       };
 
-      await window.DBWrite.set('internship_roadmap', myApplication.id, newRoadmapData, true);
+      await window.DBWrite.set(
+        'internship_roadmap',
+        myApplication.id,
+        { ...yama, updatedAt: new Date().toISOString() },
+        true
+      );
 
       // Komisyon üyelerine bildirim oluştur
       try {
@@ -4475,21 +4498,17 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const isFacultyManager =
     isAdmin || !!currentUser?.isFacultyManager || !!currentUser?.isUniversityAdmin;
 
-  // Fakülte staj yetkilisi: yeni isStajCoordinator bayrağı VEYA (geriye dönük)
-  // "Ergün ÇINAR" ismi. Fakülte geneli staj erişimi + SGK onayı verir.
-  const isErgunCinar = useMemo(() => {
-    if (!currentUser) return false;
-    if (currentUser.isStajCoordinator) return true;
-    if (!currentUser.name && !currentUser.identifier) return false;
-    const n = currentUser.name || currentUser.identifier;
-    return (
-      (n.toLowerCase().includes('ergün') || n.toLowerCase().includes('ergun')) &&
-      (n.toLowerCase().includes('çinar') ||
-        n.toLowerCase().includes('çınar') ||
-        n.toLowerCase().includes('cinar') ||
-        n.toLowerCase().includes('cınar'))
-    );
-  }, [currentUser]);
+  // ── FAKÜLTE STAJ YETKİLİSİ: YALNIZ BAYRAK ──
+  // ⚠ BURADA BİR İSİM KURALI VARDI: adında "ergün" ve "çınar" geçen HERKES
+  // fakülte geneli staj erişimi ve SGK onay yetkisi alıyordu. Yetki kişiye
+  // değil GÖREVE verilir; adaş bir akademisyen sisteme girdiği gün bu yetkiyi
+  // kimse vermeden alırdı. Görev artık `isStajCoordinator` bayrağıyla
+  // taşınıyor (kullanıcı yönetiminden verilir; mevcut kayıtlar için
+  // server/migrate-staj-coordinator.js bir kez çalıştırılır).
+  const isStajYetkilisi = useMemo(
+    () => !!(currentUser && currentUser.isStajCoordinator),
+    [currentUser]
+  );
 
   // Staj komisyonu üyelerini yükle
   useEffect(() => {
@@ -4497,7 +4516,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       try {
         const comms = await window.apiRead('commissions');
         // "staj" kelimesi geçen TÜM komisyonlar (her bölümün kendi staj komisyonu)
-        const stajComms = comms.filter((c) => (c.name || '').toLowerCase().includes('staj'));
+        // ⚠ TÜRKÇE HARF: düz toLowerCase ile "İBRAHİM" ile "İbrahim" eşit
+        // ÇIKMIYOR (İ → i+nokta). Komisyon listesine adı BÜYÜK harfle
+        // girilmiş akademisyen üye sayılmıyor, staj onay ekranını hiç
+        // göremiyordu. Karşılaştırma ortak kuraldan geçer: unvanı ayıklar ve
+        // Türkçe-duyarlı karşılaştırır (lib/komisyon-modul.js → uyeMi).
+        const stajComms = comms.filter((c) =>
+          (c.name || '').toLocaleLowerCase('tr').includes('staj')
+        );
         const userName = currentUser?.name || currentUser?.identifier || '';
         let isMember = false;
         let memberDept = null;
@@ -4505,10 +4531,15 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         for (const c of stajComms) {
           const members = c.members || [];
           if (
-            members.some(
-              (m) =>
-                m.name && userName && m.name.toLowerCase().trim() === userName.toLowerCase().trim()
-            )
+            window.komisyonUyesiMi
+              ? window.komisyonUyesiMi(c, userName)
+              : members.some(
+                  (m) =>
+                    m.name &&
+                    userName &&
+                    m.name.toLocaleLowerCase('tr').trim() ===
+                      userName.toLocaleLowerCase('tr').trim()
+                )
           ) {
             isMember = true;
             // Üyenin bağlı olduğu bölüm — yalnızca bu bölümde işlem yapabilir
@@ -4530,7 +4561,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   }, [currentUser]);
 
   // Tam erişim: admin, bölüm yetkilisi, fakülte yetkilisi (admin), staj komisyon üyeleri, Ergün ÇINAR (SGK onayı)
-  const canManage = isAdmin || isDeptManager || isCommissionMember || isErgunCinar;
+  const canManage = isAdmin || isDeptManager || isCommissionMember || isStajYetkilisi;
   const isStudent = !canManage && !isProfessor;
   const studentId = currentUser?.studentNumber || currentUser?.identifier || '';
 
@@ -4545,7 +4576,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Fakülte geneli yetki: admin (fakülte yöneticisi) ve Ergün ÇINAR her
   // bölümde işlem yapabilir. Bölüm yetkilisi ve komisyon üyesi yalnızca
   // KENDİ bölümünün staj ekranında işlem yapabilir.
-  const isFacultyWide = isAdmin || isErgunCinar;
+  const isFacultyWide = isAdmin || isStajYetkilisi;
   const myDept = isDeptManager
     ? currentUser?.departmentId || 'bilgisayar'
     : isCommissionMember
@@ -4736,7 +4767,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       const allPeriods = await window.apiRead('internship_periods');
       setStajPeriods(allPeriods.filter((p) => periodInDept(p, effectiveDept)));
       // Ergün ÇINAR fakülte geneli dışa aktarır: tüm etapları filtresiz sakla.
-      if (isErgunCinar) setAllFacultyPeriods(allPeriods);
+      if (isStajYetkilisi) setAllFacultyPeriods(allPeriods);
 
       // Acil durum açılışları. Öğrenci de okur: kendi etabının açılıp
       // açılmadığını görmesi gerekiyor. Bölüm süzgeci YOK — açılış etaba
@@ -4760,7 +4791,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         // Tüm başvuruları çek, bölüme göre istemci tarafında ayır
         // (her bölümün öğrencileri ayrı ayrı gösterilir)
         const allApps = await window.apiRead('internship_applications');
-        if (isErgunCinar) setAllFacultyApplications(allApps);
+        if (isStajYetkilisi) setAllFacultyApplications(allApps);
         const deptApps = allApps.filter((a) => appInDept(a, effectiveDept));
         setAllApplications(deptApps);
 
@@ -4792,9 +4823,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       if (searchTerm) {
         const s = searchTerm.toLowerCase();
         return (
-          (r.adSoyad || '').toLowerCase().includes(s) ||
-          (r.ogrenciNo || '').toLowerCase().includes(s) ||
-          (r.stajYeriAdi || '').toLowerCase().includes(s)
+          window.trIcerir(r.adSoyad || '', s) ||
+          window.trIcerir(r.ogrenciNo || '', s) ||
+          window.trIcerir(r.stajYeriAdi || '', s)
         );
       }
       return true;
@@ -5002,7 +5033,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // (Ergün ÇINAR / isStajCoordinator) etap TARİHLERİNİ düzenleyemez ama
   // acil durumda kapıyı açabilir — staj sürecinin sahibi odur. Sunucu da
   // aynı kapıyı uygular (server/routes/db.js → internship_acil_acilis).
-  const canAcilAcilis = canActOnDept || isErgunCinar;
+  const canAcilAcilis = canActOnDept || isStajYetkilisi;
 
   const handleAcilisKaydet = async (kayit) => {
     if (!canAcilAcilis) {
@@ -5059,7 +5090,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Staj etabı kaydet
   const handleSavePeriod = async () => {
-    if (isErgunCinar) {
+    if (isStajYetkilisi) {
       alert('Staj etaplarını düzenleme yetkiniz bulunmamaktadır.');
       return;
     }
@@ -5121,7 +5152,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Admin: Staj etabı sil
   const handleDeletePeriod = async (periodId) => {
-    if (isErgunCinar) {
+    if (isStajYetkilisi) {
       alert('Staj etaplarını silme yetkiniz bulunmamaktadır.');
       return;
     }
@@ -5185,35 +5216,49 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
     // Adım 4 (index 3): normalde yalnız Ergün ÇINAR onaylar; ANCAK SGK son
     // tarihi geçmişse fakülte/üniversite yetkilisi de ilerletebilir (eskalasyon).
-    if (stepIdx === 3 && !isErgunCinar && !facultyEscalate) {
+    if (stepIdx === 3 && !isStajYetkilisi && !facultyEscalate) {
       alert('Bu adım (SGK İşlemleri) yalnızca Ergün ÇINAR tarafından onaylanabilir.');
       return;
     }
     // Ergün ÇINAR yalnızca adım 4 (index 3) için onay verebilir
-    if (stepIdx !== 3 && isErgunCinar) {
+    if (stepIdx !== 3 && isStajYetkilisi) {
       alert('Yalnızca SGK İşlemleri (Adım 4) için onay yetkiniz bulunmaktadır.');
       return;
     }
 
     try {
-      const rmResult = await window.apiReadDoc('internship_roadmap', appId);
+      // Taze oku, HARİTAYI değil ADIMI yaz (bkz. lib/staj-adim-yaz.js).
+      const SA = window.StajAdimYaz || {};
+      const oku = window.apiReadDocFresh || window.apiReadDoc;
+      const rmResult = await oku('internship_roadmap', appId);
       const existingData = rmResult.exists ? rmResult.data : {};
-
-      const newData = {
-        ...existingData,
-        steps: {
-          ...existingData.steps,
-          [stepIdx]: {
+      const yeniAdim = SA.onayAdimi
+        ? SA.onayAdimi(
+            existingData.steps?.[stepIdx],
+            currentUser?.name || currentUser?.identifier || '',
+            new Date()
+          )
+        : {
             ...(existingData.steps?.[stepIdx] || {}),
             status: 'completed',
             approvedBy: currentUser?.name || currentUser?.identifier || '',
             approvedAt: new Date().toISOString(),
-          },
-        },
+          };
+      const yama = SA.adimYamasi
+        ? SA.adimYamasi(stepIdx, yeniAdim)
+        : { steps: { ...existingData.steps, [stepIdx]: yeniAdim } };
+      const newData = {
+        ...existingData,
+        steps: { ...(existingData.steps || {}), [stepIdx]: yeniAdim },
         updatedAt: new Date().toISOString(),
       };
 
-      await window.DBWrite.set('internship_roadmap', appId, newData, true);
+      await window.DBWrite.set(
+        'internship_roadmap',
+        appId,
+        { ...yama, updatedAt: new Date().toISOString() },
+        true
+      );
       if (window.audit)
         window.audit('step_approve', 'internship_roadmap', appId, {
           meta: { stepIdx, stepTitle: STAJ_ROADMAP_STEPS[stepIdx]?.title },
@@ -5271,28 +5316,43 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       return;
     }
     // Ergün ÇINAR yalnızca adım 4 (index 3) için red verebilir
-    if (stepIdx !== 3 && isErgunCinar) {
+    if (stepIdx !== 3 && isStajYetkilisi) {
       alert('Yalnızca SGK İşlemleri (Adım 4) için red yetkiniz bulunmaktadır.');
       return;
     }
     try {
-      const rmResult = await window.apiReadDoc('internship_roadmap', appId);
+      // Taze oku, ADIMI yaz; ⚠ eski alanlar (kim onaylamıştı) SİLİNMEZ.
+      const SA = window.StajAdimYaz || {};
+      const oku = window.apiReadDocFresh || window.apiReadDoc;
+      const rmResult = await oku('internship_roadmap', appId);
       const existingData = rmResult.exists ? rmResult.data : {};
-
-      const newData = {
-        ...existingData,
-        steps: {
-          ...existingData.steps,
-          [stepIdx]: {
+      const yeniAdim = SA.redAdimi
+        ? SA.redAdimi(
+            existingData.steps?.[stepIdx],
+            currentUser?.name || currentUser?.identifier || '',
+            new Date()
+          )
+        : {
+            ...(existingData.steps?.[stepIdx] || {}),
             status: 'rejected',
             rejectedBy: currentUser?.name || currentUser?.identifier || '',
             rejectedAt: new Date().toISOString(),
-          },
-        },
+          };
+      const yama = SA.adimYamasi
+        ? SA.adimYamasi(stepIdx, yeniAdim)
+        : { steps: { ...existingData.steps, [stepIdx]: yeniAdim } };
+      const newData = {
+        ...existingData,
+        steps: { ...(existingData.steps || {}), [stepIdx]: yeniAdim },
         updatedAt: new Date().toISOString(),
       };
 
-      await window.DBWrite.set('internship_roadmap', appId, newData, true);
+      await window.DBWrite.set(
+        'internship_roadmap',
+        appId,
+        { ...yama, updatedAt: new Date().toISOString() },
+        true
+      );
       if (window.audit)
         window.audit('step_reject', 'internship_roadmap', appId, {
           meta: { stepIdx, stepTitle: STAJ_ROADMAP_STEPS[stepIdx]?.title },
@@ -5442,8 +5502,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Dışa aktarımda kullanılacak etap ve başvuru kümeleri. Ergün ÇINAR için
   // bölüm filtresiz tüm fakülte; diğer roller için kendi bölümleri.
-  const exportPeriods = isErgunCinar ? allFacultyPeriods : stajPeriods;
-  const exportApplications = isErgunCinar ? allFacultyApplications : allApplications;
+  const exportPeriods = isStajYetkilisi ? allFacultyPeriods : stajPeriods;
+  const exportApplications = isStajYetkilisi ? allFacultyApplications : allApplications;
 
   // ── Deadline: Staj başlangıcından 10 gün önce = öğrenci kayıt son + komisyon onay son tarihi ──
   const getKayitDeadline = (period) => (period?.baslangic ? addDays(period.baslangic, -10) : null);
@@ -5487,7 +5547,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // ── XML Export ──
   // "Tüm Etaplar" seçili ise her etap için AYRI bir dosya indirilir.
   const handleExportXML = () => {
-    if (isErgunCinar && exportPeriodId === 'all') {
+    if (isStajYetkilisi && exportPeriodId === 'all') {
       alert('Lütfen dışa aktarmak istediğiniz bir staj etabı seçiniz.');
       return;
     }
@@ -5531,14 +5591,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // Ergün ÇINAR için sadeleştirilmiş kolon seti kullanılır;
   // "Tüm Etaplar" seçili ise her etap için AYRI bir dosya indirilir.
   const handleExportXLSX = async () => {
-    if (isErgunCinar && exportPeriodId === 'all') {
+    if (isStajYetkilisi && exportPeriodId === 'all') {
       alert('Lütfen dışa aktarmak istediğiniz bir staj etabı seçiniz.');
       return;
     }
     setExporting(true);
     try {
       const XLSX = await loadSheetJS();
-      const fields = isErgunCinar ? ERGUN_EXPORT_FIELDS : EXPORT_FIELDS;
+      const fields = isStajYetkilisi ? ERGUN_EXPORT_FIELDS : EXPORT_FIELDS;
 
       const buildSheet = (apps, label) => {
         const headers = fields.map(([, tr]) => tr);
@@ -6079,7 +6139,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       label: 'Staj Kayıtları',
       icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
     },
-    ...(isErgunCinar
+    ...(isStajYetkilisi
       ? [
           {
             id: 'fakulte',
@@ -6972,14 +7032,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 Staj Etapları
               </h3>
               <p style={{ fontSize: 12, color: STAJ.textMuted, margin: '4px 0 0' }}>
-                {isErgunCinar
+                {isStajYetkilisi
                   ? 'Tanımlı staj etaplarını görüntüleyebilirsiniz. Düzenleme ve silme yetkiniz bulunmamaktadır.'
                   : !canActOnDept
                     ? `Bu ekran ${effectiveDeptName} bölümüne aittir. Yalnızca kendi bölümünüzün staj etaplarını oluşturabilir/düzenleyebilirsiniz.`
                     : 'Öğrenciler yalnızca tanımlanan etaplardan birini seçerek staj başvurusu yapabilir.'}
               </p>
             </div>
-            {!isErgunCinar && canActOnDept && (
+            {!isStajYetkilisi && canActOnDept && (
               <button
                 onClick={() => {
                   setPeriodForm({ label: '', baslangic: '', bitis: '', aciklama: '' });
@@ -7007,7 +7067,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           </div>
 
           {/* Etap Formu */}
-          {showPeriodForm && !isErgunCinar && canActOnDept && (
+          {showPeriodForm && !isStajYetkilisi && canActOnDept && (
             <div
               style={{
                 background: 'white',
@@ -7441,7 +7501,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           </div>
                         );
                       })()}
-                    {!isErgunCinar && canActOnDept && (
+                    {!isStajYetkilisi && canActOnDept && (
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button
                           onClick={() => {
@@ -7491,7 +7551,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       )}
 
       {/* ════ Tüm Fakülte Sekmesi (yalnızca Ergün ÇINAR) ════ */}
-      {activeTab === 'fakulte' && isErgunCinar && (
+      {activeTab === 'fakulte' && isStajYetkilisi && (
         <div>
           <div
             style={{
@@ -8987,7 +9047,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                         komisyon tarihi geçtiyse fakülte yetkilisi */}
                                     {(canActOnDept || canFacultyEscalate(selectedApp, idx)) &&
                                       isPending &&
-                                      !(isErgunCinar && idx !== 4) && (
+                                      !(isStajYetkilisi && idx !== 4) && (
                                         <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                                           <button
                                             onClick={() => handleApproveStep(selectedApp.id, idx)}
@@ -9095,7 +9155,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               )}
 
               {/* ── Ergün ÇINAR: Veri Dışa Aktarma ── */}
-              {isErgunCinar && (
+              {isStajYetkilisi && (
                 <div
                   style={{
                     background: 'linear-gradient(135deg, #ECFEFF 0%, #F0F9FF 100%)',
@@ -9128,7 +9188,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         Veri Dışa Aktarma
                       </div>
                       <div style={{ fontSize: 11, color: STAJ.textMuted }}>
-                        {isErgunCinar
+                        {isStajYetkilisi
                           ? 'Bir etap seçerek o etaba kayıtlı staj verilerini XML veya XLSX olarak indirebilirsiniz.'
                           : 'Etap bazlı staj kayıt verilerini XML veya XLSX olarak indirin. "Tüm Etaplar" seçili ise her etap için ayrı dosya oluşturulur.'}
                       </div>
@@ -9160,7 +9220,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           background: 'white',
                         }}
                       >
-                        {isErgunCinar ? (
+                        {isStajYetkilisi ? (
                           <option value="all" disabled>
                             Lütfen bir etap seçiniz
                           </option>
@@ -9173,7 +9233,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           const count = exportApplications.filter(
                             (a) => a.stajEtapId === p.id
                           ).length;
-                          const deptName = isErgunCinar
+                          const deptName = isStajYetkilisi
                             ? ALL_DEPARTMENTS.find((d) => d.id === p.departmentId)?.name || ''
                             : '';
                           const labelText = deptName ? `${p.label} — ${deptName}` : p.label;
@@ -9961,7 +10021,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                 );
                             }
                             // SGK deadline (Ergün ÇINAR için)
-                            if (isErgunCinar && app.status === 'devam') {
+                            if (isStajYetkilisi && app.status === 'devam') {
                               const roadmap = allRoadmaps[app.id];
                               const sgkDl = getSgkDeadline(roadmap, app);
                               const badge = deadlineBadge(sgkDl);

@@ -2066,7 +2066,7 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect, activeDepartment }) =>
       return false;
     if (searchText) {
       const q = searchText.toLowerCase();
-      if (!c.code.toLowerCase().includes(q) && !c.name.toLowerCase().includes(q)) return false;
+      if (!window.trIcerir(c.code, q) && !window.trIcerir(c.name, q)) return false;
     }
     return true;
   });
@@ -2426,7 +2426,7 @@ const TripHistoryModal = ({ onClose, isReadOnly = false, activeDepartment, curre
   // GERÇEKTEN öğrenci gönderdiği kurumlardır.
   const uniList = Array.from(new Set(extraUnis)).sort((a, b) => a.localeCompare(b, 'tr'));
   const filteredUniList = uniSearch
-    ? uniList.filter((u) => u.toLowerCase().includes(uniSearch.toLowerCase()))
+    ? uniList.filter((u) => window.trIcerir(u, uniSearch))
     : uniList;
 
   const loadHistory = async (uni) => {
@@ -2474,7 +2474,7 @@ const TripHistoryModal = ({ onClose, isReadOnly = false, activeDepartment, curre
       if (
         !homeCodes.includes(q) &&
         !hostCodes.includes(q) &&
-        !(h.studentName || '').toLowerCase().includes(q)
+        !window.trIcerir(h.studentName || '', q)
       )
         return false;
     }
@@ -3753,7 +3753,7 @@ const StudentDetailModal = ({
 
   const uniList = Object.keys(allUniversities);
   const filteredUniList = uniSearchTerm
-    ? uniList.filter((u) => u.toLowerCase().includes(uniSearchTerm.toLowerCase()))
+    ? uniList.filter((u) => window.trIcerir(u, uniSearchTerm))
     : uniList;
 
   const handleSelectUniversity = (uni) => {
@@ -5517,9 +5517,10 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
   const filteredStudents = erasmusStudents
     .filter((s) => selectedSemester === 'all' || s.semester === selectedSemester)
     .filter((s) =>
-      `${s.firstName} ${s.lastName} ${s.studentNumber} ${s.hostInstitution}`
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase())
+      window.trIcerir(
+        `${s.firstName} ${s.lastName} ${s.studentNumber} ${s.hostInstitution}`,
+        searchTerm
+      )
     );
 
   const handleSaveStudent = async (updatedStudent) => {

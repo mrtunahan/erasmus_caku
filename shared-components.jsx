@@ -383,6 +383,8 @@ import * as YoklamaListesi from './lib/yoklama-listesi.js';
 import * as DersParcasi from './lib/ders-parcasi.js';
 import * as MuafiyetYeniden from './lib/muafiyet-yeniden.js';
 import * as MuafiyetSatirYaz from './lib/muafiyet-satir-yaz.js';
+import * as StajAdimYaz from './lib/staj-adim-yaz.js';
+import { trAnahtar, trEsit, trIcerir, trKucuk, trSirala } from './lib/tr-metin.js';
 import { YOKLAMA_LISTE_ROWS, YOKLAMA_LISTE_STATIC } from './lib/yoklama-listesi.js';
 import * as RandevuKurali from './lib/randevu.js';
 import * as CihazKimligi from './lib/cihaz-kimlik.js';
@@ -2870,7 +2872,8 @@ window.apiReadDoc = apiReadDoc;
 window.ogrenciAra = ogrenciAra;
 
 // ══════════════════════════════════════════════════════════════
-// Kiracı (tenant) kimliği — beyaz etiket temeli (bkz. docs/hardcoded-envanter.md)
+// Kiracı (tenant) kimliği — beyaz etiket temeli. (Kuruma gömülü değerlerin
+// envanteri depodan kaldırıldı; buradaki liste tek kaynaktır.)
 // Uygulama/kurum/fakülte adları DB'deki tenant_config/main dokümanından gelir;
 // kayıt yoksa aşağıdaki varsayılanlar geçerlidir (sıfır regresyon). Yüklenince
 // FACULTY sabiti senkronlanır ve 'tenant:loaded' eventi yayınlanır (giriş
@@ -12493,10 +12496,38 @@ const StudentNotifier = {
         return c.id;
       });
       var students = await this._fetchStudents();
+      // ── SEÇİM İKİ YERDE OLABİLİR ──
+      // ⚠ BURASI YALNIZ `students.myCourseIds`e (eski tek-liste seçim)
+      // bakıyordu. Benim Sayfam seçimi artık DÖNEM bazlı `student_courses`a
+      // yazıyor; yeni yoldan ders seçen öğrenci bu süzgeçten hiç geçmiyor ve
+      // bildirim SESSİZCE gitmiyordu. Karar tek yerde:
+      // lib/ogrenci-ders-secimi.js → secilenDersIdleri.
+      var donemKayitlari = [];
+      try {
+        donemKayitlari = await apiRead('student_courses');
+      } catch (e) {
+        /* okunamazsa eski alanla devam edilir — bildirim hiç gitmemesindense */
+      }
+      var donemHaritasi = {};
+      (donemKayitlari || []).forEach(function (d) {
+        if (!d) return;
+        // Belge kimliği `{öğrenciNo}__{dönem}`; `studentNumber` eski
+        // kayıtlarda olmayabilir.
+        var no = String(d.studentNumber || String(d.id || '').split('__')[0] || '').trim();
+        if (!no) return;
+        if (!donemHaritasi[no]) donemHaritasi[no] = [];
+        donemHaritasi[no].push(d);
+      });
       var targets = students.filter(function (s) {
-        if (!Array.isArray(s.myCourseIds) || s.myCourseIds.length === 0) return false;
         if (departmentId && s.departmentId !== departmentId) return false;
-        return s.myCourseIds.some(function (id) {
+        var no = String(s.studentNumber || '').trim();
+        var idler = window.secilenDersIdleri
+          ? window.secilenDersIdleri(donemHaritasi[no] || [], s)
+          : Array.isArray(s.myCourseIds)
+            ? s.myCourseIds
+            : [];
+        if (idler.length === 0) return false;
+        return idler.some(function (id) {
           return courseIds.indexOf(id) !== -1;
         });
       });
@@ -15002,6 +15033,17 @@ window.MuafiyetYeniden = MuafiyetYeniden;
 // Kararı diziye değil SATIRA yazmak: kör yazma yüzünden onaylı dersler
 // yeniden "karar bekliyor" oluyordu (lib/muafiyet-satir-yaz.js).
 window.MuafiyetSatirYaz = MuafiyetSatirYaz;
+// Staj yol haritasında aynı hata: haritayı değil ADIMI yaz
+// (lib/staj-adim-yaz.js). Sunucu da noktalı yolu orada tanımlı biçimle sınırlar.
+window.StajAdimYaz = StajAdimYaz;
+// ── ARAMA KUTULARININ ORTAK KURALI ──
+// Düz toLowerCase Türkçe harfte yanlış çalışıyor ("IŞIL" ile "ışıl"
+// buluşmuyordu); bütün aramalar bu yardımcılardan geçer (lib/tr-metin.js).
+window.trIcerir = trIcerir;
+window.trKucuk = trKucuk;
+window.trAnahtar = trAnahtar;
+window.trEsit = trEsit;
+window.trSirala = trSirala;
 window.RandevuKurali = RandevuKurali;
 window.CihazKimligi = CihazKimligi;
 

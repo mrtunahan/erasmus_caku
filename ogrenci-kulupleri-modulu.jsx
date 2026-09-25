@@ -3623,10 +3623,10 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
       if (filterDept && c.department !== filterDept) return false;
       if (!s) return true;
       return (
-        (c.name || '').toLowerCase().includes(s) ||
-        (c.advisor || '').toLowerCase().includes(s) ||
-        (c.president || '').toLowerCase().includes(s) ||
-        (c.department || '').toLowerCase().includes(s)
+        window.trIcerir(c.name || '', s) ||
+        window.trIcerir(c.advisor || '', s) ||
+        window.trIcerir(c.president || '', s) ||
+        window.trIcerir(c.department || '', s)
       );
     });
   }, [clubs, search, filterDept]);

@@ -566,7 +566,7 @@ function highlightText(text, query) {
   var escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   var parts = text.split(new RegExp('(' + escaped + ')', 'gi'));
   return parts.map(function (part, i) {
-    if (part.toLowerCase() === query.toLowerCase()) {
+    if (window.trEsit(part, query)) {
       return React.createElement(
         'mark',
         {
@@ -686,12 +686,19 @@ var PortalDB = {
     if (window.audit) window.audit('portal_post_delete', 'portal_posts', String(id), {});
   },
 
+  // ⚠ TAZE OKUMA + TEK ALAN YAZIMI.
+  // Eskiden kayıt 15 saniyelik ÖNBELLEKTEN okunup `reactions` nesnesinin
+  // TAMAMI geri yazılıyordu: aynı gönderiyi aynı anda beğenen iki öğrenciden
+  // birinin beğenisi kayboluyordu (muafiyet/staj'daki kör yazmanın küçük
+  // kardeşi). Artık kayıt taze okunur ve yalnız O TEPKİ TÜRÜ yazılır; farklı
+  // türler (👍 / ❤️) birbirini hiç etkilemez.
   async toggleReaction(postId, reactionType, userId) {
-    var result = await window.apiReadDoc('portal_posts', String(postId));
+    var oku = window.apiReadDocFresh || window.apiReadDoc;
+    var result = await oku('portal_posts', String(postId));
     if (!result.exists) return;
     var data = result.data;
     var reactions = data.reactions || {};
-    var reactionList = reactions[reactionType] || [];
+    var reactionList = (reactions[reactionType] || []).slice();
     var idx = reactionList.indexOf(userId);
     if (idx >= 0) {
       reactionList.splice(idx, 1);
@@ -699,13 +706,17 @@ var PortalDB = {
       reactionList.push(userId);
     }
     reactions[reactionType] = reactionList;
-    await window.DBWrite.update('portal_posts', String(postId), { reactions: reactions });
+    var yama = {};
+    yama['reactions.' + reactionType] = reactionList;
+    await window.DBWrite.update('portal_posts', String(postId), yama);
     return reactions;
   },
 
   // Yukarı/Aşağı Oy (Stack Overflow modeli)
+  // Oy da taze okumayla: iki öğrenci aynı anda oy verdiğinde biri kaybolmasın.
   async toggleVote(postId, voteType, userId) {
-    var result = await window.apiReadDoc('portal_posts', String(postId));
+    var oku = window.apiReadDocFresh || window.apiReadDoc;
+    var result = await oku('portal_posts', String(postId));
     if (!result.exists) return;
     var data = result.data;
     var upvotes = data.upvotes || [];
@@ -749,12 +760,13 @@ var PortalDB = {
       likes: [],
     });
     var result = await window.DBWrite.add('portal_posts', commentData, String(postId), 'comments');
-    // Yorum sayısını güncelle
-    var postResult = await window.apiReadDoc('portal_posts', String(postId));
-    if (postResult.exists) {
-      var currentCount = (postResult.data.commentCount || 0) + 1;
-      await window.DBWrite.update('portal_posts', String(postId), { commentCount: currentCount });
-    }
+    // ⚠ SAYAÇ SUNUCUDA ARTIRILIR. Eskiden sayı okunup +1 yazılıyordu; okuma
+    // önbellekli olduğu için (ve iki kişi aynı anda yorum yazabildiği için)
+    // sayı gerçek yorum sayısından sapıyordu. `__increment` sunucuda $inc'e
+    // çevrilir (server/routes/db.js → addTimestamps) ve yarışa dayanıklıdır.
+    await window.DBWrite.update('portal_posts', String(postId), {
+      commentCount: '__increment:1',
+    });
     return Object.assign({}, comment, { id: result.id });
   },
 
@@ -813,17 +825,16 @@ var PortalDB = {
     for (var i = 0; i < ops.length; i += 20) {
       await window.DBWrite.batch(ops.slice(i, i + 20));
     }
-    // Yorum sayısını azalt
-    var postResult = await window.apiReadDoc('portal_posts', String(postId));
-    if (postResult.exists) {
-      var currentCount = Math.max(0, (postResult.data.commentCount || 0) - deleteCount);
-      await window.DBWrite.update('portal_posts', String(postId), { commentCount: currentCount });
-    }
+    // Sayaç sunucuda azaltılır (yukarıdaki nota bakın).
+    await window.DBWrite.update('portal_posts', String(postId), {
+      commentCount: '__increment:-' + deleteCount,
+    });
     return deleteCount;
   },
 
   async toggleCommentLike(postId, commentId, userId) {
-    var result = await window.apiReadDoc('portal_posts_comments', String(commentId));
+    var oku = window.apiReadDocFresh || window.apiReadDoc;
+    var result = await oku('portal_posts_comments', String(commentId));
     if (!result.exists) return [];
     var data = result.data;
     var likes = data.likes || [];
@@ -2377,7 +2388,9 @@ const CommentSection = ({ postId, currentUser, post, allUsers }) => {
       var mentions = extractMentions(newComment);
       mentions.forEach(function (mentionedName) {
         var mentionedUser = (allUsers || []).find(function (u) {
-          return u.name.toLowerCase() === mentionedName.toLowerCase();
+          // Türkçe harf: "İBRAHİM" ile "İbrahim" düz toLowerCase ile
+          // eşleşmiyordu; bahsetme (@) o kişiyi bulamıyordu (lib/tr-metin.js).
+          return window.trEsit(u.name, mentionedName);
         });
         if (mentionedUser && mentionedUser.id !== curUserId) {
           PortalDB.addNotification(mentionedUser.id, {
@@ -2636,7 +2649,7 @@ const MentionAutocomplete = ({ quillRef, allUsers }) => {
       var q = query.toLowerCase();
       return allUsers
         .filter(function (u) {
-          return u.name.toLowerCase().includes(q);
+          return window.trIcerir(u.name, q);
         })
         .slice(0, 6);
     },
@@ -6820,7 +6833,7 @@ const AdvancedSearchBar = ({
 
       // Başlık eşleşmeleri
       posts.forEach(function (p) {
-        if (p.title && p.title.toLowerCase().includes(q) && !seen['title:' + p.id]) {
+        if (p.title && window.trIcerir(p.title, q) && !seen['title:' + p.id]) {
           seen['title:' + p.id] = true;
           results.push({ type: 'post', text: p.title, id: p.id, category: p.category });
         }
@@ -6828,11 +6841,7 @@ const AdvancedSearchBar = ({
 
       // Yazar eşleşmeleri
       posts.forEach(function (p) {
-        if (
-          p.authorName &&
-          p.authorName.toLowerCase().includes(q) &&
-          !seen['author:' + p.authorName]
-        ) {
+        if (p.authorName && window.trIcerir(p.authorName, q) && !seen['author:' + p.authorName]) {
           seen['author:' + p.authorName] = true;
           results.push({ type: 'author', text: p.authorName });
         }
@@ -6841,7 +6850,7 @@ const AdvancedSearchBar = ({
       // Etiket eşleşmeleri
       var allTagCounts = getAllTags(posts);
       Object.keys(allTagCounts).forEach(function (t) {
-        if (t.toLowerCase().includes(q) && !seen['tag:' + t]) {
+        if (window.trIcerir(t, q) && !seen['tag:' + t]) {
           seen['tag:' + t] = true;
           results.push({ type: 'tag', text: t, count: allTagCounts[t] });
         }
@@ -7467,7 +7476,7 @@ const ModeratorPanel = ({ moderators, onAdd, onRemove }) => {
           .filter(function (u) {
             var q = search.toLowerCase();
             return (
-              (u.name.toLowerCase().indexOf(q) >= 0 ||
+              (window.trIcerir(u.name, q) ||
                 (u.studentNumber && u.studentNumber.indexOf(q) >= 0)) &&
               modIds.indexOf(u.id) < 0
             );
@@ -8074,7 +8083,8 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
     var mentions = extractMentions(postData.content);
     mentions.forEach(function (mentionedName) {
       var mentionedUser = allUsers.find(function (u) {
-        return u.name.toLowerCase() === mentionedName.toLowerCase();
+        // Türkçe harf duyarlılığı: bkz. lib/tr-metin.js → trEsit
+        return window.trEsit(u.name, mentionedName);
       });
       if (mentionedUser && mentionedUser.id !== userId) {
         PortalDB.addNotification(mentionedUser.id, {
@@ -8310,11 +8320,11 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
               : (p.content || '').toLowerCase();
           var tagText = (p.tags || []).join(' ').toLowerCase();
           return (
-            (p.title && p.title.toLowerCase().includes(q)) ||
+            (p.title && window.trIcerir(p.title, q)) ||
             searchContent.includes(q) ||
-            (p.authorName && p.authorName.toLowerCase().includes(q)) ||
+            (p.authorName && window.trIcerir(p.authorName, q)) ||
             tagText.includes(q) ||
-            (p.courseCode && p.courseCode.toLowerCase().includes(q))
+            (p.courseCode && window.trIcerir(p.courseCode, q))
           );
         });
       }

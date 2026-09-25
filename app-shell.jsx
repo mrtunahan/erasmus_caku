@@ -19,7 +19,15 @@ const HIERARCHY_MODULES = window.HIERARCHY_MODULES || [];
 
 // Tüm roller için oturum boşta-kalma (idle) süresi: 10 dk işlemsizlik sonrası
 // otomatik çıkış → yeniden giriş gerekir.
-const IDLE_LIMIT_MS = 10 * 60 * 1000;
+// ── OTURUM BOŞTA KALMA SÜRESİ ──
+// ⚠ 10 DAKİKAYDI ve şikâyet üretiyordu: uzun bir staj/muafiyet formunu
+// dolduran, transkriptini okuyan ya da telefona bakan kullanıcı geri
+// döndüğünde giriş ekranını ve BOŞ formu buluyordu (sayfada kaydedilmemiş
+// veriyi koruyan bir mekanizma yok). Süre 30 dakikaya çıkarıldı ve çıkıştan
+// bir dakika önce uyarı gösteriliyor: "Devam et" demek yeterli.
+const IDLE_LIMIT_MS = 30 * 60 * 1000;
+// Çıkıştan ne kadar önce uyarılacak.
+const IDLE_UYARI_MS = 60 * 1000;
 const IDLE_ACTIVITY_KEY = 'caku_last_activity';
 
 // Sidebar/RightSidebar/route-guard için ortak: kullanıcının erişebileceği
@@ -39,22 +47,22 @@ function computeAvailableDepts(currentUser, adminScope, memurAtamalari) {
   const isStudent = currentUser.role === 'student' || (!isAdmin && !isDeptManager && !isProfessor);
   const isUniAdmin = !!currentUser.isUniversityAdmin;
   const isFacMgr = !!currentUser.isFacultyManager;
-  const isErgun = isErgunCinarUser(currentUser);
+  const isStajYetkilisiKisi = stajYetkilisiMi(currentUser);
   const extras = Array.isArray(currentUser.additionalDepartments)
     ? currentUser.additionalDepartments
     : [];
   const mainDept = currentUser.departmentId;
   const myFaculty = currentUser.facultyId;
 
-  // Ergün ÇINAR — tüm bölümler (fakülte geneli staj erişimi)
-  if (isErgun) return allDepts;
+  // Fakülte staj yetkilisi — tüm bölümler (fakülte geneli staj erişimi)
+  if (isStajYetkilisiKisi) return allDepts;
 
   // Memur — YALNIZ kendisini ekleyen bölümler. Havuz fakültededir ama erişim
   // fakülte geneli değildir: memuru bölüm kendi modülleri için alır. Önceden
   // fakültenin bütün bölümleri açılıyordu; bir bölümün aldığı memur, ataması
   // olmayan bölümün çıktılarını da görebiliyordu.
-  // Staj memuru zaten yukarıda isErgun (isStajCoordinator) dalından tüm
-  // bölümleri aldı — SGK onayı fakülte çapındadır.
+  // Staj memuru zaten yukarıdaki staj yetkilisi (isStajCoordinator) dalından
+  // tüm bölümleri aldı — SGK onayı fakülte çapındadır.
   const isMemur = currentUser.role === 'memur' || !!currentUser.isMemur;
   if (isMemur) {
     const memurId = String(currentUser.id || currentUser._id || currentUser._docId || '');
@@ -140,20 +148,15 @@ const BOLUMDEN_BAGIMSIZ_MODULLER = new Set([
   'yapayzeka',
 ]);
 
-// Fakülte staj yetkilisi (SGK onayı + fakülte geneli staj erişimi) tespiti.
-// Yeni: isStajCoordinator bayrağı (Fakülte Yönetimi'nden atanır).
-// Geriye dönük: "Ergün ÇINAR" ismi de tanınır (eski hardcoded kullanıcı).
-const isErgunCinarUser = (currentUser) => {
-  if (!currentUser) return false;
-  if (currentUser.isStajCoordinator) return true;
-  const n = currentUser.name || currentUser.identifier;
-  if (!n) return false;
-  const s = n.toLowerCase();
-  return (
-    (s.includes('ergün') || s.includes('ergun')) &&
-    (s.includes('çinar') || s.includes('çınar') || s.includes('cinar') || s.includes('cınar'))
-  );
-};
+// ── FAKÜLTE STAJ YETKİLİSİ ──
+// SGK onayı + fakülte geneli staj erişimi. Yetki GÖREVE bağlıdır:
+// `isStajCoordinator` bayrağı (Fakülte Yönetimi'nden atanır).
+//
+// ⚠ BURADA BİR İSİM KURALI VARDI ("ergün" + "çınar" geçen herkes). Adaş bir
+// akademisyen sisteme girdiği gün bu yetkiyi kimse vermeden alırdı; üstelik
+// düz toLowerCase Türkçe harfte güvenilir de değil. Mevcut kayıtlar için
+// server/migrate-staj-coordinator.js bayrağı bir kez yazar.
+const stajYetkilisiMi = (currentUser) => !!(currentUser && currentUser.isStajCoordinator);
 
 // ── Responsive Hook ──
 function useWindowWidth() {
@@ -572,7 +575,7 @@ const Sidebar = ({
     // Aktif bölüm rozetin kapsamıdır: memur bölüm değiştirince sayı da değişir.
   }, [currentUser, currentRoute, activeDepartment]);
 
-  const isErgunCinar = isErgunCinarUser(currentUser);
+  const isStajYetkilisi = stajYetkilisiMi(currentUser);
   // Memur — yalnız atandığı modülleri görür; Ortak/Yönetim bölümleri gizli.
   const isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
 
@@ -616,7 +619,7 @@ const Sidebar = ({
       return gelen.concat(DEPARTMENT_MODULES.filter((m) => mods.includes(m.id)));
     }
 
-    if (isErgunCinar) return DEPARTMENT_MODULES.filter((m) => m.id === 'staj');
+    if (isStajYetkilisi) return DEPARTMENT_MODULES.filter((m) => m.id === 'staj');
 
     // Çapraz-bölümde (ana bölümü değil ek bölüm) — yetkili/admin olsa bile
     // sadece DERSE BAĞLI 3 modül: kendi dersini ders programına ekler, sınav
@@ -812,7 +815,7 @@ const Sidebar = ({
       {/* Common Modules — çapraz bölümde tamamen gizli (sadece ders modülleri).
           İstisna: üniversite dışı akademisyen eklendiği bölümde yalnız Öğrenci
           Portalı'nı görür. */}
-      {!isErgunCinar && !isMemur && !studentLocked && (!isOnExtraDept || isExternalUser) && (
+      {!isStajYetkilisi && !isMemur && !studentLocked && (!isOnExtraDept || isExternalUser) && (
         <div style={{ padding: '4px 12px' }}>
           <div
             style={{
@@ -875,7 +878,7 @@ const Sidebar = ({
       {/* Admin + Bölüm Yetkilisi: Yönetim Modülleri (komisyonlar) */}
       {/* Admin + Bölüm/Fakülte/Üni Yetkilisi: Yönetim Modülleri.
           Çapraz-bölüm aktifken (kullanıcının kendi yetki alanı değil) gizlenir. */}
-      {!isErgunCinar && !isOnExtraDept && (isAdmin || isDeptManager || isHierarchyManager) && (
+      {!isStajYetkilisi && !isOnExtraDept && (isAdmin || isDeptManager || isHierarchyManager) && (
         <>
           <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
           <div style={{ padding: '4px 12px 16px' }}>
@@ -947,7 +950,7 @@ const Sidebar = ({
 
       {/* Hiyerarşi Yönetimi: Üniversite / Fakülte yetkilileri.
           Çapraz-bölüm aktifken kullanıcı oranın yetkilisi değil → gizlenir. */}
-      {!isErgunCinar &&
+      {!isStajYetkilisi &&
         !isOnExtraDept &&
         HIERARCHY_MODULES.some((m) => currentUser && currentUser[m.flag]) && (
           <>
@@ -2201,6 +2204,8 @@ function AppShell() {
   // eklenene kadar her zaman 'university' ile başla ve takılı kalan değeri
   // temizle. (Yalnız fakülte yetkilileri zaten computeAvailableDepts'teki
   // isFacMgr dalıyla doğru kısıtlanır; adminScope onları etkilemez.)
+  // Oturum kapanmasına kaç saniye kaldı (0 = uyarı yok). Bkz. IDLE_UYARI_MS.
+  const [idleKalan, setIdleKalan] = useState(0);
   const [adminScope, setAdminScope] = useState(() => {
     try {
       if (localStorage.getItem('adminScope')) localStorage.removeItem('adminScope');
@@ -2579,21 +2584,16 @@ function AppShell() {
       localStorage.setItem('caku_active_department', user.additionalDepartments[0]);
     }
 
-    // Redirect based on role
-    const userName = (user.name || '').toLowerCase();
-    const isErgun =
-      (userName.includes('ergün') || userName.includes('ergun')) &&
-      (userName.includes('çinar') ||
-        userName.includes('çınar') ||
-        userName.includes('cinar') ||
-        userName.includes('cınar'));
+    // Girişten sonraki ilk ekran role göre seçilir. ⚠ Burada da isim kuralı
+    // vardı; yetki artık yalnız bayrakla taşınıyor (bkz. stajYetkilisiMi).
+    const isStajYetkilisiKisi = stajYetkilisiMi(user);
     // Memur → staj memuruysa koordinatör paneli, değilse "Gelen / Giden
     // Belgeler": tüm modüllerden gelen belgeleri tek listede toplayan asıl
     // çalışma ekranı. Böylece erişemediği 'portal' rotasında takılı kalmaz.
     const memurMods = Array.isArray(user.memurModules) ? user.memurModules : [];
     if (user.isMemur || user.role === 'memur') {
       navigate(memurMods.includes('staj') ? 'staj' : 'gelenbelgeler');
-    } else if (isErgun) {
+    } else if (isStajYetkilisiKisi) {
       navigate('staj');
     } else {
       navigate('portal');
@@ -2630,6 +2630,7 @@ function AppShell() {
       } catch (_) {
         /* yok say */
       }
+      setIdleKalan(0);
     };
     bump(); // oturum başında/etkinlikte işaretle
     let lastWrite = Date.now();
@@ -2641,12 +2642,20 @@ function AppShell() {
     };
     const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
     events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
+    // ⚠ KONTROL SIKLIĞI UYARIYI TAŞIR: 30 saniyede bir bakan bir sayaç, bir
+    // dakikalık uyarıyı gösteremez. 5 saniyede bir bakılır; iş yükü yok
+    // (yalnız localStorage okuması).
     const check = setInterval(() => {
       const last = parseInt(localStorage.getItem(IDLE_ACTIVITY_KEY) || '0', 10);
-      if (last && Date.now() - last >= IDLE_LIMIT_MS) {
+      if (!last) return;
+      const gecen = Date.now() - last;
+      if (gecen >= IDLE_LIMIT_MS) {
         handleLogout();
+        return;
       }
-    }, 30000); // 30 sn'de bir kontrol
+      const kalan = IDLE_LIMIT_MS - gecen;
+      setIdleKalan(kalan <= IDLE_UYARI_MS ? Math.ceil(kalan / 1000) : 0);
+    }, 5000);
     return () => {
       events.forEach((e) => window.removeEventListener(e, onActivity));
       clearInterval(check);
@@ -3201,6 +3210,62 @@ function AppShell() {
       `,
         }}
       />
+
+      {/* ── OTURUM KAPANMADAN ÖNCE UYARI ──
+          Kaydedilmemiş formun üstüne haber vermeden giriş ekranı açmak, o ana
+          kadarki emeği silmek demekti. Bir dakika önce uyarılır; kullanıcı
+          ekrana dokunduğu an (fare/klavye) sayaç zaten sıfırlanır. */}
+      {idleKalan > 0 && (
+        <div
+          role="alert"
+          style={{
+            position: 'fixed',
+            top: 14,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 99998,
+            background: '#7C2D12',
+            color: '#fff',
+            padding: '12px 18px',
+            borderRadius: 10,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            fontSize: 13.5,
+            fontWeight: 600,
+            maxWidth: '92vw',
+          }}
+        >
+          <span>
+            Hareketsizlik nedeniyle {idleKalan} saniye içinde oturumunuz kapanacak. Kaydedilmemiş
+            bilgileriniz varsa şimdi kaydedin.
+          </span>
+          <button
+            onClick={() => {
+              try {
+                localStorage.setItem(IDLE_ACTIVITY_KEY, String(Date.now()));
+              } catch (_) {
+                /* yok say */
+              }
+              setIdleKalan(0);
+            }}
+            style={{
+              padding: '7px 14px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#fff',
+              color: '#7C2D12',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Devam et
+          </button>
+        </div>
+      )}
 
       {(currentUser?.role === 'student' || currentUser?.role === 'professor') && (
         <MandatorySurveyGate currentUser={currentUser} activeDepartment={activeDepartment} />

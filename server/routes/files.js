@@ -10,6 +10,9 @@ const { zipYaz } = require('../lib/zip-yaz');
 // Dosya adı/adres dönüşümleri saf olduğu için ayrı dosyada: testleri bu
 // router'ı (ve express/multer/mongodb zincirini) yüklemek zorunda kalmasın.
 const { asciiIndirge, urlToRelPath } = require('../lib/dosya-adres');
+// Dosya sahipliği: öğrenci başkasının staj belgesini indiremez. Kural ve
+// gerekçesi ayrı dosyada ve testli — bkz. server/lib/dosya-sahiplik.js.
+const { dosyaErisebilirMi } = require('../lib/dosya-sahiplik');
 const { softAuth } = require('../middleware/softAuth');
 const { requireAuth } = require('../middleware/auth');
 
@@ -243,9 +246,48 @@ const resolveSafePath = (relativePath) => {
   return null;
 };
 
+// Öğrencinin kendi numaraları — ÇAP'ta iki tane olabilir (bağ `students`
+// kaydındaki `bagliOgrenciNolar` ile kurulur). 60 sn önbellek: her indirmede
+// sorgu açmayalım ama bağ değişikliği en geç bir dakikada yürürlüğe girsin.
+const ogrenciNoCache = new Map();
+
+async function ogrenciNumaralari(kullanici) {
+  const no = String((kullanici && kullanici.identifier) || '');
+  if (!no) return [];
+  const hit = ogrenciNoCache.get(no);
+  if (hit && Date.now() - hit.ts < 60 * 1000) return hit.liste;
+  let liste = [no];
+  try {
+    const db = await getDbSafe();
+    const kayit = await db.collection('students').findOne({ studentNumber: no });
+    if (kayit && Array.isArray(kayit.bagliOgrenciNolar)) {
+      kayit.bagliOgrenciNolar.forEach((x) => {
+        const v = String(x || '').trim();
+        if (v && liste.indexOf(v) < 0) liste.push(v);
+      });
+    }
+  } catch (_) {
+    /* çözülemezse yalnız kendi numarası geçerlidir */
+  }
+  ogrenciNoCache.set(no, { liste, ts: Date.now() });
+  return liste;
+}
+
+// Dosya erişim denetimi — indirme ve görüntüleme uçlarının ortak kapısı.
+async function dosyaKapisi(req, res, relativePath) {
+  if (!FILES_AUTH_ENFORCED) return true;
+  const kullanici = req.user;
+  if (!kullanici || kullanici.role !== 'student') return true;
+  const karar = dosyaErisebilirMi(relativePath, kullanici, await ogrenciNumaralari(kullanici));
+  if (karar.izin) return true;
+  res.status(403).json({ error: 'Bu belge size ait değil.' });
+  return false;
+}
+
 // GET /api/files/download/* - Dosya indirme/görüntüleme (nested folder desteği)
-router.get('/download/*', downloadLimiter, fileAuth, (req, res) => {
+router.get('/download/*', downloadLimiter, fileAuth, async (req, res) => {
   const relativePath = req.params[0];
+  if (!(await dosyaKapisi(req, res, relativePath))) return;
   const filePath = resolveSafePath(relativePath);
   if (!filePath) {
     if (path.resolve(path.join(UPLOAD_DIR, relativePath)).startsWith(path.resolve(UPLOAD_DIR))) {
@@ -292,8 +334,9 @@ router.get('/download/*', downloadLimiter, fileAuth, (req, res) => {
 // Office belgeleri (docx/xlsx/pptx) tarayıcılar tarafından inline render
 // edilemez; bu sayfa türe göre uygun viewer'ı yükler veya indirme/dış viewer
 // seçenekleri sunar.
-router.get('/view/*', downloadLimiter, fileAuth, (req, res) => {
+router.get('/view/*', downloadLimiter, fileAuth, async (req, res) => {
   const relativePath = req.params[0];
+  if (!(await dosyaKapisi(req, res, relativePath))) return;
   const filePath = resolveSafePath(relativePath);
   if (!filePath) {
     return res

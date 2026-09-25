@@ -5118,8 +5118,14 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   // ancak bu notlarla dolar; bu yüzden öğrenci not girmeden onaya gönderemez.
   // Notlar `matches` içine YAZILMAZ (o alan öğrenciye kapalı — kendini
   // onaylama engeli); ayrı `ogrenciNotlari` alanında tutulur.
-  const notluDersler = (record.matches || []).filter(
-    (m) => !m.adminDecision || m.adminDecision === 'confirmed'
+  // ⚠ MEMOLANMAK ZORUNDA. Bu dizi aşağıdaki iki efektin bağımlılık
+  // listesinde: her render'da yeniden üretilirse efektler her render çalışır
+  // ve `setNotlar` ile kullanıcının yazdığı değeri ezme riski doğar.
+  // "Devamsızlık hakkı girilmiyor" şikâyetinin kök sebebi tam olarak bu
+  // desendi (akademisyen-sayfam.jsx → secenekler).
+  const notluDersler = useMemo(
+    () => (record.matches || []).filter((m) => !m.adminDecision || m.adminDecision === 'confirmed'),
+    [record.matches]
   );
   const [notlar, setNotlar] = useState(() => {
     const mevcut = record.ogrenciNotlari || {};
@@ -7968,9 +7974,9 @@ const ExemptionHistory = ({
     if (!searchTerm) return true;
     var term = searchTerm.toLowerCase();
     return (
-      (r.studentName || '').toLowerCase().includes(term) ||
-      (r.studentNo || '').toLowerCase().includes(term) ||
-      (r.otherUniversity || r.otherUni || '').toLowerCase().includes(term)
+      window.trIcerir(r.studentName || '', term) ||
+      window.trIcerir(r.studentNo || '', term) ||
+      window.trIcerir(r.otherUniversity || r.otherUni || '', term)
     );
   });
   // Liste kaydın geldiği rastgele düzendeydi. Sıra artık işe göre: önce

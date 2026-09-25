@@ -274,10 +274,10 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
         (r) =>
-          r.title?.toLowerCase().includes(q) ||
-          r.courseCode?.toLowerCase().includes(q) ||
-          r.fileName?.toLowerCase().includes(q) ||
-          r.description?.toLowerCase().includes(q)
+          window.trIcerir(r.title, q) ||
+          window.trIcerir(r.courseCode, q) ||
+          window.trIcerir(r.fileName, q) ||
+          window.trIcerir(r.description, q)
       );
     }
 
@@ -809,7 +809,7 @@ function UploadResourceModal({ onClose, onUpload, categories }) {
     if (!courseCode || courseCode.length < 2) return [];
     const q = courseCode.toUpperCase();
     return catalogCourses
-      .filter((c) => c.code.includes(q) || c.name.toLowerCase().includes(courseCode.toLowerCase()))
+      .filter((c) => c.code.includes(q) || window.trIcerir(c.name, courseCode))
       .slice(0, 5);
   }, [courseCode]);
 
