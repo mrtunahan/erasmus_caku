@@ -468,7 +468,7 @@ async function alanCikar(opt) {
       // altında kalmış demektir. Bu bir sorun DEĞİLDİR: ölçüldüğünde önek
       // 848 token çıktı ve eşiği aşmak için prompt şişirmek başabaş
       // hesabında (5 dk penceresinde 12+ çağrı) net zarar. Ayrıntı:
-      // docs/ai-belge-isleme.md → Prompt önbelleği.
+      // Prompt önbelleği: sabit blok başa alınır, değişken kısım sona.
       minimumAltinda:
         toplam.cache_creation_input_tokens === 0 && toplam.cache_read_input_tokens === 0,
       esik: CACHE_MIN_TOKENS,

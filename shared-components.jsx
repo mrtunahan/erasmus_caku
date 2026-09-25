@@ -2872,7 +2872,8 @@ window.apiReadDoc = apiReadDoc;
 window.ogrenciAra = ogrenciAra;
 
 // ══════════════════════════════════════════════════════════════
-// Kiracı (tenant) kimliği — beyaz etiket temeli (bkz. docs/hardcoded-envanter.md)
+// Kiracı (tenant) kimliği — beyaz etiket temeli. (Kuruma gömülü değerlerin
+// envanteri depodan kaldırıldı; buradaki liste tek kaynaktır.)
 // Uygulama/kurum/fakülte adları DB'deki tenant_config/main dokümanından gelir;
 // kayıt yoksa aşağıdaki varsayılanlar geçerlidir (sıfır regresyon). Yüklenince
 // FACULTY sabiti senkronlanır ve 'tenant:loaded' eventi yayınlanır (giriş
