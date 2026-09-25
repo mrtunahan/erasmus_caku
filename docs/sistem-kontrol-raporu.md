@@ -25,20 +25,27 @@ kesinleşmiştir, tahmin değildir.
 
 ## Özet
 
-| #   | Bulgu                                                                                     | Etki                                                        | Önem      |
-| --- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------- |
-| 1   | Başka öğrencinin staj belgeleri indirilebiliyor                                           | Kişisel veri (kimlik fotokopisi, SGK)                       | 🔴 Yüksek |
-| 2   | Kişisel kayıtlar öğrenciye tümüyle açık (`muafiyet_history`, `trip_history`, bildirimler) | Ad-soyad, numara, not, gerekçe                              | 🔴 Yüksek |
-| 3   | Anket yanıtları kimlikli ve herkese okunur                                                | KVKK / anket güvenilirliği                                  | 🔴 Yüksek |
-| 4   | Staj yol haritasında kör yazma → verilen onay siliniyor                                   | "Onayladım, geri onaya düştü" (muafiyetteki hatanın aynısı) | 🔴 Yüksek |
-| 5   | Komisyon üyeliği Türkçe harfte tutmuyor                                                   | Akademisyen yetkisini alamıyor                              | 🟠 Orta   |
-| 6   | Yetki hâlâ isimle veriliyor ("Ergün ÇINAR")                                               | Adaş riski + bakım tuzağı                                   | 🟠 Orta   |
-| 7   | Ders bildirimi eski alandan okuyor                                                        | Bildirim hiç gitmiyor (sessiz)                              | 🟠 Orta   |
-| 8   | Aramalarda Türkçe harf sorunu (~200 yer)                                                  | "IŞIL" / "İstatistik" aranınca bulunmuyor                   | 🟠 Orta   |
-| 9   | Portalda beğeni/oy/yorum sayacı kör yazma                                                 | Eşzamanlı beğeni kayboluyor                                 | 🟡 Düşük  |
-| 10  | 10 dakikada otomatik çıkış + kaydedilmemiş form koruması yok                              | Uzun formda emek kaybı                                      | 🟠 Orta   |
-| 11  | Muafiyet not ekranında memolanmamış dizi (bilinen hata deseni)                            | Yazarken değerin ezilmesi riski                             | 🟡 Düşük  |
-| 12  | Büyük modüllerde kural dosyası/test yok                                                   | Değişiklikte sessiz bozulma                                 | 🟡 Düşük  |
+| #   | Bulgu                                                                                     | Etki                                                        | Önem      | Durum         |
+| --- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------- | ------------- |
+| 1   | Başka öğrencinin staj belgeleri indirilebiliyor                                           | Kişisel veri (kimlik fotokopisi, SGK)                       | 🔴 Yüksek | ✅ düzeltildi |
+| 2   | Kişisel kayıtlar öğrenciye tümüyle açık (`muafiyet_history`, `trip_history`, bildirimler) | Ad-soyad, numara, not, gerekçe                              | 🔴 Yüksek | ✅ düzeltildi |
+| 3   | Anket yanıtları kimlikli ve herkese okunur                                                | KVKK / anket güvenilirliği                                  | 🔴 Yüksek | ✅ düzeltildi |
+| 4   | Staj yol haritasında kör yazma → verilen onay siliniyor                                   | "Onayladım, geri onaya düştü" (muafiyetteki hatanın aynısı) | 🔴 Yüksek | ✅ düzeltildi |
+| 5   | Komisyon üyeliği Türkçe harfte tutmuyor                                                   | Akademisyen yetkisini alamıyor                              | 🟠 Orta   | ✅ düzeltildi |
+| 6   | Yetki hâlâ isimle veriliyor ("Ergün ÇINAR")                                               | Adaş riski + bakım tuzağı                                   | 🟠 Orta   | ✅ düzeltildi |
+| 7   | Ders bildirimi eski alandan okuyor                                                        | Bildirim hiç gitmiyor (sessiz)                              | 🟠 Orta   | ✅ düzeltildi |
+| 8   | Aramalarda Türkçe harf sorunu (~200 yer)                                                  | "IŞIL" / "İstatistik" aranınca bulunmuyor                   | 🟠 Orta   | ✅ düzeltildi |
+| 9   | Portalda beğeni/oy/yorum sayacı kör yazma                                                 | Eşzamanlı beğeni kayboluyor                                 | 🟡 Düşük  | ✅ düzeltildi |
+| 10  | 10 dakikada otomatik çıkış + kaydedilmemiş form koruması yok                              | Uzun formda emek kaybı                                      | 🟠 Orta   | ✅ düzeltildi |
+| 11  | Muafiyet not ekranında memolanmamış dizi (bilinen hata deseni)                            | Yazarken değerin ezilmesi riski                             | 🟡 Düşük  | ✅ düzeltildi |
+| 12  | Büyük modüllerde kural dosyası/test yok                                                   | Değişiklikte sessiz bozulma                                 | 🟡 Düşük  | ◐ kısmen      |
+
+> **Düzeltme durumu (25 Eylül 2026).** 1-11 arası bulguların tamamı kapatıldı;
+> her düzeltme kural dosyası + testle geldi ve hiçbir veri dönüşümü
+> gerektirmiyor. 12. madde kısmen: testsiz kalan bütün `lib/` ve
+> `server/lib/` kural dosyaları test altına alındı, ancak büyük JSX
+> modüllerindeki kararların `lib/`e taşınması süregelen bir iştir.
+> Ayrıntı: sondaki **Ne yapıldı** bölümü.
 
 ---
 
@@ -285,3 +292,57 @@ Bunları da yazıyorum ki neyin denendiği belli olsun:
 2. **Bu hafta:** 4 (staj kör yazma), 5 ve 7 (sessizce çalışmayan yetki/bildirim).
 3. **Sonra:** 6, 8, 10 (bakım ve kullanılabilirlik), 9, 11.
 4. **Zamanla:** 12 — her dokunulan modülün kuralını `lib/`e taşımak.
+
+---
+
+## Ne yapıldı (25 Eylül 2026)
+
+Bulguların tamamı **veri kaybı yaşatmadan** kapatıldı: hiçbir kayıt
+dönüştürülmedi, hiçbir alan silinmedi, eski biçimde yazılmış kayıtlar
+okunmaya devam ediyor.
+
+### Yeni kural dosyaları (hepsi testli)
+
+| Dosya                                | İşi                                                                                                     | Test |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------- | ---- |
+| `server/lib/ogrenci-okuma.js`        | Öğrenci hangi koleksiyonda neyi görür (sahiplik · alıcı · başvuru · maske)                              | 23   |
+| `server/lib/dosya-sahiplik.js`       | Yüklenen dosyayı kim indirebilir                                                                        | 9    |
+| `lib/staj-adim-yaz.js`               | Yol haritasında haritayı değil ADIMI yazmak                                                             | 9    |
+| `lib/tr-metin.js`                    | Türkçe-duyarlı arama ve karşılaştırma                                                                   | 10   |
+| `tests/sunucu-kural-kapsami.test.js` | Testsiz kalmış sunucu kuralları (ÇAP kapsamı, duyuru sahipliği, memur kapsamı, dosya adresi, bölüm adı) | 23   |
+
+### Veri kaybı yaşatmamak için özellikle yapılanlar
+
+- **Anket yanıtlarında kimlik.** Eski kayıtlar kimliği öğrencinin ADIYLA
+  yazmış. Kural hem adı hem numarayı kabul ediyor; yalnız numarayla süzseydik
+  "bu anketi yanıtladınız" bilgisi kaybolur, öğrenci ikinci kez yanıtlardı.
+  Yeni yanıtlar numarayı da yazıyor.
+- **Erasmus geçmişi.** Satır gizlenmedi, yalnız kimlik ve not alanları düştü —
+  öğrencinin başvuru ekranındaki kurum listesi geçmişten türüyor ve çalışmaya
+  devam ediyor.
+- **Staj adım kararları.** Red artık önceki onayı silmiyor, `onayGecmisi`ne
+  taşıyor; onay da önceki reddi `redGecmisi`ne. Kimin ne yaptığı kayıtta kalıyor.
+- **Dosya indirme.** Sahiplik yalnız `staj_belgeler/<numara>/` yolunda aranıyor.
+  Öteki klasörlerde kural konulmadı; oralarda erişim, adresi taşıyan kaydın
+  okunabilirliğine dayanıyor ve o kayıtlar zaten sahibine daraltılmış. Amaç
+  meşru indirmeyi (akademisyenin dilekçeyi açması, memurun belgeyi görmesi)
+  kırmamak.
+- **ÇAP öğrencisi.** Bütün yeni kurallarda iki numara da "kendisi" sayılıyor.
+
+### Dağıtımdan sonra bir kez çalıştırın
+
+```bash
+node server/migrate-staj-coordinator.js
+```
+
+Fakülte staj yetkisi artık isimle değil `isStajCoordinator` bayrağıyla
+veriliyor; bu betik bayrağı mevcut kayıtlara yazar (idempotent).
+
+### Kalan iş
+
+- **12. madde.** Sınav otomasyonu, anket, proje, kulüpler ve akreditasyon
+  modüllerinin kararları hâlâ JSX içinde. Her dokunulduğunda ilgili kuralın
+  `lib/`e taşınması projenin kendi yerleşik yöntemi.
+- **Kişiye bağlı olmayan dosya klasörleri.** `muafiyet_belgeler` gibi
+  klasörlerde dosya adı rastgele; erişim kaydın okunabilirliğine dayanıyor.
+  Tam sahiplik denetimi, her dosyanın sahibini tutan ayrı bir kayıt ister.
