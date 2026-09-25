@@ -382,6 +382,7 @@ import * as YoklamaKurali from './lib/yoklama.js';
 import * as YoklamaListesi from './lib/yoklama-listesi.js';
 import * as DersParcasi from './lib/ders-parcasi.js';
 import * as MuafiyetYeniden from './lib/muafiyet-yeniden.js';
+import * as MuafiyetSatirYaz from './lib/muafiyet-satir-yaz.js';
 import { YOKLAMA_LISTE_ROWS, YOKLAMA_LISTE_STATIC } from './lib/yoklama-listesi.js';
 import * as RandevuKurali from './lib/randevu.js';
 import * as CihazKimligi from './lib/cihaz-kimlik.js';
@@ -2823,6 +2824,25 @@ async function apiReadDoc(collection, docId) {
   __apiInflight.set(key, p);
   return p;
 }
+
+/**
+ * ÖNBELLEĞİ ATLAYAN TEK BELGE OKUMASI.
+ *
+ * ⚠ OKU-DEĞİŞTİR-YAZ akışlarında `apiReadDoc` KULLANILMAZ. O okuma 15 saniye
+ * önbellekli: kaydın o an sunucudaki hâli yerine biraz öncekini döndürebilir
+ * ve üzerine yazılan şey başka birinin kararını siler ("onayladım, geri onaya
+ * düştü" hatası — bkz. lib/muafiyet-satir-yaz.js). Yazmadan önce okunan kayıt
+ * TAZE olmalıdır.
+ */
+async function apiReadDocFresh(collection, docId) {
+  const key = collection + '::doc::' + docId;
+  __apiCache.delete(key);
+  __apiInflight.delete(key);
+  const data = await __apiReadDocRaw(collection, docId);
+  __apiCacheSet(key, { data, ts: Date.now() });
+  return data;
+}
+window.apiReadDocFresh = apiReadDocFresh;
 
 // ── Öğrenci adı arama ────────────────────────────────────────
 // `students` koleksiyonu öğrenciye kendi kaydı dışında kapalıdır (gizlilik).
@@ -14979,6 +14999,9 @@ window.DersParcasi = DersParcasi;
 // Reddedilen dersin öğrenci eliyle düzeltilip yeniden gönderilmesi. Kural
 // SUNUCUDA DA aynı dosyadan okunur (server/routes/db.js dinamik import).
 window.MuafiyetYeniden = MuafiyetYeniden;
+// Kararı diziye değil SATIRA yazmak: kör yazma yüzünden onaylı dersler
+// yeniden "karar bekliyor" oluyordu (lib/muafiyet-satir-yaz.js).
+window.MuafiyetSatirYaz = MuafiyetSatirYaz;
 window.RandevuKurali = RandevuKurali;
 window.CihazKimligi = CihazKimligi;
 
