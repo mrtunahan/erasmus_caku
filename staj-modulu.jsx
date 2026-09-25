@@ -373,20 +373,43 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
     }
 
     try {
-      const newRoadmapData = {
-        ...roadmapData,
-        steps: {
-          ...roadmapData.steps,
-          [stepIdx]: {
+      // ── KÖR YAZMA YOK ──
+      // Eskiden ekran AÇILDIĞINDA yüklenmiş `roadmapData`nın tamamı geri
+      // yazılıyordu: bu arada akademisyen başka bir adımı onayladıysa o onay
+      // siliniyordu. Artık kayıt TAZE okunur ve yalnız BU adım yazılır
+      // (bkz. lib/staj-adim-yaz.js).
+      const SA = window.StajAdimYaz || {};
+      const oku = window.apiReadDocFresh || window.apiReadDoc;
+      let mevcutAdimlar = roadmapData.steps || {};
+      try {
+        const taze = await oku('internship_roadmap', String(myApplication.id));
+        if (taze && taze.exists && taze.data && taze.data.steps) mevcutAdimlar = taze.data.steps;
+      } catch (_) {
+        /* okunamadıysa elimizdekiyle devam: yazılan yine TEK adım */
+      }
+      const yeniAdim = SA.tamamlandiAdimi
+        ? SA.tamamlandiAdimi(mevcutAdimlar[stepIdx], studentId, new Date())
+        : {
+            ...(mevcutAdimlar[stepIdx] || {}),
             status: 'pending_approval',
             completedByStudent: studentId,
             completedAt: new Date().toISOString(),
-          },
-        },
+          };
+      const yama = SA.adimYamasi
+        ? SA.adimYamasi(stepIdx, yeniAdim)
+        : { steps: { ...mevcutAdimlar, [stepIdx]: yeniAdim } };
+      const newRoadmapData = {
+        ...roadmapData,
+        steps: { ...mevcutAdimlar, [stepIdx]: yeniAdim },
         updatedAt: new Date().toISOString(),
       };
 
-      await window.DBWrite.set('internship_roadmap', myApplication.id, newRoadmapData, true);
+      await window.DBWrite.set(
+        'internship_roadmap',
+        myApplication.id,
+        { ...yama, updatedAt: new Date().toISOString() },
+        true
+      );
 
       // Komisyon üyelerine bildirim oluştur
       try {
@@ -5196,24 +5219,38 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     }
 
     try {
-      const rmResult = await window.apiReadDoc('internship_roadmap', appId);
+      // Taze oku, HARİTAYI değil ADIMI yaz (bkz. lib/staj-adim-yaz.js).
+      const SA = window.StajAdimYaz || {};
+      const oku = window.apiReadDocFresh || window.apiReadDoc;
+      const rmResult = await oku('internship_roadmap', appId);
       const existingData = rmResult.exists ? rmResult.data : {};
-
-      const newData = {
-        ...existingData,
-        steps: {
-          ...existingData.steps,
-          [stepIdx]: {
+      const yeniAdim = SA.onayAdimi
+        ? SA.onayAdimi(
+            existingData.steps?.[stepIdx],
+            currentUser?.name || currentUser?.identifier || '',
+            new Date()
+          )
+        : {
             ...(existingData.steps?.[stepIdx] || {}),
             status: 'completed',
             approvedBy: currentUser?.name || currentUser?.identifier || '',
             approvedAt: new Date().toISOString(),
-          },
-        },
+          };
+      const yama = SA.adimYamasi
+        ? SA.adimYamasi(stepIdx, yeniAdim)
+        : { steps: { ...existingData.steps, [stepIdx]: yeniAdim } };
+      const newData = {
+        ...existingData,
+        steps: { ...(existingData.steps || {}), [stepIdx]: yeniAdim },
         updatedAt: new Date().toISOString(),
       };
 
-      await window.DBWrite.set('internship_roadmap', appId, newData, true);
+      await window.DBWrite.set(
+        'internship_roadmap',
+        appId,
+        { ...yama, updatedAt: new Date().toISOString() },
+        true
+      );
       if (window.audit)
         window.audit('step_approve', 'internship_roadmap', appId, {
           meta: { stepIdx, stepTitle: STAJ_ROADMAP_STEPS[stepIdx]?.title },
@@ -5276,23 +5313,38 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       return;
     }
     try {
-      const rmResult = await window.apiReadDoc('internship_roadmap', appId);
+      // Taze oku, ADIMI yaz; ⚠ eski alanlar (kim onaylamıştı) SİLİNMEZ.
+      const SA = window.StajAdimYaz || {};
+      const oku = window.apiReadDocFresh || window.apiReadDoc;
+      const rmResult = await oku('internship_roadmap', appId);
       const existingData = rmResult.exists ? rmResult.data : {};
-
-      const newData = {
-        ...existingData,
-        steps: {
-          ...existingData.steps,
-          [stepIdx]: {
+      const yeniAdim = SA.redAdimi
+        ? SA.redAdimi(
+            existingData.steps?.[stepIdx],
+            currentUser?.name || currentUser?.identifier || '',
+            new Date()
+          )
+        : {
+            ...(existingData.steps?.[stepIdx] || {}),
             status: 'rejected',
             rejectedBy: currentUser?.name || currentUser?.identifier || '',
             rejectedAt: new Date().toISOString(),
-          },
-        },
+          };
+      const yama = SA.adimYamasi
+        ? SA.adimYamasi(stepIdx, yeniAdim)
+        : { steps: { ...existingData.steps, [stepIdx]: yeniAdim } };
+      const newData = {
+        ...existingData,
+        steps: { ...(existingData.steps || {}), [stepIdx]: yeniAdim },
         updatedAt: new Date().toISOString(),
       };
 
-      await window.DBWrite.set('internship_roadmap', appId, newData, true);
+      await window.DBWrite.set(
+        'internship_roadmap',
+        appId,
+        { ...yama, updatedAt: new Date().toISOString() },
+        true
+      );
       if (window.audit)
         window.audit('step_reject', 'internship_roadmap', appId, {
           meta: { stepIdx, stepTitle: STAJ_ROADMAP_STEPS[stepIdx]?.title },

@@ -383,6 +383,7 @@ import * as YoklamaListesi from './lib/yoklama-listesi.js';
 import * as DersParcasi from './lib/ders-parcasi.js';
 import * as MuafiyetYeniden from './lib/muafiyet-yeniden.js';
 import * as MuafiyetSatirYaz from './lib/muafiyet-satir-yaz.js';
+import * as StajAdimYaz from './lib/staj-adim-yaz.js';
 import { YOKLAMA_LISTE_ROWS, YOKLAMA_LISTE_STATIC } from './lib/yoklama-listesi.js';
 import * as RandevuKurali from './lib/randevu.js';
 import * as CihazKimligi from './lib/cihaz-kimlik.js';
@@ -15002,6 +15003,9 @@ window.MuafiyetYeniden = MuafiyetYeniden;
 // Kararı diziye değil SATIRA yazmak: kör yazma yüzünden onaylı dersler
 // yeniden "karar bekliyor" oluyordu (lib/muafiyet-satir-yaz.js).
 window.MuafiyetSatirYaz = MuafiyetSatirYaz;
+// Staj yol haritasında aynı hata: haritayı değil ADIMI yaz
+// (lib/staj-adim-yaz.js). Sunucu da noktalı yolu orada tanımlı biçimle sınırlar.
+window.StajAdimYaz = StajAdimYaz;
 window.RandevuKurali = RandevuKurali;
 window.CihazKimligi = CihazKimligi;
 

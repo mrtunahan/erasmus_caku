@@ -4339,6 +4339,11 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
     await window.DBWrite.add('survey_responses', {
       surveyId,
       userId: myId,
+      // ⚠ KİMLİK NUMARAYLA DA YAZILIR. `userId` öğrencide ADA düşüyor
+      // (currentUser'da id alanı yok). Sunucu yanıtı sahibine daraltırken adı
+      // kayıttan çözmek zorunda kalıyordu; yeni kayıtlar numarayı da taşır,
+      // eskiler adla eşleşmeye devam eder (server/lib/ogrenci-okuma.js).
+      ...(currentUser?.studentNumber ? { studentNumber: currentUser.studentNumber } : {}),
       role: myRole,
       answers,
       submittedAt: new Date().toISOString(),
@@ -5281,6 +5286,11 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
     await window.DBWrite.add('survey_responses', {
       surveyId,
       userId: myId,
+      // ⚠ KİMLİK NUMARAYLA DA YAZILIR. `userId` öğrencide ADA düşüyor
+      // (currentUser'da id alanı yok). Sunucu yanıtı sahibine daraltırken adı
+      // kayıttan çözmek zorunda kalıyordu; yeni kayıtlar numarayı da taşır,
+      // eskiler adla eşleşmeye devam eder (server/lib/ogrenci-okuma.js).
+      ...(currentUser?.studentNumber ? { studentNumber: currentUser.studentNumber } : {}),
       role: myRole,
       answers,
       submittedAt: new Date().toISOString(),

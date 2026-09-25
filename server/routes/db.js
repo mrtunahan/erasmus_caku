@@ -28,6 +28,14 @@ const { duyuruyaDokunabilir } = require('../lib/duyuru-sahip');
 // Öğrenci okumasında başkasının kaydını slot alanlarına indirger — randevu
 // taleplerinin adı/konusu sınıfça okunabiliyordu (bkz. server/lib/ogrenci-maske.js).
 const { STUDENT_READ_MASKED, ogrenciMaskesiUygula } = require('../lib/ogrenci-maske');
+// Öğrencinin başkasının kaydını okuması: kural (hangi koleksiyon nasıl daralır)
+// tek dosyada ve testli — bkz. server/lib/ogrenci-okuma.js.
+const {
+  ogrenciOkumaKurali,
+  ogrenciKaydi,
+  ogrenciOkumasiSuz,
+  basvuruGerekli,
+} = require('../lib/ogrenci-okuma');
 
 // Muafiyet yeniden gönderim kuralı ESM'dir ve İSTEMCİYLE AYNI DOSYADIR:
 // hangi satırın düzeltilebileceğine iki taraf da oradan karar verir. İkinci
@@ -44,6 +52,14 @@ let satirYazSozu = null;
 function satirYazKurali() {
   if (!satirYazSozu) satirYazSozu = import('../../lib/muafiyet-satir-yaz.js');
   return satirYazSozu;
+}
+
+// Staj yol haritasında da aynı desen: harita değil ADIM yazılıyor. Noktalı
+// anahtarın biçimi orada tanımlı ve testli (lib/staj-adim-yaz.js).
+let adimYazSozu = null;
+function adimYazKurali() {
+  if (!adimYazSozu) adimYazSozu = import('../../lib/staj-adim-yaz.js');
+  return adimYazSozu;
 }
 const { auditWrites } = require('../middleware/auditLog');
 const { softAuth } = require('../middleware/softAuth');
@@ -575,6 +591,10 @@ const STUDENT_READ_DENY = new Set([
   // sınıftaki herkesin cihaz izini okuyabilmesi, taklit edebilmesi demektir.
   'student_devices',
   'yoklama_uyarilari',
+  // Sınav sonuçları: hiçbir öğrenci ekranı bu koleksiyonu okumuyor (sonuçlar
+  // sınav modülünde, akademisyen tarafında işleniyor). Açık kalması, bir
+  // sınavın bütün sonuçlarının numara numara okunabilmesi demekti.
+  'exam_results',
   'performance_data',
   'performance_indicators',
   'performance_targets',
@@ -599,6 +619,58 @@ const STUDENT_READ_SCOPED = {
   // Akademik kayıt not/AGNO içerir — öğrenci yalnız kendisininkini görür.
   ogrenci_akademik_kayit: 'studentNo',
 };
+// ── ÖĞRENCİNİN OKUMA KİMLİĞİ ──
+// Kural dosyası üç şey soruyor: numaraları (ÇAP'ta iki tane olabilir), ADI
+// (eski anket yanıtları kimliği adla yazmış) ve gerekiyorsa staj başvurusu
+// kimlikleri. Ad ve başvuru listesi YALNIZ gerektiğinde çözülür; her okumaya
+// fazladan sorgu bindirmemek için ad 60 saniye önbelleklenir.
+const ogrenciAdCache = new Map(); // no -> { ad, ts }
+
+async function ogrenciOkumaKimligi(db, user, kural) {
+  const ident = String((user && user.identifier) || '');
+  const kimlik = {
+    no: await ogrenciKapsami(db, ident),
+    ad: '',
+    bolum: String((user && user.departmentId) || ''),
+  };
+  // Ad yalnız 'adKabul' taşıyan kuralda gerekir (anket yanıtı).
+  if (kural && kural.adKabul) {
+    const hit = ogrenciAdCache.get(ident);
+    if (hit && Date.now() - hit.ts < 60 * 1000) {
+      kimlik.ad = hit.ad;
+    } else {
+      try {
+        const ogr = await db.collection('students').findOne({ studentNumber: ident });
+        kimlik.ad = ogr
+          ? [ogr.firstName, ogr.lastName].filter(Boolean).join(' ').trim() || String(ogr.name || '')
+          : '';
+      } catch (_) {
+        kimlik.ad = '';
+      }
+      ogrenciAdCache.set(ident, { ad: kimlik.ad, ts: Date.now() });
+    }
+  }
+  // Staj belgeleri: sahiplik BAŞVURUDAN çözülür.
+  if (basvuruGerekli(kural)) {
+    const idler = new Set();
+    try {
+      const basvurular = await db
+        .collection('internship_applications')
+        .find({ ogrenciNo: { $in: kimlik.no } })
+        .project({ _id: 1, _docId: 1 })
+        .toArray();
+      basvurular.forEach((b) => {
+        if (b._docId) idler.add(String(b._docId));
+        if (b._id) idler.add(String(b._id));
+      });
+    } catch (_) {
+      /* çözülemezse hiçbir kayıt görünmez — açık bırakmaktan iyidir */
+    }
+    kimlik.basvuruIdleri = idler;
+  }
+  return kimlik;
+}
+
 // Öğrenci okumalarında alan kısıtlaması (e-posta/bayrak gibi alanlar sızmasın)
 const STUDENT_READ_STRIPPED = {
   // Danışman iletişim bilgileri (e-posta/dahili/foto) öğrenciye Benim Sayfam'da
@@ -764,6 +836,27 @@ async function enforceWritePolicies(db, op, user) {
           status: 409,
           error: 'Bu eşleştirme satırı kayıtta yok (kayıt değişmiş olabilir).',
         };
+      }
+    }
+  }
+
+  // a0b) NOKTALI ANAHTAR YALNIZ `steps.<n>` OLABİLİR (internship_roadmap).
+  // Aynı gerekçe: adım yazımı noktalı yolla yapılıyor, ama noktalı anahtar
+  // serbest bırakılırsa belgeye istenen her alan sokulabilirdi. Öğrenci de
+  // adım yazabilir (kendi başvurusunda "adımı tamamla"); sahiplik denetimi
+  // APP_OWNED kapısında yapılıyor, burada yalnız BİÇİM sınırlanır.
+  if (
+    op.collection === 'internship_roadmap' &&
+    (op.type === 'update' || op.type === 'set') &&
+    op.data &&
+    typeof op.data === 'object'
+  ) {
+    const noktali = Object.keys(op.data).filter((k) => k.includes('.'));
+    if (noktali.length > 0) {
+      const SA = await adimYazKurali();
+      const kotu = noktali.filter((k) => !SA.adimYoluMu(k));
+      if (kotu.length > 0) {
+        return { allow: false, status: 400, error: `Geçersiz alan yolu: ${kotu.join(', ')}` };
       }
     }
   }
@@ -2504,6 +2597,18 @@ router.get('/:collection', async (req, res) => {
 
     let docs = await cursor.toArray();
 
+    // ── ÖĞRENCİ OKUMASI: BAŞKASININ KAYDI BURADA DÜŞER ──
+    // Ekranların kendi süzgeci gizlilik sağlamıyordu: veri zaten tarayıcıya
+    // iniyordu. Kural (hangi koleksiyon nasıl daralır, hangi satır maskelenir)
+    // server/lib/ogrenci-okuma.js'te ve testli.
+    if (DB_AUTH_ENFORCED && user && user.role === 'student') {
+      const okumaKurali = ogrenciOkumaKurali(collection);
+      if (okumaKurali) {
+        const kimlik = await ogrenciOkumaKimligi(db, user, okumaKurali);
+        docs = ogrenciOkumasiSuz(docs, okumaKurali, kimlik);
+      }
+    }
+
     // Memur kapsamı: belge memura GÖNDERİLMİŞ ve memur o bölümde ilgili
     // modüle ATANMIŞ olmalı. İstemcideki süzgecin sunucu tarafı karşılığı.
     if (DB_AUTH_ENFORCED && collection === 'memur_outputs' && user) {
@@ -2664,6 +2769,25 @@ router.get('/:collection/:docId', async (req, res) => {
       }
       if (APP_OWNED.has(collection) && !(await ownsInternshipApp(db, docId, ident))) {
         return res.status(403).json({ error: 'Bu kayda erişim yetkiniz yok.' });
+      }
+      // Liste okumasıyla AYNI kural tek belgede de uygulanır; aksi halde
+      // koleksiyonu tek tek okuyarak kapı dolanılırdı.
+      const okumaKurali = ogrenciOkumaKurali(collection);
+      if (okumaKurali) {
+        const kimlik = await ogrenciOkumaKimligi(db, user, okumaKurali);
+        const gorunen = ogrenciKaydi(doc, okumaKurali, kimlik);
+        if (!gorunen) {
+          return res.status(403).json({ error: 'Bu kayda erişim yetkiniz yok.' });
+        }
+        // Maskeli kural: satır kalır, kimlik alanları düşer.
+        if (gorunen !== doc) {
+          const { _id: mid, _docId: mdoc, ...maskeliRest } = gorunen;
+          return res.json({
+            exists: true,
+            data: maskeliRest,
+            id: mdoc || (mid && mid.toString()) || docId,
+          });
+        }
       }
     }
 
