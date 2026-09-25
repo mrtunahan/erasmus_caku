@@ -912,11 +912,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
         if (filterTerm === 'none' && c.donem && (c.donem === 'guz' || c.donem === 'bahar'))
           return false;
         if (filterTerm !== 'all' && filterTerm !== 'none' && c.donem !== filterTerm) return false;
-        if (
-          search &&
-          !c.code.toLowerCase().includes(search.toLowerCase()) &&
-          !c.name.toLowerCase().includes(search.toLowerCase())
-        )
+        if (search && !window.trIcerir(c.code, search) && !window.trIcerir(c.name, search))
           return false;
         return true;
       })

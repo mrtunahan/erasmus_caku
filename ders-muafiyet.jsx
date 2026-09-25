@@ -7968,9 +7968,9 @@ const ExemptionHistory = ({
     if (!searchTerm) return true;
     var term = searchTerm.toLowerCase();
     return (
-      (r.studentName || '').toLowerCase().includes(term) ||
-      (r.studentNo || '').toLowerCase().includes(term) ||
-      (r.otherUniversity || r.otherUni || '').toLowerCase().includes(term)
+      window.trIcerir(r.studentName || '', term) ||
+      window.trIcerir(r.studentNo || '', term) ||
+      window.trIcerir(r.otherUniversity || r.otherUni || '', term)
     );
   });
   // Liste kaydın geldiği rastgele düzendeydi. Sıra artık işe göre: önce

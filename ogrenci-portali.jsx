@@ -566,7 +566,7 @@ function highlightText(text, query) {
   var escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   var parts = text.split(new RegExp('(' + escaped + ')', 'gi'));
   return parts.map(function (part, i) {
-    if (part.toLowerCase() === query.toLowerCase()) {
+    if (window.trEsit(part, query)) {
       return React.createElement(
         'mark',
         {
@@ -2377,7 +2377,9 @@ const CommentSection = ({ postId, currentUser, post, allUsers }) => {
       var mentions = extractMentions(newComment);
       mentions.forEach(function (mentionedName) {
         var mentionedUser = (allUsers || []).find(function (u) {
-          return u.name.toLowerCase() === mentionedName.toLowerCase();
+          // Türkçe harf: "İBRAHİM" ile "İbrahim" düz toLowerCase ile
+          // eşleşmiyordu; bahsetme (@) o kişiyi bulamıyordu (lib/tr-metin.js).
+          return window.trEsit(u.name, mentionedName);
         });
         if (mentionedUser && mentionedUser.id !== curUserId) {
           PortalDB.addNotification(mentionedUser.id, {
@@ -2636,7 +2638,7 @@ const MentionAutocomplete = ({ quillRef, allUsers }) => {
       var q = query.toLowerCase();
       return allUsers
         .filter(function (u) {
-          return u.name.toLowerCase().includes(q);
+          return window.trIcerir(u.name, q);
         })
         .slice(0, 6);
     },
@@ -6820,7 +6822,7 @@ const AdvancedSearchBar = ({
 
       // Başlık eşleşmeleri
       posts.forEach(function (p) {
-        if (p.title && p.title.toLowerCase().includes(q) && !seen['title:' + p.id]) {
+        if (p.title && window.trIcerir(p.title, q) && !seen['title:' + p.id]) {
           seen['title:' + p.id] = true;
           results.push({ type: 'post', text: p.title, id: p.id, category: p.category });
         }
@@ -6828,11 +6830,7 @@ const AdvancedSearchBar = ({
 
       // Yazar eşleşmeleri
       posts.forEach(function (p) {
-        if (
-          p.authorName &&
-          p.authorName.toLowerCase().includes(q) &&
-          !seen['author:' + p.authorName]
-        ) {
+        if (p.authorName && window.trIcerir(p.authorName, q) && !seen['author:' + p.authorName]) {
           seen['author:' + p.authorName] = true;
           results.push({ type: 'author', text: p.authorName });
         }
@@ -6841,7 +6839,7 @@ const AdvancedSearchBar = ({
       // Etiket eşleşmeleri
       var allTagCounts = getAllTags(posts);
       Object.keys(allTagCounts).forEach(function (t) {
-        if (t.toLowerCase().includes(q) && !seen['tag:' + t]) {
+        if (window.trIcerir(t, q) && !seen['tag:' + t]) {
           seen['tag:' + t] = true;
           results.push({ type: 'tag', text: t, count: allTagCounts[t] });
         }
@@ -7467,7 +7465,7 @@ const ModeratorPanel = ({ moderators, onAdd, onRemove }) => {
           .filter(function (u) {
             var q = search.toLowerCase();
             return (
-              (u.name.toLowerCase().indexOf(q) >= 0 ||
+              (window.trIcerir(u.name, q) ||
                 (u.studentNumber && u.studentNumber.indexOf(q) >= 0)) &&
               modIds.indexOf(u.id) < 0
             );
@@ -8074,7 +8072,8 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
     var mentions = extractMentions(postData.content);
     mentions.forEach(function (mentionedName) {
       var mentionedUser = allUsers.find(function (u) {
-        return u.name.toLowerCase() === mentionedName.toLowerCase();
+        // Türkçe harf duyarlılığı: bkz. lib/tr-metin.js → trEsit
+        return window.trEsit(u.name, mentionedName);
       });
       if (mentionedUser && mentionedUser.id !== userId) {
         PortalDB.addNotification(mentionedUser.id, {
@@ -8310,11 +8309,11 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
               : (p.content || '').toLowerCase();
           var tagText = (p.tags || []).join(' ').toLowerCase();
           return (
-            (p.title && p.title.toLowerCase().includes(q)) ||
+            (p.title && window.trIcerir(p.title, q)) ||
             searchContent.includes(q) ||
-            (p.authorName && p.authorName.toLowerCase().includes(q)) ||
+            (p.authorName && window.trIcerir(p.authorName, q)) ||
             tagText.includes(q) ||
-            (p.courseCode && p.courseCode.toLowerCase().includes(q))
+            (p.courseCode && window.trIcerir(p.courseCode, q))
           );
         });
       }

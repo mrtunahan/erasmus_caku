@@ -3374,11 +3374,11 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       var q = searchQuery.toLowerCase();
       return projects.filter(function (p) {
         return (
-          (p.name && p.name.toLowerCase().indexOf(q) >= 0) ||
-          (p.summary && p.summary.toLowerCase().indexOf(q) >= 0) ||
+          (p.name && window.trIcerir(p.name, q)) ||
+          (p.summary && window.trIcerir(p.summary, q)) ||
           (p.members &&
             p.members.some(function (m) {
-              return m.toLowerCase().indexOf(q) >= 0;
+              return window.trIcerir(m, q);
             }))
         );
       });
@@ -3392,9 +3392,9 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       var q = searchQuery.toLowerCase();
       return courses.filter(function (c) {
         return (
-          (c.code && c.code.toLowerCase().indexOf(q) >= 0) ||
-          (c.name && c.name.toLowerCase().indexOf(q) >= 0) ||
-          (c.professor && c.professor.toLowerCase().indexOf(q) >= 0)
+          (c.code && window.trIcerir(c.code, q)) ||
+          (c.name && window.trIcerir(c.name, q)) ||
+          (c.professor && window.trIcerir(c.professor, q))
         );
       });
     },

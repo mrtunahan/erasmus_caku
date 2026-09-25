@@ -940,9 +940,9 @@ function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       const aranan = aramaMetni.toLowerCase();
       sonuc = sonuc.filter(
         (f) =>
-          (f.baslik || '').toLowerCase().includes(aranan) ||
-          (f.aciklama || '').toLowerCase().includes(aranan) ||
-          (f.dosyaAdi || '').toLowerCase().includes(aranan)
+          window.trIcerir(f.baslik || '', aranan) ||
+          window.trIcerir(f.aciklama || '', aranan) ||
+          window.trIcerir(f.dosyaAdi || '', aranan)
       );
     }
     return sonuc;

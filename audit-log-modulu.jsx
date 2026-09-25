@@ -144,10 +144,10 @@ function AuditLogModuluApp({ currentUser, activeDepartment }) {
       if (filterAction !== 'all' && toText(l.action) !== filterAction) return false;
       if (filterTarget !== 'all' && toText(l.target) !== filterTarget) return false;
       if (search) {
-        const s = search.toLowerCase();
-        const hay =
-          `${toText(l.actor)} ${toText(l.action)} ${toText(l.target)} ${toText(l.targetId)}`.toLowerCase();
-        if (!hay.includes(s)) return false;
+        // Türkçe-duyarlı arama (bkz. lib/tr-metin.js): "IŞIL" ile "ışıl"
+        // düz toLowerCase ile buluşmuyordu.
+        const hay = `${toText(l.actor)} ${toText(l.action)} ${toText(l.target)} ${toText(l.targetId)}`;
+        if (!window.trIcerir(hay, search)) return false;
       }
       return true;
     });

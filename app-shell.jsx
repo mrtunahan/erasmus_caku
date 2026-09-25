@@ -39,22 +39,22 @@ function computeAvailableDepts(currentUser, adminScope, memurAtamalari) {
   const isStudent = currentUser.role === 'student' || (!isAdmin && !isDeptManager && !isProfessor);
   const isUniAdmin = !!currentUser.isUniversityAdmin;
   const isFacMgr = !!currentUser.isFacultyManager;
-  const isErgun = isErgunCinarUser(currentUser);
+  const isStajYetkilisiKisi = stajYetkilisiMi(currentUser);
   const extras = Array.isArray(currentUser.additionalDepartments)
     ? currentUser.additionalDepartments
     : [];
   const mainDept = currentUser.departmentId;
   const myFaculty = currentUser.facultyId;
 
-  // Ergün ÇINAR — tüm bölümler (fakülte geneli staj erişimi)
-  if (isErgun) return allDepts;
+  // Fakülte staj yetkilisi — tüm bölümler (fakülte geneli staj erişimi)
+  if (isStajYetkilisiKisi) return allDepts;
 
   // Memur — YALNIZ kendisini ekleyen bölümler. Havuz fakültededir ama erişim
   // fakülte geneli değildir: memuru bölüm kendi modülleri için alır. Önceden
   // fakültenin bütün bölümleri açılıyordu; bir bölümün aldığı memur, ataması
   // olmayan bölümün çıktılarını da görebiliyordu.
-  // Staj memuru zaten yukarıda isErgun (isStajCoordinator) dalından tüm
-  // bölümleri aldı — SGK onayı fakülte çapındadır.
+  // Staj memuru zaten yukarıdaki staj yetkilisi (isStajCoordinator) dalından
+  // tüm bölümleri aldı — SGK onayı fakülte çapındadır.
   const isMemur = currentUser.role === 'memur' || !!currentUser.isMemur;
   if (isMemur) {
     const memurId = String(currentUser.id || currentUser._id || currentUser._docId || '');
@@ -140,20 +140,15 @@ const BOLUMDEN_BAGIMSIZ_MODULLER = new Set([
   'yapayzeka',
 ]);
 
-// Fakülte staj yetkilisi (SGK onayı + fakülte geneli staj erişimi) tespiti.
-// Yeni: isStajCoordinator bayrağı (Fakülte Yönetimi'nden atanır).
-// Geriye dönük: "Ergün ÇINAR" ismi de tanınır (eski hardcoded kullanıcı).
-const isErgunCinarUser = (currentUser) => {
-  if (!currentUser) return false;
-  if (currentUser.isStajCoordinator) return true;
-  const n = currentUser.name || currentUser.identifier;
-  if (!n) return false;
-  const s = n.toLowerCase();
-  return (
-    (s.includes('ergün') || s.includes('ergun')) &&
-    (s.includes('çinar') || s.includes('çınar') || s.includes('cinar') || s.includes('cınar'))
-  );
-};
+// ── FAKÜLTE STAJ YETKİLİSİ ──
+// SGK onayı + fakülte geneli staj erişimi. Yetki GÖREVE bağlıdır:
+// `isStajCoordinator` bayrağı (Fakülte Yönetimi'nden atanır).
+//
+// ⚠ BURADA BİR İSİM KURALI VARDI ("ergün" + "çınar" geçen herkes). Adaş bir
+// akademisyen sisteme girdiği gün bu yetkiyi kimse vermeden alırdı; üstelik
+// düz toLowerCase Türkçe harfte güvenilir de değil. Mevcut kayıtlar için
+// server/migrate-staj-coordinator.js bayrağı bir kez yazar.
+const stajYetkilisiMi = (currentUser) => !!(currentUser && currentUser.isStajCoordinator);
 
 // ── Responsive Hook ──
 function useWindowWidth() {
@@ -572,7 +567,7 @@ const Sidebar = ({
     // Aktif bölüm rozetin kapsamıdır: memur bölüm değiştirince sayı da değişir.
   }, [currentUser, currentRoute, activeDepartment]);
 
-  const isErgunCinar = isErgunCinarUser(currentUser);
+  const isStajYetkilisi = stajYetkilisiMi(currentUser);
   // Memur — yalnız atandığı modülleri görür; Ortak/Yönetim bölümleri gizli.
   const isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
 
@@ -616,7 +611,7 @@ const Sidebar = ({
       return gelen.concat(DEPARTMENT_MODULES.filter((m) => mods.includes(m.id)));
     }
 
-    if (isErgunCinar) return DEPARTMENT_MODULES.filter((m) => m.id === 'staj');
+    if (isStajYetkilisi) return DEPARTMENT_MODULES.filter((m) => m.id === 'staj');
 
     // Çapraz-bölümde (ana bölümü değil ek bölüm) — yetkili/admin olsa bile
     // sadece DERSE BAĞLI 3 modül: kendi dersini ders programına ekler, sınav
@@ -812,7 +807,7 @@ const Sidebar = ({
       {/* Common Modules — çapraz bölümde tamamen gizli (sadece ders modülleri).
           İstisna: üniversite dışı akademisyen eklendiği bölümde yalnız Öğrenci
           Portalı'nı görür. */}
-      {!isErgunCinar && !isMemur && !studentLocked && (!isOnExtraDept || isExternalUser) && (
+      {!isStajYetkilisi && !isMemur && !studentLocked && (!isOnExtraDept || isExternalUser) && (
         <div style={{ padding: '4px 12px' }}>
           <div
             style={{
@@ -875,7 +870,7 @@ const Sidebar = ({
       {/* Admin + Bölüm Yetkilisi: Yönetim Modülleri (komisyonlar) */}
       {/* Admin + Bölüm/Fakülte/Üni Yetkilisi: Yönetim Modülleri.
           Çapraz-bölüm aktifken (kullanıcının kendi yetki alanı değil) gizlenir. */}
-      {!isErgunCinar && !isOnExtraDept && (isAdmin || isDeptManager || isHierarchyManager) && (
+      {!isStajYetkilisi && !isOnExtraDept && (isAdmin || isDeptManager || isHierarchyManager) && (
         <>
           <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
           <div style={{ padding: '4px 12px 16px' }}>
@@ -947,7 +942,7 @@ const Sidebar = ({
 
       {/* Hiyerarşi Yönetimi: Üniversite / Fakülte yetkilileri.
           Çapraz-bölüm aktifken kullanıcı oranın yetkilisi değil → gizlenir. */}
-      {!isErgunCinar &&
+      {!isStajYetkilisi &&
         !isOnExtraDept &&
         HIERARCHY_MODULES.some((m) => currentUser && currentUser[m.flag]) && (
           <>
@@ -2579,21 +2574,16 @@ function AppShell() {
       localStorage.setItem('caku_active_department', user.additionalDepartments[0]);
     }
 
-    // Redirect based on role
-    const userName = (user.name || '').toLowerCase();
-    const isErgun =
-      (userName.includes('ergün') || userName.includes('ergun')) &&
-      (userName.includes('çinar') ||
-        userName.includes('çınar') ||
-        userName.includes('cinar') ||
-        userName.includes('cınar'));
+    // Girişten sonraki ilk ekran role göre seçilir. ⚠ Burada da isim kuralı
+    // vardı; yetki artık yalnız bayrakla taşınıyor (bkz. stajYetkilisiMi).
+    const isStajYetkilisiKisi = stajYetkilisiMi(user);
     // Memur → staj memuruysa koordinatör paneli, değilse "Gelen / Giden
     // Belgeler": tüm modüllerden gelen belgeleri tek listede toplayan asıl
     // çalışma ekranı. Böylece erişemediği 'portal' rotasında takılı kalmaz.
     const memurMods = Array.isArray(user.memurModules) ? user.memurModules : [];
     if (user.isMemur || user.role === 'memur') {
       navigate(memurMods.includes('staj') ? 'staj' : 'gelenbelgeler');
-    } else if (isErgun) {
+    } else if (isStajYetkilisiKisi) {
       navigate('staj');
     } else {
       navigate('portal');

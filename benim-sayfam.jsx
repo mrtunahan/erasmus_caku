@@ -1047,13 +1047,12 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       if (filterDept !== 'all' && String(c.departmentId) !== String(filterDept)) return false;
       if (filterSinif !== 'all' && String(c.sinif) !== String(filterSinif)) return false;
       if (search) {
-        const q = search.toLowerCase();
-        const dep = (deptNameMap[String(c.departmentId)] || '').toLowerCase();
+        const dep = deptNameMap[String(c.departmentId)] || '';
         // Ders çok hocalı olabilir (Bitirme Projesi, Uzmanlık Alanı Dersi):
         // arama hocaların HEPSİNİ kapsamalı, yalnız birincisini değil.
-        const hay =
-          `${c.code || ''} ${c.name || ''} ${window.dersEgitmenMetni(c)} ${dep}`.toLowerCase();
-        if (!hay.includes(q)) return false;
+        const hay = `${c.code || ''} ${c.name || ''} ${window.dersEgitmenMetni(c)} ${dep}`;
+        // Türkçe-duyarlı arama: "ışık" yazan "IŞIK"ı da bulur (lib/tr-metin.js).
+        if (!window.trIcerir(hay, search)) return false;
       }
       return true;
     },

@@ -253,7 +253,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo })
     if (!memberSearch.trim()) return [];
     const s = memberSearch.toLowerCase();
     return professors
-      .filter((p) => (p.name || '').toLowerCase().includes(s))
+      .filter((p) => window.trIcerir(p.name || '', s))
       .filter((p) => !formMembers.some((m) => m.name === p.name))
       .slice(0, 8);
   }, [memberSearch, professors, formMembers]);

@@ -780,13 +780,11 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   }
 
   const filteredStudents = students.filter((s) =>
-    `${s.firstName} ${s.lastName} ${s.studentNumber}`
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase())
+    window.trIcerir(`${s.firstName} ${s.lastName} ${s.studentNumber}`, searchTerm)
   );
 
   const filteredProfessors = professors.filter((p) =>
-    `${p.name} ${p.department || ''}`.toLowerCase().includes(searchTerm.toLowerCase())
+    window.trIcerir(`${p.name} ${p.department || ''}`, searchTerm)
   );
 
   const sectionTabs = [
