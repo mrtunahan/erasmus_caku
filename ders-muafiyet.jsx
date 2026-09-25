@@ -1583,25 +1583,34 @@ var MuafiyetDB = {
   // trip_history'den BAĞIMSIZ ayrı geçmiş). sigKey unique indeksi aynı
   // eşleştirmenin ikinci kez yazılmasını engeller.
   async updateMatchDecision(recordId, matchIndex, decision, adminNote, approvedBy) {
-    var result = await window.apiReadDoc('muafiyet_records', String(recordId));
+    var SY = window.MuafiyetSatirYaz || {};
+    // ⚠ TAZE OKUMA ŞART: önbellekli okuma, araya giren başka bir kararı
+    // görmez (bkz. apiReadDocFresh).
+    var oku = window.apiReadDocFresh || window.apiReadDoc;
+    var result = await oku('muafiyet_records', String(recordId));
     if (!result.exists) throw new Error('Kayıt bulunamadı');
     var data = result.data;
     var matches = (data.matches || []).slice();
     if (!matches[matchIndex]) throw new Error('Eşleşme bulunamadı');
-    matches[matchIndex] = Object.assign({}, matches[matchIndex], {
-      adminDecision: decision,
-      adminNote: adminNote || '',
-      adminDecidedBy: approvedBy || '',
-      adminUpdatedAt: new Date().toISOString(),
-    });
-    var pendingLeft = matches.filter(function (m) {
-      return m.tier === 'review' && !m.adminDecision;
-    }).length;
-    await window.DBWrite.update('muafiyet_records', String(recordId), {
-      matches: matches,
-      pendingReviewCount: pendingLeft,
-      updatedAt: new Date().toISOString(),
-    });
+    matches[matchIndex] = SY.kararSatiri
+      ? SY.kararSatiri(matches[matchIndex], decision, adminNote || '', approvedBy || '', new Date())
+      : Object.assign({}, matches[matchIndex], {
+          adminDecision: decision,
+          adminNote: adminNote || '',
+          adminDecidedBy: approvedBy || '',
+          adminUpdatedAt: new Date().toISOString(),
+        });
+    // ⚠ DİZİNİN TAMAMI YAZILMAZ — yalnız bu satır. Diziyi geri yazmak, okuma
+    // ile yazma arasında verilmiş başka bir kararı siliyordu ("onayladım,
+    // geri onaya düştü"). Sayaçları sunucu kendisi tazeler.
+    var yama = SY.satirYamasi
+      ? SY.satirYamasi(matchIndex, matches[matchIndex])
+      : { matches: matches };
+    await window.DBWrite.update(
+      'muafiyet_records',
+      String(recordId),
+      Object.assign({}, yama, { updatedAt: new Date().toISOString() })
+    );
 
     // Onaylanan eşleştirmeyi geçmişe işle — iki kayıt şekli de desteklenir:
     // öğrenci formu (sourceCourse/localCourse) ve eski sihirbaz (source/target)
@@ -1664,7 +1673,8 @@ var MuafiyetDB = {
   // Kim/ne zaman/hangi alan kuralları lib/muafiyet-duzenleme.js'te ve testli.
   // Bu katman yalnız kaydı yazar; izin kararını orası verir.
   async updateMatchFields(recordId, matchIndex, istenen, kim) {
-    var result = await window.apiReadDoc('muafiyet_records', String(recordId));
+    var oku = window.apiReadDocFresh || window.apiReadDoc;
+    var result = await oku('muafiyet_records', String(recordId));
     if (!result.exists) throw new Error('Kayıt bulunamadı');
     var data = result.data;
     var matches = (data.matches || []).slice();
@@ -1680,10 +1690,14 @@ var MuafiyetDB = {
 
     var yeniSatir = window.muafiyetEslesmeYamasi(mevcut, degisiklikler, kim, new Date());
     matches[matchIndex] = yeniSatir;
-    await window.DBWrite.update('muafiyet_records', String(recordId), {
-      matches: matches,
-      updatedAt: new Date().toISOString(),
-    });
+    // Diziyi değil satırı yaz (bkz. lib/muafiyet-satir-yaz.js).
+    var SY2 = window.MuafiyetSatirYaz || {};
+    var yama2 = SY2.satirYamasi ? SY2.satirYamasi(matchIndex, yeniSatir) : { matches: matches };
+    await window.DBWrite.update(
+      'muafiyet_records',
+      String(recordId),
+      Object.assign({}, yama2, { updatedAt: new Date().toISOString() })
+    );
 
     // ── ONAYLANMIŞ SATIRIN GEÇMİŞİ DE TAZELENİR ──
     // Onaylanan eşleştirme muafiyet_history'ye ayrıca yazılıyor. Yalnız
@@ -1718,7 +1732,11 @@ var MuafiyetDB = {
   // dosyayı uygular — istemcinin gönderdiği dizi olduğu gibi yazılmaz.
   async ogrenciYenidenGonder(recordId, istekler) {
     var MY = window.MuafiyetYeniden || {};
-    var result = await window.apiReadDoc('muafiyet_records', String(recordId));
+    // Taze okuma: akademisyen bu arada karar verdiyse öğrenci onaylanmış
+    // satırı düzeltmeye kalkmasın. (Sunucu da aynı kuralı kaydın kendisine
+    // bakarak uygular; buradaki okuma kullanıcıya doğru hatayı göstermek için.)
+    var oku = window.apiReadDocFresh || window.apiReadDoc;
+    var result = await oku('muafiyet_records', String(recordId));
     if (!result.exists) throw new Error('Kayıt bulunamadı');
     var data = result.data;
     var karar = MY.ogrenciDuzenleyebilirMi(data);
@@ -1781,7 +1799,11 @@ var MuafiyetDB = {
   // Fazladan eklenmiş satırı çıkarır. Talebin TEK satırı çıkarılamaz —
   // içi boşalan bir talep, reddedilmiş bir talepten daha anlaşılmaz olurdu.
   async removeMatch(recordId, matchIndex, kim) {
-    var result = await window.apiReadDoc('muafiyet_records', String(recordId));
+    // ⚠ TAZE OKUMA: satır çıkarmak indeksleri kaydırdığı için dizinin TAMAMI
+    // yazılmak zorunda. Bayat bir dizi yazılırsa araya giren kararlar silinir
+    // (bkz. lib/muafiyet-satir-yaz.js başlığı).
+    var oku = window.apiReadDocFresh || window.apiReadDoc;
+    var result = await oku('muafiyet_records', String(recordId));
     if (!result.exists) throw new Error('Kayıt bulunamadı');
     var data = result.data;
     var matches = (data.matches || []).slice();
@@ -1790,9 +1812,17 @@ var MuafiyetDB = {
     if (!izin.izin) throw new Error(izin.neden);
 
     var cikan = matches.splice(matchIndex, 1)[0] || {};
-    var pendingLeft = matches.filter(function (m) {
-      return m.tier === 'review' && !m.adminDecision;
-    }).length;
+    // Sayaçlar paylaşılan kuraldan (lib/muafiyet-satir-yaz.js): otomatik muaf
+    // satır bekleyene sayılmaz, vazgeçilen satır da. Sunucu yazmadan sonra
+    // aynı kuralla tazeliyor; ikisinin AYNI kuralı kullanması şart.
+    var SYc = window.MuafiyetSatirYaz || {};
+    var sayac = SYc.sayaclar
+      ? SYc.sayaclar(matches)
+      : {
+          pendingReviewCount: matches.filter(function (m) {
+            return m.tier === 'review' && !m.adminDecision;
+          }).length,
+        };
     // Çıkarılan satır kaydın içinde iz olarak durur: sonradan "bu ders nerede"
     // diye sorulduğunda cevabı olsun.
     var cikarilanlar = (data.cikarilanEslesmeler || []).concat([
@@ -1802,12 +1832,18 @@ var MuafiyetDB = {
         tarih: new Date().toISOString(),
       },
     ]);
-    await window.DBWrite.update('muafiyet_records', String(recordId), {
-      matches: matches,
-      cikarilanEslesmeler: cikarilanlar,
-      pendingReviewCount: pendingLeft,
-      updatedAt: new Date().toISOString(),
-    });
+    await window.DBWrite.update(
+      'muafiyet_records',
+      String(recordId),
+      Object.assign(
+        {
+          matches: matches,
+          cikarilanEslesmeler: cikarilanlar,
+          updatedAt: new Date().toISOString(),
+        },
+        sayac
+      )
+    );
     if (window.audit)
       window.audit('muafiyet_satir_cikar', 'muafiyet_records', String(recordId), {
         meta: { matchIndex: matchIndex, ogrenci: data.studentNo || '' },
@@ -11343,10 +11379,10 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
       setRecords(function (prev) {
         return prev.map(function (r) {
           if (r.id !== recordId) return r;
-          var pendingLeft = updated.filter(function (m) {
-            return m.tier === 'review' && !m.adminDecision;
-          }).length;
-          return Object.assign({}, r, { matches: updated, pendingReviewCount: pendingLeft });
+          // Sayaçlar paylaşılan kuraldan: ekrandaki rozet ile kayıttaki sayı
+          // (sunucu aynı kuralla tazeliyor) birbirini tutsun.
+          var sy = window.MuafiyetSatirYaz;
+          return Object.assign({}, r, { matches: updated }, sy ? sy.sayaclar(updated) : {});
         });
       });
       return { ok: true };
@@ -11379,10 +11415,13 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
       setRecords(function (prev) {
         return prev.map(function (r) {
           if (r.id !== recordId) return r;
-          var pendingLeft = updatedMatches.filter(function (m) {
-            return m.tier === 'review' && !m.adminDecision;
-          }).length;
-          return Object.assign({}, r, { matches: updatedMatches, pendingReviewCount: pendingLeft });
+          var sy = window.MuafiyetSatirYaz;
+          return Object.assign(
+            {},
+            r,
+            { matches: updatedMatches },
+            sy ? sy.sayaclar(updatedMatches) : {}
+          );
         });
       });
 
@@ -11735,12 +11774,46 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
             (satirlar || []).forEach(function (r) {
               harita[String(r.anahtar)] = r;
             });
+            // ── KÖR YAZMA YOK ──
+            // Ekranda tutulan `rec.matches` bayat olabilir: bu arada başka bir
+            // sekmede/cihazda karar verilmiş ya da öğrenci satırı düzeltmiş
+            // olabilir. Eski diziyi geri yazmak o kararları siliyor, dersler
+            // "karar bekliyor"a dönüyordu. Kayıt TAZE okunur ve yalnız notu
+            // değişen SATIRLAR yazılır (bkz. lib/muafiyet-satir-yaz.js).
+            const SY = window.MuafiyetSatirYaz || {};
+            const oku = window.apiReadDocFresh || window.apiReadDoc;
+            let taze = rec;
+            try {
+              const sonuc = await oku('muafiyet_records', String(rec.id));
+              if (sonuc && sonuc.exists) taze = Object.assign({}, rec, sonuc.data, { id: rec.id });
+              // Satır SAYISI değiştiyse ekrandaki liste ile kayıt artık aynı
+              // hizada değil: bu arada bir satır çıkarılmış/eklenmiş olabilir
+              // ve karşılıkları indeksle yazmak yanlış derse not yazmak olur.
+              if ((taze.matches || []).length !== (rec.matches || []).length) {
+                alert(
+                  'Bu talep siz ekranı açtıktan sonra değişti (ders sayısı farklı). ' +
+                    'Liste yenilenecek; not eşlemesini yeniden onaylayın.'
+                );
+                setRecords(function (prev) {
+                  return prev.map(function (r) {
+                    return r.id === rec.id ? Object.assign({}, r, taze) : r;
+                  });
+                });
+                setNotEsleme(null);
+                return;
+              }
+            } catch (e) {
+              // Okunamadıysa YAZMAYIZ: bayat diziyle yazmak karar silmek olur.
+              alert('Kayıt okunamadı, not eşlemesi kaydedilmedi: ' + (e.message || ''));
+              return;
+            }
             // Karşılıklar eşleştirmelerin İÇİNE yazılır: belge üretimi
             // `convertedGrade` okuyor ve kayıt bir daha açıldığında onaylanan
             // değer yerinde duruyor. Akademisyen karşı notu da girdiyse o da
             // kayda işlenir — yoksa belgedeki "karşı başarı notu" sütunu boş
             // kalır ve ÇAKÜ karşılığının dayanağı kayıtta görünmez.
-            const yeniMatches = (rec.matches || []).map(function (m, i) {
+            const degisenler = {};
+            const yeniMatches = (taze.matches || []).map(function (m, i) {
               const a = String(m && m.id != null ? m.id : i);
               const satir = harita[a];
               if (!satir) return m;
@@ -11756,23 +11829,30 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
                 else src.gradeHarf = not;
                 yeni.sourceCourse = src;
               }
+              // Değişmeyen satır yamaya girmez: dokunulmamış satırı yazmak da
+              // araya giren bir kararın üzerine yazmak olur.
+              if (JSON.stringify(yeni) !== JSON.stringify(m)) degisenler[i] = yeni;
               return yeni;
             });
-            const yama = {
-              matches: yeniMatches,
+            const satirlarinYamasi = SY.satirlarYamasi ? SY.satirlarYamasi(degisenler) : null;
+            const yama = Object.assign({}, satirlarinYamasi || {}, {
               notEslemeOnayi: {
                 onaylayan: currentUser?.name || currentUser?.identifier || '',
                 tarih: new Date().toISOString(),
               },
               updatedAt: new Date().toISOString(),
-            };
+            });
             try {
               await window.DBWrite.update('muafiyet_records', String(rec.id), yama);
             } catch (e) {
               alert('Not eşlemesi kaydedilemedi: ' + (e.message || ''));
               return;
             }
-            const guncel = Object.assign({}, rec, yama);
+            const guncel = Object.assign({}, taze, {
+              matches: yeniMatches,
+              notEslemeOnayi: yama.notEslemeOnayi,
+              updatedAt: yama.updatedAt,
+            });
             setRecords(function (prev) {
               return prev.map(function (r) {
                 return r.id === rec.id ? guncel : r;

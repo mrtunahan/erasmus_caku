@@ -37,6 +37,14 @@ function muafiyetKurali() {
   if (!muafiyetKuraliSozu) muafiyetKuraliSozu = import('../../lib/muafiyet-yeniden.js');
   return muafiyetKuraliSozu;
 }
+
+// Satır-yazma kuralı (noktalı yol biçimi + sayaçlar). Aynı gerekçe: kural tek
+// dosyada, testli; sunucu onu uygular (bkz. lib/muafiyet-satir-yaz.js).
+let satirYazSozu = null;
+function satirYazKurali() {
+  if (!satirYazSozu) satirYazSozu = import('../../lib/muafiyet-satir-yaz.js');
+  return satirYazSozu;
+}
 const { auditWrites } = require('../middleware/auditLog');
 const { softAuth } = require('../middleware/softAuth');
 const { JWT_SECRET } = require('../middleware/auth');
@@ -703,6 +711,62 @@ async function isPortalModerator(db, identifier) {
 // değiştirebilir (yetki alanlarını sabitleme, sahiplik damgası).
 async function enforceWritePolicies(db, op, user) {
   if (!DB_AUTH_ENFORCED || !user) return { allow: true };
+
+  // a0) NOKTALI ANAHTAR YALNIZ `matches.<n>` OLABİLİR (muafiyet_records).
+  //
+  // Karar yazarken dizinin tamamı değil tek satır yazılıyor
+  // ({ 'matches.3': satir }) — "onayladım, geri onaya düştü" hatasının
+  // çözümü bu (bkz. lib/muafiyet-satir-yaz.js). Ama noktalı anahtar, alan
+  // adı denetimlerini atlatmanın da kapısıdır: `status.x` ya da
+  // `matches.3.__proto__` gibi bir yol, üstteki alan listelerinde
+  // görünmeden belgeye girebilirdi. Bu yüzden biçim BURADA sınırlanır.
+  if (
+    op.collection === 'muafiyet_records' &&
+    (op.type === 'update' || op.type === 'set') &&
+    op.data &&
+    typeof op.data === 'object'
+  ) {
+    const noktali = Object.keys(op.data).filter((k) => k.includes('.'));
+    if (noktali.length > 0) {
+      const SY = await satirYazKurali();
+      const kotu = noktali.filter((k) => !SY.satirYoluMu(k));
+      if (kotu.length > 0) {
+        return {
+          allow: false,
+          status: 400,
+          error: `Geçersiz alan yolu: ${kotu.join(', ')}`,
+        };
+      }
+      // Satır yolu öğrenciye KAPALI: öğrencinin `matches` yazma yolu tek
+      // kapıdan (yeniden gönderim kuralı) geçer, orası diziyi kaydın
+      // kendisinden yeniden kurar. Noktalı yol o kuralı atlatırdı.
+      if (user.role === 'student') {
+        return {
+          allow: false,
+          status: 403,
+          error: 'Bu kayıtta eşleştirme satırını doğrudan değiştiremezsiniz.',
+        };
+      }
+      // VAR OLAN SATIR: MongoDB `matches.9`u boş diziye yazarken araya null
+      // elemanlar serpiştirir — kayıtta olmayan dersler görünür. Yalnız
+      // mevcut satırlar güncellenebilir.
+      const mevcutKayit = await findExistingDoc(db, op);
+      const uzunluk = Array.isArray(mevcutKayit && mevcutKayit.matches)
+        ? mevcutKayit.matches.length
+        : 0;
+      const tasan = noktali.filter((k) => {
+        const i = SY.yolIndeksi(k);
+        return i < 0 || i >= uzunluk;
+      });
+      if (tasan.length > 0) {
+        return {
+          allow: false,
+          status: 409,
+          error: 'Bu eşleştirme satırı kayıtta yok (kayıt değişmiş olabilir).',
+        };
+      }
+    }
+  }
 
   // a) Yapısal koleksiyonlar: sade professor yazamaz
   if (STRUCTURE_MANAGER_WRITE.has(op.collection) && user.role === 'professor') {
@@ -2004,6 +2068,39 @@ function getCollectionName(op) {
   return op.collection;
 }
 
+// ── SAYAÇLARI YAZMADAN SONRA KAYITTAN TAZELE ──
+//
+// `pendingReviewCount`/`approvedCount`/`rejectedCount` dizinin TAMAMINDAN
+// türer. İstemci tek satır yazdığında (ya da bayat bir diziden hesapladığında)
+// bu sayılar yanlış kalıyor, akademisyenin listesinde "1 ders karar bekliyor"
+// gibi olmayan bir iş görünüyordu. Yazma bittikten sonra belgenin KENDİSİNE
+// bakıp yeniden hesaplıyoruz — tek doğru kaynak kayıttır.
+async function muafiyetSayaclariTazele(db, colName, docId, data) {
+  if (colName !== 'muafiyet_records' || !docId) return;
+  const dokunan = Object.keys(data || {}).some((k) => k === 'matches' || k.startsWith('matches.'));
+  if (!dokunan) return;
+  try {
+    const col = db.collection(colName);
+    let filter = { _docId: docId };
+    const byId = await col.findOne({ _id: docId });
+    if (byId) filter = { _id: docId };
+    else if (docId.length === 24) {
+      try {
+        const byObjId = await col.findOne({ _id: new ObjectId(docId) });
+        if (byObjId) filter = { _id: new ObjectId(docId) };
+      } catch (e) {}
+    }
+    const doc = await col.findOne(filter);
+    if (!doc || !Array.isArray(doc.matches)) return;
+    const SY = await satirYazKurali();
+    await col.updateOne(filter, { $set: SY.sayaclar(doc.matches) });
+  } catch (e) {
+    // Sayaç bir TÜREV alandır: tazelenemediyse kararın kendisi yazılmış
+    // olduğu için işlemi geri almıyoruz, yalnız günlüğe düşüyoruz.
+    console.error('[muafiyet] sayaçlar tazelenemedi:', e && e.message);
+  }
+}
+
 // Tek işlem yap
 async function executeSingleOp(db, op) {
   const colName = getCollectionName(op);
@@ -2051,6 +2148,7 @@ async function executeSingleOp(db, op) {
         } else {
           await col.replaceOne(filter, { ...cleaned, _docId: op.docId }, { upsert: true });
         }
+        await muafiyetSayaclariTazele(db, colName, op.docId, cleaned);
       } else {
         await col.insertOne(cleaned);
       }
@@ -2074,6 +2172,7 @@ async function executeSingleOp(db, op) {
         } catch (e) {}
       }
       await col.updateOne(filter, updateDoc, { upsert: true });
+      await muafiyetSayaclariTazele(db, colName, op.docId, cleaned);
       return { success: true };
     }
     case 'delete': {

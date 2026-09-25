@@ -194,78 +194,152 @@ router.post('/oturum', requireAuth, async (req, res) => {
   }
 });
 
+// ── ÖĞRENCİNİN DERSLERİ ──
+// ⚠ SEÇİM İKİ YERDE OLABİLİR: dönem bazlı `student_courses` (yeni yol, Benim
+// Sayfam oraya yazıyor) ve eski `students.myCourseIds`. Yalnız eskisine
+// bakmak, yeni yoldan ders seçen öğrenciyi "kayıtlı değil" sayardı — karar
+// istemcide lib/ogrenci-ders-secimi.js'te, burada da aynı birleşim uygulanır.
+//
+// Elle yazılan kısa kod hangi oturuma ait olduğunu SÖYLEMEZ; sunucu oturumu
+// bu kümeden bulur (öğrencinin derslerinden açık olanları dener).
+async function ogrenciVeDersleri(db, ogrNo) {
+  const ogrenci = await db.collection('students').findOne({ studentNumber: ogrNo });
+  // Belge kimliği `{öğrenciNo}__{dönem}`; `studentNumber` alanı sunucu
+  // tarafında damgalanıyor ama ondan ÖNCE yazılmış kayıtlarda olmayabilir.
+  // Numara JWT'den gelir; yine de desene kaçış uygulanır.
+  const noDeseni = ogrNo.replace(/[^A-Za-z0-9]/g, '');
+  const donemKayitlari = await db
+    .collection('student_courses')
+    .find(
+      noDeseni
+        ? { $or: [{ studentNumber: ogrNo }, { _docId: { $regex: '^' + noDeseni + '__' } }] }
+        : { studentNumber: ogrNo }
+    )
+    .toArray()
+    .catch(() => []);
+  const dersKumesi = new Set();
+  (Array.isArray(donemKayitlari) ? donemKayitlari : []).forEach((d) => {
+    (Array.isArray(d && d.courseIds) ? d.courseIds : []).forEach((id) => {
+      const v = metin(id);
+      if (v) dersKumesi.add(v);
+    });
+  });
+  (Array.isArray(ogrenci && ogrenci.myCourseIds) ? ogrenci.myCourseIds : []).forEach((id) => {
+    const v = metin(id);
+    if (v) dersKumesi.add(v);
+  });
+  return { ogrenci, dersleri: [...dersKumesi] };
+}
+
+// ── ELLE KOD GİRİŞİ: DENEME SINIRI ──
+// Altı haneli kod tahmin edilebilir bir şeydir: bir pencerede bir milyon
+// olasılık, sınırsız deneme hakkı olan biri için çok değildir. Sınır
+// ÖĞRENCİ BAŞINA konur; sınıftaki herkes aynı ağdan çıktığı için IP başına
+// sınır meşru öğrencileri keserdi. Normal kullanımda bir öğrenci bir derste
+// bir-iki istek gönderir; 30 deneme bolca yeter.
+//
+// ⚠ SAYAÇ BELLEKTE DURUR: sunucu yeniden başlarsa sıfırlanır. Amaç kaba
+// kuvveti YAVAŞLATMAKTIR; tek savunma bu değildir (kod döner, cihaz bağlıdır,
+// son söz akademisyenin listesindedir).
+const DENEME_PENCERESI_MS = 10 * 60 * 1000;
+const DENEME_SINIRI = 30;
+const denemeler = new Map();
+
+function denemeHakkiVarMi(anahtar) {
+  const simdi = Date.now();
+  const liste = (denemeler.get(anahtar) || []).filter((t) => simdi - t < DENEME_PENCERESI_MS);
+  liste.push(simdi);
+  denemeler.set(anahtar, liste);
+  // Bellek sızdırmasın: ara sıra eskimiş anahtarlar atılır.
+  if (denemeler.size > 5000) {
+    for (const [k, v] of denemeler) {
+      if (!v.length || simdi - v[v.length - 1] >= DENEME_PENCERESI_MS) denemeler.delete(k);
+    }
+  }
+  return liste.length <= DENEME_SINIRI;
+}
+
 // ══════════════════════════════════════════════════════════════
 // POST /api/yoklama/imzala — kodu okut (öğrenci)
 // ══════════════════════════════════════════════════════════════
 router.post('/imzala', requireAuth, async (req, res) => {
   try {
     const user = req.user;
-    const { kodDogrula, dogrulamaMesaji } = await kural();
+    const { kodDogrula, kisaKodDogrula, kisaKodNormalle, dogrulamaMesaji } = await kural();
     const ogrNo = metin(user && (user.studentNumber || user.identifier));
     if (!user || user.role !== 'student' || !ogrNo) {
       return res.status(403).json({ error: 'Yoklamayı yalnız öğrenci verebilir.' });
     }
 
+    if (!denemeHakkiVarMi(ogrNo)) {
+      return res.status(429).json({
+        ok: false,
+        sebep: 'cok_deneme',
+        error: 'Çok fazla deneme yapıldı. Birkaç dakika sonra tekrar deneyin.',
+      });
+    }
+
     const ham = metin((req.body || {}).kod);
     const db = await getDbSafe();
+    const { ogrenci, dersleri } = await ogrenciVeDersleri(db, ogrNo);
 
-    // Oturumu koddan çöz: hangi dersin yoklaması olduğunu kodun kendisi söyler.
-    const parca = ham.split('.');
-    const oturum = parca.length === 3 ? await oturumBul(db, parca[0]) : null;
-    if (!oturum) {
-      return res.status(400).json({ ok: false, sebep: 'bicim', error: dogrulamaMesaji('bicim') });
-    }
-    if (!oturum.acik) {
-      return res.status(400).json({ ok: false, sebep: 'kapali', error: dogrulamaMesaji('kapali') });
+    // ── İKİ GİRİŞ YOLU ──
+    // 1) Karekod: kodun kendisi hangi oturum olduğunu söyler.
+    // 2) Elle yazılan altı hane: oturumu SÖYLEMEZ. Sunucu, öğrencinin
+    //    derslerinden AÇIK olan oturumları dener; kod hangisinde tutarsa
+    //    yoklama oraya yazılır. (Kamerası olmayan öğrencinin tek yolu budur.)
+    const kisa = kisaKodNormalle(ham);
+    let oturum = null;
+    let sonuc = null;
+    const simdi = Date.now();
+
+    if (!kisa) {
+      const parca = ham.split('.');
+      oturum = parca.length === 3 ? await oturumBul(db, parca[0]) : null;
+      if (!oturum) {
+        return res.status(400).json({ ok: false, sebep: 'bicim', error: dogrulamaMesaji('bicim') });
+      }
+      if (!oturum.acik) {
+        return res
+          .status(400)
+          .json({ ok: false, sebep: 'kapali', error: dogrulamaMesaji('kapali') });
+      }
+      // ⚠ KARAR SUNUCU SAATİYLE VERİLİR.
+      sonuc = kodDogrula(ham, { sirr: oturum.sirr, oturumId: oturum.id, simdi });
+    } else {
+      if (dersleri.length === 0) {
+        return res
+          .status(400)
+          .json({ ok: false, sebep: 'kisa_ders_yok', error: dogrulamaMesaji('kisa_ders_yok') });
+      }
+      const acikOturumlar = await db
+        .collection(OTURUMLAR)
+        .find({ acik: true, dersId: { $in: dersleri } })
+        .limit(30)
+        .toArray();
+      for (const o of acikOturumlar) {
+        const d = kisaKodDogrula(ham, { sirr: o.sirr, oturumId: o.id, simdi });
+        if (d.gecerli) {
+          oturum = o;
+          sonuc = d;
+          break;
+        }
+      }
+      if (!oturum) {
+        // Hangi oturumda tutmadığını söylemeyiz: deneme yanılmaya ipucu olur.
+        return res
+          .status(400)
+          .json({ ok: false, sebep: 'kisa_kod', error: dogrulamaMesaji('kisa_kod') });
+      }
     }
 
-    // ⚠ KARAR SUNUCU SAATİYLE VERİLİR.
-    const sonuc = kodDogrula(ham, {
-      sirr: oturum.sirr,
-      oturumId: oturum.id,
-      simdi: Date.now(),
-    });
     if (!sonuc.gecerli) {
       return res
         .status(400)
         .json({ ok: false, sebep: sonuc.sebep, error: dogrulamaMesaji(sonuc.sebep) });
     }
 
-    // ── Öğrenci bu dersi alıyor mu? ──
-    // Almıyorsa yoklama kaydı açmak listeyi kirletir; hoca tanımadığı bir
-    // numarayı silmek zorunda kalır.
-    //
-    // ⚠ SEÇİM İKİ YERDE OLABİLİR: dönem bazlı `student_courses` (yeni yol,
-    // Benim Sayfam oraya yazıyor) ve eski `students.myCourseIds`. Yalnız
-    // eskisine bakmak, yeni yoldan ders seçen öğrenciyi "kayıtlı değil"
-    // sayardı — karar istemcide lib/ogrenci-ders-secimi.js'te, burada da
-    // aynı birleşim uygulanır.
-    const ogrenci = await db.collection('students').findOne({ studentNumber: ogrNo });
-    // Belge kimliği `{öğrenciNo}__{dönem}`; `studentNumber` alanı sunucu
-    // tarafında damgalanıyor ama ondan ÖNCE yazılmış kayıtlarda olmayabilir.
-    // Numara JWT'den gelir; yine de desene kaçış uygulanır.
-    const noDeseni = ogrNo.replace(/[^A-Za-z0-9]/g, '');
-    const donemKayitlari = await db
-      .collection('student_courses')
-      .find(
-        noDeseni
-          ? { $or: [{ studentNumber: ogrNo }, { _docId: { $regex: '^' + noDeseni + '__' } }] }
-          : { studentNumber: ogrNo }
-      )
-      .toArray()
-      .catch(() => []);
-    const dersKumesi = new Set();
-    (Array.isArray(donemKayitlari) ? donemKayitlari : []).forEach((d) => {
-      (Array.isArray(d && d.courseIds) ? d.courseIds : []).forEach((id) => {
-        const v = metin(id);
-        if (v) dersKumesi.add(v);
-      });
-    });
-    (Array.isArray(ogrenci && ogrenci.myCourseIds) ? ogrenci.myCourseIds : []).forEach((id) => {
-      const v = metin(id);
-      if (v) dersKumesi.add(v);
-    });
-    const dersleri = [...dersKumesi];
+    // Öğrenci bu dersi alıyor mu? (küme yukarıda çözüldü)
     if (dersleri.length > 0 && !dersleri.includes(metin(oturum.dersId))) {
       return res
         .status(403)
