@@ -686,12 +686,19 @@ var PortalDB = {
     if (window.audit) window.audit('portal_post_delete', 'portal_posts', String(id), {});
   },
 
+  // ⚠ TAZE OKUMA + TEK ALAN YAZIMI.
+  // Eskiden kayıt 15 saniyelik ÖNBELLEKTEN okunup `reactions` nesnesinin
+  // TAMAMI geri yazılıyordu: aynı gönderiyi aynı anda beğenen iki öğrenciden
+  // birinin beğenisi kayboluyordu (muafiyet/staj'daki kör yazmanın küçük
+  // kardeşi). Artık kayıt taze okunur ve yalnız O TEPKİ TÜRÜ yazılır; farklı
+  // türler (👍 / ❤️) birbirini hiç etkilemez.
   async toggleReaction(postId, reactionType, userId) {
-    var result = await window.apiReadDoc('portal_posts', String(postId));
+    var oku = window.apiReadDocFresh || window.apiReadDoc;
+    var result = await oku('portal_posts', String(postId));
     if (!result.exists) return;
     var data = result.data;
     var reactions = data.reactions || {};
-    var reactionList = reactions[reactionType] || [];
+    var reactionList = (reactions[reactionType] || []).slice();
     var idx = reactionList.indexOf(userId);
     if (idx >= 0) {
       reactionList.splice(idx, 1);
@@ -699,13 +706,17 @@ var PortalDB = {
       reactionList.push(userId);
     }
     reactions[reactionType] = reactionList;
-    await window.DBWrite.update('portal_posts', String(postId), { reactions: reactions });
+    var yama = {};
+    yama['reactions.' + reactionType] = reactionList;
+    await window.DBWrite.update('portal_posts', String(postId), yama);
     return reactions;
   },
 
   // Yukarı/Aşağı Oy (Stack Overflow modeli)
+  // Oy da taze okumayla: iki öğrenci aynı anda oy verdiğinde biri kaybolmasın.
   async toggleVote(postId, voteType, userId) {
-    var result = await window.apiReadDoc('portal_posts', String(postId));
+    var oku = window.apiReadDocFresh || window.apiReadDoc;
+    var result = await oku('portal_posts', String(postId));
     if (!result.exists) return;
     var data = result.data;
     var upvotes = data.upvotes || [];
@@ -749,12 +760,13 @@ var PortalDB = {
       likes: [],
     });
     var result = await window.DBWrite.add('portal_posts', commentData, String(postId), 'comments');
-    // Yorum sayısını güncelle
-    var postResult = await window.apiReadDoc('portal_posts', String(postId));
-    if (postResult.exists) {
-      var currentCount = (postResult.data.commentCount || 0) + 1;
-      await window.DBWrite.update('portal_posts', String(postId), { commentCount: currentCount });
-    }
+    // ⚠ SAYAÇ SUNUCUDA ARTIRILIR. Eskiden sayı okunup +1 yazılıyordu; okuma
+    // önbellekli olduğu için (ve iki kişi aynı anda yorum yazabildiği için)
+    // sayı gerçek yorum sayısından sapıyordu. `__increment` sunucuda $inc'e
+    // çevrilir (server/routes/db.js → addTimestamps) ve yarışa dayanıklıdır.
+    await window.DBWrite.update('portal_posts', String(postId), {
+      commentCount: '__increment:1',
+    });
     return Object.assign({}, comment, { id: result.id });
   },
 
@@ -813,17 +825,16 @@ var PortalDB = {
     for (var i = 0; i < ops.length; i += 20) {
       await window.DBWrite.batch(ops.slice(i, i + 20));
     }
-    // Yorum sayısını azalt
-    var postResult = await window.apiReadDoc('portal_posts', String(postId));
-    if (postResult.exists) {
-      var currentCount = Math.max(0, (postResult.data.commentCount || 0) - deleteCount);
-      await window.DBWrite.update('portal_posts', String(postId), { commentCount: currentCount });
-    }
+    // Sayaç sunucuda azaltılır (yukarıdaki nota bakın).
+    await window.DBWrite.update('portal_posts', String(postId), {
+      commentCount: '__increment:-' + deleteCount,
+    });
     return deleteCount;
   },
 
   async toggleCommentLike(postId, commentId, userId) {
-    var result = await window.apiReadDoc('portal_posts_comments', String(commentId));
+    var oku = window.apiReadDocFresh || window.apiReadDoc;
+    var result = await oku('portal_posts_comments', String(commentId));
     if (!result.exists) return [];
     var data = result.data;
     var likes = data.likes || [];

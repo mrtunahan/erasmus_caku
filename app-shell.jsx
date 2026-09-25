@@ -19,7 +19,15 @@ const HIERARCHY_MODULES = window.HIERARCHY_MODULES || [];
 
 // Tüm roller için oturum boşta-kalma (idle) süresi: 10 dk işlemsizlik sonrası
 // otomatik çıkış → yeniden giriş gerekir.
-const IDLE_LIMIT_MS = 10 * 60 * 1000;
+// ── OTURUM BOŞTA KALMA SÜRESİ ──
+// ⚠ 10 DAKİKAYDI ve şikâyet üretiyordu: uzun bir staj/muafiyet formunu
+// dolduran, transkriptini okuyan ya da telefona bakan kullanıcı geri
+// döndüğünde giriş ekranını ve BOŞ formu buluyordu (sayfada kaydedilmemiş
+// veriyi koruyan bir mekanizma yok). Süre 30 dakikaya çıkarıldı ve çıkıştan
+// bir dakika önce uyarı gösteriliyor: "Devam et" demek yeterli.
+const IDLE_LIMIT_MS = 30 * 60 * 1000;
+// Çıkıştan ne kadar önce uyarılacak.
+const IDLE_UYARI_MS = 60 * 1000;
 const IDLE_ACTIVITY_KEY = 'caku_last_activity';
 
 // Sidebar/RightSidebar/route-guard için ortak: kullanıcının erişebileceği
@@ -2196,6 +2204,8 @@ function AppShell() {
   // eklenene kadar her zaman 'university' ile başla ve takılı kalan değeri
   // temizle. (Yalnız fakülte yetkilileri zaten computeAvailableDepts'teki
   // isFacMgr dalıyla doğru kısıtlanır; adminScope onları etkilemez.)
+  // Oturum kapanmasına kaç saniye kaldı (0 = uyarı yok). Bkz. IDLE_UYARI_MS.
+  const [idleKalan, setIdleKalan] = useState(0);
   const [adminScope, setAdminScope] = useState(() => {
     try {
       if (localStorage.getItem('adminScope')) localStorage.removeItem('adminScope');
@@ -2620,6 +2630,7 @@ function AppShell() {
       } catch (_) {
         /* yok say */
       }
+      setIdleKalan(0);
     };
     bump(); // oturum başında/etkinlikte işaretle
     let lastWrite = Date.now();
@@ -2631,12 +2642,20 @@ function AppShell() {
     };
     const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
     events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
+    // ⚠ KONTROL SIKLIĞI UYARIYI TAŞIR: 30 saniyede bir bakan bir sayaç, bir
+    // dakikalık uyarıyı gösteremez. 5 saniyede bir bakılır; iş yükü yok
+    // (yalnız localStorage okuması).
     const check = setInterval(() => {
       const last = parseInt(localStorage.getItem(IDLE_ACTIVITY_KEY) || '0', 10);
-      if (last && Date.now() - last >= IDLE_LIMIT_MS) {
+      if (!last) return;
+      const gecen = Date.now() - last;
+      if (gecen >= IDLE_LIMIT_MS) {
         handleLogout();
+        return;
       }
-    }, 30000); // 30 sn'de bir kontrol
+      const kalan = IDLE_LIMIT_MS - gecen;
+      setIdleKalan(kalan <= IDLE_UYARI_MS ? Math.ceil(kalan / 1000) : 0);
+    }, 5000);
     return () => {
       events.forEach((e) => window.removeEventListener(e, onActivity));
       clearInterval(check);
@@ -3191,6 +3210,62 @@ function AppShell() {
       `,
         }}
       />
+
+      {/* ── OTURUM KAPANMADAN ÖNCE UYARI ──
+          Kaydedilmemiş formun üstüne haber vermeden giriş ekranı açmak, o ana
+          kadarki emeği silmek demekti. Bir dakika önce uyarılır; kullanıcı
+          ekrana dokunduğu an (fare/klavye) sayaç zaten sıfırlanır. */}
+      {idleKalan > 0 && (
+        <div
+          role="alert"
+          style={{
+            position: 'fixed',
+            top: 14,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 99998,
+            background: '#7C2D12',
+            color: '#fff',
+            padding: '12px 18px',
+            borderRadius: 10,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            fontSize: 13.5,
+            fontWeight: 600,
+            maxWidth: '92vw',
+          }}
+        >
+          <span>
+            Hareketsizlik nedeniyle {idleKalan} saniye içinde oturumunuz kapanacak. Kaydedilmemiş
+            bilgileriniz varsa şimdi kaydedin.
+          </span>
+          <button
+            onClick={() => {
+              try {
+                localStorage.setItem(IDLE_ACTIVITY_KEY, String(Date.now()));
+              } catch (_) {
+                /* yok say */
+              }
+              setIdleKalan(0);
+            }}
+            style={{
+              padding: '7px 14px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#fff',
+              color: '#7C2D12',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Devam et
+          </button>
+        </div>
+      )}
 
       {(currentUser?.role === 'student' || currentUser?.role === 'professor') && (
         <MandatorySurveyGate currentUser={currentUser} activeDepartment={activeDepartment} />
