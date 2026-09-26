@@ -244,9 +244,14 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
             {oturum.dersKodu ? oturum.dersKodu + ' — ' : ''}
             {oturum.dersAdi || 'Yoklama'}
           </div>
+          {/* ⚠ SÜRÜM BURADA, BAŞLIKTA DURUYOR. Alttaki damga ekranın dibinde
+              kaldığı için "hangi paketi çalıştırıyorum" sorusu günlerce
+              cevaplanamadı: karekod alanı boş görünüyordu ve sebebinin eski
+              paket olduğu ancak ekran görüntüsündeki ESKİ metinden anlaşıldı.
+              Burada, ilk bakışta görünen yerde. */}
           <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
-            Karekod her {Math.round((Y.ADIM_MS || 6000) / 1000)} saniyede yenileniyor · ekran
-            görüntüsü işe yaramaz
+            Karekod her {Math.round((Y.ADIM_MS || 6000) / 1000)} saniyede yenileniyor · sürüm{' '}
+            {(window.__SURUM && window.__SURUM.commit) || '?'}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
