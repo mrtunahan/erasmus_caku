@@ -426,6 +426,22 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
             >
               Öğrenciler: <b style={{ color: '#fff' }}>Benim Sayfam → Dijital Yoklama</b> →
               &quot;Karekodu Okut&quot; ya da &quot;Kodu elle gir&quot;
+              {/* ── SÜRÜM DAMGASI ──
+                  "Karekod görünmüyor" şikâyetlerinin sebebi çoğu zaman
+                  tarayıcıda/nginx'te önbellekte kalmış ESKİ paket oluyor.
+                  Ekrandaki damga, hangi sürümün çalıştığını tartışmasız
+                  gösterir (bkz. vite.config.js → surumBilgisi). */}
+              <span
+                style={{
+                  display: 'block',
+                  marginTop: 8,
+                  fontSize: 10.5,
+                  color: 'rgba(255,255,255,0.35)',
+                }}
+              >
+                sürüm {(window.__SURUM && window.__SURUM.commit) || '?'}{' '}
+                {(window.__SURUM && window.__SURUM.tarih) || ''}
+              </span>
             </p>
           </div>
         </div>

@@ -11,7 +11,15 @@
 // ══════════════════════════════════════════════════════════════
 const express = require('express');
 
+const { requireAuth } = require('../middleware/auth');
+
 const router = express.Router();
+
+// ⚠ BU UÇLAR ANONİMDİ. Gömme (embedding) servisi istek başına 50 çift ×
+// 20.000 karakter işliyor; kimlik aranmayınca dışarıdan sınırsız CPU
+// tüketilebiliyor ve gerçek kullanıcıların işi gecikiyordu. Benzerlik
+// hesabı yalnız giriş yapmış kullanıcıya açık.
+router.use(requireAuth);
 
 const SERVICE_URL = process.env.EMBEDDING_SERVICE_URL || 'http://127.0.0.1:5005';
 // Uzun ders içerikleri + ilk istekte model ısınması için geniş tutuldu

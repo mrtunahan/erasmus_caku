@@ -2551,7 +2551,18 @@ const CloudFunctions = {
 window.CloudFunctions = CloudFunctions;
 
 // ── Retry mekanizması (bağlantı koptuğunda otomatik yeniden deneme) ──
+// ⚠ YAZMA İSTEKLERİ YENİDEN DENENMEZ.
+// Bu yardımcı 5xx ve ağ hatasında isteği tekrarlıyor ve `/api/db/write`
+// çağrıları da buradan geçiyordu. Sunucu kaydı YAZDIKTAN sonra yanıt
+// kaybolursa (zaman aşımı, proxy kopması) aynı `add` işlemi ikinci kez
+// uygulanıyor: çift başvuru, çift anket yanıtı, çift yorum. Okuma isteğini
+// tekrarlamak zararsız, yazma isteğini tekrarlamak veri bozar.
+//
+// `idempotent:false` verilen çağrılarda tek deneme yapılır; ağ hatasında
+// çağıran hata alır ve kullanıcıya "tekrar deneyin" der — kararı kullanıcı
+// verir, sessizce ikinci kayıt oluşmaz.
 async function fetchWithRetry(url, options = {}, maxRetries = 2) {
+  if (options && options.idempotent === false) maxRetries = 0;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const response = await fetch(url, options);
@@ -2588,6 +2599,8 @@ const DBWrite = {
       method: 'POST',
       headers,
       credentials: 'include',
+      // Yazma tekrarlanmaz: mükerrer kayıt üretir (bkz. fetchWithRetry).
+      idempotent: false,
       body: JSON.stringify({ operations }),
     });
 

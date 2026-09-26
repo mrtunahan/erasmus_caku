@@ -104,7 +104,17 @@ export default [
 
   // CJS configs (postcss/tailwind/design-tokens)
   {
-    files: ['*.cjs', 'postcss.config.cjs', 'design-tokens.cjs', 'tailwind.config.js'],
+    // ⚠ `ecosystem.config.js` buraya EKLENDİ: PM2 yapılandırması CommonJS
+    // (`module.exports`) ama hiçbir kalıba girmediği için `npm run lint`
+    // "'module' is not defined" HATASI veriyordu — yani lint zinciri kırıktı
+    // ve CI'ya eklenemiyordu.
+    files: [
+      '*.cjs',
+      'postcss.config.cjs',
+      'design-tokens.cjs',
+      'tailwind.config.js',
+      'ecosystem.config.js',
+    ],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'commonjs',

@@ -42,12 +42,25 @@ function constantTimeCompare(a, b) {
 async function verifyPassword(inputPassword, storedPassword, salt) {
   if (isBcryptHash(storedPassword)) {
     return bcrypt.compare(inputPassword, storedPassword);
-  } else if (isSha256Hash(storedPassword)) {
+  }
+  if (isSha256Hash(storedPassword)) {
     const inputHash = legacySha256Hash(inputPassword, salt);
     return constantTimeCompare(inputHash, storedPassword);
-  } else {
-    return storedPassword === inputPassword;
   }
+  // ── DÜZ METİN ŞİFRE KABUL EDİLMEZ ──
+  // ⚠ BURADA `storedPassword === inputPassword` vardı: saklanan değer bcrypt
+  // ya da sha256 değilse DÜZ METİN karşılaştırılıyordu. Bu, veritabanında
+  // düz metin şifre bulunmasını desteklemek demekti; `passwords` koleksiyonu
+  // bir kez sızsa bütün hesaplar doğrudan açılırdı (üstelik karşılaştırma
+  // sabit zamanlı da değildi).
+  //
+  // Böyle bir kayıt kalmışsa giriş BAŞARISIZ olur ve kullanıcı şifresini
+  // yeniden belirler (yetkili sıfırlaması ya da ilk kurulum yolu). Durum
+  // günlüğe düşer ki yöneticinin haberi olsun.
+  if (storedPassword) {
+    console.warn('[auth] hash olmayan şifre kaydı reddedildi — sıfırlama gerekiyor:', salt);
+  }
+  return false;
 }
 
 async function hashPassword(password) {
@@ -652,6 +665,45 @@ router.post('/change-password', async (req, res) => {
       // Anonim ilk-kurulum da denemedir — aynı hesaba art arda kurulum
       // denemeleri (yarış) hız sınırına takılsın.
       if (!authUser) recordAttempt(chpassKey);
+
+      // ── ANONİM İLK KURULUM İZ BIRAKIR ──
+      // ⚠ Bu yol, hiç giriş yapmamış bir öğrencinin hesabını NUMARASINI BİLEN
+      // herkese açıyor (giriş ekranı numaradan sonra "şifreni belirle"
+      // diyor). Akış kurumsal onboarding'in parçası olduğu için kapatmak bir
+      // POLİTİKA kararıdır; kapatılana kadar en azından GÖRÜNÜR olsun:
+      // kurulum ayrı bir kayıt olarak işlenir ve öğrencinin bildirim
+      // kutusuna düşer — gerçek sahibi durumu fark edebilsin.
+      if (!authUser) {
+        try {
+          const dbIz = await getDbSafe();
+          await dbIz.collection('audit_logs').insertOne({
+            kind: 'anonim_sifre_kurulumu',
+            at: new Date(),
+            actor: 'anonim',
+            target: 'student_passwords',
+            targetId: identifier,
+            ip:
+              (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
+              req.ip ||
+              null,
+            userAgent: req.headers['user-agent'] || null,
+          });
+          await dbIz.collection('student_notifications').insertOne({
+            studentNumber: String(identifier),
+            module: 'sistem',
+            type: 'uyari',
+            title: 'Hesabınıza şifre belirlendi',
+            body:
+              'Hesabınız için ilk kez şifre oluşturuldu. Bunu siz yapmadıysanız ' +
+              'hemen bölüm sekreterliğine ya da öğrenci işlerine bildirin.',
+            read: false,
+            createdAt: new Date().toISOString(),
+          });
+        } catch (izHata) {
+          // İz yazılamadıysa şifre kurulumu geri alınmaz; yalnız günlüğe düşer.
+          console.warn('[auth] anonim kurulum izi yazılamadı:', izHata.message);
+        }
+      }
 
       await setPasswordDoc('student_passwords', { [identifier]: bcryptHash }, true);
       await auditPasswordChange(
