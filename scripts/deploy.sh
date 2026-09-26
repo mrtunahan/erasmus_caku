@@ -44,6 +44,13 @@ fi
 echo "▸ Derleniyor…"
 npm run build
 
+# Hangi sürümün yayında olduğunu dağıtımın sonunda yazdırırız: "güncelledim
+# ama değişmedi" sorusunun ilk cevabı budur. Tarayıcıda görünen sürüm
+# (uygulamanın altındaki damga) buradakinden eskiyse sorun sunucuda değil,
+# tarayıcının önbelleğindedir — uygulama da bu durumda "yenileyin" şeridini
+# gösterir.
+echo "▸ Yayındaki sürüm: $(cat dist/surum.json 2>/dev/null || echo 'surum.json yok')"
+
 echo "▸ Sunucu yeniden başlatılıyor…"
 pm2 restart "$PM2_AD" --update-env
 

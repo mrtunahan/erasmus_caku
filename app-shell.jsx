@@ -2206,6 +2206,8 @@ function AppShell() {
   // isFacMgr dalıyla doğru kısıtlanır; adminScope onları etkilemez.)
   // Oturum kapanmasına kaç saniye kaldı (0 = uyarı yok). Bkz. IDLE_UYARI_MS.
   const [idleKalan, setIdleKalan] = useState(0);
+  // Yayında bizden yeni bir sürüm var mı? (bkz. SURUM UYARISI etkisi)
+  const [yeniSurum, setYeniSurum] = useState(null);
   const [adminScope, setAdminScope] = useState(() => {
     try {
       if (localStorage.getItem('adminScope')) localStorage.removeItem('adminScope');
@@ -2659,6 +2661,46 @@ function AppShell() {
     return () => {
       events.forEach((e) => window.removeEventListener(e, onActivity));
       clearInterval(check);
+    };
+  }, [currentUser]);
+
+  // ── SÜRÜM UYARISI ──
+  //
+  // ⚠ YAŞANMIŞ SORUN: yeni sürüm yayınlandığı hâlde kullanıcı eskisini
+  // çalıştırmaya devam ediyordu. Sebep, tarayıcıda (ya da ara katmanda)
+  // önbellekte kalmış `index.html`: o dosya ESKİ parça adlarını çağırıyor ve
+  // parçalar dağıtımda silinmediği için sunucu onları 200 ile veriyor. Sonuç:
+  // her şey çalışır görünür, yalnız yeni eklenen şeyler yoktur — "karekod
+  // görünmüyor" şikâyeti tam olarak buydu ve günlerce kodda arandı.
+  //
+  // Derleme `/surum.json` yazıyor (vite.config.js). Burada periyodik olarak
+  // okunup çalışan sürümle karşılaştırılır; fark varsa kullanıcıya söylenir.
+  // Sessizce düzeltmeye çalışmıyoruz: yenileme kararını kullanıcı verir,
+  // çünkü form doldurmanın ortasında olabilir.
+  useEffect(() => {
+    if (!currentUser) return undefined;
+    let iptal = false;
+    const kontrol = async () => {
+      try {
+        const r = await fetch('/surum.json?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) return;
+        const yayin = await r.json();
+        const calisan = (window.__SURUM && window.__SURUM.commit) || '';
+        if (!iptal && yayin && yayin.commit && calisan && yayin.commit !== calisan) {
+          setYeniSurum(yayin);
+        }
+      } catch (_) {
+        /* ağ hatası — bir sonraki turda yine bakılır */
+      }
+    };
+    kontrol();
+    const t = setInterval(kontrol, 10 * 60 * 1000);
+    const odakta = () => kontrol();
+    window.addEventListener('focus', odakta);
+    return () => {
+      iptal = true;
+      clearInterval(t);
+      window.removeEventListener('focus', odakta);
     };
   }, [currentUser]);
 
@@ -3210,6 +3252,68 @@ function AppShell() {
       `,
         }}
       />
+
+      {/* ── YENİ SÜRÜM YAYINLANDI ──
+          Eski paketle çalışmaya devam etmek sessiz bir hata kaynağıdır
+          (bkz. yukarıdaki SÜRÜM UYARISI etkisi). */}
+      {yeniSurum && (
+        <div
+          role="status"
+          style={{
+            position: 'fixed',
+            bottom: 16,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 99997,
+            background: '#1B2A4A',
+            color: '#fff',
+            padding: '11px 16px',
+            borderRadius: 10,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            fontSize: 13,
+            fontWeight: 600,
+            maxWidth: '92vw',
+          }}
+        >
+          <span>
+            Yeni sürüm yayınlandı. Eski sürümde bazı yenilikler görünmez — sayfayı yenileyin.
+          </span>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '7px 14px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#fff',
+              color: '#1B2A4A',
+              fontSize: 12.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Yenile
+          </button>
+          <button
+            onClick={() => setYeniSurum(null)}
+            aria-label="Uyarıyı kapat"
+            style={{
+              padding: '6px 9px',
+              borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.3)',
+              background: 'transparent',
+              color: '#fff',
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* ── OTURUM KAPANMADAN ÖNCE UYARI ──
           Kaydedilmemiş formun üstüne haber vermeden giriş ekranı açmak, o ana
