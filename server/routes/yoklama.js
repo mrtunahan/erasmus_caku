@@ -514,28 +514,40 @@ router.post('/kapat', requireAuth, async (req, res) => {
     // sonradan hangi yoklamanın elle girildiği görülebilsin.
     const elle = g.elleDurumlar && typeof g.elleDurumlar === 'object' ? g.elleDurumlar : {};
     const gecerli = new Set(['var', 'yok', 'izinli']);
+    // ⚠ TEK TEK YAZILMIYOR. Her öğrenci için ayrı `updateOne` demek, 100
+    // kişilik sınıfta 100 ardışık gidiş-dönüş demekti: yoklamayı bitirmek
+    // saniyeler sürüyor, hocanın ekranı o süre boyunca kilitli kalıyordu.
+    // Tek `bulkWrite` ile hepsi bir istekte gider.
+    const yazmalar = [];
     for (const [no, durum] of Object.entries(elle)) {
       const ogrNo = metin(no);
       const d = metin(durum);
       if (!ogrNo || !gecerli.has(d)) continue;
-      await db.collection(KAYITLAR).updateOne(
-        { oturumId: oturum.id, studentNumber: ogrNo },
-        {
-          $set: {
-            durum: d,
-            elle: true,
-            zaman: new Date().toISOString(),
-            dersId: metin(oturum.dersId),
-            dersKodu: metin(oturum.dersKodu),
-            dersAdi: metin(oturum.dersAdi),
-            dersSaati: Number(oturum.dersSaati) > 0 ? Number(oturum.dersSaati) : 1,
-            tarih: metin(oturum.tarih),
-            departmentId: metin(oturum.departmentId),
+      yazmalar.push({
+        updateOne: {
+          filter: { oturumId: oturum.id, studentNumber: ogrNo },
+          update: {
+            $set: {
+              durum: d,
+              elle: true,
+              zaman: new Date().toISOString(),
+              dersId: metin(oturum.dersId),
+              dersKodu: metin(oturum.dersKodu),
+              dersAdi: metin(oturum.dersAdi),
+              dersSaati: Number(oturum.dersSaati) > 0 ? Number(oturum.dersSaati) : 1,
+              tarih: metin(oturum.tarih),
+              departmentId: metin(oturum.departmentId),
+            },
+            $setOnInsert: { id: 'yk-k-' + crypto.randomBytes(8).toString('hex') },
           },
-          $setOnInsert: { id: 'yk-k-' + crypto.randomBytes(8).toString('hex') },
+          upsert: true,
         },
-        { upsert: true }
-      );
+      });
+    }
+    if (yazmalar.length > 0) {
+      // ordered:false → bir satırdaki hata ötekileri engellemesin; yoklamanın
+      // geri kalanı yazılsın.
+      await db.collection(KAYITLAR).bulkWrite(yazmalar, { ordered: false });
     }
 
     await db

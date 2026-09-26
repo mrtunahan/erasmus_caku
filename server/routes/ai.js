@@ -215,6 +215,16 @@ function dosyalariCoz(liste, kullanici, numaralar) {
       bulunamayan.push({ fileName, reason: 'forbidden' });
       return;
     }
+    // ── ÖĞRENCİDEN GELEN E-TABLO AYRIŞTIRILMAZ ──
+    // Excel okuyucusu (SheetJS/xlsx) prototype pollution ve ReDoS açıklarını
+    // taşıyor ve YAYINLANMIŞ BİR DÜZELTMESİ YOK. Bu uç öğrenciye de açık
+    // olduğu için, kötü niyetle hazırlanmış bir .xlsx sunucuda ayrıştırılmış
+    // olurdu. Personel akışı (şablon/tablo okuma) sürüyor; öğrenci belgeleri
+    // zaten PDF/DOCX olarak yükleniyor.
+    if (kullanici && kullanici.role === 'student' && /\.(xlsx|xlsm|xls)$/i.test(fileName)) {
+      bulunamayan.push({ fileName, reason: 'xlsx-ogrenciye-kapali' });
+      return;
+    }
     cozulen.push({ path: p, name: clip(d.name, 200) || fileName });
   });
   return { cozulen, bulunamayan };

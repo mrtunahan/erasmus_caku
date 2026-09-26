@@ -25,11 +25,23 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      # ⚠ LINT CI'DA KOŞMUYORDU ve bu yüzden `npm run lint` uzun süre KIRIK
+      # kaldı (ecosystem.config.js'te 'module is not defined' hatası kimsenin
+      # görmediği bir yerde duruyordu). Uyarılar engel değil; yalnız HATA
+      # derlemeyi durdurur.
+      - name: Lint (eslint)
+        run: npm run lint
+
       - name: Build (Vite)
         run: npm run build
 
       - name: Unit tests (vitest)
         run: npm test -- --run
+
+      # Bağımlılık açıkları sessizce girmesin. Yalnız YÜKSEK ve üstü kırar;
+      # moderate/low uyarı olarak kalır (aksi halde CI sürekli kırmızı olur).
+      - name: Bağımlılık denetimi (npm audit)
+        run: npm audit --omit=dev --audit-level=high
 
   server:
     name: Server install & syntax check
@@ -56,3 +68,6 @@ jobs:
           for f in $(find . -name '*.js' -not -path './node_modules/*'); do
             node --check "$f"
           done
+
+      - name: Bağımlılık denetimi (npm audit)
+        run: npm audit --omit=dev --audit-level=high || true
