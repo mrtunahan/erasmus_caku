@@ -28,6 +28,9 @@ const { duyuruyaDokunabilir } = require('../lib/duyuru-sahip');
 // Öğrenci okumasında başkasının kaydını slot alanlarına indirger — randevu
 // taleplerinin adı/konusu sınıfça okunabiliyordu (bkz. server/lib/ogrenci-maske.js).
 const { STUDENT_READ_MASKED, ogrenciMaskesiUygula } = require('../lib/ogrenci-maske');
+// Girdi biçimi: kimlik alanları METİN olmalı. Nesne gönderilirse Mongo onu
+// operatör sayar ve rastgele belge silinir (bkz. server/lib/yazma-girdisi.js).
+const { yazmaGirdisiGecerliMi, docIdSahibiMi } = require('../lib/yazma-girdisi');
 // Öğrencinin başkasının kaydını okuması: kural (hangi koleksiyon nasıl daralır)
 // tek dosyada ve testli — bkz. server/lib/ogrenci-okuma.js.
 const {
@@ -1905,8 +1908,35 @@ async function enforceWritePolicies(db, op, user) {
         error: `Bu kayıt üzerinde işlem yetkiniz yok: ${op.collection}/${op.docId || ''}`,
       };
     }
-    // Sahiplik alanı taşımayan legacy/serbest doküman — mevcut davranış korunur
-    return { allow: true };
+
+    // ── KİMLİĞİN KENDİSİ SAHİPLİĞİ SÖYLÜYORSA ──
+    // Kimi kayıtların belge kimliği öğrenci numarasını taşıyor
+    // ("2021001__2026-guz", "<kulüpId>__2021001"). Sahiplik ALANLARI sonradan
+    // eklendiği için eski kayıtlarda yok; kimliğe bakmasaydık öğrenci kendi
+    // ders seçimini güncelleyemez, kulüp takibini bırakamazdı.
+    if (docIdSahibiMi(op.docId, await ogrenciKapsami(db, ident))) {
+      return { allow: true };
+    }
+
+    // ── SAHİPLİK ÇÖZÜLEMİYORSA REDDET ──
+    //
+    // ⚠ BURADA "mevcut davranış korunur" diyen bir KAPI vardı: belgede
+    // sahiplik alanı yoksa öğrencinin yazmasına/SİLMESİNE izin veriliyordu.
+    // Bu, sahipsiz kayıtların tamamını herkese açıyordu — en somut örnek
+    // `forms`: kurumun form kütüphanesi kayıtları personel tarafından
+    // sahiplik alanı olmadan yazılıyor (formlar-modulu.jsx), dolayısıyla
+    // giriş yapmış HERHANGİ bir öğrenci onları silebiliyor ya da dosya
+    // adresini değiştirebiliyordu.
+    //
+    // Yeni kural: sahibi belli olmayan bir belgeye öğrenci DOKUNAMAZ. Kendi
+    // kaydını açması (belge yok → yukarıda `_owner` damgalanıyor) ve kendi
+    // sahipli kayıtlarını düzenlemesi etkilenmez; yalnız "kimin olduğu
+    // bilinmeyen" belge kapanır.
+    return {
+      allow: false,
+      status: 403,
+      error: `Bu kayıt size ait değil: ${op.collection}/${op.docId || ''}`,
+    };
   }
 
   return { allow: true };
@@ -2301,6 +2331,12 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
   }
 
   for (const op of operations) {
+    // ⚠ BİÇİM DENETİMİ HER ŞEYDEN ÖNCE. `docId` metin değilse (ör. {$ne:null})
+    // Mongo süzgeci operatöre dönüşür ve rastgele belge silinir/yazılır.
+    const bicim = yazmaGirdisiGecerliMi(op);
+    if (!bicim.gecerli) {
+      return res.status(400).json({ error: bicim.hata });
+    }
     if (!ALLOWED_COLLECTIONS.includes(op.collection)) {
       return res.status(403).json({ error: `Koleksiyon izni yok: ${op.collection}` });
     }

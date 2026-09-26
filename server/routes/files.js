@@ -406,35 +406,67 @@ router.get('/view/*', downloadLimiter, fileAuth, async (req, res) => {
 
 // DELETE /api/files/:folder/:filename
 const SAFE_FILENAME = /^[a-zA-Z0-9._-]+$/;
-router.delete('/:folder/:filename', deleteLimiter, fileAuth, softAuthMiddleware, (req, res) => {
-  const { folder, filename } = req.params;
+router.delete(
+  '/:folder/:filename',
+  deleteLimiter,
+  fileAuth,
+  softAuthMiddleware,
+  async (req, res) => {
+    const { folder, filename } = req.params;
 
-  // Sıkı format kontrolü — yalnızca güvenli karakterler
-  if (!SAFE_FOLDER.test(folder) || !SAFE_FILENAME.test(filename)) {
-    return res.status(400).json({ error: 'Geçersiz klasör veya dosya adı.' });
+    // Sıkı format kontrolü — yalnızca güvenli karakterler
+    if (!SAFE_FOLDER.test(folder) || !SAFE_FILENAME.test(filename)) {
+      return res.status(400).json({ error: 'Geçersiz klasör veya dosya adı.' });
+    }
+
+    // ── SİLME SAHİPLİK İSTER ──
+    // ⚠ BU UÇ YALNIZ "giriş yapmış mısın" diye soruyordu. Yolunu bilen her
+    // kullanıcı — öğrenci dahil — başkasının staj belgesini, muafiyet
+    // transkriptini ya da kurumun form şablonunu SİLEBİLİYORDU; geri dönüşü
+    // olmayan bir işlem için bu çok genişti.
+    //
+    // Öğrenci: yalnız kendi numarasının klasöründeki dosyayı silebilir
+    // (indirme ucundaki kuralın aynısı — server/lib/dosya-sahiplik.js).
+    // Personel: değişiklik yok; belgeyi yöneten onlar.
+    if (FILES_AUTH_ENFORCED && req.user && req.user.role === 'student') {
+      const karar = dosyaErisebilirMi(
+        folder + '/' + filename,
+        req.user,
+        await ogrenciNumaralari(req.user)
+      );
+      if (!karar.izin) {
+        return res.status(403).json({ error: 'Bu belge size ait değil.' });
+      }
+      // Kişiye bağlı OLMAYAN klasörler (formlar, portal dosyaları, muafiyet
+      // belgeleri) öğrenciye tümden kapalıdır: orada sahiplik yoldan
+      // okunamadığı için "kimin dosyası" sorusunun cevabı yok.
+      if (!/^staj_belgeler\//.test(folder + '/')) {
+        return res.status(403).json({ error: 'Bu klasörden silme yetkiniz yok.' });
+      }
+    }
+
+    const filePath = path.join(UPLOAD_DIR, folder, filename);
+
+    // Path traversal koruması — trailing separator ile sınır kontrolü sıkılaştırıldı
+    const resolved = path.resolve(filePath);
+    const uploadRoot = path.resolve(UPLOAD_DIR);
+    if (!resolved.startsWith(uploadRoot + path.sep)) {
+      return res.status(403).json({ error: 'Geçersiz dosya yolu.' });
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Dosya bulunamadı.' });
+    }
+
+    try {
+      fs.unlinkSync(filePath);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('File delete error:', error);
+      res.status(500).json({ error: 'Dosya silinemedi: ' + error.message });
+    }
   }
-
-  const filePath = path.join(UPLOAD_DIR, folder, filename);
-
-  // Path traversal koruması — trailing separator ile sınır kontrolü sıkılaştırıldı
-  const resolved = path.resolve(filePath);
-  const uploadRoot = path.resolve(UPLOAD_DIR);
-  if (!resolved.startsWith(uploadRoot + path.sep)) {
-    return res.status(403).json({ error: 'Geçersiz dosya yolu.' });
-  }
-
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'Dosya bulunamadı.' });
-  }
-
-  try {
-    fs.unlinkSync(filePath);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('File delete error:', error);
-    res.status(500).json({ error: 'Dosya silinemedi: ' + error.message });
-  }
-});
+);
 
 // ── PDF birleştirme ──────────────────────────────────────────────
 // Bir öğrencinin muafiyet talebinde ders başına iki ayrı içerik dosyası

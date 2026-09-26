@@ -34,10 +34,30 @@ function injectReactImport() {
   };
 }
 
+// ── SÜRÜM DAMGASI ──
+// ⚠ "Değişiklik yansımadı" şikâyetlerinin çoğu kodda değil, DAĞITIMDA
+// oluyordu: tarayıcıda ya da nginx'te önbellekte kalmış eski `index.html`,
+// eski parça dosyalarını çağırmaya devam ediyor (dist temizlenmediği için o
+// dosyalar hâlâ duruyor) ve kullanıcı aylar önceki uygulamayı çalıştırıyor.
+// Hangi sürümün çalıştığı EKRANDAN okunabilsin diye derleme anındaki commit
+// ve tarih pakete gömülür.
+function surumBilgisi() {
+  let commit = 'bilinmiyor';
+  try {
+    commit = require('child_process').execSync('git rev-parse --short HEAD').toString().trim();
+  } catch (_e) {
+    /* git yoksa (docker build) sessiz geç */
+  }
+  return { commit, tarih: new Date().toISOString().slice(0, 16).replace('T', ' ') };
+}
+
 export default defineConfig(async () => ({
   plugins: [injectReactImport(), react({ jsxRuntime: 'classic' }), await maybeVisualizer()].filter(
     Boolean
   ),
+  define: {
+    __SURUM__: JSON.stringify(surumBilgisi()),
+  },
   server: {
     proxy: {
       '/api': {

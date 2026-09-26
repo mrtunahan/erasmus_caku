@@ -10,6 +10,9 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { requireAuth } = require('../middleware/auth');
+const { dosyaErisebilirMi } = require('../lib/dosya-sahiplik');
+const { urlToRelPath } = require('../lib/dosya-adres');
+const { getDbSafe } = require('../config/database');
 const { generateText, activeProvider, aiConfigured, modelFor } = require('../services/llm');
 
 const router = express.Router();
@@ -191,7 +194,13 @@ function aiHazirMi(res) {
 
 // İstemci yalnız daha önce /api/files/upload ile yüklediği dosyanın
 // `fileName` değerini gönderir; ham dosya İKİNCİ KEZ yüklenmez.
-function dosyalariCoz(liste) {
+// ⚠ DOSYA SAHİPLİĞİ BURADA DA SORULUR.
+// Bu uçlar yalnız yolun GÜVENLİ olduğunu doğruluyordu ("uploads dışına
+// çıkıyor mu"), dosyanın ÇAĞIRANA ait olup olmadığını değil. Öğrenci başka
+// bir öğrencinin belgesinin yolunu verirse, AI o belgeyi okuyup içeriğini
+// alan değerleri olarak geri döndürüyordu: indirme ucundaki sahiplik
+// denetimi böylece dolanılıyordu (server/lib/dosya-sahiplik.js).
+function dosyalariCoz(liste, kullanici, numaralar) {
   const cozulen = [];
   const bulunamayan = [];
   (Array.isArray(liste) ? liste : []).slice(0, 8).forEach((d) => {
@@ -201,9 +210,38 @@ function dosyalariCoz(liste) {
       bulunamayan.push({ fileName, reason: 'not-found-or-unsafe' });
       return;
     }
+    const karar = dosyaErisebilirMi(urlToRelPath(fileName) || fileName, kullanici, numaralar);
+    if (!karar.izin) {
+      bulunamayan.push({ fileName, reason: 'forbidden' });
+      return;
+    }
     cozulen.push({ path: p, name: clip(d.name, 200) || fileName });
   });
   return { cozulen, bulunamayan };
+}
+
+// Öğrencinin kendi numaraları (ÇAP'ta iki tane) — 60 sn önbellek.
+const aiOgrenciNoCache = new Map();
+async function aiOgrenciNumaralari(kullanici) {
+  const no = String((kullanici && kullanici.identifier) || '');
+  if (!no || !kullanici || kullanici.role !== 'student') return [];
+  const hit = aiOgrenciNoCache.get(no);
+  if (hit && Date.now() - hit.ts < 60 * 1000) return hit.liste;
+  let liste = [no];
+  try {
+    const db = await getDbSafe();
+    const kayit = await db.collection('students').findOne({ studentNumber: no });
+    if (kayit && Array.isArray(kayit.bagliOgrenciNolar)) {
+      kayit.bagliOgrenciNolar.forEach((x) => {
+        const v = String(x || '').trim();
+        if (v && liste.indexOf(v) < 0) liste.push(v);
+      });
+    }
+  } catch (_) {
+    /* çözülemezse yalnız kendi numarası */
+  }
+  aiOgrenciNoCache.set(no, { liste, ts: Date.now() });
+  return liste;
 }
 
 // Alan listesini temizle — istemciden gelen serbest metin sınırlandırılır.
@@ -241,7 +279,11 @@ router.post('/extract', extractLimiter, requireAuth, async (req, res) => {
     const fields = alanlariTemizle(b.fields);
     if (fields.length === 0) return res.status(400).json({ error: 'Doldurulacak alan yok.' });
 
-    const { cozulen, bulunamayan } = dosyalariCoz(b.dosyalar);
+    const { cozulen, bulunamayan } = dosyalariCoz(
+      b.dosyalar,
+      req.user,
+      await aiOgrenciNumaralari(req.user)
+    );
     if (cozulen.length === 0) {
       return res.status(400).json({ error: 'Okunabilir belge bulunamadı.', bulunamayan });
     }
@@ -295,7 +337,11 @@ router.post('/extract-rows', extractLimiter, requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Sütun tanımı yok.' });
     }
 
-    const { cozulen, bulunamayan } = dosyalariCoz(b.dosyalar);
+    const { cozulen, bulunamayan } = dosyalariCoz(
+      b.dosyalar,
+      req.user,
+      await aiOgrenciNumaralari(req.user)
+    );
     if (cozulen.length === 0) {
       return res.status(400).json({ error: 'Okunabilir belge bulunamadı.', bulunamayan });
     }
@@ -343,7 +389,11 @@ router.post('/compare', extractLimiter, requireAuth, async (req, res) => {
     const fields = alanlariTemizle(b.fields);
     if (fields.length === 0) return res.status(400).json({ error: 'Kıyaslanacak alan yok.' });
 
-    const { cozulen, bulunamayan } = dosyalariCoz(b.dosyalar);
+    const { cozulen, bulunamayan } = dosyalariCoz(
+      b.dosyalar,
+      req.user,
+      await aiOgrenciNumaralari(req.user)
+    );
     if (cozulen.length === 0) {
       return res.status(400).json({ error: 'Okunabilir belge bulunamadı.', bulunamayan });
     }
@@ -487,7 +537,7 @@ router.post('/extract/batch', aiLimiter, requireAuth, requireStaff, async (req, 
         module: module_,
         docType,
         fields: alanlariTemizle(j.fields),
-        dosyalar: dosyalariCoz(j.dosyalar).cozulen,
+        dosyalar: dosyalariCoz(j.dosyalar, req.user, []).cozulen,
       }));
     if (isler.length === 0) return res.status(400).json({ error: 'Geçerli iş yok.' });
 

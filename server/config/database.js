@@ -184,6 +184,51 @@ async function setupIndexes(database) {
       }
     }
 
+    // ── SIK SORGULANAN AMA İNDEKSSİZ KOLEKSİYONLAR ──
+    // ⚠ Bunlar yoktu ve her sorgu KOLEKSİYONU TAM TARIYORDU. En kritiği
+    // yoklama: öğrenci kod okuttuğunda `yoklama_kayitlari` içinde "bu
+    // oturumda bu öğrenci var mı" aranıyor ve sınıftaki herkes aynı anda
+    // okutuyor. Kayıtlar dönem boyunca biriktikçe okutma yavaşlıyor, ders
+    // başında hepsi birden gelince sunucu tıkanıyordu.
+    await database
+      .collection('yoklama_kayitlari')
+      .createIndex({ oturumId: 1, studentNumber: 1 }, { background: true });
+    await database
+      .collection('yoklama_kayitlari')
+      .createIndex({ dersId: 1, tarih: -1 }, { background: true });
+    await database
+      .collection('yoklama_kayitlari')
+      .createIndex({ studentNumber: 1, dersId: 1 }, { background: true });
+    // Açık oturum araması: ders + parça + açık mı.
+    await database.collection('yoklama_oturumlari').createIndex({ id: 1 }, { background: true });
+    await database
+      .collection('yoklama_oturumlari')
+      .createIndex({ dersId: 1, acik: 1 }, { background: true });
+    // Muafiyet: öğrenci okuması her istekte studentNo ile daraltılıyor.
+    await database
+      .collection('muafiyet_records')
+      .createIndex({ studentNo: 1 }, { background: true });
+    await database
+      .collection('muafiyet_records')
+      .createIndex({ departmentId: 1, updatedAt: -1 }, { background: true });
+    // Ders seçimi: hem öğrenci hem akademisyen listesi buradan çözülüyor.
+    await database
+      .collection('student_courses')
+      .createIndex({ studentNumber: 1 }, { background: true });
+    // Bildirimler: çan menüsü her açılışta alıcıya göre süzüyor.
+    await database
+      .collection('notifications')
+      .createIndex({ recipientType: 1, recipientId: 1, createdAt: -1 }, { background: true });
+    await database
+      .collection('survey_responses')
+      .createIndex({ surveyId: 1, userId: 1 }, { background: true });
+    await database
+      .collection('randevu_talepleri')
+      .createIndex({ akademisyen: 1, tarih: 1 }, { background: true });
+    await database
+      .collection('randevu_talepleri')
+      .createIndex({ studentNumber: 1 }, { background: true });
+
     console.log('Veritabanı indeksleri hazır.');
   } catch (err) {
     // Index zaten varsa hata vermez, başka bir hata varsa logla

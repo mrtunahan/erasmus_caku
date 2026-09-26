@@ -11,6 +11,16 @@ import './index.css';
 window.React = React;
 window.ReactDOM = ReactDOM;
 
+// ── Sürüm damgası ──
+// Konsolda ve `window.__SURUM` üzerinden okunur; Dijital Yoklama ekranının
+// altında da yazar. "Hangi sürüm çalışıyor" sorusunun tek cevabı budur.
+try {
+  window.__SURUM = typeof __SURUM__ !== 'undefined' ? __SURUM__ : { commit: 'dev', tarih: '' };
+  console.info('[sürüm]', window.__SURUM.commit, window.__SURUM.tarih);
+} catch (_e) {
+  window.__SURUM = { commit: 'bilinmiyor', tarih: '' };
+}
+
 // ── Phase 1: Shared components (tüm modüller buna bağımlı) ──
 import './shared-components.jsx';
 

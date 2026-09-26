@@ -42,12 +42,25 @@ function constantTimeCompare(a, b) {
 async function verifyPassword(inputPassword, storedPassword, salt) {
   if (isBcryptHash(storedPassword)) {
     return bcrypt.compare(inputPassword, storedPassword);
-  } else if (isSha256Hash(storedPassword)) {
+  }
+  if (isSha256Hash(storedPassword)) {
     const inputHash = legacySha256Hash(inputPassword, salt);
     return constantTimeCompare(inputHash, storedPassword);
-  } else {
-    return storedPassword === inputPassword;
   }
+  // ── DÜZ METİN ŞİFRE KABUL EDİLMEZ ──
+  // ⚠ BURADA `storedPassword === inputPassword` vardı: saklanan değer bcrypt
+  // ya da sha256 değilse DÜZ METİN karşılaştırılıyordu. Bu, veritabanında
+  // düz metin şifre bulunmasını desteklemek demekti; `passwords` koleksiyonu
+  // bir kez sızsa bütün hesaplar doğrudan açılırdı (üstelik karşılaştırma
+  // sabit zamanlı da değildi).
+  //
+  // Böyle bir kayıt kalmışsa giriş BAŞARISIZ olur ve kullanıcı şifresini
+  // yeniden belirler (yetkili sıfırlaması ya da ilk kurulum yolu). Durum
+  // günlüğe düşer ki yöneticinin haberi olsun.
+  if (storedPassword) {
+    console.warn('[auth] hash olmayan şifre kaydı reddedildi — sıfırlama gerekiyor:', salt);
+  }
+  return false;
 }
 
 async function hashPassword(password) {
