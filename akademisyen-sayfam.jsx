@@ -92,7 +92,10 @@ function KarekodSVG({ veri, boyut }) {
       shapeRendering="crispEdges"
       role="img"
       aria-label="Yoklama karekodu"
-      style={{ display: 'block', background: '#fff' }}
+      // ⚠ ÖLÇÜ HEM ÖZNİTELİKTE HEM STİLDE. WebKit, esnek kutu (flex) içindeki
+      // bir <svg>'nin yalnız özniteliklerden gelen ölçüsünü bazen sıfır
+      // hesaplıyor ve karekod görünmez oluyor. Stildeki ölçü buna kapalı.
+      style={{ display: 'block', background: '#fff', width: kenar, height: kenar }}
     >
       <rect width={yol.n} height={yol.n} fill="#fff" />
       <path d={yol.d} fill="#0B1220" />
@@ -234,7 +237,14 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
     <div
       style={{
         position: 'fixed',
-        inset: 0,
+        // ⚠ `inset: 0` YERİNE DÖRT KENAR AYRI. Safari 14.1'den eski sürümler
+        // `inset` kısayolunu tamamen yok sayıyor; o zaman bu katman ekranı
+        // kaplamak yerine içeriğine göre büzülüyor ve `flex: 1` olan orta
+        // satırın yüksekliği sıfıra iniyor — karekod sütunu görünmez oluyor.
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
         zIndex: 6000,
         background: '#0B1220',
         color: '#fff',
@@ -344,11 +354,22 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', minHeight: 0, flexWrap: 'wrap' }}>
+      <div
+        style={{
+          flexGrow: 1,
+          flexShrink: 1,
+          flexBasis: 'auto',
+          display: 'flex',
+          minHeight: 0,
+          flexWrap: 'wrap',
+        }}
+      >
         {/* Karekod — projeksiyonda okunacak kadar büyük */}
         <div
           style={{
-            flex: '1 1 480px',
+            flexGrow: 1,
+            flexShrink: 1,
+            flexBasis: 480,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -356,6 +377,11 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
             gap: 22,
             padding: 24,
             minWidth: 0,
+            minHeight: 0,
+            // ⚠ İçerik sütundan uzunsa `justify-content: center` onu iki uçtan
+            // birden taşırır ve üstteki kısım erişilemez olur. Kaydırma izni
+            // bunu görünür kılar.
+            overflowY: 'auto',
           }}
         >
           {/* ⚠ KOD ÜRETİLEMEZSE EKRAN SESSİZCE BOŞ KALMAZ. Eskiden karekod
@@ -405,7 +431,8 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
           {kisa && (
             <div
               style={{
-                width: 'min(440px, 86vw)',
+                width: '100%',
+                maxWidth: 440,
                 padding: '14px 18px 16px',
                 borderRadius: 16,
                 background: 'rgba(255,255,255,0.06)',
@@ -425,7 +452,7 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
               <div
                 style={{
                   margin: '6px 0 8px',
-                  fontSize: 'clamp(34px, 6vw, 54px)',
+                  fontSize: 46,
                   fontWeight: 800,
                   letterSpacing: 6,
                   fontVariantNumeric: 'tabular-nums',
@@ -458,7 +485,7 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
           )}
 
           {/* Geri sayım: kodun ne kadar ömrü kaldı */}
-          <div style={{ width: 'min(440px, 80vw)' }}>
+          <div style={{ width: '100%', maxWidth: 440 }}>
             <div
               style={{
                 height: 10,
