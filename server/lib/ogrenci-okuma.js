@@ -7,7 +7,6 @@
 // Böylece bir öğrenci şunları okuyabiliyordu:
 //
 //   muafiyet_history          → herkesin muaf sayılan dersi, NOTU, numarası
-//   trip_history              → Erasmus geçmişi, ad ve numara
 //   student_notifications     → herkesin bildirimi (RED GEREKÇELERİ dahil)
 //   notifications             → merkezî bildirimler
 //   internship_notifications  → kim hangi adımda, kim reddetti
@@ -63,24 +62,33 @@ const OGRENCI_OKUMA = {
   notifications: { tur: 'alici' },
   internship_uploads: { tur: 'basvuru' },
   internship_roadmap: { tur: 'basvuru' },
-  // Erasmus geçmişi: kurum listesi buradan türüyor, satır KALMALI. Kimlik ve
-  // not alanları düşer; kendi kaydı olduğu gibi döner.
-  trip_history: {
-    tur: 'maske',
-    alanlar: ['studentNumber'],
-    gorunen: [
-      'hostInstitution',
-      'homeInstitution',
-      'sourceUniversity',
-      'departmentId',
-      'department',
-      'semester',
-      'academicYear',
-      'yil',
-      'donem',
-    ],
-  },
 };
+
+// ══════════════════════════════════════════════════════════════
+// trip_history BİLEREK BU TABLODA DEĞİL — SİLMEYİN, GERİ EKLEMEYİN
+//
+// Erasmus eşleştirme geçmişi bir süre maskeleniyordu: öğrenciye yalnız
+// kurum/bölüm/dönem alanları dönüyor, ders eşleştirmelerinin kendisi
+// (homeCourses, hostCourses, notlar, usedBy) düşüyordu. Sonuç: ekran
+// akademisyendekiyle aynı görünüyor ama içi boş geliyordu.
+//
+// Sistem sahibi bunu açıkça tersine çevirdi: geçmiş, öğrenciye akademisyende
+// göründüğü GİBİ görünecek. Gerekçesi işin kendisi — öğrenci gideceği
+// üniversitede hangi dersin hangi derse sayıldığını, daha önce gidenlerin ne
+// aldığını görmeden ders eşleştirmesi yapamıyor; bu bilgi zaten ona
+// söylenmek için tutuluyor.
+//
+// KARŞILIĞINDA NE KORUYOR:
+//   • Silme/değiştirme: `trip_history` STUDENT_WRITABLE listesinde DEĞİL
+//     (server/lib/ogrenci-yazma-kapsami.js). Öğrenci API'den yazamaz, silemez.
+//     Arayüzde de silme düğmesi yalnız yöneticiye çıkar (isReadOnly).
+//   • Bölüm yalıtımı: her bölüm yalnız kendi geçmişini görür; bu süzme
+//     istemcide ve rotada ayrıca uygulanıyor, bu kararla ilgisi yok.
+//
+// ⚠ Bu satırların anlamı: burada "öğrenci başkasının kaydını okuyor" diye
+// bir bulgu görüp maskeyi geri koymak, sahibin kararını sessizce geri almak
+// olur. Değiştirilecekse sahibe sorulur.
+// ══════════════════════════════════════════════════════════════
 
 /** Bu koleksiyonun öğrenci okuma kuralı (yoksa null). */
 function ogrenciOkumaKurali(koleksiyon) {
