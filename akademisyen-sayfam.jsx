@@ -167,14 +167,30 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
   }, [onKapat]);
 
   const duzeltilmis = Y.duzeltilmisZaman ? Y.duzeltilmisZaman(simdi, saatFarki) : simdi;
-  const kod = Y.anlikKod ? Y.anlikKod(oturum.sirr, oturum.id, duzeltilmis, Y.ADIM_MS) : '';
   const kalan = Y.kalanOran ? Y.kalanOran(duzeltilmis, Y.ADIM_MS) : 1;
-  // ── ELLE YAZILAN KOD KAREKODLA BİRLİKTE DURUR ──
+  const kisaKalan = Y.kalanOran && Y.KISA_ADIM_MS ? Y.kalanOran(duzeltilmis, Y.KISA_ADIM_MS) : 1;
+
+  // ── KOD ÜRETİMİ SESSİZCE BAŞARISIZ OLAMAZ ──
   // Kamerası olmayan/çalışmayan öğrenci "ekranda yazan kodu girin" diyen
   // kutuyu görüyor ama ekranda yazan bir kod YOKTU. İkisi aynı anda görünür:
   // isteyen okutur, isteyen yazar.
-  const kisa = Y.anlikKisaKod ? Y.anlikKisaKod(oturum.sirr, oturum.id, duzeltilmis) : '';
-  const kisaKalan = Y.kalanOran && Y.KISA_ADIM_MS ? Y.kalanOran(duzeltilmis, Y.KISA_ADIM_MS) : 1;
+  //
+  // ⚠ ÜRETİM HATASI EKRANA YAZILIR. Karekod alanının boş kalması günlerce
+  // "önbellek" sanıldı; oysa ekranda sebebi söyleyen tek bir satır olsaydı
+  // ilk dakikada anlaşılacaktı. Atma: bu bileşen çökerse tam ekran yoklama
+  // komple kaybolur ve ders ortasında yoklama alınamaz.
+  let kod = '';
+  let kisa = '';
+  let uretimHatasi = '';
+  try {
+    const eksik = ['anlikKod', 'anlikKisaKod'].filter((ad) => typeof Y[ad] !== 'function');
+    if (eksik.length) throw new Error('kural modülünde eksik: ' + eksik.join(', '));
+    if (!oturum.sirr) throw new Error('oturum gizli anahtarı (sirr) boş geldi');
+    kod = Y.anlikKod(oturum.sirr, oturum.id, duzeltilmis, Y.ADIM_MS);
+    kisa = Y.anlikKisaKod(oturum.sirr, oturum.id, duzeltilmis);
+  } catch (e) {
+    uretimHatasi = (e && e.message) || String(e);
+  }
 
   const satirlar = useMemo(
     () =>
@@ -267,6 +283,32 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
           >
             {ozet.var} / {ozet.toplam} okuttu
           </span>
+          {/* ── KOD ÜST ŞERİTTE DE DURUR ──
+              ⚠ YAŞANMIŞ SORUN: bir akademisyende karekod sütunu ekranda hiç
+              görünmedi (tarayıcı uzantısı, dar ekran, yakınlaştırma — sebebi
+              ne olursa olsun) ve ders ortasında yoklama alınamadı. Üst şerit
+              o ekranda sorunsuz görünüyordu. Kod artık orada da yazıyor:
+              büyük sütun kaybolsa bile öğrenci kodu girip yoklamaya
+              katılabilir. İki yerde durması bir maliyet değil, sigorta. */}
+          {kisa && (
+            <span
+              title="Kamerası olmayan öğrenciler bu kodu yazar"
+              style={{
+                padding: '8px 16px',
+                borderRadius: 999,
+                background: 'rgba(96,165,250,0.16)',
+                border: '1px solid rgba(96,165,250,0.45)',
+                fontSize: 17,
+                fontWeight: 800,
+                letterSpacing: 3,
+                fontVariantNumeric: 'tabular-nums',
+                fontFamily: "'SF Mono', 'Menlo', 'Consolas', monospace",
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {Y.kisaKodBicimle ? Y.kisaKodBicimle(kisa) : kisa}
+            </span>
+          )}
           <button
             onClick={() => setListeAcik((a) => !a)}
             style={{
@@ -343,6 +385,19 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
               <b style={{ display: 'block', fontSize: 16, marginBottom: 6 }}>Karekod üretilemedi</b>
               Sayfayı yenileyip yoklamayı yeniden açın. Sürerse yoklamayı elle alın (öğrencileri
               sağdaki listeden işaretleyin) ve bu ekranı bölüm yetkilinize bildirin.
+              {uretimHatasi && (
+                <span
+                  style={{
+                    display: 'block',
+                    marginTop: 10,
+                    fontSize: 12,
+                    opacity: 0.85,
+                    fontFamily: "'SF Mono', 'Menlo', 'Consolas', monospace",
+                  }}
+                >
+                  sebep: {uretimHatasi}
+                </span>
+              )}
             </div>
           )}
 
