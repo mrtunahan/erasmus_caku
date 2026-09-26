@@ -23,6 +23,7 @@ import qrOlustur from 'qrcode-generator';
 // ekranda karekod ÇİZİLMEZ — sınıfta "karekod görünmedi" budur. Doğrudan
 // import, çizimin yükleme sırasına bağlı kalmasını bitirir.
 import * as YoklamaKuraliModulu from './lib/yoklama.js';
+import * as EkranDuzeni from './lib/yoklama-ekran-duzeni.js';
 
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
@@ -121,6 +122,15 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
   const [katilimlar, setKatilimlar] = useState([]);
   const [elleDurumlar, setElleDurumlar] = useState({});
   const [listeAcik, setListeAcik] = useState(true);
+  // Dar ekranda karekod ile liste alt alta durur. Bunu `flex-wrap: wrap` ile
+  // yapmak HATAYDI (aşağıdaki orta satır açıklamasına bakın); yön açıkça
+  // seçiliyor.
+  const [darEkran, setDarEkran] = useState(() => EkranDuzeni.darMi(window.innerWidth));
+  useEffect(() => {
+    const olc = () => setDarEkran(EkranDuzeni.darMi(window.innerWidth));
+    window.addEventListener('resize', olc);
+    return () => window.removeEventListener('resize', olc);
+  }, []);
   const [kapatiliyor, setKapatiliyor] = useState(false);
 
   // Kodun yeniden çizimi: saniyenin onda biri yeterli (geri sayım çubuğu
@@ -354,34 +364,26 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
         </div>
       </div>
 
-      <div
-        style={{
-          flexGrow: 1,
-          flexShrink: 1,
-          flexBasis: 'auto',
-          display: 'flex',
-          minHeight: 0,
-          flexWrap: 'wrap',
-        }}
-      >
+      {/* ── ORTA SATIR: YÜKSEKLİĞİNİ LİSTEDEN ALMAZ ──
+          ⚠ HATANIN KENDİSİ BURASIYDI. `flex-basis: auto` iken bu satırın
+          yüksekliği İÇERİĞİNDEN, yani sağdaki öğrenci listesinden geliyordu:
+          54 kişilik bir sınıfta satır ~3000 piksel oluyor, karekod da
+          `justify-content: center` yüzünden o satırın ortasına, ekranın çok
+          altına (ölçtüğümüzde y=1263) düşüyordu. Karekod çiziliyordu ama
+          kimse göremiyordu. Az öğrencili derste görünüyor, kalabalıkta
+          kayboluyordu — testlerde tek öğrenci olduğu için yakalanamadı.
+          `flex-basis: 0` satırın boyunu ekrandan alınan boş alana sabitler;
+          liste kendi içinde kaydırılır. */}
+      <div style={EkranDuzeni.satirStili(darEkran)}>
         {/* Karekod — projeksiyonda okunacak kadar büyük */}
         <div
           style={{
-            flexGrow: 1,
-            flexShrink: 1,
-            flexBasis: 480,
+            ...EkranDuzeni.karekodSutunuStili(darEkran),
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
             gap: 22,
             padding: 24,
-            minWidth: 0,
-            minHeight: 0,
-            // ⚠ İçerik sütundan uzunsa `justify-content: center` onu iki uçtan
-            // birden taşırır ve üstteki kısım erişilemez olur. Kaydırma izni
-            // bunu görünür kılar.
-            overflowY: 'auto',
           }}
         >
           {/* ⚠ KOD ÜRETİLEMEZSE EKRAN SESSİZCE BOŞ KALMAZ. Eskiden karekod
@@ -391,7 +393,7 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
             <div style={{ padding: 18, background: '#fff', borderRadius: 18 }}>
               <KarekodSVG
                 veri={kod}
-                boyut={Math.min(440, Math.max(240, (window.innerHeight || 800) - 380))}
+                boyut={EkranDuzeni.karekodBoyutu(window.innerWidth, window.innerHeight)}
               />
             </div>
           ) : (
@@ -537,12 +539,11 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
         {listeAcik && (
           <div
             style={{
-              flex: '0 1 380px',
-              minWidth: 300,
-              borderLeft: '1px solid rgba(255,255,255,0.12)',
+              ...EkranDuzeni.listeSutunuStili(darEkran),
+              borderLeft: darEkran ? 'none' : '1px solid rgba(255,255,255,0.12)',
+              borderTop: darEkran ? '1px solid rgba(255,255,255,0.12)' : 'none',
               display: 'flex',
               flexDirection: 'column',
-              minHeight: 0,
             }}
           >
             <div
