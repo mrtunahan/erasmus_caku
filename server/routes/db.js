@@ -2680,7 +2680,7 @@ router.get('/:collection', async (req, res) => {
       // kaydı olduğu gibi döner (bkz. STUDENT_READ_MASKED).
       if (decision.maske) {
         return ogrenciMaskesiUygula(
-          { ...rest, id: _docId || _id.toString() },
+          { ...rest, id: _docId || (_id && _id.toString()) || '' },
           decision.maske,
           decision.maskeSahibi
         );
@@ -2692,11 +2692,11 @@ router.get('/:collection', async (req, res) => {
         decision.strip.forEach((f) => {
           if (rest[f] !== undefined) stripped[f] = rest[f];
         });
-        return { ...stripped, id: _docId || _id.toString() };
+        return { ...stripped, id: _docId || (_id && _id.toString()) || '' };
       }
       return {
         ...rest,
-        id: _docId || _id.toString(),
+        id: _docId || (_id && _id.toString()) || '',
         // ── BÖLÜM KİMLİĞİNİN TÜM BİÇİMLERİ ──
         // Bu projeksiyon `_id` ve `_docId`'yi SİLİP tek bir `id` döndürüyor:
         // `_docId || _id`. Çekirdek bölümlerde `_docId` slug ('bilgisayar')
@@ -2837,16 +2837,20 @@ router.get('/:collection/:docId', async (req, res) => {
     const { _id, _docId, ...rest } = doc;
     if (decision.maske) {
       const maskeli = ogrenciMaskesiUygula(rest, decision.maske, decision.maskeSahibi);
-      return res.json({ exists: true, data: maskeli, id: _docId || _id.toString() });
+      return res.json({ exists: true, data: maskeli, id: _docId || (_id && _id.toString()) || '' });
     }
     if (decision.strip) {
       const stripped = {};
       decision.strip.forEach((f) => {
         if (rest[f] !== undefined) stripped[f] = rest[f];
       });
-      return res.json({ exists: true, data: stripped, id: _docId || _id.toString() });
+      return res.json({
+        exists: true,
+        data: stripped,
+        id: _docId || (_id && _id.toString()) || '',
+      });
     }
-    return res.json({ exists: true, data: rest, id: _docId || _id.toString() });
+    return res.json({ exists: true, data: rest, id: _docId || (_id && _id.toString()) || '' });
   } catch (error) {
     console.error(`Read ${collection}/${docId} error:`, error);
     return res.status(500).json({ error: 'Okuma sırasında bir hata oluştu.' });

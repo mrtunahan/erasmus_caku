@@ -197,3 +197,48 @@ describe('çift numaralı ÇAP öğrencisi', () => {
     ).toBeTruthy();
   });
 });
+
+// ── CANLIDA ÇIKAN HATA ──
+// Maske, kaydı okuma yolunun ORTASINDA daraltıyor; rota ondan sonra hâlâ
+// `_id`/`_docId` ayrıştırıp `id` üretiyor. Maske `_id`'yi düşürünce üretim
+// sunucusunda her öğrenci isteği 500 dönüyordu:
+//   Read trip_history error: TypeError: Cannot read properties of undefined
+//   (reading 'toString')  → routes/db.js, docs.map(...)
+describe('maskeli kayıt kimlik alanlarını taşır', () => {
+  const kural = ogrenciOkumaKurali('trip_history');
+  const baskasininKaydi = {
+    _id: { toString: () => '507f1f77bcf86cd799439011' },
+    _docId: 'th-1',
+    studentNumber: '2021002',
+    studentName: 'Mehmet Demir',
+    hostInstitution: 'TU Berlin',
+  };
+
+  it('_id ve _docId maskeden geçer (rota bunlardan id üretiyor)', () => {
+    const m = ogrenciKaydi(baskasininKaydi, kural, BEN);
+    expect(m._id).toBeDefined();
+    expect(m._docId).toBe('th-1');
+  });
+
+  it('kimlik alanları yine de düşer', () => {
+    const m = ogrenciKaydi(baskasininKaydi, kural, BEN);
+    expect(m.studentName).toBeUndefined();
+    expect(m.studentNumber).toBeUndefined();
+  });
+
+  it('rotanın yaptığı projeksiyon artık patlamıyor', () => {
+    const m = ogrenciKaydi(baskasininKaydi, kural, BEN);
+    const { _id, _docId, ...rest } = m;
+    const id = _docId || (_id && _id.toString()) || '';
+    expect(id).toBe('th-1');
+    expect(rest.hostInstitution).toBe('TU Berlin');
+  });
+
+  it('_id hiç yoksa da kimlik üretilebiliyor', () => {
+    const idsiz = { _docId: 'th-2', hostInstitution: 'X', studentNumber: '2021002' };
+    const m = ogrenciKaydi(idsiz, kural, BEN);
+    const { _id, _docId, ...rest } = m;
+    expect(_docId || (_id && _id.toString()) || '').toBe('th-2');
+    expect(rest.hostInstitution).toBe('X');
+  });
+});

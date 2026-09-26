@@ -111,6 +111,16 @@ function bildirimBana(kayit, kimlik) {
 }
 
 /** Maskede görünmeye devam eden alanlar (id hep kalır). */
+/**
+ * Maskeli kayıt: yalnız `gorunen` alanları + KİMLİK ALANLARI.
+ *
+ * ⚠ `_id` DE TAŞINIR. Maske, kaydı okuma yolunun ORTASINDA daraltıyor;
+ * aşağıda rota hâlâ `{ _id, _docId, ...rest }` ayrıştırması yapıp
+ * `id: _docId || _id.toString()` üretiyor. `_id` düşürülünce o satır
+ * "Cannot read properties of undefined (reading 'toString')" ile patlıyor ve
+ * öğrencinin Erasmus kurum listesi 500 dönüyordu. Kimlik alanları maskeden
+ * geçer; rota onları zaten yanıttan çıkarır.
+ */
 function maskele(kayit, kural) {
   const cikti = {};
   (kural.gorunen || []).forEach((alan) => {
@@ -118,6 +128,7 @@ function maskele(kayit, kural) {
   });
   if (kayit.id !== undefined) cikti.id = kayit.id;
   if (kayit._docId !== undefined) cikti._docId = kayit._docId;
+  if (kayit._id !== undefined) cikti._id = kayit._id;
   return cikti;
 }
 

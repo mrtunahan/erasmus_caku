@@ -1,0 +1,4 @@
+{
+  "//": "Bu dizindeki kural dosyalarının tamamı ESM'dir (import/export). Sunucu CJS olduğu için onları dinamik import ile yüklüyor; kök package.json'da 'type' alanı olmadığından Node her yüklemede şu uyarıyı basıyordu: MODULE_TYPELESS_PACKAGE_JSON — 'CommonJS olarak ayrıştırılamadı, ES modülü olarak YENİDEN ayrıştırılıyor'. Uyarı zararsız ama her import iki kez ayrıştırma demek ve pm2 günlüklerini dolduruyordu. Bu dosya yalnız 'buradaki .js dosyaları ESM' der; kök package.json'a 'type: module' yazmak bütün CJS yapılandırma dosyalarını (postcss, tailwind, ecosystem) kırardı.",
+  "type": "module"
+}
