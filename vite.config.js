@@ -51,10 +51,35 @@ function surumBilgisi() {
   return { commit, tarih: new Date().toISOString().slice(0, 16).replace('T', ' ') };
 }
 
+// Yayınlanan sürümü /surum.json olarak da yazar.
+//
+// ⚠ NİÇİN: tarayıcıda ya da ara katmanda önbellekte kalmış ESKİ bir
+// `index.html`, eski parça dosyalarını çağırmaya devam ediyor (dist
+// temizlenmediği için o dosyalar diskte duruyor ve 200 dönüyor). Kullanıcı
+// aylar önceki uygulamayı çalıştırdığının farkında bile olmuyordu —
+// "karekod görünmüyor" şikâyetinin kökü buydu. Uygulama artık yayındaki
+// sürümü periyodik olarak okuyup kendi sürümüyle karşılaştırıyor ve fark
+// varsa kullanıcıya "yenile" diyor (app-shell.jsx → SurumUyarisi).
+function surumDosyasi(surum) {
+  return {
+    name: 'surum-json',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'surum.json',
+        source: JSON.stringify(surum),
+      });
+    },
+  };
+}
+
 export default defineConfig(async () => ({
-  plugins: [injectReactImport(), react({ jsxRuntime: 'classic' }), await maybeVisualizer()].filter(
-    Boolean
-  ),
+  plugins: [
+    injectReactImport(),
+    react({ jsxRuntime: 'classic' }),
+    surumDosyasi(surumBilgisi()),
+    await maybeVisualizer(),
+  ].filter(Boolean),
   define: {
     __SURUM__: JSON.stringify(surumBilgisi()),
   },
