@@ -666,6 +666,45 @@ router.post('/change-password', async (req, res) => {
       // denemeleri (yarış) hız sınırına takılsın.
       if (!authUser) recordAttempt(chpassKey);
 
+      // ── ANONİM İLK KURULUM İZ BIRAKIR ──
+      // ⚠ Bu yol, hiç giriş yapmamış bir öğrencinin hesabını NUMARASINI BİLEN
+      // herkese açıyor (giriş ekranı numaradan sonra "şifreni belirle"
+      // diyor). Akış kurumsal onboarding'in parçası olduğu için kapatmak bir
+      // POLİTİKA kararıdır; kapatılana kadar en azından GÖRÜNÜR olsun:
+      // kurulum ayrı bir kayıt olarak işlenir ve öğrencinin bildirim
+      // kutusuna düşer — gerçek sahibi durumu fark edebilsin.
+      if (!authUser) {
+        try {
+          const dbIz = await getDbSafe();
+          await dbIz.collection('audit_logs').insertOne({
+            kind: 'anonim_sifre_kurulumu',
+            at: new Date(),
+            actor: 'anonim',
+            target: 'student_passwords',
+            targetId: identifier,
+            ip:
+              (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
+              req.ip ||
+              null,
+            userAgent: req.headers['user-agent'] || null,
+          });
+          await dbIz.collection('student_notifications').insertOne({
+            studentNumber: String(identifier),
+            module: 'sistem',
+            type: 'uyari',
+            title: 'Hesabınıza şifre belirlendi',
+            body:
+              'Hesabınız için ilk kez şifre oluşturuldu. Bunu siz yapmadıysanız ' +
+              'hemen bölüm sekreterliğine ya da öğrenci işlerine bildirin.',
+            read: false,
+            createdAt: new Date().toISOString(),
+          });
+        } catch (izHata) {
+          // İz yazılamadıysa şifre kurulumu geri alınmaz; yalnız günlüğe düşer.
+          console.warn('[auth] anonim kurulum izi yazılamadı:', izHata.message);
+        }
+      }
+
       await setPasswordDoc('student_passwords', { [identifier]: bcryptHash }, true);
       await auditPasswordChange(
         authUser,

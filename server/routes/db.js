@@ -2452,6 +2452,13 @@ function emitDbWrite(req, touchedSet) {
 // ══════════════════════════════════════════════
 router.get('/student-count', async (req, res) => {
   try {
+    // ⚠ ANONİMDİ. Sayı tek başına büyük bir sır değil ama bu uç giriş
+    // yapmamış herkese açıktı ve kurumun büyüklüğünü dışarıya veriyordu.
+    // Tek kullanıcısı portal ekranı (giriş yapmış alan), bu yüzden kimlik
+    // aramak hiçbir akışı bozmuyor.
+    if (DB_AUTH_ENFORCED && !decodeUser(req)) {
+      return res.status(401).json({ error: 'Giriş gerekli.', count: 0 });
+    }
     const db = await getDbSafe();
     const count = await db.collection('students').countDocuments({});
     return res.json({ count });
