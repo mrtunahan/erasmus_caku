@@ -14,7 +14,6 @@ describe('kural tablosu', () => {
   it('korunan koleksiyonların kuralı var', () => {
     [
       'muafiyet_history',
-      'trip_history',
       'student_notifications',
       'internship_notifications',
       'survey_responses',
@@ -128,117 +127,60 @@ describe('staj belgeleri — sahiplik başvurudan çözülür', () => {
   });
 });
 
-describe('Erasmus geçmişi — satır kalır, kimlik düşer', () => {
-  const kural = ogrenciOkumaKurali('trip_history');
+describe('Erasmus eşleştirme geçmişi öğrenciye AYNEN görünür', () => {
+  // ── SAHİBİN KARARI ──
+  // Geçmiş bir süre maskeleniyordu: öğrenciye yalnız kurum/bölüm/dönem
+  // dönüyor, ders eşleştirmelerinin kendisi düşüyordu. Ekran akademisyendeki
+  // gibi görünüp içi boş geliyordu. Sistem sahibi bunu tersine çevirdi:
+  // öğrenci gideceği üniversitede hangi dersin neye sayıldığını görmeden
+  // eşleştirme yapamıyor. Silme yetkisi akademisyende kalır — o, yazma
+  // kapsamıyla korunuyor (tests/ogrenci-yazma-kapsami.test.js).
   const baskasi = {
     id: 'h1',
+    _docId: 'h1',
     studentNumber: '2021002',
     studentName: 'Mehmet Demir',
     hostInstitution: 'TU Berlin',
     departmentId: 'bilgisayar',
     semester: '2024-Güz',
     homeCourses: [{ code: 'BLM101', grade: 'AA' }],
+    hostCourses: [{ code: 'CS101', grade: 'A' }],
+    usedBy: [{ name: 'Ali Veli', semester: '2025-Bahar' }],
   };
 
-  it('kurum listesi çalışmaya devam eder', () => {
-    const m = ogrenciKaydi(baskasi, kural, BEN);
-    expect(m.hostInstitution).toBe('TU Berlin');
-    expect(m.departmentId).toBe('bilgisayar');
-    expect(m.id).toBe('h1');
+  it('artık daraltan bir okuma kuralı yok', () => {
+    expect(ogrenciOkumaKurali('trip_history')).toBeNull();
   });
 
-  it('ad, numara ve dersler/notlar düşer', () => {
-    const m = ogrenciKaydi(baskasi, kural, BEN);
-    expect(m.studentName).toBeUndefined();
-    expect(m.studentNumber).toBeUndefined();
-    expect(m.homeCourses).toBeUndefined();
+  it('başkasının kaydı ders eşleştirmeleriyle birlikte görünür', () => {
+    const kural = ogrenciOkumaKurali('trip_history');
+    const g = ogrenciKaydi(baskasi, kural, BEN);
+    expect(g).toBe(baskasi);
+    expect(g.homeCourses).toHaveLength(1);
+    expect(g.hostCourses).toHaveLength(1);
+    expect(g.usedBy).toHaveLength(1);
   });
 
-  it('kendi kaydı olduğu gibi kalır', () => {
+  it('kendi kaydı da olduğu gibi kalır', () => {
+    const kural = ogrenciOkumaKurali('trip_history');
     const benim = { ...baskasi, studentNumber: '2021001' };
     expect(ogrenciKaydi(benim, kural, BEN)).toBe(benim);
   });
-});
 
-describe('liste süzme', () => {
-  it('görünmeyen kayıtlar listeden düşer', () => {
-    const kural = ogrenciOkumaKurali('student_notifications');
-    const liste = [
-      { studentNumber: '2021001', title: 'Muafiyet reddedildi' },
-      { studentNumber: '2021002', title: 'Başkasının bildirimi' },
-      null,
-    ];
-    const sonuc = ogrenciOkumasiSuz(liste, kural, BEN);
-    expect(sonuc).toHaveLength(1);
-    expect(sonuc[0].title).toBe('Muafiyet reddedildi');
+  it('liste süzgecinden de olduğu gibi geçer (rotanın çağırdığı yol)', () => {
+    const kural = ogrenciOkumaKurali('trip_history');
+    const liste = [baskasi, { ...baskasi, id: 'h2', studentNumber: '2021001' }];
+    // Rota kuralı yoksa süzgeci hiç çağırmıyor; çağrılsa bile hiçbir satır
+    // düşmemeli — ikisini birden kilitliyoruz.
+    expect(kural).toBeNull();
+    expect(ogrenciOkumasiSuz(liste, kural, { no: BEN.no, ad: BEN.ad })).toHaveLength(2);
   });
 
-  it('kural yoksa liste dokunulmaz', () => {
-    const liste = [{ a: 1 }];
-    expect(ogrenciOkumasiSuz(liste, null, BEN)).toBe(liste);
-  });
-});
-
-describe('çift numaralı ÇAP öğrencisi', () => {
-  // İkinci programın kayıtları AYRI numaranın altındadır; ikisi de kendisidir.
-  const capBen = { no: ['2021001', '2021555'], ad: 'Ayşe Yılmaz', bolum: 'bilgisayar' };
-
-  it('her iki numaranın kaydı da görünür', () => {
-    const kural = ogrenciOkumaKurali('muafiyet_history');
-    expect(ogrenciKaydi({ studentNo: '2021001' }, kural, capBen)).toBeTruthy();
-    expect(ogrenciKaydi({ studentNo: '2021555' }, kural, capBen)).toBeTruthy();
-    expect(ogrenciKaydi({ studentNo: '2021002' }, kural, capBen)).toBeNull();
-  });
-
-  it('bildirimlerde de aynı kapsam geçerli', () => {
-    const kural = ogrenciOkumaKurali('notifications');
-    expect(
-      ogrenciKaydi({ recipientType: 'user', recipientId: '2021555' }, kural, capBen)
-    ).toBeTruthy();
-  });
-});
-
-// ── CANLIDA ÇIKAN HATA ──
-// Maske, kaydı okuma yolunun ORTASINDA daraltıyor; rota ondan sonra hâlâ
-// `_id`/`_docId` ayrıştırıp `id` üretiyor. Maske `_id`'yi düşürünce üretim
-// sunucusunda her öğrenci isteği 500 dönüyordu:
-//   Read trip_history error: TypeError: Cannot read properties of undefined
-//   (reading 'toString')  → routes/db.js, docs.map(...)
-describe('maskeli kayıt kimlik alanlarını taşır', () => {
-  const kural = ogrenciOkumaKurali('trip_history');
-  const baskasininKaydi = {
-    _id: { toString: () => '507f1f77bcf86cd799439011' },
-    _docId: 'th-1',
-    studentNumber: '2021002',
-    studentName: 'Mehmet Demir',
-    hostInstitution: 'TU Berlin',
-  };
-
-  it('_id ve _docId maskeden geçer (rota bunlardan id üretiyor)', () => {
-    const m = ogrenciKaydi(baskasininKaydi, kural, BEN);
-    expect(m._id).toBeDefined();
-    expect(m._docId).toBe('th-1');
-  });
-
-  it('kimlik alanları yine de düşer', () => {
-    const m = ogrenciKaydi(baskasininKaydi, kural, BEN);
-    expect(m.studentName).toBeUndefined();
-    expect(m.studentNumber).toBeUndefined();
-  });
-
-  it('rotanın yaptığı projeksiyon artık patlamıyor', () => {
-    const m = ogrenciKaydi(baskasininKaydi, kural, BEN);
-    const { _id, _docId, ...rest } = m;
-    const id = _docId || (_id && _id.toString()) || '';
-    expect(id).toBe('th-1');
+  it('kimlik alanları düşmediği için rotanın id üretimi sağlam', () => {
+    const kural = ogrenciOkumaKurali('trip_history');
+    const g = ogrenciKaydi(baskasi, kural, BEN);
+    const { _id, _docId, ...rest } = g;
+    expect(_docId || (_id && _id.toString()) || '').toBe('h1');
     expect(rest.hostInstitution).toBe('TU Berlin');
-  });
-
-  it('_id hiç yoksa da kimlik üretilebiliyor', () => {
-    const idsiz = { _docId: 'th-2', hostInstitution: 'X', studentNumber: '2021002' };
-    const m = ogrenciKaydi(idsiz, kural, BEN);
-    const { _id, _docId, ...rest } = m;
-    expect(_docId || (_id && _id.toString()) || '').toBe('th-2');
-    expect(rest.hostInstitution).toBe('X');
   });
 });
