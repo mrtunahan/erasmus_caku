@@ -829,7 +829,7 @@ const FormEkleModal = ({ onClose, onEkle, activeDepartment }) => {
 // ══════════════════════════════════════════════════════════════
 // Ana Bileşen: FormlarModuluApp
 // ══════════════════════════════════════════════════════════════
-function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
+function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo: _departmentInfo }) {
   const [formlar, setFormlar] = useState([]);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [seciliKategori, setSeciliKategori] = useState('tumu');

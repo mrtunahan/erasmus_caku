@@ -3,7 +3,7 @@
 // Kategorize dosya arşivi, ders notları, sınav soruları, değerlendirme
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useRef, useCallback, useMemo } = React;
+const { useState, useEffect, useRef, useCallback: _useCallback, useMemo } = React;
 
 // ── Renkler ──
 const KTB = {
@@ -801,7 +801,7 @@ function UploadResourceModal({ onClose, onUpload, categories }) {
   const [fileName, setFileName] = useState('');
   const [fileSize, setFileSize] = useState('');
   const [fileUrl, setFileUrl] = useState('');
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [_selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef(null);
 
   const catalogCourses = window.HOME_INSTITUTION_CATALOG?.courses || [];

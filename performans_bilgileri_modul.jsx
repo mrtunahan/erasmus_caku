@@ -5,7 +5,7 @@ import {
   gezinmeDurumu,
   gorunumDuzelt,
   gorunumSec,
-  rolAciklamasi,
+  rolAciklamasi as _rolAciklamasi,
   varsayilanGorunum,
 } from './lib/performans-gorunum.js';
 import {

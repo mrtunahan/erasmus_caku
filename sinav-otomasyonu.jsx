@@ -4,7 +4,7 @@
 // Shared bileşenler shared-components.jsx'den window üzerinden gelir
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useRef, useMemo, useCallback } = React;
+const { useState, useEffect, useRef: _useRef, useMemo, useCallback } = React;
 
 // ── Shared bileşenlerden import (window üzerinden) ──
 const C = window.C;
@@ -122,7 +122,7 @@ function assignClassroomFromList(rooms, studentCount) {
   return selected.map((r) => r.name).join(' - ');
 }
 
-function assignSupervisorsToExams(exams) {
+function _assignSupervisorsToExams(exams) {
   return assignSupervisorsFromList(DEPT_SUPERVISORS, exams, assignClassroom);
 }
 
@@ -134,7 +134,7 @@ function assignSupervisorsToExams(exams) {
 //   'zorunlu'  → dersin hocası her zaman gözetmenlerden biridir
 //   'tercihli' → hocası gözetmen havuzundaysa önceliklidir (VARSAYILAN)
 //   'haric'    → hoca kendi sınavına otomatik atanmaz
-const GOZETMEN_KURALLARI = [
+const _GOZETMEN_KURALLARI = [
   {
     id: 'tercihli',
     label: 'Tercihli (önerilen)',
@@ -1172,7 +1172,7 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose, readOnly =
 // ══════════════════════════════════════════════════════════════
 // Course Management Modal
 // ══════════════════════════════════════════════════════════════
-const CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose }) => {
+const _CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose }) => {
   const [editingCourse, setEditingCourse] = useState(null);
   const [form, setForm] = useState({
     code: '',
@@ -1447,7 +1447,7 @@ const CourseManagementModal = ({ courses, professors, onSave, onDelete, onClose 
 // ══════════════════════════════════════════════════════════════
 // Draggable Course Card (in pool)
 // ══════════════════════════════════════════════════════════════
-const DraggableCourseCard = ({ course, isPlaced, placedCount = 0, canDrag = true }) => {
+const DraggableCourseCard = ({ course, isPlaced: _isPlaced, placedCount = 0, canDrag = true }) => {
   const color = SINIF_COLORS[course.sinif] || SINIF_COLORS[1];
 
   const handleDragStart = (e) => {
@@ -1520,7 +1520,7 @@ const CalendarCell = ({
   placedExams,
   onDrop,
   onExamClick,
-  totalSlots,
+  totalSlots: _totalSlots,
 }) => {
   const [dragOver, setDragOver] = useState(false);
   const dateStr = formatDateISO(day);
@@ -1743,7 +1743,7 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
 // ══════════════════════════════════════════════════════════════
 // Department Management Modal (Admin Only)
 // ══════════════════════════════════════════════════════════════
-const DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) => {
+const _DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) => {
   const [editingDept, setEditingDept] = useState(null);
   const [form, setForm] = useState({ name: '', managerNames: '' });
   const [saving, setSaving] = useState(false);
@@ -1916,7 +1916,7 @@ const DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) =
 // ══════════════════════════════════════════════════════════════
 // Department Classroom Management Modal
 // ══════════════════════════════════════════════════════════════
-const ClassroomManagementModal = ({ classrooms, onSave, onDelete, onClose }) => {
+const _ClassroomManagementModal = ({ classrooms, onSave, onDelete, onClose }) => {
   const [editingRoom, setEditingRoom] = useState(null);
   const [form, setForm] = useState({ name: '', capacity: '' });
   const [saving, setSaving] = useState(false);
@@ -2079,7 +2079,7 @@ const ClassroomManagementModal = ({ classrooms, onSave, onDelete, onClose }) => 
 // ══════════════════════════════════════════════════════════════
 // Department Supervisor Management Modal
 // ══════════════════════════════════════════════════════════════
-const SupervisorManagementModal = ({ supervisors, onSave, onDelete, onClose }) => {
+const _SupervisorManagementModal = ({ supervisors, onSave, onDelete, onClose }) => {
   const [editingSup, setEditingSup] = useState(null);
   const [form, setForm] = useState({ name: '' });
   const [saving, setSaving] = useState(false);
@@ -2443,7 +2443,7 @@ async function exportToXLSX(
     right: { style: 'thin', color: { rgb: '000000' } },
   };
   const yellowFill = { patternType: 'solid', fgColor: { rgb: 'FFFF00' } };
-  const navyFill = { patternType: 'solid', fgColor: { rgb: '1B2A4A' } };
+  const _navyFill = { patternType: 'solid', fgColor: { rgb: '1B2A4A' } };
 
   // ── Sort and enrich exams ──
   const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
@@ -2752,7 +2752,7 @@ async function exportToXLSX(
 function SinavOtomasyonuApp({
   currentUser,
   activeDepartment,
-  departmentInfo,
+  departmentInfo: _departmentInfo,
   seviye = 'lisans',
   // Lisansüstü gibi bir sarmalayıcı içinde gömülü: kendi büyük başlık bloğu
   // gizlenir (çifte başlık olmasın), işlevsel butonlar kalır.
@@ -2778,9 +2778,9 @@ function SinavOtomasyonuApp({
   const [selectedDeptId, setSelectedDeptId] = useState(
     activeDepartment || currentUser?.departmentId || null
   );
-  const [showDeptModal, setShowDeptModal] = useState(false);
-  const [showClassroomModal, setShowClassroomModal] = useState(false);
-  const [showSupervisorModal, setShowSupervisorModal] = useState(false);
+  const [_showDeptModal, _setShowDeptModal] = useState(false);
+  const [_showClassroomModal, _setShowClassroomModal] = useState(false);
+  const [_showSupervisorModal, _setShowSupervisorModal] = useState(false);
   const [deptClassrooms, setDeptClassrooms] = useState([]);
   const [deptSupervisors, setDeptSupervisors] = useState([]);
   // ── Fakülte geneli çakışma denetimi ──
@@ -2805,7 +2805,7 @@ function SinavOtomasyonuApp({
   const [viewMode, setViewMode] = useState('calendar');
   const [editingExam, setEditingExam] = useState(null);
   const [showPeriodModal, setShowPeriodModal] = useState(false);
-  const [showCourseModal, setShowCourseModal] = useState(false);
+  const [_showCourseModal, _setShowCourseModal] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState(null);
   const [filterSinif, setFilterSinif] = useState(0);
   const [filterDonem, setFilterDonem] = useState('all');
@@ -2836,7 +2836,7 @@ function SinavOtomasyonuApp({
   );
 
   // Dynamic supervisor assignment using department-specific supervisors
-  const assignSupervisorsDynamic = useCallback(
+  const _assignSupervisorsDynamic = useCallback(
     (exams) => {
       const supervisorNames =
         deptSupervisors.length > 0 ? deptSupervisors.map((s) => s.name) : DEPT_SUPERVISORS;
@@ -3251,7 +3251,7 @@ function SinavOtomasyonuApp({
       if (depts.length > 0 && !migrationDone) {
         try {
           const HARD_DEPTS = window.DEPARTMENTS || [];
-          const validDeptIds = new Set(HARD_DEPTS.map((d) => d.id));
+          const _validDeptIds = new Set(HARD_DEPTS.map((d) => d.id));
 
           // 1. Veritabanı doc ID → hardcoded ID eşleştirmesi
           const idMap = {}; // dbDocId → hardcodedId
@@ -3642,7 +3642,7 @@ function SinavOtomasyonuApp({
     }
   };
 
-  const handleDeleteCourse = async (course) => {
+  const _handleDeleteCourse = async (course) => {
     if (!confirm(`${course.code} - ${course.name} dersini silmek istediğinize emin misiniz?`))
       return;
 
@@ -3703,7 +3703,7 @@ function SinavOtomasyonuApp({
     }
   };
 
-  const handleCourseSave = async (existingCourse, formData) => {
+  const _handleCourseSave = async (existingCourse, formData) => {
     try {
       if (existingCourse) {
         await DBWrite.update('sinav_dersler', existingCourse.id, formData);
@@ -3793,7 +3793,7 @@ function SinavOtomasyonuApp({
   };
 
   // ── Department CRUD handlers ──
-  const handleDeptSave = async (existingDept, formData) => {
+  const _handleDeptSave = async (existingDept, formData) => {
     if (existingDept) {
       await DBWrite.update('departments', existingDept.docId || existingDept.id, formData);
     } else {
@@ -3803,7 +3803,7 @@ function SinavOtomasyonuApp({
     loadData();
   };
 
-  const handleDeptDelete = async (dept) => {
+  const _handleDeptDelete = async (dept) => {
     if (
       !confirm(
         `"${dept.name}" bölümünü silmek istediğinize emin misiniz? Bu bölüme ait tüm veriler silinmez ama bölüm bağlantısı kaldırılır.`
@@ -3816,7 +3816,7 @@ function SinavOtomasyonuApp({
   };
 
   // ── Department Classroom CRUD handlers ──
-  const handleClassroomSave = async (existingRoom, formData) => {
+  const _handleClassroomSave = async (existingRoom, formData) => {
     if (existingRoom) {
       await DBWrite.update('department_classrooms', existingRoom.id, formData);
     } else {
@@ -3829,14 +3829,14 @@ function SinavOtomasyonuApp({
     await loadDeptResources(selectedDeptId);
   };
 
-  const handleClassroomDelete = async (room) => {
+  const _handleClassroomDelete = async (room) => {
     if (!confirm(`"${room.name}" sınıfını silmek istiyor musunuz?`)) return;
     await DBWrite.remove('department_classrooms', room.id);
     await loadDeptResources(selectedDeptId);
   };
 
   // ── Department Supervisor CRUD handlers (professors koleksiyonu üzerinden) ──
-  const handleSupervisorSave = async (existingSup, formData) => {
+  const _handleSupervisorSave = async (existingSup, formData) => {
     if (existingSup) {
       // Düzenleme — professors koleksiyonunda güncelle
       await DBWrite.update('professors', existingSup.id, formData);
@@ -3854,7 +3854,7 @@ function SinavOtomasyonuApp({
     await loadDeptResources(selectedDeptId);
   };
 
-  const handleSupervisorDelete = async (sup) => {
+  const _handleSupervisorDelete = async (sup) => {
     if (!confirm(`"${sup.name}" gözetmenlikten çıkarılacak mı?`)) return;
     // Profesörü silme — sadece gozetmen rolünü kaldır
     const roles = (sup.roles || []).filter((r) => r !== 'gozetmen');

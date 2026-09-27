@@ -3,7 +3,7 @@
 // Fakülte yöneticisi komisyon oluşturma, akademisyen atama
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useMemo, useCallback: _useCallback } = React;
 
 const KOM = {
   // Genel tema ile uyumlu: lacivert + mavi aksan (mor kaldırıldı)
@@ -45,7 +45,7 @@ const KomIcon = ({ path, size = 18, color = 'currentColor' }) => (
 // ikinci bir liste tutmak, modül eklendiğinde ikisinin ayrışması demekti.
 const MODUL_SECENEKLERI = (window.DEPARTMENT_MODULES || []).filter((m) => m.id !== 'benim');
 
-function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo }) {
+function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _departmentInfo }) {
   const responsive = window.useResponsive();
   const isMobile = responsive.val(true, true, false);
 

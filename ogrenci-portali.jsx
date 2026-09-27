@@ -3,7 +3,7 @@
 // Yardımlaşma, eğlence ve bilgi paylaşımı modülü
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useRef, useCallback, useMemo } = React;
+const { useState, useEffect, useRef, useCallback: _useCallback, useMemo } = React;
 
 // Tema + animasyonlar inject
 (function () {
@@ -59,11 +59,11 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 // ── Shared bileşenlerden import ──
 const PC = window.C;
-const PCard = window.Card;
-const PBtn = window.Btn;
-const PInput = window.Input;
-const PModal = window.Modal;
-const PBadge = window.Badge;
+const _PCard = window.Card;
+const _PBtn = window.Btn;
+const _PInput = window.Input;
+const _PModal = window.Modal;
+const _PBadge = window.Badge;
 const PAdSenseBanner = window.AdSenseBanner;
 
 // ── Daisy Tema Renkleri ──
@@ -316,7 +316,7 @@ const BOLUMLER = [
 ];
 
 // ── Puan Hesaplama Fonksiyonları ──
-function calculateUserStats(userId, posts, allComments) {
+function calculateUserStats(userId, posts, _allComments) {
   var userPosts = posts.filter(function (p) {
     return p.authorId === userId;
   });
@@ -770,7 +770,7 @@ var PortalDB = {
     return Object.assign({}, comment, { id: result.id });
   },
 
-  async fetchComments(postId) {
+  async fetchComments(_postId) {
     var results = await window.apiRead('portal_posts_comments');
     results.sort(function (a, b) {
       var ta = a.createdAt
@@ -3002,7 +3002,7 @@ const PostCard = ({
   onApprove,
   onReject,
 }) => {
-  var cat = getCategoryInfo(post.category);
+  var _cat = getCategoryInfo(post.category);
   var userId = getUserId(currentUser);
   var isAdmin = currentUser.role === 'admin' || currentUser.isAdmin;
   var canModerate = isAdmin || isModOrAdmin;
@@ -5562,7 +5562,7 @@ const UserProfilePage = ({
           ) : (
             <div style={{ maxHeight: 300, overflowY: 'auto' }}>
               {tabPosts.slice(0, 10).map(function (p) {
-                var cat = getCategoryInfo(p.category);
+                var _cat = getCategoryInfo(p.category);
                 return (
                   <div
                     key={p.id}
@@ -5601,7 +5601,7 @@ const UserProfilePage = ({
 };
 
 // ── Liderlik Tablosu ──
-const LeaderboardPanel = ({ posts, allUsers, currentUser }) => {
+const LeaderboardPanel = ({ posts, allUsers: _allUsers, currentUser }) => {
   const [period, setPeriod] = useState('all'); // all, month, week
   const [category, setCategory] = useState('general'); // general, notes, questions
   const [deptFilter, setDeptFilter] = useState('all');
@@ -6039,7 +6039,7 @@ const TrendingSidebar = ({ posts }) => {
 };
 
 // ── Takip Edilen Sidebar ──
-const FollowingSidebar = ({ followData, onFollowUser, onFollowTag, allUsers, posts }) => {
+const FollowingSidebar = ({ followData, onFollowUser, onFollowTag, allUsers, posts: _posts }) => {
   var followedUserNames = useMemo(
     function () {
       return followData.users.map(function (uid) {
@@ -6476,7 +6476,7 @@ const ScrollToTopButton = () => {
 };
 
 // ── Bildirim Zili ──
-const NotificationBell = ({ currentUser }) => {
+const _NotificationBell = ({ currentUser }) => {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -7172,11 +7172,11 @@ const ModerationQueuePanel = ({
   pendingPosts,
   onApprove,
   onReject,
-  onEdit,
-  currentUser,
-  allUsers,
-  moderators,
-  isModOrAdmin,
+  onEdit: _onEdit,
+  currentUser: _currentUser,
+  allUsers: _allUsers,
+  moderators: _moderators,
+  isModOrAdmin: _isModOrAdmin,
 }) => {
   const [rejectingId, setRejectingId] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -7972,7 +7972,7 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
     try {
       var saved = localStorage.getItem('portal_bookmarks');
       return saved ? JSON.parse(saved) : [];
-    } catch (e) {
+    } catch (_e) {
       return [];
     }
   });
@@ -7991,7 +7991,7 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
       }
       try {
         localStorage.setItem('portal_bookmarks', JSON.stringify(updated));
-      } catch (e) {}
+      } catch (_e) {}
       return updated;
     });
     showToast(wasBookmarked ? 'Yer iminden kaldırıldı' : 'Yer imine eklendi');

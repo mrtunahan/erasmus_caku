@@ -555,7 +555,7 @@ import {
   programIzgarasi,
 } from './lib/akademisyen-programi.js';
 
-const { useState, useEffect, useRef, useMemo, useCallback } = React;
+const { useState, useEffect, useRef: _useRef, useMemo, useCallback: _useCallback } = React;
 
 // ══════════════════════════════════════════════════════════════
 // Global Responsive Hook — tüm modüller tarafından kullanılır
@@ -801,7 +801,7 @@ window.DY = DY;
 window.ICONS = ICONS;
 
 // ── Utility Functions ──
-const generateColorFromString = (str) => {
+const _generateColorFromString = (str) => {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -8218,7 +8218,7 @@ const Auth = {
   async signOut() {
     try {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    } catch (e) {}
+    } catch {}
     localStorage.removeItem('caku_auth_token');
     localStorage.removeItem('caku_oturum');
     localStorage.removeItem('caku_current_user');
@@ -8230,7 +8230,7 @@ const Auth = {
       const o = JSON.parse(localStorage.getItem('caku_oturum') || 'null');
       if (o && o.exp * 1000 > Date.now()) return { uid: o.uid };
       localStorage.removeItem('caku_oturum');
-    } catch (e) {
+    } catch {
       /* bozuk kayıt */
     }
     return null;
@@ -8812,8 +8812,8 @@ const LoginModal = ({ onLogin }) => {
   const [profDropdownOpen, setProfDropdownOpen] = useState(false);
   // Hiyerarşi seçimi (Üniversite → Fakülte → Bölüm)
   const [hierUniversities, setHierUniversities] = useState([]);
-  const [hierFaculties, setHierFaculties] = useState([]);
-  const [hierDepartments, setHierDepartments] = useState([]);
+  const [_hierFaculties, setHierFaculties] = useState([]);
+  const [_hierDepartments, setHierDepartments] = useState([]);
   const [selUni, setSelUni] = useState('');
   const [selFaculty, setSelFaculty] = useState('');
   const [selDept, setSelDept] = useState('');
@@ -12480,7 +12480,7 @@ const StudentNotifier = {
           meta: payload.meta || {},
         });
       }
-    } catch (e) {
+    } catch {
       /* merkezi yazım opsiyonel — sessiz geç */
     }
   },
@@ -12550,7 +12550,7 @@ const StudentNotifier = {
       var donemKayitlari = [];
       try {
         donemKayitlari = await apiRead('student_courses');
-      } catch (e) {
+      } catch {
         /* okunamazsa eski alanla devam edilir — bildirim hiç gitmemesindense */
       }
       var donemHaritasi = {};

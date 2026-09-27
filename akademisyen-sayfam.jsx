@@ -673,7 +673,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   const sutunlar = window.sayfaSutunSablonu
     ? window.sayfaSutunSablonu(_resp.width)
     : '300px minmax(0, 1fr) 300px';
-  const tekSutun = (window.sayfaSutunSayisi ? window.sayfaSutunSayisi(_resp.width) : 3) === 1;
+  const _tekSutun = (window.sayfaSutunSayisi ? window.sayfaSutunSayisi(_resp.width) : 3) === 1;
 
   const [yukleniyor, setYukleniyor] = useState(true);
   const [hata, setHata] = useState('');
@@ -2022,7 +2022,7 @@ function ASProgram({ seviye, setSeviye, sayilar, izgara, saatler, cakismalar, do
   const gunler = window.PROGRAM_GUNLERI || ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'];
   // Yazdırma/indirme düğmesi shared-components'ta duruyor; burada yeniden
   // çizilmez — aynı belgeyi iki yerde üretmek ikisini ayrıştırırdı.
-  const ProgramButonu = window.AkademisyenProgramButonu;
+  const _ProgramButonu = window.AkademisyenProgramButonu;
   const bolumAdlari = useMemo(() => {
     const s = new Set();
     Object.values(izgara || {}).forEach((g) =>

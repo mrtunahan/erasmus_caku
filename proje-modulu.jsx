@@ -142,7 +142,7 @@ function prjFormatDate(ts) {
     }
     if (isNaN(d.getTime())) return '—';
     return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
-  } catch (e) {
+  } catch {
     return '—';
   }
 }
@@ -272,7 +272,7 @@ var ProjDB = {
 // ══════════════════════════════════════════════════════════════
 function exportProjectsXLSX(projects, courseName) {
   // Basit XML-based XLSX (Office Open XML SpreadsheetML)
-  var statusLabels = { pending: 'Onay Bekliyor', approved: 'Onaylandı', rejected: 'Reddedildi' };
+  var _statusLabels = { pending: 'Onay Bekliyor', approved: 'Onaylandı', rejected: 'Reddedildi' };
   // Dinamik üye sayısı: tüm projeler arasındaki max üye sayısını bul
   var maxMembers = 3;
   projects.forEach(function (p) {
@@ -473,7 +473,7 @@ function exportProjectsXLSX(projects, courseName) {
 // WORD EXPORT
 // ══════════════════════════════════════════════════════════════
 function exportProjectsWord(projects, courseName) {
-  var wordStatusLabels = {
+  var _wordStatusLabels = {
     pending: 'Onay Bekliyor',
     approved: 'Onaylandı',
     rejected: 'Reddedildi',

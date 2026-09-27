@@ -2224,7 +2224,7 @@ async function muafiyetSayaclariTazele(db, colName, docId, data) {
       try {
         const byObjId = await col.findOne({ _id: new ObjectId(docId) });
         if (byObjId) filter = { _id: new ObjectId(docId) };
-      } catch (e) {}
+      } catch {}
     }
     const doc = await col.findOne(filter);
     if (!doc || !Array.isArray(doc.matches)) return;
@@ -2273,7 +2273,7 @@ async function executeSingleOp(db, op) {
             try {
               const byObjId = await col.findOne({ _id: new ObjectId(op.docId) });
               if (byObjId) return { _id: new ObjectId(op.docId) };
-            } catch (e) {}
+            } catch {}
           }
           // Fallback to _docId (legacy)
           return { _docId: op.docId };
@@ -2305,7 +2305,7 @@ async function executeSingleOp(db, op) {
         try {
           const byObjId = await col.findOne({ _id: new ObjectId(op.docId) });
           if (byObjId) filter = { _id: new ObjectId(op.docId) };
-        } catch (e) {}
+        } catch {}
       }
       await col.updateOne(filter, updateDoc, { upsert: true });
       await muafiyetSayaclariTazele(db, colName, op.docId, cleaned);
@@ -2324,7 +2324,7 @@ async function executeSingleOp(db, op) {
         try {
           const byObjId = await col.findOne({ _id: new ObjectId(op.docId) });
           if (byObjId) filter = { _id: new ObjectId(op.docId) };
-        } catch (e) {}
+        } catch {}
       }
       const result = await col.deleteOne(filter);
       console.log(`[DELETE] sonuç: ${result.deletedCount} belge silindi (${colName}/${op.docId})`);
@@ -2451,7 +2451,7 @@ function emitDbWrite(req, touchedSet) {
     if (!io || !touchedSet || touchedSet.size === 0) return;
     const collections = Array.from(touchedSet);
     io.emit('db:write', { collections, at: new Date().toISOString() });
-  } catch (e) {
+  } catch {
     /* sessiz: real-time opsiyonel */
   }
 }
@@ -2475,7 +2475,7 @@ router.get('/student-count', async (req, res) => {
     const db = await getDbSafe();
     const count = await db.collection('students').countDocuments({});
     return res.json({ count });
-  } catch (err) {
+  } catch (_err) {
     return res.status(500).json({ error: 'Sayı alınamadı', count: 0 });
   }
 });

@@ -3,7 +3,7 @@
 // Fakülte bazlı navigasyon, bölüm seçimi ve kimlik doğrulama
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useCallback, useRef, useMemo } = React;
+const { useState, useEffect, useCallback, useRef: _useRef, useMemo } = React;
 
 // ── Shared bileşenlerden import (window üzerinden) ──
 const C = window.C;
@@ -526,7 +526,7 @@ const TopHeader = ({
 // ══════════════════════════════════════════════════════════════
 const Sidebar = ({
   activeDepartment,
-  onDepartmentChange,
+  onDepartmentChange: _onDepartmentChange,
   currentRoute,
   onNavigate,
   currentUser,
@@ -542,7 +542,7 @@ const Sidebar = ({
   // Hiyerarşi: bölüm yetkilisi rolü VEYA isDeptManager bayraklı akademisyen
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
   const isProfessor = currentUser?.role === 'professor';
-  const isStudent = !isAdmin && !isDeptManager && !isProfessor;
+  const _isStudent = !isAdmin && !isDeptManager && !isProfessor;
   // Üni/fakülte yetkilisi — modül görünürlüğünde admin gibi davranır
   const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
   // Yalnız ÜNİVERSİTE yetkilisi (fakülte yetkilisi de 'admin' rolüyle geldiği
@@ -580,7 +580,7 @@ const Sidebar = ({
   const isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
 
   // Ortak helper: rol + bayrak + additionalDepartments hepsini birden yönetir.
-  const availableDepts = computeAvailableDepts(currentUser, adminScope);
+  const _availableDepts = computeAvailableDepts(currentUser, adminScope);
 
   // Aktif bölüm bir EK BÖLÜM mü? (kullanıcı buraya çapraz-bölüm olarak atanmış
   // — ana bölümü değil.) Eğer öyle ise yetkili modüllerine değil, sadece
@@ -2307,7 +2307,7 @@ function AppShell() {
           ? window.komisyonErisimModulleri(comms, currentUser?.name || currentUser?.identifier)
           : [];
         if (!cancelled) setCommissionModules(ids);
-      } catch (e) {
+      } catch {
         if (!cancelled) setCommissionModules([]);
       }
     };
@@ -2377,7 +2377,7 @@ function AppShell() {
           localStorage.removeItem('caku_current_user');
           setCurrentUser(null);
         }
-      } catch (e) {
+      } catch {
         localStorage.removeItem('caku_oturum');
       }
     }, 60000); // Her 1 dakikada kontrol
@@ -2505,7 +2505,7 @@ function AppShell() {
   // Rol kapsamı değişimi: localStorage'a yaz; fakülte kapsamına geçildiğinde
   // aktif bölüm o fakültenin bir bölümüne otomatik düşer (yetkisiz görünüm
   // kalmasın).
-  const handleScopeChange = useCallback(
+  const _handleScopeChange = useCallback(
     (nextScope) => {
       setAdminScope(nextScope);
       try {
@@ -2535,10 +2535,10 @@ function AppShell() {
   const isAdmin = currentUser?.role === 'admin';
   const isProfessor = currentUser?.role === 'professor';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
-  const isStudent = !isAdmin && !isProfessor && !isDeptManager;
+  const _isStudent = !isAdmin && !isProfessor && !isDeptManager;
 
   // All valid route IDs
-  const ALL_MODULE_IDS = [
+  const _ALL_MODULE_IDS = [
     ...DEPARTMENT_MODULES.map((m) => m.id),
     ...COMMON_MODULES.map((m) => m.id),
     ...ADMIN_MODULES.map((m) => m.id),
@@ -2749,7 +2749,7 @@ function AppShell() {
           setStudentHasCourses(hasCourses);
           setStudentCoursesChecked(true);
         }
-      } catch (e) {
+      } catch {
         // Hata durumunda engellemeyelim
         if (!cancelled) {
           setStudentHasCourses(true);

@@ -81,7 +81,7 @@ const gbDownloadHref = (u) => {
   return rel ? '/api/files/download/' + rel + '?download=true' : '#';
 };
 
-const gbFileHref = (u) => {
+const _gbFileHref = (u) => {
   const rel = String(u || '')
     .replace('/api/files/download/', '')
     .replace('/api/files/view/', '');

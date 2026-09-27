@@ -195,7 +195,7 @@ const getMimeType = (fname) => {
   return MIME_TYPES[ext] || 'application/octet-stream';
 };
 
-const isInlineRenderable = (fname) => {
+const _isInlineRenderable = (fname) => {
   const ext = path.extname(fname).toLowerCase();
   return [
     '.pdf',

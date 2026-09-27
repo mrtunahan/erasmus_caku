@@ -27,7 +27,7 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
-const { profilBul } = require('../lib/akademisyen-kimlik');
+const { profilBul: _profilBul } = require('../lib/akademisyen-kimlik');
 
 // Kural dosyası ESM; Node 22 tür algılamasıyla dinamik import sorunsuz.
 let kuralSozu = null;

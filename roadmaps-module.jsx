@@ -1,4 +1,4 @@
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect: _useEffect, useMemo: _useMemo } = React;
 
 const PROJECTS = {
   unides: {
@@ -420,7 +420,7 @@ const PROJECTS = {
 };
 
 /* ─── Progress Arc ─── */
-function ProgressArc({ pct, color }) {
+function _ProgressArc({ pct, color }) {
   const r = 28,
     c = 2 * Math.PI * r;
   return (
@@ -963,12 +963,16 @@ function RoadView({
 /* ═══════════════════════════════════════════════════════════
    Main Component
    ═══════════════════════════════════════════════════════════ */
-export default function RoadmapsModule({ currentUser, activeDepartment, departmentInfo } = {}) {
+export default function RoadmapsModule({
+  currentUser,
+  activeDepartment: _activeDepartment,
+  departmentInfo: _departmentInfo,
+} = {}) {
   const [activeProject, setActiveProject] = useState('unides');
   const [expanded, setExpanded] = useState(null);
   const [view, setView] = useState('road');
-  const [guideOpen, setGuideOpen] = useState(false);
-  const [areasOpen, setAreasOpen] = useState(false);
+  const [_guideOpen, _setGuideOpen] = useState(false);
+  const [_areasOpen, _setAreasOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(
     typeof window !== 'undefined' && window.innerWidth < 640
   );
@@ -984,7 +988,7 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
     try {
       var s = localStorage.getItem(STORAGE_KEY);
       return s ? JSON.parse(s) : {};
-    } catch (e) {
+    } catch (_e) {
       return {};
     }
   });
@@ -992,7 +996,7 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
     function () {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(statuses));
-      } catch (e) {}
+      } catch (_e) {}
     },
     [statuses, STORAGE_KEY]
   );
@@ -1004,7 +1008,7 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
     try {
       var n = localStorage.getItem(NOTES_KEY);
       return n ? JSON.parse(n) : {};
-    } catch (e) {
+    } catch (_e) {
       return {};
     }
   });
@@ -1012,7 +1016,7 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
     function () {
       try {
         localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
-      } catch (e) {}
+      } catch (_e) {}
     },
     [notes, NOTES_KEY]
   );
@@ -1052,7 +1056,7 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
   };
 
   /* ── Section Divider ── */
-  const SectionDivider = ({ label }) => (
+  const _SectionDivider = ({ label }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '22px 0' }}>
       <div
         style={{
@@ -1087,7 +1091,7 @@ export default function RoadmapsModule({ currentUser, activeDepartment, departme
   );
 
   /* ── Logo with fallback ── */
-  const ProjectLogo = ({ p, size = 36 }) => {
+  const _ProjectLogo = ({ p, size = 36 }) => {
     const [err, setErr] = useState(false);
     return err ? (
       <div

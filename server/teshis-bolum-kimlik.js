@@ -452,7 +452,7 @@ function bolumAtiflari(deger, yol = '', cikti = []) {
   //   4. ALAN EŞLEMESİ yapılmış mı        (en sık atlanan adım)
   // "Görünüyor ama çıktıya işlemiyor" şikâyetinin cevabı bu tabloda.
   console.log('\n══════ 9) Şablonlar çıktıya işleyebilir mi ══════');
-  const uzantiUyumu = (uz, tur) => {
+  const uzantiUyumu = (uz, _tur) => {
     const u = String(uz || '').toLowerCase();
     // Ders programı 'xlsx' türlerini satır üreticisiyle, ötekileri docx ile üretir.
     return /xlsx?$/.test(u)

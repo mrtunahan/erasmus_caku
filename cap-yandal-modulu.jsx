@@ -891,7 +891,7 @@ function CyBasvuruKarti({
             (() => {
               const onaylandi = rec.status === 'approved';
               const reddedildi = rec.status === 'rejected';
-              const dilekceHazir = onaylandi && !!rec.dilekceUrl;
+              const _dilekceHazir = onaylandi && !!rec.dilekceUrl;
               const imzaliVar = !!rec.imzaliDilekceUrl;
               const ekAdlari =
                 (tur?.ekler || []).map((e) => e.title).join(', ') || 'gerekli belgeler';

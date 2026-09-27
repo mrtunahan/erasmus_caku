@@ -6,7 +6,7 @@ const { profilBul } = require('../lib/akademisyen-kimlik');
 const { kapsamNumaralari } = require('../lib/ogrenci-baglanti');
 const {
   generateToken,
-  requireAuth,
+  requireAuth: _requireAuth,
   verifyToken,
   setTokenCookie,
   clearTokenCookie,

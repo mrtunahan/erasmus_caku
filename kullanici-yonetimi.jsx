@@ -3,7 +3,7 @@
 // Öğrenci, Akademisyen ve Şifre Yönetimi (Admin ve Bölüm Yetkilisi)
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useRef, useCallback } = React;
+const { useState, useEffect, useRef: _useRef, useCallback: _useCallback } = React;
 
 const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo }) => {
   const r = useResponsive();
@@ -18,7 +18,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
   const [editingStudent, setEditingStudent] = useState(null);
   const [editingProf, setEditingProf] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [dbDepartments, setDbDepartments] = useState([]);
+  const [_dbDepartments, setDbDepartments] = useState([]);
   // Çapraz-bölüm "Yeni Akademisyen Ekle" formu için akademisyen havuzu.
   // Kullanıcı kaynak bölüm seçtiğinde o bölümün akademisyenleri buraya yüklenir;
   // ad dropdown'unu bu liste besler.
