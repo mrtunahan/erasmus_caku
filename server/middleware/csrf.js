@@ -44,6 +44,15 @@ function buildAllowedHosts(req) {
       .filter(Boolean)
       .forEach((h) => hosts.add(h.toLowerCase()));
   }
+  // Geliştirme: vite proxy `changeOrigin` ile Host'u localhost:3001'e
+  // çeviriyor, tarayıcının Origin'i ise localhost:5173. İstemci artık jetonu
+  // Bearer olarak göndermediği için (çerez tabanlı) bu yazmalar da denetime
+  // giriyor; üretim dışında yerel adresler kabul edilir.
+  if (process.env.NODE_ENV !== 'production') {
+    ['localhost:5173', '127.0.0.1:5173', 'localhost:4173', '127.0.0.1:4173'].forEach((h) =>
+      hosts.add(h)
+    );
+  }
   return hosts;
 }
 

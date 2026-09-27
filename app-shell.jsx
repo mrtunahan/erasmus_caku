@@ -2326,6 +2326,7 @@ function AppShell() {
       const lastAct = parseInt(localStorage.getItem(IDLE_ACTIVITY_KEY) || '0', 10);
       if (saved && lastAct && Date.now() - lastAct >= IDLE_LIMIT_MS) {
         localStorage.removeItem('caku_auth_token');
+        localStorage.removeItem('caku_oturum');
         localStorage.removeItem('caku_current_user');
         localStorage.removeItem(IDLE_ACTIVITY_KEY);
         saved = null;
@@ -2365,19 +2366,19 @@ function AppShell() {
     }
 
     // Oturum dinleyicisi: JWT token süresi dolmuşsa çıkış yap
+    // Jeton artık tarayıcı belleğinde tutulmuyor (httpOnly çerezde); süre
+    // `caku_oturum` kaydından izlenir (bkz. shared-components.jsx →
+    // oturumBilgisiniYaz).
     const tokenCheckInterval = setInterval(() => {
-      const token = localStorage.getItem('caku_auth_token');
-      if (token) {
-        try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          if (payload.exp * 1000 < Date.now()) {
-            localStorage.removeItem('caku_auth_token');
-            localStorage.removeItem('caku_current_user');
-            setCurrentUser(null);
-          }
-        } catch (e) {
-          localStorage.removeItem('caku_auth_token');
+      try {
+        const o = JSON.parse(localStorage.getItem('caku_oturum') || 'null');
+        if (o && o.exp && o.exp * 1000 < Date.now()) {
+          localStorage.removeItem('caku_oturum');
+          localStorage.removeItem('caku_current_user');
+          setCurrentUser(null);
         }
+      } catch (e) {
+        localStorage.removeItem('caku_oturum');
       }
     }, 60000); // Her 1 dakikada kontrol
 
@@ -2610,6 +2611,7 @@ function AppShell() {
     }
     try {
       localStorage.removeItem('caku_auth_token');
+      localStorage.removeItem('caku_oturum');
       localStorage.removeItem('caku_current_user');
       localStorage.removeItem(IDLE_ACTIVITY_KEY);
     } catch (_) {

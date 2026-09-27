@@ -7,6 +7,12 @@ import ReactDOM from 'react-dom/client';
 // Tailwind + tasarım sistemi temel CSS
 import './index.css';
 
+// DOMPurify eskiden CDN'den (3.0.6, bilinen atlatma açıkları olan sürüm)
+// yükleniyordu. Paketle birlikte gelir; öğrenci portalı `DOMPurify` global
+// adını kullandığı için window'a bağlanır.
+import DOMPurify from 'dompurify';
+window.DOMPurify = DOMPurify;
+
 // React'i global yap (mevcut modüller window.React kullanıyor)
 window.React = React;
 window.ReactDOM = ReactDOM;

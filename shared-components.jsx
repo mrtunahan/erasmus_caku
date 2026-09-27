@@ -2513,6 +2513,33 @@ const AUTH_API_ROUTES = {
   setDefaultProfessorPassword: { method: 'POST', path: '/api/auth/default-professor-password' },
 };
 
+// Jetondan yalnız gizli olmayan alanları (bitiş, kimlik) saklar.
+function oturumBilgisiniYaz(token) {
+  try {
+    const payload = JSON.parse(atob(String(token).split('.')[1]));
+    localStorage.setItem(
+      'caku_oturum',
+      JSON.stringify({ exp: payload.exp || 0, uid: payload.identifier || payload.role || '' })
+    );
+  } catch (_e) {
+    /* biçim dışı jeton — süre izlenemez, sunucu yine 401 ile karar verir */
+  }
+  try {
+    localStorage.removeItem('caku_auth_token');
+  } catch (_e) {
+    /* depolama kapalı */
+  }
+}
+window.oturumBilgisiniYaz = oturumBilgisiniYaz;
+
+// Eski sürümden kalan jeton: oturumu bozmadan süre bilgisine çevir ve sil.
+try {
+  const eskiJeton = localStorage.getItem('caku_auth_token');
+  if (eskiJeton) oturumBilgisiniYaz(eskiJeton);
+} catch (_e) {
+  /* depolama kapalı */
+}
+
 const CloudFunctions = {
   async call(name, data) {
     const route = AUTH_API_ROUTES[name];
@@ -2542,7 +2569,13 @@ const CloudFunctions = {
     }
 
     if (result.token) {
-      localStorage.setItem('caku_auth_token', result.token);
+      // ── JETON TARAYICI BELLEĞİNE YAZILMAZ ──
+      // Oturum httpOnly `caku_auth` çerezinde; sunucu her girişte onu da
+      // kuruyor. Jetonun localStorage'da durması, sayfadaki herhangi bir
+      // betiğin (üçüncü taraf dahil) onu okuyup oturumu çalabilmesi
+      // demekti. Yalnız süre ve kimlik (gizli olmayan) saklanır — istemci
+      // oturum süresini buradan izler.
+      oturumBilgisiniYaz(result.token);
     }
 
     return { data: result };
@@ -8187,22 +8220,18 @@ const Auth = {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     } catch (e) {}
     localStorage.removeItem('caku_auth_token');
+    localStorage.removeItem('caku_oturum');
     localStorage.removeItem('caku_current_user');
   },
 
   // Mevcut kullanıcı - JWT token varsa geçerli sayılır
   currentUser() {
-    const token = localStorage.getItem('caku_auth_token');
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.exp * 1000 > Date.now()) {
-          return { uid: payload.identifier || payload.role };
-        }
-        localStorage.removeItem('caku_auth_token');
-      } catch (e) {
-        /* geçersiz token */
-      }
+    try {
+      const o = JSON.parse(localStorage.getItem('caku_oturum') || 'null');
+      if (o && o.exp * 1000 > Date.now()) return { uid: o.uid };
+      localStorage.removeItem('caku_oturum');
+    } catch (e) {
+      /* bozuk kayıt */
     }
     return null;
   },
