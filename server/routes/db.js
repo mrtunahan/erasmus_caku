@@ -33,6 +33,8 @@ const { STUDENT_READ_MASKED, ogrenciMaskesiUygula } = require('../lib/ogrenci-ma
 const { yazmaGirdisiGecerliMi, docIdSahibiMi } = require('../lib/yazma-girdisi');
 // Öğrencinin açtığı yeni kaydın sahiplik alanları (başkası adına kayıt engeli).
 const { yeniKayitSahipligi } = require('../lib/ogrenci-sahiplik-damga');
+// Yapısal kayıtlarda hiyerarşi koruması (bölüm yetkilisi, akademisyen adı).
+const { bolumYetkilisiYapisalYazim, akademisyenAdDegisimi } = require('../lib/yapisal-yazma');
 // Öğrencinin başkasının kaydını okuması: kural (hangi koleksiyon nasıl daralır)
 // tek dosyada ve testli — bkz. server/lib/ogrenci-okuma.js.
 const {
@@ -841,6 +843,20 @@ async function enforceWritePolicies(db, op, user) {
     }
   }
 
+  // a1) Bölüm yetkilisi ROLÜ (bolum_yetkilisi) yapısal koleksiyonlarda yalnız
+  // kendi bölüm kaydını güncelleyebilir; hiyerarşi alanları korunur
+  // (bkz. server/lib/yapisal-yazma.js).
+  if (STRUCTURE_MANAGER_WRITE.has(op.collection) && user.role === 'bolum_yetkilisi') {
+    let mevcutYapi = null;
+    try {
+      mevcutYapi = op.docId ? await findExistingDoc(db, op) : null;
+    } catch (_) {
+      mevcutYapi = null;
+    }
+    const yk = bolumYetkilisiYapisalYazim(op, user, mevcutYapi);
+    if (!yk.izin) return { allow: false, status: 403, error: yk.hata };
+  }
+
   // a2) Bölüm yetkilisi koleksiyonları (yol haritaları): sade akademisyen
   // yazamaz; bölüm yetkilisi, fakülte/üniversite yöneticisi ve admin yazabilir.
   // role='bolum_yetkilisi' zaten ayrı bir roldür ve buraya düşmez.
@@ -1465,6 +1481,36 @@ async function enforceWritePolicies(db, op, user) {
           if (!IZINLI.has(k)) delete op.data[k];
         });
       }
+    }
+  }
+
+  // b0) Akademisyen ADI değişimi: aynı adlı kayıtların bayrakları birleştiği
+  // için ad değiştirmek yetki devralmaya dönüşebiliyordu (lib/yapisal-yazma.js).
+  if (
+    op.collection === 'professors' &&
+    (op.type === 'set' || op.type === 'update') &&
+    op.data &&
+    typeof op.data === 'object' &&
+    typeof op.data.name === 'string'
+  ) {
+    let mevcutProf = null;
+    try {
+      mevcutProf = await findExistingDoc(db, op);
+    } catch (_) {
+      mevcutProf = null;
+    }
+    if (mevcutProf && op.data.name.trim() !== String(mevcutProf.name || '').trim()) {
+      const flags = await getActorFlags(db, user);
+      const baska = await db
+        .collection('professors')
+        .findOne({ name: op.data.name.trim(), _id: { $ne: mevcutProf._id } });
+      const ad = akademisyenAdDegisimi({
+        mevcut: mevcutProf,
+        yeniAd: op.data.name,
+        adBaskasinda: !!baska,
+        flags,
+      });
+      if (!ad.izin) return { allow: false, status: 403, error: ad.hata };
     }
   }
 
