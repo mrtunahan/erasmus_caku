@@ -69,6 +69,10 @@ const OGRENCI_OKUMA = {
   // iniyordu. Sunucu aynı alanlarla daraltır; ekranın gördüğü değişmez.
   cap_yandal_basvurular: { tur: 'sahip', alanlar: ['ogrenciNo', 'createdBy'] },
   yatay_gecis_basvurular: { tur: 'sahip', alanlar: ['ogrenciNo'] },
+  // Yoklama kayıtları: öğrenci yalnız KENDİ katılımını görür (Benim Sayfam
+  // zaten studentNumber ile süzüyordu, ama süzme tarayıcıdaydı — sınıfın
+  // tamamının devam bilgisi iniyordu).
+  yoklama_kayitlari: { tur: 'sahip', alanlar: ['studentNumber'] },
 };
 
 // ══════════════════════════════════════════════════════════════

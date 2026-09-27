@@ -33,6 +33,8 @@ const { STUDENT_READ_MASKED, ogrenciMaskesiUygula } = require('../lib/ogrenci-ma
 const { yazmaGirdisiGecerliMi, docIdSahibiMi } = require('../lib/yazma-girdisi');
 // Öğrencinin açtığı yeni kaydın sahiplik alanları (başkası adına kayıt engeli).
 const { yeniKayitSahipligi } = require('../lib/ogrenci-sahiplik-damga');
+// Bu kapıdan hiç çıkmaması gereken alanlar (yoklama gizli anahtarı).
+const { gizliAlanProjeksiyonu, gizliAlanlariCikar } = require('../lib/gizli-alanlar');
 // Yapısal kayıtlarda hiyerarşi koruması (bölüm yetkilisi, akademisyen adı).
 const { bolumYetkilisiYapisalYazim, akademisyenAdDegisimi } = require('../lib/yapisal-yazma');
 // Öğrencinin başkasının kaydını okuması: kural (hangi koleksiyon nasıl daralır)
@@ -2638,7 +2640,9 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
-    let cursor = col.find(filter);
+    // Gizli alanlar (ör. yoklama anahtarı) veritabanından HİÇ okunmaz.
+    const gizliProj = gizliAlanProjeksiyonu(collection);
+    let cursor = gizliProj ? col.find(filter, { projection: gizliProj }) : col.find(filter);
 
     if (req.query.orderBy) {
       const [field, dir] = req.query.orderBy.split(':');
@@ -2789,6 +2793,8 @@ router.get('/:collection/:docId', async (req, res) => {
     if (!doc) {
       return res.json({ exists: false, data: null });
     }
+    // Gizli alanlar hiçbir rol için bu kapıdan çıkmaz (bkz. lib/gizli-alanlar.js).
+    gizliAlanlariCikar(doc, collection);
 
     // Memur: tek doküman okuması da aynı kapsama tabi — liste süzülüp bu uç
     // açık kalırsa kimlik tahmin ederek belge çekilebilirdi.
