@@ -139,10 +139,45 @@ async function auditPasswordChange(
   }
 }
 
+// Alan adı olarak doğrudan `$set` edilebilir mi? (nokta ve `$` yol sayılır)
+function duzAlanAdiMi(k) {
+  return typeof k === 'string' && k.length > 0 && k.indexOf('.') < 0 && k[0] !== '$';
+}
+
 async function setPasswordDoc(docId, data, merge = false) {
   const db = await getDbSafe();
   const col = db.collection('passwords');
   if (merge) {
+    // ── YARIŞ DURUMU ──
+    // Aşağıdaki "oku → JS'te birleştir → komple yaz" yolu, aynı anda gelen
+    // iki şifre işleminden birini SESSİZCE kaybediyordu (dönem başı toplu
+    // kayıt). Anahtarlar düz alan adıysa (öğrenci numaraları) tek bir
+    // atomik `$set` yeterli. Noktalı anahtar (unvanlı akademisyen adı) için
+    // `$setField` ile literal alan yazılır (MongoDB 5+); sunucu desteklemezse
+    // eski yola düşülür. Saklama biçimi DEĞİŞMEZ — taşıma gerekmez.
+    const anahtarlar = Object.keys(data);
+    if (anahtarlar.every(duzAlanAdiMi)) {
+      await col.updateOne(
+        { _id: docId },
+        { $set: { ...data, updatedAt: new Date() } },
+        { upsert: true }
+      );
+      return;
+    }
+    try {
+      let govde = '$$ROOT';
+      for (const [k, v] of Object.entries(data)) {
+        govde = { $setField: { field: { $literal: k }, input: govde, value: { $literal: v } } };
+      }
+      await col.updateOne(
+        { _id: docId },
+        [{ $replaceWith: govde }, { $set: { updatedAt: '$$NOW' } }],
+        { upsert: true }
+      );
+      return;
+    } catch (e) {
+      console.warn('[auth] atomik şifre yazımı desteklenmedi, eski yola düşülüyor:', e.message);
+    }
     // ÖNEMLİ: data anahtarları (akademisyen adları) nokta içerebilir.
     // MongoDB $set noktaları nested alan yolu sanar ve düz anahtarı
     // bozar. Bu yüzden dökümanı okuyup JS'te birleştirip replaceOne ile
