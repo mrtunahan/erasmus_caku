@@ -12,7 +12,7 @@ const { zipYaz } = require('../lib/zip-yaz');
 const { asciiIndirge, urlToRelPath } = require('../lib/dosya-adres');
 // Dosya sahipliği: öğrenci başkasının staj belgesini indiremez. Kural ve
 // gerekçesi ayrı dosyada ve testli — bkz. server/lib/dosya-sahiplik.js.
-const { dosyaErisebilirMi } = require('../lib/dosya-sahiplik');
+const { dosyaErisebilirMi, kisiselKlasorMu, kisiselDosyaKarari } = require('../lib/dosya-sahiplik');
 const { softAuth } = require('../middleware/softAuth');
 const { requireAuth } = require('../middleware/auth');
 
@@ -113,7 +113,7 @@ router.post(
   fileAuth,
   softAuthMiddleware,
   upload.single('file'),
-  (req, res) => {
+  async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'Dosya gerekli.' });
     }
@@ -139,6 +139,16 @@ router.post(
 
     const fileName = `${folder}/${req.file.filename}`;
     const downloadURL = `/api/files/download/${fileName}`;
+
+    // Yükleyeni kaydet: kişisel klasörlerde öğrencinin KENDİ yüklediği
+    // dosyaya erişimi buradan çözülür (bkz. lib/dosya-sahiplik.js). Yeni ve
+    // ayrı bir koleksiyon; mevcut hiçbir kayda dokunmaz. Yazılamazsa yükleme
+    // başarısız sayılmaz — dosya kayıt referansıyla yine açılabilir.
+    // Yanıttan ÖNCE beklenir: öğrenci dosyayı yükler yüklemez önizlemeye
+    // açabiliyor; kayıt yetişmezse kendi dosyası reddedilirdi.
+    await yukleyeniKaydet(fileName, req.user).catch((e) =>
+      console.warn('[files] yükleyen kaydedilemedi:', e && e.message)
+    );
 
     res.json({
       success: true,
@@ -273,13 +283,85 @@ async function ogrenciNumaralari(kullanici) {
   return liste;
 }
 
+const YUKLEYEN_KOLEKSIYONU = 'dosya_yukleyenler';
+
+async function yukleyeniKaydet(fileName, kullanici) {
+  if (!kullanici || !fileName) return;
+  const db = await getDbSafe();
+  await db.collection(YUKLEYEN_KOLEKSIYONU).updateOne(
+    { _id: String(fileName) },
+    {
+      $setOnInsert: {
+        yukleyen: String(kullanici.identifier || ''),
+        rol: String(kullanici.role || ''),
+        at: new Date(),
+      },
+    },
+    { upsert: true }
+  );
+}
+
+// Öğrencinin kendi kayıtları — kişisel belge adresleri bunların içinde geçer.
+// 60 sn önbellek: aynı ekran art arda birkaç dosya açınca sorgu tekrarlanmasın.
+const OGRENCI_KAYIT_KAYNAKLARI = [
+  ['muafiyet_records', 'studentNo'],
+  ['cap_yandal_basvurular', 'ogrenciNo'],
+  ['yatay_gecis_basvurular', 'ogrenciNo'],
+  ['ogrenci_akademik_kayit', 'studentNo'],
+  ['students', 'studentNumber'],
+];
+const ogrenciKayitCache = new Map();
+
+async function ogrenciKayitlari(numaralar) {
+  const anahtar = numaralar.slice().sort().join(',');
+  const hit = ogrenciKayitCache.get(anahtar);
+  if (hit && Date.now() - hit.ts < 60 * 1000) return hit.kayitlar;
+  let kayitlar = [];
+  try {
+    const db = await getDbSafe();
+    const gruplar = await Promise.all(
+      OGRENCI_KAYIT_KAYNAKLARI.map(([kol, alan]) =>
+        db
+          .collection(kol)
+          .find({ [alan]: { $in: numaralar } })
+          .limit(200)
+          .toArray()
+          .catch(() => [])
+      )
+    );
+    kayitlar = [].concat(...gruplar);
+  } catch (_) {
+    kayitlar = [];
+  }
+  ogrenciKayitCache.set(anahtar, { kayitlar, ts: Date.now() });
+  if (ogrenciKayitCache.size > 2000) ogrenciKayitCache.clear();
+  return kayitlar;
+}
+
+// Tek dosya için öğrenci erişim kararı (staj klasörü + kişisel klasörler).
+// Personel için her zaman true — kural yalnız öğrenciyi daraltır.
+async function ogrenciDosyayaErisebilirMi(relativePath, kullanici) {
+  if (!FILES_AUTH_ENFORCED) return true;
+  if (!kullanici || kullanici.role !== 'student') return true;
+  const numaralar = await ogrenciNumaralari(kullanici);
+  if (!dosyaErisebilirMi(relativePath, kullanici, numaralar).izin) return false;
+  if (!kisiselKlasorMu(relativePath)) return true;
+  const yol = String(relativePath || '').replace(/^\/+/, '');
+  let yukleyen = '';
+  try {
+    const db = await getDbSafe();
+    const kayit = await db.collection(YUKLEYEN_KOLEKSIYONU).findOne({ _id: yol });
+    yukleyen = (kayit && kayit.yukleyen) || '';
+  } catch (_) {
+    yukleyen = '';
+  }
+  const kayitlar = yukleyen ? [] : await ogrenciKayitlari(numaralar);
+  return kisiselDosyaKarari({ yol, kullanici, numaralar, yukleyen, kayitlar }).izin;
+}
+
 // Dosya erişim denetimi — indirme ve görüntüleme uçlarının ortak kapısı.
 async function dosyaKapisi(req, res, relativePath) {
-  if (!FILES_AUTH_ENFORCED) return true;
-  const kullanici = req.user;
-  if (!kullanici || kullanici.role !== 'student') return true;
-  const karar = dosyaErisebilirMi(relativePath, kullanici, await ogrenciNumaralari(kullanici));
-  if (karar.izin) return true;
+  if (await ogrenciDosyayaErisebilirMi(relativePath, req.user)) return true;
   res.status(403).json({ error: 'Bu belge size ait değil.' });
   return false;
 }
@@ -546,7 +628,7 @@ function mergeYetki(req, res, next) {
 //
 // Ayraç/kapak sayfası ÜRETİLMEZ; `baslik` yalnızca atlanan dosyayı adıyla
 // bildirmek için taşınır, PDF'e yazılmaz.
-async function pdfBirlestir(PDFDocument, istenen) {
+async function pdfBirlestir(PDFDocument, istenen, erisimKontrol) {
   const atlananlar = [];
   const tekrarlar = [];
   const gorulenOzetler = new Set();
@@ -560,6 +642,13 @@ async function pdfBirlestir(PDFDocument, istenen) {
     const diskYolu = rel ? resolveSafePath(rel) : null;
     if (!diskYolu) {
       atlananlar.push({ baslik, sebep: 'dosya bulunamadı' });
+      continue;
+    }
+    // ⚠ Öğrencinin dosya listesi kendi kaydından geliyor, ama kayıttaki
+    // adresi öğrenci yazabiliyordu: başkasının belgesini işaret edip
+    // birleştirerek okuyabilirdi. Her dosya indirme kuralından geçer.
+    if (erisimKontrol && !(await erisimKontrol(rel))) {
+      atlananlar.push({ baslik, sebep: 'erişim yetkiniz yok' });
       continue;
     }
     if (path.extname(diskYolu).toLowerCase() !== '.pdf') {
@@ -641,7 +730,9 @@ router.post('/merge-pdf', uploadLimiter, fileAuth, mergeYetki, async (req, res) 
 
   let sonuc;
   try {
-    sonuc = await pdfBirlestir(PDFDocument, istenen);
+    sonuc = await pdfBirlestir(PDFDocument, istenen, (rel) =>
+      ogrenciDosyayaErisebilirMi(rel, req.user)
+    );
   } catch (error) {
     console.error('PDF merge error:', error.message);
     return res.status(500).json({ error: 'PDF birleştirilemedi: ' + error.message });
@@ -813,6 +904,8 @@ router.post('/zip', uploadLimiter, fileAuth, async (req, res) => {
 // (routes/ai.js) aynı sınır kontrolünü tekrar yazmasın diye dışa verilir —
 // `../` kaçışı ve UPLOAD_ROOT sınırı tek yerde denetlenir.
 router.resolveUploadPath = resolveSafePath;
+// Belge işleme (routes/ai.js) öğrencinin dosya erişimini aynı kuralla sorar.
+router.ogrenciDosyayaErisebilirMi = ogrenciDosyayaErisebilirMi;
 
 // Testler için: birleştirme yardımcıları saf fonksiyonlardır, uç noktayı
 // ayağa kaldırmadan doğrulanabilsinler.

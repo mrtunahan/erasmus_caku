@@ -1,7 +1,13 @@
 // Yüklenen dosyaya erişim: öğrenci başkasının staj belgesini indiremez,
 // kendi belgesini ve kişiye bağlı olmayan dosyaları indirir.
 import { describe, it, expect } from 'vitest';
-import { dosyaErisebilirMi, yolunOgrenciNumarasi } from '../server/lib/dosya-sahiplik.js';
+import {
+  dosyaErisebilirMi,
+  yolunOgrenciNumarasi,
+  kisiselKlasorMu,
+  kisiselDosyaKarari,
+  kayitlardaGeciyorMu,
+} from '../server/lib/dosya-sahiplik.js';
 
 const OGRENCI = { role: 'student', identifier: '2021001' };
 const HOCA = { role: 'professor', identifier: 'Dr. Mehmet Demir' };
@@ -52,5 +58,65 @@ describe('erişim kararı', () => {
 
   it('kullanıcı çözülemediyse denetim yapılmaz (dosya kapısı kimlik kapısı değildir)', () => {
     expect(dosyaErisebilirMi('staj_belgeler/2021002/a.pdf', null, []).izin).toBe(true);
+  });
+});
+
+describe('kişisel belge klasörleri (taşımadan sahiplik)', () => {
+  const ogr = { role: 'student', identifier: '111111111' };
+
+  it('kişisel klasörleri tanır', () => {
+    expect(kisiselKlasorMu('transkriptler/1_a.pdf')).toBe(true);
+    expect(kisiselKlasorMu('muafiyet_belgeler/1_a.pdf')).toBe(true);
+    expect(kisiselKlasorMu('forms/1_a.pdf')).toBe(false);
+  });
+
+  it('yükleyen öğrencinin kendisiyse izin verir', () => {
+    const k = kisiselDosyaKarari({
+      yol: 'transkriptler/1_a.pdf',
+      kullanici: ogr,
+      numaralar: ['111111111'],
+      yukleyen: '111111111',
+      kayitlar: [],
+    });
+    expect(k.izin).toBe(true);
+  });
+
+  it('adres kendi kaydında geçiyorsa izin verir (eski yüklemeler)', () => {
+    const k = kisiselDosyaKarari({
+      yol: 'muafiyet_belgeler/1_a.pdf',
+      kullanici: ogr,
+      numaralar: ['111111111'],
+      yukleyen: '',
+      kayitlar: [
+        {
+          matches: [{ sourceCourse: { fileUrl: '/api/files/download/muafiyet_belgeler/1_a.pdf' } }],
+        },
+      ],
+    });
+    expect(k.izin).toBe(true);
+  });
+
+  it('başkasının belgesini reddeder', () => {
+    const k = kisiselDosyaKarari({
+      yol: 'transkriptler/1_a.pdf',
+      kullanici: ogr,
+      numaralar: ['111111111'],
+      yukleyen: '222222222',
+      kayitlar: [],
+    });
+    expect(k.izin).toBe(false);
+  });
+
+  it('personel etkilenmez', () => {
+    const k = kisiselDosyaKarari({
+      yol: 'transkriptler/1_a.pdf',
+      kullanici: { role: 'professor', identifier: 'X' },
+      numaralar: [],
+    });
+    expect(k.izin).toBe(true);
+  });
+
+  it('klasörsüz dosya adı kayıtta eşleşme sayılmaz', () => {
+    expect(kayitlardaGeciyorMu('a.pdf', [{ x: 'a.pdf' }])).toBe(false);
   });
 });

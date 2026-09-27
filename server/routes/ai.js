@@ -230,6 +230,26 @@ function dosyalariCoz(liste, kullanici, numaralar) {
   return { cozulen, bulunamayan };
 }
 
+// Kişisel belge klasörleri (transkript, muafiyet belgesi…) yolda numara
+// taşımıyor; öğrencinin erişimi yükleyen kaydından ya da kendi kayıtlarından
+// çözülür — indirme ucuyla AYNI kural (routes/files.js). Aksi hâlde AI,
+// başkasının transkriptini okuyup içeriğini alan değeri olarak döndürürdü.
+async function dosyalariCozDenetimli(liste, kullanici, numaralar) {
+  const sonuc = dosyalariCoz(liste, kullanici, numaralar);
+  if (!kullanici || kullanici.role !== 'student') return sonuc;
+  const cozulen = [];
+  const bulunamayan = sonuc.bulunamayan.slice();
+  const girdiler = (Array.isArray(liste) ? liste : []).slice(0, 8);
+  for (const c of sonuc.cozulen) {
+    const g = girdiler.find((d) => d && filesRouter.resolveUploadPath(d.fileName) === c.path);
+    const fileName = (g && g.fileName) || '';
+    const rel = urlToRelPath(fileName) || fileName;
+    if (await filesRouter.ogrenciDosyayaErisebilirMi(rel, kullanici)) cozulen.push(c);
+    else bulunamayan.push({ fileName, reason: 'forbidden' });
+  }
+  return { cozulen, bulunamayan };
+}
+
 // Öğrencinin kendi numaraları (ÇAP'ta iki tane) — 60 sn önbellek.
 const aiOgrenciNoCache = new Map();
 async function aiOgrenciNumaralari(kullanici) {
@@ -289,7 +309,7 @@ router.post('/extract', extractLimiter, requireAuth, async (req, res) => {
     const fields = alanlariTemizle(b.fields);
     if (fields.length === 0) return res.status(400).json({ error: 'Doldurulacak alan yok.' });
 
-    const { cozulen, bulunamayan } = dosyalariCoz(
+    const { cozulen, bulunamayan } = await dosyalariCozDenetimli(
       b.dosyalar,
       req.user,
       await aiOgrenciNumaralari(req.user)
@@ -347,7 +367,7 @@ router.post('/extract-rows', extractLimiter, requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Sütun tanımı yok.' });
     }
 
-    const { cozulen, bulunamayan } = dosyalariCoz(
+    const { cozulen, bulunamayan } = await dosyalariCozDenetimli(
       b.dosyalar,
       req.user,
       await aiOgrenciNumaralari(req.user)
@@ -399,7 +419,7 @@ router.post('/compare', extractLimiter, requireAuth, async (req, res) => {
     const fields = alanlariTemizle(b.fields);
     if (fields.length === 0) return res.status(400).json({ error: 'Kıyaslanacak alan yok.' });
 
-    const { cozulen, bulunamayan } = dosyalariCoz(
+    const { cozulen, bulunamayan } = await dosyalariCozDenetimli(
       b.dosyalar,
       req.user,
       await aiOgrenciNumaralari(req.user)
