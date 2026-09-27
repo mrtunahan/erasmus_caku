@@ -31,6 +31,8 @@ const { STUDENT_READ_MASKED, ogrenciMaskesiUygula } = require('../lib/ogrenci-ma
 // Girdi biçimi: kimlik alanları METİN olmalı. Nesne gönderilirse Mongo onu
 // operatör sayar ve rastgele belge silinir (bkz. server/lib/yazma-girdisi.js).
 const { yazmaGirdisiGecerliMi, docIdSahibiMi } = require('../lib/yazma-girdisi');
+// Öğrencinin açtığı yeni kaydın sahiplik alanları (başkası adına kayıt engeli).
+const { yeniKayitSahipligi } = require('../lib/ogrenci-sahiplik-damga');
 // Öğrencinin başkasının kaydını okuması: kural (hangi koleksiyon nasıl daralır)
 // tek dosyada ve testli — bkz. server/lib/ogrenci-okuma.js.
 const {
@@ -1670,11 +1672,25 @@ async function enforceWritePolicies(db, op, user) {
       op.data._owner = ident;
     }
 
-    // Yeni kayıt: sahiplik damgası yeterli
+    // Moderatör listesine yalnız mevcut moderatör yazabilir (öz-terfi engeli).
+    // ⚠ Bu denetim `add` dalının ÖNÜNDE durmalı: eskiden altındaydı ve `add`
+    // erken `allow` döndüğü için öğrenci kendini `add` ile moderatör
+    // yapabiliyordu (moderatör başkasının gönderisini silebilir).
+    if (op.collection === 'portal_moderators') {
+      if (await isPortalModerator(db, ident)) return { allow: true };
+      return { allow: false, status: 403, error: 'Moderatör yetkisi gerekli.' };
+    }
+
+    // Yeni kayıt: sahiplik alanları öğrencinin kendisi olmalı, `_owner`
+    // her zaman işlemi yapan öğrencidir (bkz. server/lib/ogrenci-sahiplik-damga.js).
     if (op.type === 'add') {
-      if (op.data && typeof op.data === 'object' && op.data._owner === undefined) {
-        op.data._owner = ident;
-      }
+      const damga = yeniKayitSahipligi(
+        op.collection,
+        op.data,
+        ident,
+        await ogrenciKapsami(db, ident)
+      );
+      if (!damga.izin) return { allow: false, status: 403, error: damga.hata };
       // muafiyet_records: öğrenci yeni başvuruyu ONAYLI/İLERİ FAZDA gönderemez.
       // Karar ve faz alanları güvenli başlangıç değerlerine sabitlenir.
       if (op.collection === 'muafiyet_records' && op.data && typeof op.data === 'object') {
@@ -1696,12 +1712,6 @@ async function enforceWritePolicies(db, op, user) {
       return { allow: true };
     }
 
-    // Moderatör listesine yalnız mevcut moderatör yazabilir (öz-terfi engeli)
-    if (op.collection === 'portal_moderators') {
-      if (await isPortalModerator(db, ident)) return { allow: true };
-      return { allow: false, status: 403, error: 'Moderatör yetkisi gerekli.' };
-    }
-
     // roadmap/uploads: doküman VAR OLSUN OLMASIN sahip, docId'nin işaret
     // ettiği staj başvurusundan çözülür (başkasının başvurusuna önden kayıt
     // açmak da engellenir).
@@ -1721,14 +1731,16 @@ async function enforceWritePolicies(db, op, user) {
 
     const existing = await findExistingDoc(db, op);
     if (!existing) {
-      // Upsert ile yeni doküman: sahipliği damgala
-      if (
-        (op.type === 'set' || op.type === 'update') &&
-        op.data &&
-        typeof op.data === 'object' &&
-        op.data._owner === undefined
-      ) {
-        op.data._owner = ident;
+      // Upsert ile yeni doküman: `add` ile AYNI sahiplik kuralı — aksi hâlde
+      // var olmayan bir kimliğe `set` ile başkası adına kayıt açılabilirdi.
+      if ((op.type === 'set' || op.type === 'update') && op.data && typeof op.data === 'object') {
+        const damga = yeniKayitSahipligi(
+          op.collection,
+          op.data,
+          ident,
+          await ogrenciKapsami(db, ident)
+        );
+        if (!damga.izin) return { allow: false, status: 403, error: damga.hata };
       }
       return { allow: true };
     }
