@@ -3,6 +3,20 @@ const { MongoClient } = require('mongodb');
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/erasmus_caku';
 
+// Bağlantı adresindeki veritabanı adı. Eski yöntem son '/' sonrasını
+// alıyordu: adreste ad yoksa ('mongodb://host:27017') 'host:27017'
+// veritabanı adı sanılıyordu.
+function veritabaniAdi(uri) {
+  const govde = String(uri || '').replace(/^mongodb(\+srv)?:\/\//i, '');
+  const bolu = govde.indexOf('/');
+  if (bolu < 0) return 'erasmus_caku';
+  const ad = govde
+    .slice(bolu + 1)
+    .split('?')[0]
+    .trim();
+  return ad || 'erasmus_caku';
+}
+
 let client = null;
 let db = null;
 let isConnecting = false;
@@ -293,7 +307,7 @@ async function connect() {
     await client.connect();
 
     // Veritabanı adını URI'den çıkar (son / sonrası, ? öncesi)
-    const dbName = MONGODB_URI.split('/').pop().split('?')[0] || 'erasmus_caku';
+    const dbName = veritabaniAdi(MONGODB_URI);
     db = client.db(dbName);
 
     // Loglarken URI'deki credential'ı maskeleme — username:password kısmını gizle
@@ -354,4 +368,4 @@ async function disconnect() {
   }
 }
 
-module.exports = { connect, getDb, getDbSafe, disconnect };
+module.exports = { connect, getDb, getDbSafe, disconnect, veritabaniAdi };

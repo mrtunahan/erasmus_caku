@@ -2102,9 +2102,11 @@ async function isUniversityAdmin(db, identifier) {
   if (hit && Date.now() - hit.ts < 60 * 1000) return hit.ok;
   let ok = false;
   try {
-    const doc = await db
-      .collection('professors')
-      .findOne({ name: identifier }, { projection: { isUniversityAdmin: 1 } });
+    // findOne DEĞİL: aynı adlı kayıtlarda yetki bayrağı herhangi birinde
+    // olabilir; yazma tarafı (getActorFlags) birleşik profile bakıyor, okuma
+    // tarafı rastgele bir kayda bakınca aynı kişi bir ekranda yetkili, öteki
+    // ekranda yetkisiz görünüyordu.
+    const doc = await profilBul(db, identifier);
     ok = !!(doc && doc.isUniversityAdmin);
   } catch (_e) {
     ok = false;
@@ -2172,16 +2174,6 @@ function isSafeField(name) {
   if (typeof name !== 'string' || name.length === 0 || name.length > 100) return false;
   if (FORBIDDEN_FIELDS.has(name)) return false;
   return SAFE_FIELD_NAME.test(name);
-}
-
-// Rastgele 20 karakterlik ID üret
-function generateId() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let id = '';
-  for (let i = 0; i < 20; i++) {
-    id += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return id;
 }
 
 // Timestamp alanlarını temizle ve sunucu timestamp'i ekle

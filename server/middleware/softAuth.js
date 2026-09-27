@@ -11,8 +11,10 @@
 const jwt = require('jsonwebtoken');
 const { logger } = require('../lib/logger');
 
-const DEV_FALLBACK_SECRET = 'caku-erasmus-dev-secret-key';
-const JWT_SECRET = process.env.JWT_SECRET || DEV_FALLBACK_SECRET;
+// Gizli anahtar TEK yerden gelir (middleware/auth.js): orada üretimde
+// zayıf/boş anahtar reddediliyor; burada ikinci bir yedek tanımı, iki
+// dosyanın ileride farklı anahtara düşmesine yol açabilirdi.
+const { JWT_SECRET } = require('./auth');
 
 function extractToken(req) {
   if (req.cookies && req.cookies.caku_auth) return req.cookies.caku_auth;

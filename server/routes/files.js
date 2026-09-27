@@ -545,7 +545,7 @@ router.delete(
       res.json({ success: true });
     } catch (error) {
       console.error('File delete error:', error);
-      res.status(500).json({ error: 'Dosya silinemedi: ' + error.message });
+      res.status(500).json({ error: 'Dosya silinemedi.' });
     }
   }
 );
@@ -735,7 +735,7 @@ router.post('/merge-pdf', uploadLimiter, fileAuth, mergeYetki, async (req, res) 
     );
   } catch (error) {
     console.error('PDF merge error:', error.message);
-    return res.status(500).json({ error: 'PDF birleştirilemedi: ' + error.message });
+    return res.status(500).json({ error: 'PDF birleştirilemedi.' });
   }
   if (sonuc.eklenen === 0) {
     return res.status(422).json({
@@ -896,7 +896,7 @@ router.post('/zip', uploadLimiter, fileAuth, async (req, res) => {
     return res.send(arsiv);
   } catch (error) {
     console.error('ZIP error:', error.message);
-    return res.status(500).json({ error: 'Arşiv oluşturulamadı: ' + error.message });
+    return res.status(500).json({ error: 'Arşiv oluşturulamadı.' });
   }
 });
 

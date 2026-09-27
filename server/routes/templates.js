@@ -23,6 +23,7 @@ const rateLimit = require('express-rate-limit');
 const { ObjectId } = require('mongodb');
 const { getDbSafe } = require('../config/database');
 const { softAuth } = require('../middleware/softAuth');
+const { requireAuth } = require('../middleware/auth');
 const { canManageTemplate, canViewTemplate } = require('../lib/sablon-erisim');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const { bolumKimlikHaritasi, bolumVaryantlari, ayniBolum } = require('../lib/bolum-kimlik');
@@ -645,7 +646,10 @@ router.get('/:id/download', readLimiter, softAuthMiddleware, async (req, res) =>
 //   Öncelik: scope='department' (default) → 'department' (en yeni) →
 //            scope='faculty' (default) → 'faculty' (en yeni) →
 //            scope='university' (default) → 'university' (en yeni)
-router.get('/resolve', readLimiter, async (req, res) => {
+// Kimlik İSTER: yanıt, şablonların kapsamını ve alan eşlemesini (sabit
+// değerler dahil) anonim ziyaretçiye veriyordu. Bütün çağıranlar giriş
+// yapmış ekranlardan geliyor; çerez aynı kökene otomatik gider.
+router.get('/resolve', readLimiter, requireAuth, async (req, res) => {
   try {
     const module_ = asPlainString(req.query.module);
     const departmentId = asPlainString(req.query.departmentId);
