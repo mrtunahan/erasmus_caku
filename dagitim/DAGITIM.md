@@ -11,12 +11,16 @@ cp /etc/nginx/sites-enabled/caku-erasmus ~/nginx.yedek        # nginx'e dokunaca
 mongodump --db erasmus_caku --out ~/yedek-$(date +%s)         # veri değişecekse
 
 git pull
-npm install
+npm ci                                  # arayüz bağımlılıkları (lock'a birebir)
+(cd server && npm ci --omit=dev)        # SUNUCU bağımlılıkları — atlanırsa "Cannot find module"
 npm run build
 
 pm2 restart erasmus_caku      # sunucu kodu değiştiyse
 pm2 logs erasmus_caku --lines 30 --nostream
 ```
+
+Bu adımların hepsini (bağımlılık değişimi denetimi ve sağlık kontrolü dahil)
+`npm run deploy` (scripts/deploy.sh) yapar.
 
 ## nginx: iki tuzak
 
