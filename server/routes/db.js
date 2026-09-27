@@ -551,6 +551,10 @@ const STUDENT_DELETE_OWNED = new Set(['portal_posts', 'portal_posts_comments']);
 
 // Öğrencilerin hiç okuyamayacağı koleksiyonlar (personel modülleri)
 const STUDENT_READ_DENY = new Set([
+  // Memur belge kutusu: başka öğrencilerin resmî çıktıları ve dilekçe
+  // adresleri. Hiçbir öğrenci ekranı bu koleksiyonu kullanmıyor; kenar
+  // çubuğu sayacı 403'ü sessizce boş liste sayar (lib/api-hata.js).
+  'memur_outputs',
   // Cihaz kayıtları ve "başkası yerine okutma" denemeleri: öğrencinin
   // sınıftaki herkesin cihaz izini okuyabilmesi, taklit edebilmesi demektir.
   'student_devices',
