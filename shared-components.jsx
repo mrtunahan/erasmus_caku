@@ -12390,10 +12390,13 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
 // Student Notifier — "Benim Sayfam" bildirim sistemi
 // student_notifications koleksiyonuna düşer, Benim Sayfam dinler
 // ══════════════════════════════════════════════════════════════
+// ⚠ Burada eski Firebase adları (`FirebaseDB`, `FirestoreWrite`) kalmıştı;
+// hiçbiri tanımlı değildi ve hata try/catch'te yutulduğu için öğrenci
+// bildirimleri HİÇ yazılmıyordu. Güncel API: DB / DBWrite.
 const StudentNotifier = {
   async _fetchStudents() {
     try {
-      return await FirebaseDB.fetchStudents();
+      return await DB.fetchStudents();
     } catch (e) {
       console.warn('StudentNotifier: öğrenciler alınamadı', e);
       return [];
@@ -12430,7 +12433,7 @@ const StudentNotifier = {
         },
         payload
       );
-      await FirestoreWrite.add('student_notifications', data);
+      await DBWrite.add('student_notifications', data);
     } catch (e) {
       console.warn('StudentNotifier: bildirim eklenemedi', studentNumber, e);
     }
@@ -12471,7 +12474,7 @@ const StudentNotifier = {
   },
   async markRead(id) {
     try {
-      await FirestoreWrite.update('student_notifications', String(id), { read: true });
+      await DBWrite.update('student_notifications', String(id), { read: true });
     } catch (e) {
       console.warn('StudentNotifier: okundu yapılamadı', e);
     }
@@ -12484,7 +12487,7 @@ const StudentNotifier = {
           return !n.read;
         })
         .map(function (n) {
-          return FirestoreWrite.update('student_notifications', String(n.id), { read: true });
+          return DBWrite.update('student_notifications', String(n.id), { read: true });
         });
       await Promise.all(ops);
     } catch (e) {

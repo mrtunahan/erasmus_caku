@@ -2739,7 +2739,7 @@ function AppShell() {
           /* koleksiyon yoksa aşağıdaki legacy kontrolüne düş */
         }
         if (!hasCourses) {
-          const students = await window.FirebaseDB.fetchStudents();
+          const students = await window.DB.fetchStudents();
           const me = students.find((s) => s.studentNumber === currentUser.studentNumber);
           hasCourses = Array.isArray(me?.myCourseIds) && me.myCourseIds.length > 0;
         }
@@ -2776,7 +2776,7 @@ function AppShell() {
     let cancelled = false;
     (async () => {
       try {
-        const students = await window.FirebaseDB.fetchStudents();
+        const students = await window.DB.fetchStudents();
         const me = students.find((s) => s.studentNumber === currentUser.studentNumber);
         if (!me || cancelled) return;
         const serverErasmus = me.erasmusAccess === true;
