@@ -37,7 +37,7 @@
     arr.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   }
 
-  const appIdSet = new Set(apps.map((a) => String(a._docId || a._id)));
+  const _appIdSet = new Set(apps.map((a) => String(a._docId || a._id)));
   const uploads = await uploadsCol.find({}).toArray();
   console.log(`internship_uploads doküman: ${uploads.length}, başvuru: ${apps.length}`);
 

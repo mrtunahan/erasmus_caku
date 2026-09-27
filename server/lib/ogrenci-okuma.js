@@ -62,6 +62,13 @@ const OGRENCI_OKUMA = {
   notifications: { tur: 'alici' },
   internship_uploads: { tur: 'basvuru' },
   internship_roadmap: { tur: 'basvuru' },
+  // ÇAP/yandal ve yatay geçiş başvuruları kişisel veri taşır (not, AGNO,
+  // iletişim, dilekçe adresi). Öğrenci ekranı listeyi zaten kendi numarasına
+  // göre süzüyordu (cap-yandal-modulu.jsx: ogrenciNo || createdBy;
+  // yatay-gecis-modulu.jsx: ogrenciNo) ama süzme tarayıcıdaydı — veri
+  // iniyordu. Sunucu aynı alanlarla daraltır; ekranın gördüğü değişmez.
+  cap_yandal_basvurular: { tur: 'sahip', alanlar: ['ogrenciNo', 'createdBy'] },
+  yatay_gecis_basvurular: { tur: 'sahip', alanlar: ['ogrenciNo'] },
 };
 
 // ══════════════════════════════════════════════════════════════

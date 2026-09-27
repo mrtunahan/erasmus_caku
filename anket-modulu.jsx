@@ -924,13 +924,13 @@ function buildSurveyFromLines(lines, fallbackTitle) {
   const title = (lines[0] || fallbackTitle || 'Yeni Anket').slice(0, 200);
   let description = '';
   let bodyStart = 1;
-  if (lines[1] && lines[1].length > 0 && lines[1].length < 200 && !/^\d+[\.\)]/.test(lines[1])) {
+  if (lines[1] && lines[1].length > 0 && lines[1].length < 200 && !/^\d+[.)]/.test(lines[1])) {
     description = lines[1];
     bodyStart = 2;
   }
   const questions = [];
   for (let i = bodyStart; i < lines.length; i++) {
-    const raw = lines[i].replace(/^\s*(?:\d+[\.\)]|[-•·])\s*/, '').trim();
+    const raw = lines[i].replace(/^\s*(?:\d+[.)]|[-•·])\s*/, '').trim();
     if (raw.length < 4) continue;
     questions.push({ id: 'q' + (questions.length + 1), type: inferType(raw), text: raw });
   }
@@ -3218,7 +3218,7 @@ const soruSecenekleri = (soru) =>
   window.anketSoruSecenekleri ? window.anketSoruSecenekleri(soru) : [];
 const soruSecenekliMi = (soru) => (window.anketSecenekliMi ? window.anketSecenekliMi(soru) : false);
 const soruCokluMu = (soru) => (window.anketCokluSecimMi ? window.anketCokluSecimMi(soru) : false);
-const secenekEtiketi = (soru, deger) =>
+const _secenekEtiketi = (soru, deger) =>
   window.anketSecenekEtiketi ? window.anketSecenekEtiketi(soru, deger) : String(deger ?? '');
 
 // Çoklu seçimde yanıt bir DİZİdir; tek seçimde düz değer. Sayma, dışa
@@ -3228,7 +3228,7 @@ function yanitDegerleri(v) {
   return Array.isArray(v) ? v.map(String).filter(Boolean) : [String(v)];
 }
 
-function countAnswers(responses, qid, options) {
+function _countAnswers(responses, qid, options) {
   const counts = Object.fromEntries(options.map((o) => [o, 0]));
   responses.forEach((r) => {
     yanitDegerleri(r.answers?.[qid]).forEach((d) => {

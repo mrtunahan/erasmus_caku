@@ -50,7 +50,7 @@ const STAJ_STATUS = {
 };
 
 // ── Staj Türleri ──
-const STAJ_TYPES = [
+const _STAJ_TYPES = [
   { id: 'staj1', label: 'Staj I (İşyeri Stajı)', duration: '20 iş günü' },
   { id: 'staj2', label: 'Staj II (Mühendislik Stajı)', duration: '20 iş günü' },
 ];
@@ -1592,7 +1592,7 @@ function StajBasvuruFormu({
   // E-posta alanları
   const EMAIL_FIELDS = ['eposta', 'stajYeriEposta', 'isverenEposta'];
 
-  const isRequired = (key) => key in REQUIRED_FIELDS;
+  const _isRequired = (key) => key in REQUIRED_FIELDS;
 
   const handleSave = async () => {
     // Onaylanmış başvurular düzenlenemez (UI'da fieldset disabled olsa da
@@ -2224,27 +2224,27 @@ function StajBasvuruFormu({
               ).length;
               const totalSteps = STAJ_ROADMAP_STEPS.length;
 
-              let progressPct = 0;
+              let _progressPct = 0;
               let progressColor = '#EAB308';
               let progressLabel = 'Beklemede';
 
               if (isRejected) {
-                progressPct = 0;
+                _progressPct = 0;
                 progressColor = STAJ.red;
                 progressLabel = 'Reddedildi';
               } else if (app.status === 'tamamlandi') {
-                progressPct = 100;
+                _progressPct = 100;
                 progressColor = STAJ.green;
                 progressLabel = 'Tamamlandı';
               } else if (app.status === 'devam') {
-                progressPct = Math.max(5, (completedSteps / totalSteps) * 100);
+                _progressPct = Math.max(5, (completedSteps / totalSteps) * 100);
                 progressColor = completedSteps === totalSteps ? STAJ.green : '#3B82F6';
                 progressLabel =
                   pendingSteps > 0
                     ? `${completedSteps}/${totalSteps} (Onay bekleniyor)`
                     : `${completedSteps}/${totalSteps} adım`;
               } else {
-                progressPct = 2;
+                _progressPct = 2;
                 progressColor = '#EAB308';
                 progressLabel = 'Kayıt onayı bekleniyor';
               }
@@ -3083,11 +3083,11 @@ function StajBasvuruFormu({
 // ══════════════════════════════════════════════════════════════
 function StajBelgeYukleme({ currentUser, activeDepartment }) {
   const responsive = window.useResponsive();
-  const isMobile = responsive.val(true, true, false);
+  const _isMobile = responsive.val(true, true, false);
   const [uploads, setUploads] = useState({});
   const [uploading, setUploading] = useState(null);
   const [msg, setMsg] = useState('');
-  const [changeRequests, setChangeRequests] = useState({});
+  const [_changeRequests, setChangeRequests] = useState({});
   const [roadmapData, setRoadmapData] = useState(null);
   const [myApplication, setMyApplication] = useState(null);
   const [myApplications, setMyApplications] = useState([]);
@@ -3109,7 +3109,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
 
   // Document visibility step constants
   // INITIAL_DOCUMENT_STEP: Application documents belong to step 2 (Belge Yükleme)
-  const INITIAL_DOCUMENT_STEP = 2;
+  const _INITIAL_DOCUMENT_STEP = 2;
 
   // Belge durumunu DB'den yükleyip state'e yaz (seçili başvuruya göre)
   const loadUploadsFromDB = async (docId) => {
@@ -3303,7 +3303,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
     return Math.min(lastCompletedStep + 1, TOTAL_STEPS);
   };
 
-  const currentStep = getCurrentRoadmapStep();
+  const _currentStep = getCurrentRoadmapStep();
 
   // Adım 4 (SGK İşlemleri, index=3) tamamlandı mı kontrol et
   const isStep5Completed = () => {
@@ -3312,7 +3312,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
 
   // Belge görünür mü kontrol et
   // Başvuru mevcut olduğunda tüm belgeler görünür
-  const isDocumentVisible = (belge) => {
+  const isDocumentVisible = (_belge) => {
     if (!myApplication) return false;
     return true;
   };
@@ -4458,7 +4458,7 @@ function AcilAcilisModal({ etap, currentUser, onKaydet, onKapat }) {
 // Ana Staj Modülü
 // ══════════════════════════════════════════════════════════════
 function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
-  const [stajRecords, setStajRecords] = useState([]);
+  const [_stajRecords, setStajRecords] = useState([]);
   const [allApplications, setAllApplications] = useState([]);
   const [allUploads, setAllUploads] = useState({});
   const [stajPeriods, setStajPeriods] = useState([]);
@@ -4467,12 +4467,12 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [acilAcilislar, setAcilAcilislar] = useState([]);
   const [acilisModalEtap, setAcilisModalEtap] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('list');
+  const [_view, _setView] = useState('list');
   const [selectedApp, setSelectedApp] = useState(null);
   const [rejectModalApp, setRejectModalApp] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
-  const [editingApp, setEditingApp] = useState(null);
+  const [_editingApp, _setEditingApp] = useState(null);
   const [showPeriodForm, setShowPeriodForm] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState(null);
   const [periodForm, setPeriodForm] = useState({
@@ -4484,7 +4484,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [activeTab, setActiveTab] = useState('kayitlar');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [stajCommissionMembers, setStajCommissionMembers] = useState([]);
+  const [_stajCommissionMembers, setStajCommissionMembers] = useState([]);
   const [commissionDeptId, setCommissionDeptId] = useState(null);
   const [isCommissionMember, setIsCommissionMember] = useState(false);
   const responsive = window.useResponsive();
@@ -5247,7 +5247,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       const yama = SA.adimYamasi
         ? SA.adimYamasi(stepIdx, yeniAdim)
         : { steps: { ...existingData.steps, [stepIdx]: yeniAdim } };
-      const newData = {
+      const _newData = {
         ...existingData,
         steps: { ...(existingData.steps || {}), [stepIdx]: yeniAdim },
         updatedAt: new Date().toISOString(),
@@ -5341,7 +5341,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       const yama = SA.adimYamasi
         ? SA.adimYamasi(stepIdx, yeniAdim)
         : { steps: { ...existingData.steps, [stepIdx]: yeniAdim } };
-      const newData = {
+      const _newData = {
         ...existingData,
         steps: { ...(existingData.steps || {}), [stepIdx]: yeniAdim },
         updatedAt: new Date().toISOString(),

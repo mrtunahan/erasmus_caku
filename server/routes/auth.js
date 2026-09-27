@@ -6,7 +6,7 @@ const { profilBul } = require('../lib/akademisyen-kimlik');
 const { kapsamNumaralari } = require('../lib/ogrenci-baglanti');
 const {
   generateToken,
-  requireAuth,
+  requireAuth: _requireAuth,
   verifyToken,
   setTokenCookie,
   clearTokenCookie,
@@ -15,6 +15,11 @@ const {
 const router = express.Router();
 
 const BCRYPT_ROUNDS = 12;
+
+/** Boş olmayan metin mi? (istek gövdesindeki alanlar için biçim denetimi) */
+function metinMi(v) {
+  return typeof v === 'string' && v.length > 0;
+}
 
 // ── Eski SHA-256 hash (geriye dönük uyumluluk) ──
 function sha256(message) {
@@ -139,10 +144,45 @@ async function auditPasswordChange(
   }
 }
 
+// Alan adı olarak doğrudan `$set` edilebilir mi? (nokta ve `$` yol sayılır)
+function duzAlanAdiMi(k) {
+  return typeof k === 'string' && k.length > 0 && k.indexOf('.') < 0 && k[0] !== '$';
+}
+
 async function setPasswordDoc(docId, data, merge = false) {
   const db = await getDbSafe();
   const col = db.collection('passwords');
   if (merge) {
+    // ── YARIŞ DURUMU ──
+    // Aşağıdaki "oku → JS'te birleştir → komple yaz" yolu, aynı anda gelen
+    // iki şifre işleminden birini SESSİZCE kaybediyordu (dönem başı toplu
+    // kayıt). Anahtarlar düz alan adıysa (öğrenci numaraları) tek bir
+    // atomik `$set` yeterli. Noktalı anahtar (unvanlı akademisyen adı) için
+    // `$setField` ile literal alan yazılır (MongoDB 5+); sunucu desteklemezse
+    // eski yola düşülür. Saklama biçimi DEĞİŞMEZ — taşıma gerekmez.
+    const anahtarlar = Object.keys(data);
+    if (anahtarlar.every(duzAlanAdiMi)) {
+      await col.updateOne(
+        { _id: docId },
+        { $set: { ...data, updatedAt: new Date() } },
+        { upsert: true }
+      );
+      return;
+    }
+    try {
+      let govde = '$$ROOT';
+      for (const [k, v] of Object.entries(data)) {
+        govde = { $setField: { field: { $literal: k }, input: govde, value: { $literal: v } } };
+      }
+      await col.updateOne(
+        { _id: docId },
+        [{ $replaceWith: govde }, { $set: { updatedAt: '$$NOW' } }],
+        { upsert: true }
+      );
+      return;
+    } catch (e) {
+      console.warn('[auth] atomik şifre yazımı desteklenmedi, eski yola düşülüyor:', e.message);
+    }
     // ÖNEMLİ: data anahtarları (akademisyen adları) nokta içerebilir.
     // MongoDB $set noktaları nested alan yolu sanar ve düz anahtarı
     // bozar. Bu yüzden dökümanı okuyup JS'te birleştirip replaceOne ile
@@ -168,7 +208,9 @@ async function setPasswordDoc(docId, data, merge = false) {
 // ══════════════════════════════════════════════
 router.post('/student', async (req, res) => {
   const { studentNumber, password } = req.body;
-  if (!studentNumber || !password) {
+  // Metin olmayan girdi (dizi/nesne) `.trim()`de TypeError'a, bcrypt'te
+  // istisnaya dönüşüp 500 veriyordu; biçim hatası 400'dür.
+  if (!metinMi(studentNumber) || !metinMi(password)) {
     return res.status(400).json({ error: 'Öğrenci numarası ve şifre gerekli.' });
   }
 
@@ -255,7 +297,7 @@ router.post('/student', async (req, res) => {
 // ══════════════════════════════════════════════
 router.post('/admin', async (req, res) => {
   const { password } = req.body;
-  if (!password) {
+  if (!metinMi(password)) {
     return res.status(400).json({ error: 'Şifre gerekli.' });
   }
 
@@ -300,7 +342,7 @@ router.post('/admin', async (req, res) => {
 // ══════════════════════════════════════════════
 router.post('/professor', async (req, res) => {
   const { professorName, password } = req.body;
-  if (!professorName || !password) {
+  if (!metinMi(professorName) || !metinMi(password)) {
     return res.status(400).json({ error: 'Akademisyen adı ve şifre gerekli.' });
   }
 
@@ -455,7 +497,7 @@ async function fetchProfessorProfile(professorName) {
 // ══════════════════════════════════════════════
 router.post('/department-manager', async (req, res) => {
   const { managerName, password } = req.body;
-  if (!managerName || !password) {
+  if (!metinMi(managerName) || !metinMi(password)) {
     return res.status(400).json({ error: 'Yetkili adı ve şifre gerekli.' });
   }
 
@@ -560,8 +602,14 @@ router.post('/logout', (req, res) => {
 router.post('/change-password', async (req, res) => {
   const { role, identifier, newPassword, currentPassword } = req.body;
 
-  if (!role || !newPassword) {
+  if (!metinMi(role) || !metinMi(newPassword)) {
     return res.status(400).json({ error: 'Eksik parametreler.' });
+  }
+  if (identifier != null && typeof identifier !== 'string') {
+    return res.status(400).json({ error: 'Geçersiz kimlik.' });
+  }
+  if (currentPassword != null && typeof currentPassword !== 'string') {
+    return res.status(400).json({ error: 'Geçersiz parametre.' });
   }
   if (newPassword.length < 6) {
     return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır.' });
@@ -944,7 +992,7 @@ function sifreSorguSiniri(req, res) {
 
 router.post('/student-has-password-check', async (req, res) => {
   const { studentNumber } = req.body;
-  if (!studentNumber) {
+  if (!metinMi(studentNumber)) {
     return res.status(400).json({ error: 'Öğrenci numarası gerekli.' });
   }
   if (!sifreSorguSiniri(req, res)) return;
@@ -979,8 +1027,11 @@ router.get('/student-has-password/:studentNumber', async (req, res) => {
 router.post('/admin-reset', async (req, res) => {
   const { adminPassword, targetRole, targetIdentifier, newPassword } = req.body;
 
-  if (!adminPassword || !targetRole || !newPassword) {
+  if (!metinMi(adminPassword) || !metinMi(targetRole) || !metinMi(newPassword)) {
     return res.status(400).json({ error: 'Eksik parametreler.' });
+  }
+  if (targetIdentifier != null && typeof targetIdentifier !== 'string') {
+    return res.status(400).json({ error: 'Geçersiz hedef.' });
   }
 
   // Bu uç ADMIN ŞİFRESİNİ doğruluyor ve hiçbir hız sınırı yoktu: tek bir
@@ -1028,7 +1079,7 @@ router.post('/admin-reset', async (req, res) => {
 router.post('/default-professor-password', async (req, res) => {
   const { adminPassword, defaultPassword } = req.body;
 
-  if (!adminPassword || !defaultPassword) {
+  if (!metinMi(adminPassword) || !metinMi(defaultPassword)) {
     return res.status(400).json({ error: 'Eksik parametreler.' });
   }
   if (defaultPassword.length < 6) {

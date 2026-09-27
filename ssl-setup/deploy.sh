@@ -1,4 +1,7 @@
 #!/bin/bash
+# ⚠ ESKİ KURULUM BETİĞİ (IP adresi + self-signed SSL, nginx-ssl.conf).
+# Alan adıyla kurulum: ssl-setup/deploy-domain.sh. Günlük güncelleme
+# (git çek → derle → pm2 yeniden başlat): scripts/deploy.sh.
 # ============================================================
 # ÇAKÜ Erasmus - Tam Kurulum Scripti
 # Nginx + SSL (Self-Signed) + Proje Dağıtımı

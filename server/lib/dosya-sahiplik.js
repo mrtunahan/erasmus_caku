@@ -62,4 +62,75 @@ function dosyaErisebilirMi(yol, kullanici, numaralar) {
   return { izin: false, sebep: 'baskasinin_belgesi' };
 }
 
-module.exports = { NUMARALI_KLASORLER, yolunOgrenciNumarasi, dosyaErisebilirMi };
+// ══════════════════════════════════════════════════════════════
+// KİŞİSEL BELGE KLASÖRLERİ (dosya TAŞINMADAN sahiplik)
+//
+// Transkript, muafiyet belgesi, ÇAP/yandal dilekçesi ve yaz intibakı başarı
+// belgesi yolda numara taşımıyor (`transkriptler/<zaman>_<ad>.pdf`). Yolu
+// bilen HER öğrenci bu dosyaları indirebiliyordu; ad tahmin edilebilir
+// (`Date.now()` + özgün dosya adı).
+//
+// Dosyaları numaralı klasörlere TAŞIMAK kayıtlardaki adresleri kırardı
+// (veri kaybı). Bunun yerine öğrenci için iki soru sorulur:
+//   1) Dosyayı o mu yükledi? (yüklemede `dosya_yukleyenler`e yazılır)
+//   2) Dosyanın adresi KENDİ kayıtlarından birinde geçiyor mu?
+//      (muafiyet/ÇAP/yatay başvurusu, akademik kayıt, öğrenci kaydı)
+// İkisinden biri yeterlidir. Personel bu kuraldan etkilenmez.
+// ══════════════════════════════════════════════════════════════
+const KISISEL_KLASORLER = [
+  'transkriptler',
+  'muafiyet_belgeler',
+  'capyandal_belgeler',
+  'intibak_basari',
+];
+
+/** Yol, kişisel belge klasörlerinden birinde mi? */
+function kisiselKlasorMu(yol) {
+  const ilk = metin(yol).replace(/\\/g, '/').split('/').filter(Boolean)[0] || '';
+  return KISISEL_KLASORLER.indexOf(ilk) >= 0;
+}
+
+/** Göreli yol (klasör/dosya) kayıtlardan birinin içinde geçiyor mu? */
+function kayitlardaGeciyorMu(yol, kayitlar) {
+  const aranan = metin(yol).replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!aranan || aranan.indexOf('/') < 0) return false;
+  return (Array.isArray(kayitlar) ? kayitlar : []).some((k) => {
+    try {
+      return JSON.stringify(k).indexOf(aranan) >= 0;
+    } catch (_e) {
+      return false;
+    }
+  });
+}
+
+/**
+ * Kişisel klasördeki dosyaya öğrenci erişebilir mi?
+ * @param {object} p
+ * @param {string} p.yol          göreli yol
+ * @param {object} p.kullanici    JWT yükü
+ * @param {string[]} p.numaralar  öğrencinin numaraları
+ * @param {string} [p.yukleyen]   dosyayı yükleyenin kimliği (kayıt varsa)
+ * @param {object[]} [p.kayitlar] öğrencinin kendi kayıtları
+ */
+function kisiselDosyaKarari(p) {
+  const kullanici = (p && p.kullanici) || null;
+  if (!kullanici || metin(kullanici.role) !== 'student') return { izin: true, sebep: '' };
+  if (!kisiselKlasorMu(p.yol)) return { izin: true, sebep: '' };
+  const benim = (Array.isArray(p.numaralar) ? p.numaralar : [p.numaralar])
+    .map(metin)
+    .filter(Boolean)
+    .concat(metin(kullanici.identifier) ? [metin(kullanici.identifier)] : []);
+  if (p.yukleyen && benim.indexOf(metin(p.yukleyen)) >= 0) return { izin: true, sebep: '' };
+  if (kayitlardaGeciyorMu(p.yol, p.kayitlar)) return { izin: true, sebep: '' };
+  return { izin: false, sebep: 'baskasinin_belgesi' };
+}
+
+module.exports = {
+  NUMARALI_KLASORLER,
+  KISISEL_KLASORLER,
+  yolunOgrenciNumarasi,
+  dosyaErisebilirMi,
+  kisiselKlasorMu,
+  kayitlardaGeciyorMu,
+  kisiselDosyaKarari,
+};

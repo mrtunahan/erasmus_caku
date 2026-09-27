@@ -1357,7 +1357,7 @@ const inputBox = {
 // ══════════════════════════════════════════════════════════════
 function HavuzCard({ item, criteria, departments, onEdit, onDelete }) {
   const tp = typeMeta(item.type);
-  const crit = criteria.find((c) => c.no === (item.olcutNo || 0));
+  const _crit = criteria.find((c) => c.no === (item.olcutNo || 0));
   const dept = departments.find((d) => d.id === item.departmentId);
   return (
     <div
@@ -2092,7 +2092,7 @@ function AkreditasyonIcerik({ currentUser }) {
   };
 
   const [genBusy, setGenBusy] = useState(false);
-  const generateReport = async () => {
+  const _generateReport = async () => {
     if (!framework) return;
     const { targetDept, staticData, rows, filename } = buildOdrData();
     setGenBusy(true);

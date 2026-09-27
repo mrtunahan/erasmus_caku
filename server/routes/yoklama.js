@@ -27,7 +27,7 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
-const { profilBul } = require('../lib/akademisyen-kimlik');
+const { profilBul: _profilBul } = require('../lib/akademisyen-kimlik');
 
 // Kural dosyası ESM; Node 22 tür algılamasıyla dinamik import sorunsuz.
 let kuralSozu = null;
@@ -190,7 +190,8 @@ router.post('/oturum', requireAuth, async (req, res) => {
     await db.collection(OTURUMLAR).insertOne({ ...oturum });
     return res.json({ oturum: oturumuTemizle(oturum, true), sunucuZamani: Date.now() });
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'Yoklama açılamadı.' });
+    console.error('[yoklama]', e && e.message);
+    return res.status(500).json({ error: 'Yoklama açılamadı.' });
   }
 });
 
@@ -465,7 +466,8 @@ router.post('/imzala', requireAuth, async (req, res) => {
       uyari: karar.durum === 'degisti' ? cihazMesaji('cihaz_degisti', karar) : '',
     });
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'Yoklama alınamadı.' });
+    console.error('[yoklama]', e && e.message);
+    return res.status(500).json({ error: 'Yoklama alınamadı.' });
   }
 });
 
@@ -491,7 +493,8 @@ router.get('/oturum/:id', requireAuth, oturumListeLimiter, async (req, res) => {
       sunucuZamani: Date.now(),
     });
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'Liste alınamadı.' });
+    console.error('[yoklama]', e && e.message);
+    return res.status(500).json({ error: 'Liste alınamadı.' });
   }
 });
 
@@ -555,7 +558,8 @@ router.post('/kapat', requireAuth, async (req, res) => {
       .updateOne({ id: oturum.id }, { $set: { acik: false, bitis: new Date().toISOString() } });
     return res.json({ ok: true });
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'Yoklama kapatılamadı.' });
+    console.error('[yoklama]', e && e.message);
+    return res.status(500).json({ error: 'Yoklama kapatılamadı.' });
   }
 });
 
@@ -601,7 +605,8 @@ router.post('/cihaz-sifirla', requireAuth, async (req, res) => {
       mesaj: 'Cihaz kaydı sıfırlandı; öğrenci yeni cihaz bağlayabilir.',
     });
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'Cihaz kaydı sıfırlanamadı.' });
+    console.error('[yoklama]', e && e.message);
+    return res.status(500).json({ error: 'Cihaz kaydı sıfırlanamadı.' });
   }
 });
 

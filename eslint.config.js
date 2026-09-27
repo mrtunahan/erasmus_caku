@@ -15,6 +15,17 @@ try {
   // kurulu değilse sessiz atla
 }
 
+// eslint-plugin-react YALNIZ `jsx-uses-vars` için: çekirdek no-unused-vars
+// `<Bilesen />` kullanımını referans saymıyor ve JSX'te kullanılan her
+// bileşeni "kullanılmıyor" diye raporluyordu (yüzlerce yanlış uyarı).
+let reactPlugin = null;
+try {
+  const mod = await import('eslint-plugin-react');
+  reactPlugin = mod.default || mod;
+} catch (_e) {
+  // kurulu değilse sessiz atla
+}
+
 export default [
   {
     ignores: [
@@ -46,10 +57,26 @@ export default [
         ReactDOM: 'readonly',
         Quill: 'readonly',
         DOMPurify: 'readonly',
+        // shared-components.jsx'in window'a bağladığı ortak nesneler (modüller
+        // bunları çıplak adla kullanıyor). Liste bilerek dar: tanımlı OLMAYAN
+        // bir ad (ör. eski FirebaseDB/FirestoreWrite) HATA vermeli.
+        C: 'readonly',
+        DB: 'readonly',
+        DBWrite: 'readonly',
+        Auth: 'readonly',
+        useResponsive: 'readonly',
+        // pdf/docx okuyucusu ilk dosyada CDN'den yüklenir (ensureLibsLoaded).
+        mammoth: 'readonly',
+        // vite define ile derleme anında gömülür (vite.config.js).
+        __SURUM__: 'readonly',
       },
     },
-    ...(a11yPlugin ? { plugins: { 'jsx-a11y': a11yPlugin } } : {}),
+    plugins: {
+      ...(a11yPlugin ? { 'jsx-a11y': a11yPlugin } : {}),
+      ...(reactPlugin ? { react: reactPlugin } : {}),
+    },
     rules: {
+      ...(reactPlugin ? { 'react/jsx-uses-vars': 'error' } : {}),
       'no-unused-vars': [
         'warn',
         {
@@ -61,7 +88,9 @@ export default [
       'no-empty': ['warn', { allowEmptyCatch: true }],
       'no-constant-condition': ['warn', { checkLoops: false }],
       'no-prototype-builtins': 'off',
-      'no-undef': 'warn',
+      // HATA: tanımsız bir global (ör. eski Firebase adları) bildirimleri sessizce
+      // bozuyordu; artık CI'da derlemeyi durdurur.
+      'no-undef': 'error',
       'no-useless-escape': 'warn',
       'no-irregular-whitespace': 'warn',
       'no-misleading-character-class': 'warn',

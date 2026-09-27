@@ -1,4 +1,10 @@
 #!/bin/bash
+# ⚠ İKİ YEDEK BETİĞİ VAR. Bu dosya sunucudaki crontab'da bu yolla
+# (server/backup.sh) çağrıldığı için YERİNDE bırakıldı. Daha yeni ve
+# ayarlanabilir sürüm: server/scripts/backup.sh (MONGODB_URI'yi .env'den
+# okur, --gzip arşiv). Crontab ona taşındığında bu dosya kaldırılabilir.
+# İkisi de YALNIZ veritabanını yedekler; server/uploads (yüklenen belgeler)
+# ayrıca yedeklenmelidir.
 # MongoDB günlük yedekleme scripti
 # Kullanım: crontab -e ile ekleyin:
 # 0 3 * * * /var/www/erasmus_caku/server/backup.sh

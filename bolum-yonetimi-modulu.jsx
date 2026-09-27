@@ -180,7 +180,7 @@ const BYBolumBasligi = ({ baslik, aciklama, islem }) => (
 
 // Hangi bölümü düzenlediğimizi söyleyen şerit — modül bölüme özeldir, bu
 // ekranda yapılan her ayar yalnız o bölümü etkiler.
-const byBolumBaslik = {
+const _byBolumBaslik = {
   display: 'flex',
   flexDirection: 'column',
   gap: 1,
@@ -1849,7 +1849,7 @@ function AkademisyenKart({ prof, onSaved, bolumAdi }) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const json = await res.json();
       setPhotoURL(json.downloadURL || '');
-    } catch (err) {
+    } catch (_err) {
       setMsg('Yükleme hatası');
       setTimeout(() => setMsg(''), 2500);
     } finally {
@@ -3755,7 +3755,7 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
     ? window.mezOlcekDogrula(form.notOlcegi || []).sorunlar
     : [];
 
-  const notListesi = (dizi) => (Array.isArray(dizi) ? dizi.join(', ') : '');
+  const _notListesi = (dizi) => (Array.isArray(dizi) ? dizi.join(', ') : '');
   const notAyristir = (metin) =>
     String(metin || '')
       .split(/[,\s]+/)

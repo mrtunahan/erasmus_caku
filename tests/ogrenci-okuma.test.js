@@ -184,3 +184,26 @@ describe('Erasmus eşleştirme geçmişi öğrenciye AYNEN görünür', () => {
     expect(rest.hostInstitution).toBe('TU Berlin');
   });
 });
+
+describe('başvuru koleksiyonları öğrencinin kendisine daralır', () => {
+  it('ÇAP/yandal: ogrenciNo ya da createdBy sahibi görür', () => {
+    const kural = ogrenciOkumaKurali('cap_yandal_basvurular');
+    const kimlik = { no: ['111111111'], ad: '', bolum: '' };
+    const suz = ogrenciOkumasiSuz(
+      [{ ogrenciNo: '111111111' }, { createdBy: '111111111' }, { ogrenciNo: '222222222' }],
+      kural,
+      kimlik
+    );
+    expect(suz).toHaveLength(2);
+  });
+
+  it('yatay geçiş: başkasının başvurusu düşer', () => {
+    const kural = ogrenciOkumaKurali('yatay_gecis_basvurular');
+    const suz = ogrenciOkumasiSuz([{ ogrenciNo: '111111111' }, { ogrenciNo: '222222222' }], kural, {
+      no: ['111111111'],
+      ad: '',
+      bolum: '',
+    });
+    expect(suz).toEqual([{ ogrenciNo: '111111111' }]);
+  });
+});

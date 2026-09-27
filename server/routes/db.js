@@ -31,6 +31,10 @@ const { STUDENT_READ_MASKED, ogrenciMaskesiUygula } = require('../lib/ogrenci-ma
 // Girdi biçimi: kimlik alanları METİN olmalı. Nesne gönderilirse Mongo onu
 // operatör sayar ve rastgele belge silinir (bkz. server/lib/yazma-girdisi.js).
 const { yazmaGirdisiGecerliMi, docIdSahibiMi } = require('../lib/yazma-girdisi');
+// Öğrencinin açtığı yeni kaydın sahiplik alanları (başkası adına kayıt engeli).
+const { yeniKayitSahipligi } = require('../lib/ogrenci-sahiplik-damga');
+// Yapısal kayıtlarda hiyerarşi koruması (bölüm yetkilisi, akademisyen adı).
+const { bolumYetkilisiYapisalYazim, akademisyenAdDegisimi } = require('../lib/yapisal-yazma');
 // Öğrencinin başkasının kaydını okuması: kural (hangi koleksiyon nasıl daralır)
 // tek dosyada ve testli — bkz. server/lib/ogrenci-okuma.js.
 const {
@@ -549,6 +553,10 @@ const STUDENT_DELETE_OWNED = new Set(['portal_posts', 'portal_posts_comments']);
 
 // Öğrencilerin hiç okuyamayacağı koleksiyonlar (personel modülleri)
 const STUDENT_READ_DENY = new Set([
+  // Memur belge kutusu: başka öğrencilerin resmî çıktıları ve dilekçe
+  // adresleri. Hiçbir öğrenci ekranı bu koleksiyonu kullanmıyor; kenar
+  // çubuğu sayacı 403'ü sessizce boş liste sayar (lib/api-hata.js).
+  'memur_outputs',
   // Cihaz kayıtları ve "başkası yerine okutma" denemeleri: öğrencinin
   // sınıftaki herkesin cihaz izini okuyabilmesi, taklit edebilmesi demektir.
   'student_devices',
@@ -833,6 +841,20 @@ async function enforceWritePolicies(db, op, user) {
         error: `Bu koleksiyonu yalnız yöneticiler düzenleyebilir: ${op.collection}`,
       };
     }
+  }
+
+  // a1) Bölüm yetkilisi ROLÜ (bolum_yetkilisi) yapısal koleksiyonlarda yalnız
+  // kendi bölüm kaydını güncelleyebilir; hiyerarşi alanları korunur
+  // (bkz. server/lib/yapisal-yazma.js).
+  if (STRUCTURE_MANAGER_WRITE.has(op.collection) && user.role === 'bolum_yetkilisi') {
+    let mevcutYapi = null;
+    try {
+      mevcutYapi = op.docId ? await findExistingDoc(db, op) : null;
+    } catch (_) {
+      mevcutYapi = null;
+    }
+    const yk = bolumYetkilisiYapisalYazim(op, user, mevcutYapi);
+    if (!yk.izin) return { allow: false, status: 403, error: yk.hata };
   }
 
   // a2) Bölüm yetkilisi koleksiyonları (yol haritaları): sade akademisyen
@@ -1462,6 +1484,36 @@ async function enforceWritePolicies(db, op, user) {
     }
   }
 
+  // b0) Akademisyen ADI değişimi: aynı adlı kayıtların bayrakları birleştiği
+  // için ad değiştirmek yetki devralmaya dönüşebiliyordu (lib/yapisal-yazma.js).
+  if (
+    op.collection === 'professors' &&
+    (op.type === 'set' || op.type === 'update') &&
+    op.data &&
+    typeof op.data === 'object' &&
+    typeof op.data.name === 'string'
+  ) {
+    let mevcutProf = null;
+    try {
+      mevcutProf = await findExistingDoc(db, op);
+    } catch (_) {
+      mevcutProf = null;
+    }
+    if (mevcutProf && op.data.name.trim() !== String(mevcutProf.name || '').trim()) {
+      const flags = await getActorFlags(db, user);
+      const baska = await db
+        .collection('professors')
+        .findOne({ name: op.data.name.trim(), _id: { $ne: mevcutProf._id } });
+      const ad = akademisyenAdDegisimi({
+        mevcut: mevcutProf,
+        yeniAd: op.data.name,
+        adBaskasinda: !!baska,
+        flags,
+      });
+      if (!ad.izin) return { allow: false, status: 403, error: ad.hata };
+    }
+  }
+
   // b) professors üzerindeki yetki bayrakları — yetkisiz aktörde sabitlenir
   if (op.collection === 'professors' && op.data && typeof op.data === 'object') {
     const touchesPriv = PRIV_FIELDS.some((f) => f in op.data);
@@ -1670,11 +1722,25 @@ async function enforceWritePolicies(db, op, user) {
       op.data._owner = ident;
     }
 
-    // Yeni kayıt: sahiplik damgası yeterli
+    // Moderatör listesine yalnız mevcut moderatör yazabilir (öz-terfi engeli).
+    // ⚠ Bu denetim `add` dalının ÖNÜNDE durmalı: eskiden altındaydı ve `add`
+    // erken `allow` döndüğü için öğrenci kendini `add` ile moderatör
+    // yapabiliyordu (moderatör başkasının gönderisini silebilir).
+    if (op.collection === 'portal_moderators') {
+      if (await isPortalModerator(db, ident)) return { allow: true };
+      return { allow: false, status: 403, error: 'Moderatör yetkisi gerekli.' };
+    }
+
+    // Yeni kayıt: sahiplik alanları öğrencinin kendisi olmalı, `_owner`
+    // her zaman işlemi yapan öğrencidir (bkz. server/lib/ogrenci-sahiplik-damga.js).
     if (op.type === 'add') {
-      if (op.data && typeof op.data === 'object' && op.data._owner === undefined) {
-        op.data._owner = ident;
-      }
+      const damga = yeniKayitSahipligi(
+        op.collection,
+        op.data,
+        ident,
+        await ogrenciKapsami(db, ident)
+      );
+      if (!damga.izin) return { allow: false, status: 403, error: damga.hata };
       // muafiyet_records: öğrenci yeni başvuruyu ONAYLI/İLERİ FAZDA gönderemez.
       // Karar ve faz alanları güvenli başlangıç değerlerine sabitlenir.
       if (op.collection === 'muafiyet_records' && op.data && typeof op.data === 'object') {
@@ -1696,12 +1762,6 @@ async function enforceWritePolicies(db, op, user) {
       return { allow: true };
     }
 
-    // Moderatör listesine yalnız mevcut moderatör yazabilir (öz-terfi engeli)
-    if (op.collection === 'portal_moderators') {
-      if (await isPortalModerator(db, ident)) return { allow: true };
-      return { allow: false, status: 403, error: 'Moderatör yetkisi gerekli.' };
-    }
-
     // roadmap/uploads: doküman VAR OLSUN OLMASIN sahip, docId'nin işaret
     // ettiği staj başvurusundan çözülür (başkasının başvurusuna önden kayıt
     // açmak da engellenir).
@@ -1721,14 +1781,16 @@ async function enforceWritePolicies(db, op, user) {
 
     const existing = await findExistingDoc(db, op);
     if (!existing) {
-      // Upsert ile yeni doküman: sahipliği damgala
-      if (
-        (op.type === 'set' || op.type === 'update') &&
-        op.data &&
-        typeof op.data === 'object' &&
-        op.data._owner === undefined
-      ) {
-        op.data._owner = ident;
+      // Upsert ile yeni doküman: `add` ile AYNI sahiplik kuralı — aksi hâlde
+      // var olmayan bir kimliğe `set` ile başkası adına kayıt açılabilirdi.
+      if ((op.type === 'set' || op.type === 'update') && op.data && typeof op.data === 'object') {
+        const damga = yeniKayitSahipligi(
+          op.collection,
+          op.data,
+          ident,
+          await ogrenciKapsami(db, ident)
+        );
+        if (!damga.izin) return { allow: false, status: 403, error: damga.hata };
       }
       return { allow: true };
     }
@@ -2040,9 +2102,11 @@ async function isUniversityAdmin(db, identifier) {
   if (hit && Date.now() - hit.ts < 60 * 1000) return hit.ok;
   let ok = false;
   try {
-    const doc = await db
-      .collection('professors')
-      .findOne({ name: identifier }, { projection: { isUniversityAdmin: 1 } });
+    // findOne DEĞİL: aynı adlı kayıtlarda yetki bayrağı herhangi birinde
+    // olabilir; yazma tarafı (getActorFlags) birleşik profile bakıyor, okuma
+    // tarafı rastgele bir kayda bakınca aynı kişi bir ekranda yetkili, öteki
+    // ekranda yetkisiz görünüyordu.
+    const doc = await profilBul(db, identifier);
     ok = !!(doc && doc.isUniversityAdmin);
   } catch (_e) {
     ok = false;
@@ -2112,16 +2176,6 @@ function isSafeField(name) {
   return SAFE_FIELD_NAME.test(name);
 }
 
-// Rastgele 20 karakterlik ID üret
-function generateId() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let id = '';
-  for (let i = 0; i < 20; i++) {
-    id += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return id;
-}
-
 // Timestamp alanlarını temizle ve sunucu timestamp'i ekle
 function addTimestamps(data, isNew) {
   const cleaned = {};
@@ -2170,7 +2224,7 @@ async function muafiyetSayaclariTazele(db, colName, docId, data) {
       try {
         const byObjId = await col.findOne({ _id: new ObjectId(docId) });
         if (byObjId) filter = { _id: new ObjectId(docId) };
-      } catch (e) {}
+      } catch {}
     }
     const doc = await col.findOne(filter);
     if (!doc || !Array.isArray(doc.matches)) return;
@@ -2219,7 +2273,7 @@ async function executeSingleOp(db, op) {
             try {
               const byObjId = await col.findOne({ _id: new ObjectId(op.docId) });
               if (byObjId) return { _id: new ObjectId(op.docId) };
-            } catch (e) {}
+            } catch {}
           }
           // Fallback to _docId (legacy)
           return { _docId: op.docId };
@@ -2251,7 +2305,7 @@ async function executeSingleOp(db, op) {
         try {
           const byObjId = await col.findOne({ _id: new ObjectId(op.docId) });
           if (byObjId) filter = { _id: new ObjectId(op.docId) };
-        } catch (e) {}
+        } catch {}
       }
       await col.updateOne(filter, updateDoc, { upsert: true });
       await muafiyetSayaclariTazele(db, colName, op.docId, cleaned);
@@ -2270,7 +2324,7 @@ async function executeSingleOp(db, op) {
         try {
           const byObjId = await col.findOne({ _id: new ObjectId(op.docId) });
           if (byObjId) filter = { _id: new ObjectId(op.docId) };
-        } catch (e) {}
+        } catch {}
       }
       const result = await col.deleteOne(filter);
       console.log(`[DELETE] sonuç: ${result.deletedCount} belge silindi (${colName}/${op.docId})`);
@@ -2397,7 +2451,7 @@ function emitDbWrite(req, touchedSet) {
     if (!io || !touchedSet || touchedSet.size === 0) return;
     const collections = Array.from(touchedSet);
     io.emit('db:write', { collections, at: new Date().toISOString() });
-  } catch (e) {
+  } catch {
     /* sessiz: real-time opsiyonel */
   }
 }
@@ -2421,7 +2475,7 @@ router.get('/student-count', async (req, res) => {
     const db = await getDbSafe();
     const count = await db.collection('students').countDocuments({});
     return res.json({ count });
-  } catch (err) {
+  } catch (_err) {
     return res.status(500).json({ error: 'Sayı alınamadı', count: 0 });
   }
 });

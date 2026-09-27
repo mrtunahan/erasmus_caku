@@ -752,7 +752,7 @@ function parsePetitionRows(text, targetCourses) {
   var rows = [];
   // Her satırda iki ders kodu varsa (sol = karşı kurum, sağ = ÇAKÜ)
   var pairPattern = /([A-ZÇĞİÖŞÜa-zçğıöşü]{2,5}\s?\d{3,4})[^\n]*?([A-ZÇĞİÖŞÜ]{2,5}\*?\s?\d{3,4})/;
-  var cakuColPattern = /([A-ZÇĞİÖŞÜ]{2,5})\*?(\d{3,4})/g;
+  var _cakuColPattern = /([A-ZÇĞİÖŞÜ]{2,5})\*?(\d{3,4})/g;
   lines.forEach(function (line) {
     var m = line.match(pairPattern);
     if (m) {
@@ -1478,7 +1478,7 @@ var MuafiyetDB = {
     try {
       var result = await window.apiReadDoc('muafiyet_settings', 'course_contents');
       return result.exists ? result.data.courses || [] : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   },
@@ -1492,7 +1492,7 @@ var MuafiyetDB = {
     try {
       var result = await window.apiReadDoc('muafiyet_settings', 'grading_system');
       return result.exists ? result.data.grades || null : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   },
@@ -1512,7 +1512,7 @@ var MuafiyetDB = {
     try {
       var result = await window.apiReadDoc('muafiyet_settings', 'thresholds');
       return result.exists ? result.data : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   },
@@ -1539,7 +1539,7 @@ var MuafiyetDB = {
     try {
       var docs = await window.apiRead('muafiyet_records', { orderBy: 'createdAt:desc' });
       return docs;
-    } catch (e) {
+    } catch {
       return [];
     }
   },
@@ -1854,7 +1854,7 @@ var MuafiyetDB = {
   async fetchMuafiyetHistory() {
     try {
       return await window.apiRead('muafiyet_history', { orderBy: 'approvedAt:desc' });
-    } catch (e) {
+    } catch {
       return [];
     }
   },
@@ -2819,7 +2819,7 @@ const Button = ({ children, onClick, variant, disabled, small, icon, style: cust
 // AYARLAR PANELİ
 // ══════════════════════════════════════════════════════════════
 
-const SettingsPanel = ({ courseContents, setCourseContents, gradingSystem, setGradingSystem }) => {
+const _SettingsPanel = ({ courseContents, setCourseContents, gradingSystem, setGradingSystem }) => {
   const [loadingCourse, setLoadingCourse] = useState(false);
   const [loadingGrade, setLoadingGrade] = useState(false);
   const [courseFileName, setCourseFileName] = useState('');
@@ -3275,7 +3275,7 @@ function exemptionReducer(state, action) {
 // YENİ MUAFİYET (Wizard Akışı)
 // ══════════════════════════════════════════════════════════════
 
-const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
+const _NewExemption = ({ courseContents, gradingSystem, onSave }) => {
   const [state, dispatch] = React.useReducer(exemptionReducer, EXEMPTION_INITIAL_STATE);
   const {
     step,
@@ -3295,11 +3295,11 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
     loadingGradeEquiv,
     gradeEquivText,
     studentCourses,
-    contentMap,
+    contentMap: _contentMap,
     matches,
     matching,
     msg,
-    detailMatch,
+    detailMatch: _detailMatch,
   } = state;
 
   var targetCourses =
@@ -4687,10 +4687,10 @@ const NewExemption = ({ courseContents, gradingSystem, onSave }) => {
         <div>
           {/* Özet Kartları */}
           {(() => {
-            var reviewCount = matches.filter(function (m) {
+            var _reviewCount = matches.filter(function (m) {
               return m.tier === 'review';
             }).length;
-            var rejectedCount = matches.filter(function (m) {
+            var _rejectedCount = matches.filter(function (m) {
               return m.tier === 'rejected';
             }).length;
             return null; // sadece değişkenleri tanımlamak için IIFE
@@ -5183,7 +5183,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
   // Kayıt üzerinden tablo eklendiğinde listeyi yeniden okutur; çeviri de
   // kendiliğinden tazelenir (yoksa akademisyen sayfayı yenilemek zorundaydı).
   const [olcekSurumu, setOlcekSurumu] = useState(0);
-  const [tabloAcik, setTabloAcik] = useState(false);
+  const [_tabloAcik, _setTabloAcik] = useState(false);
   const [okumaNotu, setOkumaNotu] = useState('');
   const [okumaHatali, setOkumaHatali] = useState(false);
   // Kurum adı iki alandan gelebiliyor: güncel form `otherUni` yazıyor, eski
@@ -6654,7 +6654,7 @@ const ReviewPanel = ({
   const [duzenIndeks, setDuzenIndeks] = useState(-1);
   const [duzenForm, setDuzenForm] = useState(null);
   const [duzenHata, setDuzenHata] = useState('');
-  const [duzenMesaj, setDuzenMesaj] = useState('');
+  const [_duzenMesaj, setDuzenMesaj] = useState('');
   const [duzenKaydediyor, setDuzenKaydediyor] = useState(false);
   // ── RED GEREKÇESİ ZORUNLU ──
   // Red tek tıklamayla veriliyordu ve gerekçe alanı boş kalıyordu; öğrenci
@@ -8720,7 +8720,14 @@ function OlcekTablosu({ satirlar, bos }) {
 // Hangi yol seçilirse seçilsin satırlar KAYDEDİLMEDEN ÖNCE gösterilir ve
 // düzenlenebilir: okunan tablo da bir tahmindir, onaylayan insandır.
 // ══════════════════════════════════════════════════════════════
-function OlcekEksikPaneli({ kurum, belgeUrl, departmentId, currentUser, kayitlar, onKaydedildi }) {
+function OlcekEksikPaneli({
+  kurum,
+  belgeUrl,
+  departmentId: _departmentId,
+  currentUser,
+  kayitlar,
+  onKaydedildi,
+}) {
   const [acik, setAcik] = useState(false);
   const [okuyor, setOkuyor] = useState(false);
   const [satirlar, setSatirlar] = useState(null);

@@ -3,7 +3,7 @@
 // Fakülte bazlı navigasyon, bölüm seçimi ve kimlik doğrulama
 // ══════════════════════════════════════════════════════════════
 
-const { useState, useEffect, useCallback, useRef, useMemo } = React;
+const { useState, useEffect, useCallback, useRef: _useRef, useMemo } = React;
 
 // ── Shared bileşenlerden import (window üzerinden) ──
 const C = window.C;
@@ -526,7 +526,7 @@ const TopHeader = ({
 // ══════════════════════════════════════════════════════════════
 const Sidebar = ({
   activeDepartment,
-  onDepartmentChange,
+  onDepartmentChange: _onDepartmentChange,
   currentRoute,
   onNavigate,
   currentUser,
@@ -542,7 +542,7 @@ const Sidebar = ({
   // Hiyerarşi: bölüm yetkilisi rolü VEYA isDeptManager bayraklı akademisyen
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
   const isProfessor = currentUser?.role === 'professor';
-  const isStudent = !isAdmin && !isDeptManager && !isProfessor;
+  const _isStudent = !isAdmin && !isDeptManager && !isProfessor;
   // Üni/fakülte yetkilisi — modül görünürlüğünde admin gibi davranır
   const isHierarchyManager = !!(currentUser?.isUniversityAdmin || currentUser?.isFacultyManager);
   // Yalnız ÜNİVERSİTE yetkilisi (fakülte yetkilisi de 'admin' rolüyle geldiği
@@ -580,7 +580,7 @@ const Sidebar = ({
   const isMemur = currentUser?.role === 'memur' || !!currentUser?.isMemur;
 
   // Ortak helper: rol + bayrak + additionalDepartments hepsini birden yönetir.
-  const availableDepts = computeAvailableDepts(currentUser, adminScope);
+  const _availableDepts = computeAvailableDepts(currentUser, adminScope);
 
   // Aktif bölüm bir EK BÖLÜM mü? (kullanıcı buraya çapraz-bölüm olarak atanmış
   // — ana bölümü değil.) Eğer öyle ise yetkili modüllerine değil, sadece
@@ -2307,7 +2307,7 @@ function AppShell() {
           ? window.komisyonErisimModulleri(comms, currentUser?.name || currentUser?.identifier)
           : [];
         if (!cancelled) setCommissionModules(ids);
-      } catch (e) {
+      } catch {
         if (!cancelled) setCommissionModules([]);
       }
     };
@@ -2326,6 +2326,7 @@ function AppShell() {
       const lastAct = parseInt(localStorage.getItem(IDLE_ACTIVITY_KEY) || '0', 10);
       if (saved && lastAct && Date.now() - lastAct >= IDLE_LIMIT_MS) {
         localStorage.removeItem('caku_auth_token');
+        localStorage.removeItem('caku_oturum');
         localStorage.removeItem('caku_current_user');
         localStorage.removeItem(IDLE_ACTIVITY_KEY);
         saved = null;
@@ -2365,19 +2366,19 @@ function AppShell() {
     }
 
     // Oturum dinleyicisi: JWT token süresi dolmuşsa çıkış yap
+    // Jeton artık tarayıcı belleğinde tutulmuyor (httpOnly çerezde); süre
+    // `caku_oturum` kaydından izlenir (bkz. shared-components.jsx →
+    // oturumBilgisiniYaz).
     const tokenCheckInterval = setInterval(() => {
-      const token = localStorage.getItem('caku_auth_token');
-      if (token) {
-        try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          if (payload.exp * 1000 < Date.now()) {
-            localStorage.removeItem('caku_auth_token');
-            localStorage.removeItem('caku_current_user');
-            setCurrentUser(null);
-          }
-        } catch (e) {
-          localStorage.removeItem('caku_auth_token');
+      try {
+        const o = JSON.parse(localStorage.getItem('caku_oturum') || 'null');
+        if (o && o.exp && o.exp * 1000 < Date.now()) {
+          localStorage.removeItem('caku_oturum');
+          localStorage.removeItem('caku_current_user');
+          setCurrentUser(null);
         }
+      } catch {
+        localStorage.removeItem('caku_oturum');
       }
     }, 60000); // Her 1 dakikada kontrol
 
@@ -2504,7 +2505,7 @@ function AppShell() {
   // Rol kapsamı değişimi: localStorage'a yaz; fakülte kapsamına geçildiğinde
   // aktif bölüm o fakültenin bir bölümüne otomatik düşer (yetkisiz görünüm
   // kalmasın).
-  const handleScopeChange = useCallback(
+  const _handleScopeChange = useCallback(
     (nextScope) => {
       setAdminScope(nextScope);
       try {
@@ -2534,10 +2535,10 @@ function AppShell() {
   const isAdmin = currentUser?.role === 'admin';
   const isProfessor = currentUser?.role === 'professor';
   const isDeptManager = currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
-  const isStudent = !isAdmin && !isProfessor && !isDeptManager;
+  const _isStudent = !isAdmin && !isProfessor && !isDeptManager;
 
   // All valid route IDs
-  const ALL_MODULE_IDS = [
+  const _ALL_MODULE_IDS = [
     ...DEPARTMENT_MODULES.map((m) => m.id),
     ...COMMON_MODULES.map((m) => m.id),
     ...ADMIN_MODULES.map((m) => m.id),
@@ -2610,6 +2611,7 @@ function AppShell() {
     }
     try {
       localStorage.removeItem('caku_auth_token');
+      localStorage.removeItem('caku_oturum');
       localStorage.removeItem('caku_current_user');
       localStorage.removeItem(IDLE_ACTIVITY_KEY);
     } catch (_) {
@@ -2739,7 +2741,7 @@ function AppShell() {
           /* koleksiyon yoksa aşağıdaki legacy kontrolüne düş */
         }
         if (!hasCourses) {
-          const students = await window.FirebaseDB.fetchStudents();
+          const students = await window.DB.fetchStudents();
           const me = students.find((s) => s.studentNumber === currentUser.studentNumber);
           hasCourses = Array.isArray(me?.myCourseIds) && me.myCourseIds.length > 0;
         }
@@ -2747,7 +2749,7 @@ function AppShell() {
           setStudentHasCourses(hasCourses);
           setStudentCoursesChecked(true);
         }
-      } catch (e) {
+      } catch {
         // Hata durumunda engellemeyelim
         if (!cancelled) {
           setStudentHasCourses(true);
@@ -2776,7 +2778,7 @@ function AppShell() {
     let cancelled = false;
     (async () => {
       try {
-        const students = await window.FirebaseDB.fetchStudents();
+        const students = await window.DB.fetchStudents();
         const me = students.find((s) => s.studentNumber === currentUser.studentNumber);
         if (!me || cancelled) return;
         const serverErasmus = me.erasmusAccess === true;

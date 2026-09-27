@@ -17,14 +17,14 @@ const Badge = window.Badge;
 const HOME_INSTITUTION_CATALOG = window.HOME_INSTITUTION_CATALOG;
 const convertGrade = window.convertGrade;
 const DB = window.DB;
-const UploadIcon = window.UploadIcon;
+const _UploadIcon = window.UploadIcon;
 const DownloadIcon = window.DownloadIcon;
 const PlusIcon = window.PlusIcon;
 const EditIcon = window.EditIcon;
 const TrashIcon = window.TrashIcon;
 const ArrowRightIcon = window.ArrowRightIcon;
 const FileTextIcon = window.FileTextIcon;
-const PasswordManagementModal = window.PasswordManagementModal;
+const _PasswordManagementModal = window.PasswordManagementModal;
 const GradeConverter = window.GradeConverter;
 
 // ── Metin normalizasyonu (öğrencinin elle girdiği bilgiler) ──
@@ -91,7 +91,7 @@ const eSectionTitle = {
 
 // ── JSZip yükleyici (gerçek .docx üretimi için) ──
 let _jszipPromise = null;
-const loadJSZip = () => {
+const _loadJSZip = () => {
   if (window.JSZip) return Promise.resolve(window.JSZip);
   if (_jszipPromise) return _jszipPromise;
   _jszipPromise = new Promise((resolve, reject) => {
@@ -129,7 +129,7 @@ const downloadAsDocx = async (html, filename) => {
     inner +
     '</body></html>';
 
-  // ﻿ (BOM) + application/msword → Word doğru kodlama ve türle açar
+  // U+FEFF (BOM) + application/msword → Word doğru kodlama ve türle açar
   const blob = new Blob(['﻿', doc], {
     type: 'application/msword;charset=utf-8',
   });
@@ -652,7 +652,7 @@ const CourseMatchCard = ({
   onDelete,
   onEdit,
   showGrade,
-  type,
+  type: _type,
   readOnly = false,
   canApprove = false,
   // Gidiş eşleştirmesi onaya girmez: ne rozet ne onay düğmesi gösterilir.
@@ -1277,7 +1277,7 @@ const CourseMatchEditModal = ({
           {editedMatch.hostCourses.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {editedMatch.hostCourses.map((course, idx) => {
-                const gradeKey = `hostGrade_${idx}`;
+                const _gradeKey = `hostGrade_${idx}`;
                 const gradeVal = editedMatch.hostGrades?.[idx] ?? editedMatch.hostGrade ?? '';
                 return (
                   <div
@@ -1613,7 +1613,7 @@ const InstitutionMatchesModal = ({
   const r = useResponsive();
   const [selectedMatches, setSelectedMatches] = useState([]);
   const [tripHistory, setTripHistory] = useState([]);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [_historyLoaded, setHistoryLoaded] = useState(false);
 
   // ⚠ BÖLÜM İZOLASYONU: burada kurumun TÜM bölümlerdeki eşleştirme geçmişi
   // çekiliyordu. Yalnız Bilgisayar Mühendisliği'nin geçmişi olduğu için, aynı
@@ -2347,7 +2347,12 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect, activeDepartment }) =>
 };
 
 // ── Trip History Modal (Eşleştirme Geçmişi) ──
-const TripHistoryModal = ({ onClose, isReadOnly = false, activeDepartment, currentUser }) => {
+const TripHistoryModal = ({
+  onClose,
+  isReadOnly = false,
+  activeDepartment,
+  currentUser: _currentUser,
+}) => {
   const r = useResponsive();
   const [selectedUni, setSelectedUni] = useState('');
   const [history, setHistory] = useState([]);
@@ -2518,7 +2523,7 @@ const TripHistoryModal = ({ onClose, isReadOnly = false, activeDepartment, curre
     try {
       await DB.deleteTripHistoryEntry(entryId);
       setHistory((prev) => prev.filter((h) => h.id !== entryId));
-    } catch (e) {
+    } catch {
       alert('Silme sırasında hata oluştu.');
     }
   };
@@ -5255,16 +5260,20 @@ ${rows.join('')}
 };
 
 // ── Main Erasmus Module (receives currentUser as prop) ──
-function ErasmusLearningAgreementApp({ currentUser, activeDepartment, departmentInfo }) {
+function ErasmusLearningAgreementApp({
+  currentUser,
+  activeDepartment,
+  departmentInfo: _departmentInfo,
+}) {
   const r = useResponsive();
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSemester, setSelectedSemester] = useState('all');
+  const [searchTerm, _setSearchTerm] = useState('');
+  const [selectedSemester, _setSelectedSemester] = useState('all');
   const [loading, setLoading] = useState(true);
   const [showTripHistory, setShowTripHistory] = useState(false);
   const [customUniversities, setCustomUniversities] = useState({});
-  const fileInputRef = useRef(null);
+  const _fileInputRef = useRef(null);
 
   // ── ÜNİVERSİTELER BÖLÜME ÖZELDİR ──
   // Bir bölümün Erasmus ortağı, başka bölümü ilgilendirmez; ders katalogları da
@@ -5502,7 +5511,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
     }
     return semesters;
   };
-  const semesters = generateSemesters();
+  const _semesters = generateSemesters();
 
   // Bir öğrencinin yalnızca kendi kaydına erişebilmesi için kontrol.
   // Admin ve bölüm yetkilisi tüm öğrencileri görür; öğrenci rolündeki
@@ -5670,7 +5679,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
     }
   };
 
-  const handleAddStudent = async () => {
+  const _handleAddStudent = async () => {
     const newStudent = {
       id: String(Date.now()),
       studentNumber: '',
@@ -5687,7 +5696,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
     setSelectedStudent(newStudent);
   };
 
-  const handleToggleErasmusAccess = async (student) => {
+  const _handleToggleErasmusAccess = async (student) => {
     try {
       const newAccess = !student.erasmusAccess;
       await DB.updateStudent(student.id, { ...student, erasmusAccess: newAccess });
@@ -5700,7 +5709,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
     }
   };
 
-  const exportAllData = () => {
+  const _exportAllData = () => {
     const data = students.map((s) => ({
       'Öğrenci Numarası': s.studentNumber,
       Ad: s.firstName,
@@ -5726,7 +5735,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
     a.click();
   };
 
-  const handleImport = (e) => {
+  const _handleImport = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -5737,7 +5746,7 @@ function ErasmusLearningAgreementApp({ currentUser, activeDepartment, department
           setStudents((prev) => [...prev, ...importedData]);
           alert(`${importedData.length} öğrenci içeye aktarıldı!`);
         }
-      } catch (error) {
+      } catch (_error) {
         alert('Dosya formati hatali!');
       }
     };

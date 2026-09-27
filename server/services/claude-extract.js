@@ -24,7 +24,7 @@ const AnthropicPkg = require('@anthropic-ai/sdk');
 const Anthropic = AnthropicPkg.Anthropic || AnthropicPkg.default || AnthropicPkg;
 const { getDbSafe } = require('../config/database');
 const { istekGruplari } = require('./doc-text');
-const { kullanimKaydet, maliyetHesapla } = require('./ai-usage');
+const { kullanimKaydet, maliyetHesapla: _maliyetHesapla } = require('./ai-usage');
 
 // Kimlik tarihsiz biçimde yazılır. Tarih ekli sürüm ('…-20251001') bir
 // anlık görüntüye çakılıyordu; tarihsiz kimlik modelin kendisini gösterir.

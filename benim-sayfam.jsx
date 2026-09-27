@@ -30,7 +30,7 @@ const BS_SINIF_COLORS = {
 
 const BS_DONEM_LABEL = { guz: 'Güz', bahar: 'Bahar', yaz: 'Yaz', genel: 'Genel' };
 
-function bsTimeAgo(iso) {
+function _bsTimeAgo(iso) {
   if (!iso) return '';
   try {
     var d = new Date(iso);
@@ -49,7 +49,7 @@ function bsTimeAgo(iso) {
 }
 
 // Akademik takvim tarih yardımcıları
-function bsFormatDate(iso) {
+function _bsFormatDate(iso) {
   try {
     return new Date(iso).toLocaleDateString('tr-TR', {
       day: '2-digit',
@@ -71,7 +71,7 @@ function bsDaysUntil(iso) {
     return null;
   }
 }
-function bsDaysUntilLabel(days) {
+function _bsDaysUntilLabel(days) {
   if (days === null) return '';
   if (days < 0) return 'Geçti';
   if (days === 0) return 'Bugün';
@@ -101,7 +101,7 @@ function bsMonthLabel(d) {
     return '';
   }
 }
-function bsMonthShort(d) {
+function _bsMonthShort(d) {
   // Türkçe kısa ay (Oca, Şub, Mar, ...) — TR locale veriyor, baş harf büyük
   try {
     var s = d.toLocaleDateString('tr-TR', { month: 'short' }).replace(/\./g, '');
@@ -111,7 +111,7 @@ function bsMonthShort(d) {
   }
 }
 // Mini takvim için: 6×7 hücre, ay başlangıç ve bitişi
-function bsMiniMonth(d) {
+function _bsMiniMonth(d) {
   var first = new Date(d.getFullYear(), d.getMonth(), 1);
   var dow = (first.getDay() + 6) % 7;
   var start = new Date(first);
@@ -125,7 +125,7 @@ function bsMiniMonth(d) {
   return cells;
 }
 // Bir hücrenin (gün) renk önceliği: 'soon' | 'future' | 'past' | null
-function bsCellPriority(events) {
+function _bsCellPriority(events) {
   var hasSoon = false,
     hasFuture = false,
     hasPast = false;
@@ -261,7 +261,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     return d;
   });
   // Hover popover: { ev, rect } — etkinlik çubuğunun üzerine gelinince doldurulur
-  const [hoverInfo, setHoverInfo] = useState(null);
+  const [_hoverInfo, _setHoverInfo] = useState(null);
   // Takvim için responsive: geniş ekranda 2 sütun (sol panel + grid), dar ekranda tek sütun
   const _bsResp = window.useResponsive ? window.useResponsive() : { width: 1200 };
   const bsCalLayout = { isWide: _bsResp.width > 880 };
@@ -977,7 +977,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   }, [sortedCalendar]);
 
   // Yaklaşan tarihler bildirimi: önümüzdeki 15 gün içindeki etkinlikler
-  const upcomingSoon = useMemo(() => {
+  const _upcomingSoon = useMemo(() => {
     return upcomingEvents.filter((ev) => {
       const days = bsDaysUntil(ev.date);
       return days !== null && days <= 15;
@@ -986,7 +986,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
 
   // Tarih → o güne düşen etkinlik(ler) haritası. Aralıklı etkinlikler her
   // güne yazılır; sıralama tarih başlangıcına göredir.
-  const eventsByDate = useMemo(() => {
+  const _eventsByDate = useMemo(() => {
     const map = new Map();
     calendar.forEach((ev) => {
       if (!ev || !ev.date) return;
@@ -1210,7 +1210,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     );
   }
 
-  const hasSelected =
+  const _hasSelected =
     Array.isArray(studentRecord?.myCourseIds) && studentRecord.myCourseIds.length > 0;
   const deptName = departmentInfo?.name || studentRecord?.departmentName || '—';
 

@@ -62,10 +62,10 @@ paths:
       responses:
         '200': { description: OK }
 
-  /auth/login:
+  /auth/student:
     post:
       tags: [auth]
-      summary: Kullanıcı girişi
+      summary: Öğrenci girişi
       security: []
       requestBody:
         required: true
@@ -74,17 +74,76 @@ paths:
             schema:
               type: object
               properties:
-                username: { type: string }
+                studentNumber: { type: string }
                 password: { type: string }
-              required: [username, password]
+              required: [studentNumber, password]
       responses:
         '200':
-          description: Token httpOnly cookie olarak set edilir
-        '401':
-          description: Geçersiz kimlik
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+          description: 'Başarılıysa oturum httpOnly caku_auth çerezine yazılır ({ success, ... }); hatalı girişte { success: false, error }'
+        '400':
+          description: Eksik ya da metin olmayan alan
+        '429':
+          description: Çok fazla deneme
+
+  /auth/professor:
+    post:
+      tags: [auth]
+      summary: Akademisyen girişi
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                professorName: { type: string }
+                password: { type: string }
+              required: [professorName, password]
+      responses:
+        '200': { description: 'Oturum çereze yazılır; yanıtta profil bayrakları döner' }
+
+  /auth/department-manager:
+    post:
+      tags: [auth]
+      summary: Bölüm yetkilisi girişi
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                managerName: { type: string }
+                password: { type: string }
+              required: [managerName, password]
+      responses:
+        '200': { description: Oturum çereze yazılır }
+
+  /auth/admin:
+    post:
+      tags: [auth]
+      summary: Yönetici girişi
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password: { type: string }
+              required: [password]
+      responses:
+        '200': { description: Oturum çereze yazılır }
+
+  /auth/change-password:
+    post:
+      tags: [auth]
+      summary: Şifre belirleme / değiştirme / yetkili sıfırlaması
+      responses:
+        '200': { description: '{ success } ya da { success: false, error }' }
 
   /auth/logout:
     post:

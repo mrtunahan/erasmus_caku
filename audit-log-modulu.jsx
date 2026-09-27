@@ -94,7 +94,7 @@ const describeDetail = (l) => {
   return parts.join(' → ') || '—';
 };
 
-function AuditLogModuluApp({ currentUser, activeDepartment }) {
+function AuditLogModuluApp({ currentUser, activeDepartment: _activeDepartment }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
