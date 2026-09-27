@@ -22,16 +22,23 @@ WORKDIR /app
 # Sadece koşum için gerekli dosyalar
 COPY --from=server-deps /app/node_modules ./node_modules
 COPY server/ ./server/
+# ⚠ Sunucu kök lib/ altındaki ortak kural dosyalarını import ediyor
+# (routes/db.js, routes/yoklama.js → import('../../lib/...')). Bu satır
+# yokken imajda anket/muafiyet/staj yazmaları ve yoklama 500 dönüyordu.
+COPY lib/ ./lib/
 COPY --from=frontend /app/dist ./dist
 
-# Express app dist/'i ayrıca servis etmek isterse, server/index.js içinde
-# express.static('dist') eklenebilir; mevcut deploy nginx ile yapılıyor.
+# Express dist/'i servis ETMEZ; imaj önünde dist/'i sunan bir nginx
+# (ssl-setup/nginx-domain.conf) gerektirir. Yüklenen dosyalar
+# /app/server/uploads altındadır — kalıcı olması için volume bağlayın:
+#   docker run -v caku_uploads:/app/server/uploads ...
 WORKDIR /app/server
 EXPOSE 3001
 
 # Container içinde root değil
-RUN addgroup -S app && adduser -S app -G app && \
+RUN mkdir -p /app/server/uploads && addgroup -S app && adduser -S app -G app && \
     chown -R app:app /app
+VOLUME ["/app/server/uploads"]
 USER app
 
 CMD ["node", "index.js"]

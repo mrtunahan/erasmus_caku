@@ -75,11 +75,26 @@ fi
 # npm install çalıştırmak dakikalarca sürüyor ve çoğu zaman gereksiz.
 # (HEAD@{1} yerine çekimden ÖNCE saklanan sha kullanılıyor: reflog dal
 # değiştirince yanlış noktayı gösteriyor ve kurulum atlanabiliyordu.)
+# `npm ci` lock dosyasına birebir uyar; `npm install` lock'u sessizce
+# değiştirip sunucudaki kopyayı "kaydedilmemiş değişiklik" durumuna
+# düşürebiliyordu (bir sonraki dağıtım o yüzden duruyordu).
 if ! git diff --quiet "$ONCEKI" HEAD -- package.json package-lock.json 2>/dev/null; then
-  echo "▸ Bağımlılıklar değişmiş, kuruluyor…"
-  npm install
+  echo "▸ Arayüz bağımlılıkları değişmiş, kuruluyor…"
+  npm ci --no-audit --no-fund
 else
-  echo "▸ Bağımlılıklar değişmemiş, atlanıyor."
+  echo "▸ Arayüz bağımlılıkları değişmemiş, atlanıyor."
+fi
+
+# ⚠ SUNUCU BAĞIMLILIKLARI HİÇ KURULMUYORDU. Yukarıdaki denetim yalnız kök
+# package.json'a bakıyordu; server/package.json'a yeni paket eklendiğinde
+# pm2 yeni kodu eski node_modules ile açıyor ve "Cannot find module" ile
+# düşüyordu.
+if [ ! -d server/node_modules ] || \
+   ! git diff --quiet "$ONCEKI" HEAD -- server/package.json server/package-lock.json 2>/dev/null; then
+  echo "▸ Sunucu bağımlılıkları değişmiş, kuruluyor…"
+  (cd server && npm ci --omit=dev --no-audit --no-fund)
+else
+  echo "▸ Sunucu bağımlılıkları değişmemiş, atlanıyor."
 fi
 
 echo "▸ Derleniyor…"
@@ -94,6 +109,27 @@ echo "▸ Yayındaki sürüm: $(cat dist/surum.json 2>/dev/null || echo 'surum.j
 
 echo "▸ Sunucu yeniden başlatılıyor…"
 pm2 restart "$PM2_AD" --update-env
+
+# Yeniden başlatma "başarılı" dönse de süreç açılışta düşebilir. Canlılık
+# ucu 30 sn içinde cevap vermezse dağıtım BAŞARISIZ sayılır ve geri dönüş
+# komutu yazdırılır (otomatik geri alma yapılmaz — neyin geri alındığını
+# dağıtımı yapan görsün).
+PORT_NO="${PORT:-3001}"
+echo "▸ Sağlık kontrolü (http://127.0.0.1:$PORT_NO/api/health/live)…"
+SAGLIKLI=0
+for _ in $(seq 1 15); do
+  if curl -fsS "http://127.0.0.1:$PORT_NO/api/health/live" >/dev/null 2>&1; then
+    SAGLIKLI=1
+    break
+  fi
+  sleep 2
+done
+if [ "$SAGLIKLI" != "1" ]; then
+  echo "✖ Sunucu 30 sn içinde ayağa kalkmadı. Günlük: pm2 logs $PM2_AD --lines 100"
+  echo "  Önceki sürüme dönmek için:"
+  echo "    git checkout -B \"$DAL\" $ONCEKI && npm run build && pm2 restart $PM2_AD --update-env"
+  exit 1
+fi
 
 echo
 echo "✓ Dağıtım tamam — $(git rev-parse --short HEAD) ($(git log -1 --format=%s))"
