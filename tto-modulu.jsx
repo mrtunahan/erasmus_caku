@@ -6,6 +6,10 @@
 //   • Talep formu  — Üniversite ile İşbirliği Talep Formu (TTO-TF-001)
 //   • Yol Haritası — talebin akışı (akademisyen → TTO birimi → karar)
 //
+// YÖNETİCİ tarafı (TTO yöneticisi / üniversite yetkilisi / admin):
+//   • İş Kayıtları, Firmalar, Akademisyenler, Oranlar — danışmanlık işleri ve
+//     akademisyen ödemeleri defteri (tto-odeme-yonetimi.jsx, lib/tto-odeme.js)
+//
 // Kurallar (zorunlu alanlar, durum geçişleri, akademisyenin dokunamayacağı
 // TTO alanları, şablon değişkenleri) lib/tto-talep.js'te; sunucu aynı
 // dosyayla karar verir (server/routes/db.js).
@@ -33,6 +37,7 @@ import {
   ttoEtiketDegerleri,
   ttoWordGovdesi,
 } from './lib/tto-talep.js';
+import { TtoOdemeYonetimi, TTO_YONETIM_SEKMELERI } from './tto-odeme-yonetimi.jsx';
 
 const { useState, useEffect, useCallback, useMemo } = React;
 
@@ -914,6 +919,13 @@ function TtoApp({ currentUser }) {
   const [acik, setAcik] = useState(null); // düzenlenen / görüntülenen talep
   const [profil, setProfil] = useState(null);
   const [ayarKaydi, setAyarKaydi] = useState(null);
+  // Yönetici sekmelerinin görünmesi yalnız kolaylıktır; asıl kapı sunucudadır
+  // (bayrak girişte TTO birimi üyeliğinden hesaplanır — server/lib/tto-birim.js).
+  const yonetici = !!(
+    currentUser &&
+    (currentUser.isTtoYoneticisi || currentUser.isUniversityAdmin || currentUser.role === 'admin')
+  );
+  const yonetimSekmesi = TTO_YONETIM_SEKMELERI.some((s) => s.id === sekme);
 
   const yukle = useCallback(async () => {
     setHata('');
@@ -922,7 +934,7 @@ function TtoApp({ currentUser }) {
       const liste = (await oku('tto_talepleri')) || [];
       // Sunucu akademisyene zaten yalnız kendi taleplerini verir; TTO
       // yöneticisi bütün listeyi alır — "Taleplerim" yine yalnız kendisininkini
-      // gösterir (yönetici paneli 2. aşamada).
+      // gösterir (gelen taleplerin incelenmesi henüz yönetici sekmelerinde yok).
       const benim = liste.filter((t) => metin(t.sahip) === kimlik);
       benim.sort((a, b) =>
         String(b.updatedAt || b.createdAt || '').localeCompare(
@@ -993,16 +1005,21 @@ function TtoApp({ currentUser }) {
       { id: 'talepler', label: 'Taleplerim' },
       { id: 'form', label: acik ? (acik.id ? 'Talep' : 'Yeni talep') : 'Yeni talep' },
       { id: 'yol', label: 'Yol Haritası' },
+      ...(yonetici ? TTO_YONETIM_SEKMELERI.map((s) => ({ ...s, yonetim: true })) : []),
     ],
-    [acik]
+    [acik, yonetici]
   );
 
   return (
-    <div style={{ maxWidth: 980, margin: '0 auto', padding: '8px 4px 40px' }}>
+    <div
+      style={{ maxWidth: yonetimSekmesi ? 1240 : 980, margin: '0 auto', padding: '8px 4px 40px' }}
+    >
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: T.navy }}>Teknoloji Transfer Ofisi</div>
         <div style={{ fontSize: 13, color: T.soluk, marginTop: 2 }}>
-          ÇAKÜ TTO A.Ş. ile üniversite işbirliği talepleri
+          {yonetimSekmesi
+            ? 'Danışmanlık iş kayıtları ve akademisyen ödemeleri'
+            : 'ÇAKÜ TTO A.Ş. ile üniversite işbirliği talepleri'}
         </div>
       </div>
 
@@ -1016,11 +1033,13 @@ function TtoApp({ currentUser }) {
           overflowX: 'auto',
         }}
       >
-        {sekmeler.map((s) => {
+        {sekmeler.map((s, i) => {
           const aktif = sekme === s.id;
+          const ayrac = s.yonetim && !(sekmeler[i - 1] && sekmeler[i - 1].yonetim);
           return (
             <button
               key={s.id}
+              title={s.yonetim ? 'TTO yöneticisi' : undefined}
               role="tab"
               aria-selected={aktif}
               onClick={() => {
@@ -1038,6 +1057,9 @@ function TtoApp({ currentUser }) {
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 fontFamily: "'Inter', sans-serif",
+                // Yönetici sekmeleri akademisyen sekmelerinden ayrılır.
+                marginLeft: ayrac ? 12 : 0,
+                boxShadow: ayrac ? `-12px 0 0 -11px ${T.kenar}` : 'none',
               }}
             >
               {s.label}
@@ -1069,6 +1091,7 @@ function TtoApp({ currentUser }) {
         />
       )}
       {sekme === 'yol' && <YolHaritasi />}
+      {yonetici && yonetimSekmesi && <TtoOdemeYonetimi sekme={sekme} setSekme={setSekme} />}
     </div>
   );
 }

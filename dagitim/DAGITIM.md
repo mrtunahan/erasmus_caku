@@ -108,6 +108,23 @@ mongosh erasmus_caku --eval 'db.tenant_config.updateOne({_docId:"main"},{$set:{
 KVKK aydınlatma metninin başvuru bölümü bu alanlardan doldurulur; boşken
 metin `[kurum tarafından doldurulacak]` der ve pencerede uyarı çıkar.
 
+## TTO ödeme defteri (eski TTO Otomasyonu verisi)
+
+TTO modülünün yönetici sekmeleri (İş Kayıtları, Firmalar, Akademisyenler,
+Oranlar) eskiden ayrı çalışan TTO Otomasyonu uygulamasının yerini alır.
+Eski SQLite dosyası (`backend/data/tto.db`) bir kez aktarılır; betik önce
+deneme yapar, `UYGULA=1` ile yazar ve ikinci kez çalıştırılırsa kayıtları
+yinelemez:
+
+```bash
+node server/tto-odeme-aktar.js /yol/tto.db            # deneme: ne aktarılacak?
+UYGULA=1 node server/tto-odeme-aktar.js /yol/tto.db   # yaz
+```
+
+Sekmeleri yalnız TTO birimine kayıtlı akademisyen, üniversite yetkilisi ve
+admin görür; kimin TTO yöneticisi sayıldığı `server/teshis-tto-birim.js` ile
+denetlenebilir.
+
 ## Doğrulama
 
 ```bash
