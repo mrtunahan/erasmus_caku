@@ -24,6 +24,8 @@ import {
   TTO_YOL_HARITASI,
   akademisyenDuzenleyebilirMi,
   bosTalep,
+  profildenGenelBilgi,
+  TTO_PROFIL_ALANLARI,
   projeBilgisiGerekliMi,
   talepHatalari,
   ttoAyarlari,
@@ -225,7 +227,18 @@ function EvetHayir({ ad, deger, onChange, kilitli }) {
   );
 }
 
-function TalepFormu({ talep, ayarKaydi, onKapat, onKaydedildi, kimlik }) {
+// Akademisyenin bölüm adı (profil kaydındaki kimlik; bölüm birden çok
+// kimlikle anılabildiği için `kimlikler` de denenir).
+function bolumAdiBul(profil) {
+  const id = metin(profil && profil.departmentId);
+  if (!id) return '';
+  const d = (window.DEPARTMENTS || []).find(
+    (x) => metin(x.id) === id || (Array.isArray(x.kimlikler) && x.kimlikler.indexOf(id) >= 0)
+  );
+  return d ? metin(d.name) : '';
+}
+
+function TalepFormu({ talep, ayarKaydi, onKapat, onKaydedildi, kimlik, profil }) {
   const [form, setForm] = useState(talep);
   const [mesgul, setMesgul] = useState('');
   const [mesaj, setMesaj] = useState(null); // { tur: 'hata'|'bilgi', metin, liste? }
@@ -239,6 +252,19 @@ function TalepFormu({ talep, ayarKaydi, onKapat, onKaydedildi, kimlik }) {
   const a = ttoAyarlari(ayarKaydi);
 
   const genelAyarla = (alan, v) => setForm((f) => ({ ...f, genel: { ...f.genel, [alan]: v } }));
+  // Benim Sayfam kaydındaki güncel bilgileri forma yeniden aktarır (eski
+  // taslaklarda adın içinde unvan kalmış olabilir; bu düğme onu da düzeltir).
+  // Profilde boş olan alan formdaki değeri silmez.
+  const benimSayfamdanAl = () => {
+    const pg = profildenGenelBilgi(profil, bolumAdiBul(profil));
+    setForm((f) => {
+      const g = { ...f.genel };
+      TTO_PROFIL_ALANLARI.forEach((a) => {
+        if (metin(pg[a])) g[a] = pg[a];
+      });
+      return { ...f, genel: g };
+    });
+  };
   const projeAyarla = (alan, v) => setForm((f) => ({ ...f, proje: { ...f.proje, [alan]: v } }));
   const nitelikDegistir = (id) =>
     setForm((f) => {
@@ -392,13 +418,41 @@ function TalepFormu({ talep, ayarKaydi, onKapat, onKaydedildi, kimlik }) {
         </div>
       )}
 
-      <Bolum baslik="GENEL BİLGİLER">
+      <Bolum
+        baslik="GENEL BİLGİLER"
+        aciklama="İşaretli alanlar Benim Sayfam’daki bilgilerinizden gelir; değişiklik için orayı güncelleyin ya da burada düzeltin."
+      >
+        {!kilitli && profil && (
+          <button
+            type="button"
+            style={{ ...dugme('sessiz'), marginBottom: 14 }}
+            onClick={benimSayfamdanAl}
+          >
+            Bilgilerimi Benim Sayfam’dan al
+          </button>
+        )}
         <div style={ikili}>
           {TTO_GENEL_ALANLAR.map((f) => (
             <div key={f.id} style={f.cokSatir ? { gridColumn: '1 / -1' } : undefined}>
               <label style={etiket} htmlFor={'tto-' + f.id}>
                 {f.label}
                 {f.zorunlu && <span style={{ color: T.tehlike }}> *</span>}
+                {TTO_PROFIL_ALANLARI.indexOf(f.id) >= 0 && (
+                  <span
+                    title="Benim Sayfam’daki bilgilerinizden"
+                    style={{
+                      marginLeft: 6,
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      color: T.birincil,
+                      background: '#EFF6FF',
+                      borderRadius: 4,
+                      padding: '1px 5px',
+                    }}
+                  >
+                    Benim Sayfam
+                  </span>
+                )}
               </label>
               {f.cokSatir ? (
                 <textarea
@@ -962,11 +1016,10 @@ function TtoApp({ currentUser }) {
   }, [yukle, kimlik]);
 
   const yeniTalep = () => {
-    const bos = bosTalep({
-      name: (profil && profil.name) || (currentUser && currentUser.name) || kimlik,
-      title: (profil && (profil.unvan || profil.title)) || '',
-      email: (profil && profil.email) || '',
-    });
+    const bos = bosTalep(
+      profil || { name: (currentUser && currentUser.name) || kimlik },
+      bolumAdiBul(profil)
+    );
     setAcik(bos);
     setSekme('form');
   };
@@ -1064,6 +1117,7 @@ function TtoApp({ currentUser }) {
           talep={acik}
           ayarKaydi={ayarKaydi}
           kimlik={kimlik}
+          profil={profil}
           onKapat={formuKapat}
           onKaydedildi={yukle}
         />
