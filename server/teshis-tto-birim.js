@@ -38,7 +38,7 @@ const { kimlikler } = require('./lib/bolum-kimlik');
   }
   tto.forEach((b) => console.log(`  ✓ ${b.name}  [kimlikler: ${kimlikler(b).join(', ')}]`));
   const benzer = bolumler.filter(
-    (b) => !T.ttoBirimiMi(b) && /transfer|teknoloji|ofis/i.test(String(b.name || ''))
+    (b) => !T.ttoBirimiMi(b) && /transfer|\btto\b|teknoloji\s+ofis/i.test(String(b.name || ''))
   );
   benzer.forEach((b) =>
     console.log(`  ? Adı benziyor ama TANINMADI: "${b.name}" — gerekiyorsa adını düzeltin.`)
