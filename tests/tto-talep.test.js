@@ -10,6 +10,7 @@ import {
   ttoAyarlari,
   ttoWordGovdesi,
   ttoDosyaAdi,
+  profildenGenelBilgi,
   TTO_AYAR_VARSAYILAN,
   TTO_SABLON_DEGISKENLERI,
 } from '../lib/tto-talep.js';
@@ -196,7 +197,7 @@ describe('TTO şablon verisi ve Word çıktısı', () => {
     expect(v.ticarilesmeEvet).toBe('☒');
     expect(v.ticarilesmeHayir).toBe('☐');
     expect(v.patentEvet).toBe('☐');
-    expect(v.adSoyad).toBe('Dr. Ayşe Yılmaz');
+    expect(v.adSoyad).toBe('Ayşe Yılmaz');
     expect(v.belgeTarihi).toBe('29.09.2026');
   });
 
@@ -221,5 +222,67 @@ describe('TTO şablon verisi ve Word çıktısı', () => {
     expect(ttoDosyaAdi({ genel: { adSoyad: 'İsmail Çağrı Öztürk' } })).toBe(
       'TTO_Talep_Formu_Ismail_Cagri_Ozturk.docx'
     );
+  });
+});
+
+describe('Benim Sayfam → TTO formu', () => {
+  it('unvan addan ayrılır, bölüm ve dahili aktarılır', () => {
+    const g = profildenGenelBilgi(
+      { name: 'Arş. Gör. A. Tunahan KORKMAZ', email: 't@karatekin.edu.tr', dahili: '8383' },
+      'Bilgisayar Mühendisliği'
+    );
+    expect(g.adSoyad).toBe('A. Tunahan KORKMAZ');
+    expect(g.unvan).toBe('Arş. Gör.');
+    expect(g.kurum).toBe('Çankırı Karatekin Üniversitesi – Bilgisayar Mühendisliği');
+    expect(g.email).toBe('t@karatekin.edu.tr');
+    expect(g.isTelefonu).toBe('Dahili: 8383');
+  });
+
+  it('kayıttaki unvan alanı önceliklidir; tanınmayan önek ada dokunmaz', () => {
+    expect(profildenGenelBilgi({ name: 'Ayşe Kaya', title: 'Doç. Dr.' }).unvan).toBe('Doç. Dr.');
+    const g = profildenGenelBilgi({ name: 'Mühendis Ali Veli' });
+    expect(g.adSoyad).toBe('Mühendis Ali Veli');
+    expect(g.unvan).toBe('');
+  });
+});
+
+describe('TTO şablon değişkenleri Şablonlar ekranında otomatik eşlenir', () => {
+  // Şablonlar ekranının kuralı: {{…}} içi, değişken etiketiyle (parantezli
+  // açıklama atılmış hâliyle de) harf/rakam düzeyinde eşleşirse bağlanır.
+  const norm = (x) =>
+    String(x)
+      .replace(/İ/g, 'i')
+      .replace(/I/g, 'ı')
+      .toLocaleLowerCase('tr-TR')
+      .replace(/[^0-9a-zçğıöşü]/g, '');
+  const harita = {};
+  TTO_SABLON_DEGISKENLERI.forEach((v) => {
+    [norm(v.label), norm(v.label.replace(/\(.*?\)/g, ''))].forEach((k) => {
+      (harita[k] = harita[k] || new Set()).add(v.id);
+    });
+  });
+
+  it('iki değişken aynı yer tutucuya düşmez', () => {
+    const cakisan = Object.entries(harita).filter(([, v]) => v.size > 1);
+    expect(cakisan).toEqual([]);
+  });
+
+  it('formdaki kutular için önerilen yer tutucular doğru değişkene gider', () => {
+    const bekle = {
+      'Nitelik 1': 'nitelik_danismanlik',
+      'Nitelik 6': 'nitelik_fikriMulkiyet',
+      'Proje 1': 'projeAd',
+      'Proje 6': 'projeOrtaklar',
+      'Proje 7 Evet': 'ticarilesmeEvet',
+      'Proje 8 Hayır': 'patentHayir',
+      'Proje 9 Açıklama': 'benzerAciklama',
+      'Adı Soyadı': 'adSoyad',
+      Ünvan: 'unvan',
+      'E-posta': 'email',
+      'Başvuru Sahibi': 'basvuruSahibi',
+    };
+    Object.entries(bekle).forEach(([token, id]) => {
+      expect([...(harita[norm(token)] || [])]).toEqual([id]);
+    });
   });
 });
