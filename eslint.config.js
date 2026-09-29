@@ -151,6 +151,25 @@ export default [
     },
   },
 
+  // TTO Otomasyonu ekranları (tto-otomasyon/): veri katmanı tarayıcıda çalışır,
+  // Tailwind yapılandırması Node'da (CommonJS).
+  {
+    files: ['tto-otomasyon/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.browser },
+    },
+  },
+  {
+    files: ['tto-otomasyon/**/*.cjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'commonjs',
+      globals: { ...globals.node },
+    },
+  },
+
   // ESM root configs (vite, eslint, vitest)
   {
     files: ['vite.config.js', 'eslint.config.js', 'vitest.config.js'],

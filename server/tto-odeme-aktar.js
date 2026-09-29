@@ -9,7 +9,7 @@
  *   academicians  → tto_akademisyenler
  *   settings      → tto_oranlar          (doc id = yıl; oranlar yüzdeye çevrilir)
  *   work_records  → tto_is_kayitlari     (tutarlar kuruşa çevrilir)
- *   projects      → iş kaydındaki `proje` metni
+ *   projects      → tto_projeler
  *
  * ── TEKRAR ÇALIŞTIRILABİLİR ──
  * Aktarılan her kayıt `aktarim: { kaynak, eskiId }` taşır; ikinci çalıştırmada
@@ -175,6 +175,13 @@ async function main() {
         : ''
   );
 
+  const projeHaritasi = await kisiAktar(
+    'tto_projeler',
+    eski.projeler,
+    (p) => ({ ad: metin(p.name), aciklama: metin(p.description) }),
+    'proje'
+  );
+
   // ── Oranlar ──
   const oranCol = db.collection('tto_oranlar');
   for (const o of eski.oranlar) {
@@ -209,7 +216,6 @@ async function main() {
   }
 
   // ── İş kayıtları ──
-  const projeAdi = new Map(eski.projeler.map((p) => [p.id, metin(p.name)]));
   const kayitCol = db.collection('tto_is_kayitlari');
   const mevcutKayitlar = await kayitCol.find({}).toArray();
   const aktarilmis = new Set(
@@ -249,7 +255,7 @@ async function main() {
       siraNo: Number(w.sira_no),
       firmaId,
       akademisyenId,
-      proje: w.project_id ? projeAdi.get(w.project_id) || '' : '',
+      projeId: w.project_id ? projeHaritasi.get(w.project_id) || '' : '',
       yapilanIs: metin(w.work_done),
       talepTarihi: tarihMetni(w.request_date),
       faturaKurus: fatura,

@@ -110,19 +110,19 @@ metin `[kurum tarafından doldurulacak]` der ve pencerede uyarı çıkar.
 
 ## TTO ödeme defteri (eski TTO Otomasyonu verisi)
 
-TTO modülünün yönetici sekmeleri (İş Kayıtları, Firmalar, Akademisyenler,
-Oranlar) eskiden ayrı çalışan TTO Otomasyonu uygulamasının yerini alır.
-Eski SQLite dosyası (`backend/data/tto.db`) bir kez aktarılır; betik önce
-deneme yapar, `UYGULA=1` ile yazar ve ikinci kez çalıştırılırsa kayıtları
-yinelemez:
+Ayrı çalışan TTO Otomasyonu uygulamasının ekranları (İş Kayıtları, Yeni Kayıt,
+Akademisyenler, Firmalar, Ayarlar) birebir `tto-otomasyon/` klasörüne taşındı
+ve TTO modülünün içinde açılır. Eski SQLite dosyası (`backend/data/tto.db`)
+bir kez aktarılır. Betik önce deneme yapar, `UYGULA=1` ile yazar ve ikinci kez
+çalıştırılırsa kayıtları yinelemez:
 
 ```bash
 node server/tto-odeme-aktar.js /yol/tto.db            # deneme: ne aktarılacak?
 UYGULA=1 node server/tto-odeme-aktar.js /yol/tto.db   # yaz
 ```
 
-Sekmeleri yalnız TTO birimine kayıtlı akademisyen, üniversite yetkilisi ve
-admin görür; kimin TTO yöneticisi sayıldığı `server/teshis-tto-birim.js` ile
+Ekranları yalnız TTO birimine kayıtlı akademisyen (ve sistem yöneticisi)
+görür; kimin TTO yöneticisi sayıldığı `server/teshis-tto-birim.js` ile
 denetlenebilir.
 
 ## Doğrulama

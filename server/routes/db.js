@@ -326,18 +326,20 @@ const ALLOWED_COLLECTIONS = [
   // oranları. Okuma VE yazma yalnız TTO yöneticisine (bkz. TTO_ODEME_KOLEKSIYONLARI).
   'tto_firmalar',
   'tto_akademisyenler',
+  'tto_projeler',
   'tto_oranlar',
   'tto_is_kayitlari',
 ];
 
 // TTO ödeme defteri: IBAN, firma vergi bilgisi ve ödeme tutarları taşır.
-// Sıradan akademisyen de, öğrenci de, bölüm yetkilisi de OKUYAMAZ; yalnız
-// TTO yöneticisi (TTO birimine kayıtlı akademisyen), üniversite yetkilisi ve
-// admin. Liste lib/tto-odeme.js → TTO_ODEME_KOLEKSIYONLARI ile aynıdır
+// Sıradan akademisyen de, öğrenci de, bölüm/fakülte/üniversite yetkilisi de
+// OKUYAMAZ; yalnız TTO birimine kayıtlı akademisyen (ttoYonetici) ve sistem
+// yöneticisi (admin rolü). Liste lib/tto-odeme.js → TTO_ODEME_KOLEKSIYONLARI ile aynıdır
 // (burada eşzamanlı gerekli olduğu için kopyalandı; değişirse ikisi birden).
 const TTO_ODEME_KOLEKSIYONLARI = new Set([
   'tto_firmalar',
   'tto_akademisyenler',
+  'tto_projeler',
   'tto_oranlar',
   'tto_is_kayitlari',
 ]);
@@ -600,6 +602,7 @@ const STUDENT_READ_DENY = new Set([
   'tto_ayarlar',
   'tto_firmalar',
   'tto_akademisyenler',
+  'tto_projeler',
   'tto_oranlar',
   'tto_is_kayitlari',
   // Memur belge kutusu: başka öğrencilerin resmî çıktıları ve dilekçe
@@ -826,10 +829,15 @@ async function ttoOdemeYazmaKarari(db, op) {
   const mevcutId = kimlik(mevcut);
   const kayitlar = db.collection('tto_is_kayitlari');
 
-  if (op.collection === 'tto_firmalar' || op.collection === 'tto_akademisyenler') {
-    const karar = op.collection === 'tto_firmalar' ? T.firmaYazmaKarari : T.akademisyenYazmaKarari;
+  const KISI = {
+    tto_firmalar: { karar: T.firmaYazmaKarari, alan: 'firmaId' },
+    tto_akademisyenler: { karar: T.akademisyenYazmaKarari, alan: 'akademisyenId' },
+    tto_projeler: { karar: T.projeYazmaKarari, alan: 'projeId' },
+  }[op.collection];
+  if (KISI) {
+    const karar = KISI.karar;
     if (op.type === 'delete') {
-      const alan = op.collection === 'tto_firmalar' ? 'firmaId' : 'akademisyenId';
+      const alan = KISI.alan;
       const kimlikler = [op.docId, mevcutId].filter(Boolean).map(String);
       const kullanimSayisi = mevcut
         ? await kayitlar.countDocuments({ [alan]: { $in: kimlikler } })
@@ -875,6 +883,9 @@ async function ttoOdemeYazmaKarari(db, op) {
   ]);
   if (!firma) return { izin: false, hata: 'Seçilen firma bulunamadı.' };
   if (!akademisyen) return { izin: false, hata: 'Seçilen akademisyen bulunamadı.' };
+  if (birlesik.projeId && !(await findDocByAnyId(db, 'tto_projeler', String(birlesik.projeId)))) {
+    return { izin: false, hata: 'Seçilen proje bulunamadı.' };
+  }
 
   // Sıra no yıl içinde max+1; yıl değişirse yeni yılda yeniden verilir.
   // Eşzamanlı iki ekleme yil+siraNo benzersiz indeksinde durur (409).
@@ -1020,11 +1031,11 @@ async function enforceWritePolicies(db, op, user) {
     }
   }
 
-  // a0d) TTO ödeme defteri — yalnız TTO yöneticisi / üniversite yetkilisi /
-  // admin; alan listesi, hesap ve silme kısıtı lib/tto-odeme.js'te.
+  // a0d) TTO ödeme defteri — yalnız TTO birimine kayıtlı akademisyen ve admin;
+  // alan listesi, hesap ve silme kısıtı lib/tto-odeme.js'te.
   if (TTO_ODEME_KOLEKSIYONLARI.has(op.collection)) {
     const flags = await getActorFlags(db, user);
-    if (!flags.admin && !flags.uniAdmin && !flags.ttoYonetici) {
+    if (!flags.admin && !flags.ttoYonetici) {
       return {
         allow: false,
         status: 403,
@@ -2324,7 +2335,7 @@ async function readDecision(collection, user, getDb) {
   if (TTO_ODEME_KOLEKSIYONLARI.has(collection)) {
     if (!user) return { allow: false, status: 401, error: 'Bu veri için giriş gereklidir.' };
     const flags = await getActorFlags(await getDb(), user);
-    if (flags.admin || flags.uniAdmin || flags.ttoYonetici) return { allow: true };
+    if (flags.admin || flags.ttoYonetici) return { allow: true };
     return {
       allow: false,
       status: 403,
