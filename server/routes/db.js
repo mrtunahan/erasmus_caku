@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
+const { ttoBirimUyesi } = require('../lib/tto-birim');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
 // ── ANKET KAPSAMI: istemciyle AYNI kural dosyası ──
 // Kuralın CJS ikizini yazmak yerine ESM modülü dinamik olarak alınır (Node 22
@@ -717,10 +718,15 @@ async function getActorFlags(db, user) {
         // Fakülte staj yetkilisi: staj sürecinin sahibi. Etap tarihlerini
         // DEĞİŞTİREMEZ ama acil durumda kayıt kapısını gerekçeyle aralayabilir.
         stajYetkilisi: !!prof.isStajCoordinator,
-        // TTO yöneticisi: akademisyenlerden atanır (üniversite yetkilisi
-        // verir); bütün TTO taleplerini görür ve karara bağlar.
-        ttoYonetici: !!prof.isTtoYoneticisi,
+        // TTO yöneticisi: TTO birimine kayıtlı akademisyen (ayrı bayrak
+        // atanmaz — server/lib/tto-birim.js); bütün TTO taleplerini görür.
+        ttoYonetici: false,
       };
+      try {
+        flags.ttoYonetici = await ttoBirimUyesi(db, user.identifier);
+      } catch (_) {
+        /* birim okunamazsa yönetici sayılmaz */
+      }
     }
   } catch (_) {
     /* profil okunamazsa yetkisiz varsay */
