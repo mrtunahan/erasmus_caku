@@ -1,0 +1,182 @@
+/*
+ * TTO Otomasyonu ekranlarının stili.
+ *
+ * Kendi Tailwind yapılandırmasıyla derlenir (bkz. tailwind.config.cjs): bütün
+ * yardımcı sınıflar `.tto-kok` altına kapsanır, Offline Asistan'ın geri
+ * kalanına dokunmaz.
+ */
+@config "./tailwind.config.cjs";
+@tailwind utilities;
+
+/*
+ * Temel sıfırlama — orijinal uygulamanın kullandığı Tailwind v4 preflight'ının
+ * `.tto-kok` altına kapsanmış hâli. Kök uygulamada preflight KAPALI (eski
+ * inline tasarım bozulmasın diye); TTO ekranları ise onu varsayar
+ * (ör. `border` sınıfı ancak border-style: solid ile görünür).
+ */
+.tto-kok {
+  /* Orijinal uygulamanın hesaplanmış taban değerleri (Tailwind v4 preflight). */
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  tab-size: 4;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial,
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: auto;
+  color: #2e3040;
+  background: #e8eaf0;
+}
+.tto-kok *,
+.tto-kok ::after,
+.tto-kok ::before,
+.tto-kok ::backdrop,
+.tto-kok ::file-selector-button {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0 solid;
+}
+.tto-kok hr {
+  height: 0;
+  color: inherit;
+  border-top-width: 1px;
+}
+.tto-kok h1,
+.tto-kok h2,
+.tto-kok h3,
+.tto-kok h4,
+.tto-kok h5,
+.tto-kok h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+.tto-kok a {
+  color: inherit;
+  -webkit-text-decoration: inherit;
+  text-decoration: inherit;
+}
+.tto-kok b,
+.tto-kok strong {
+  font-weight: bolder;
+}
+.tto-kok code,
+.tto-kok kbd,
+.tto-kok samp,
+.tto-kok pre {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  font-size: 1em;
+}
+.tto-kok small {
+  font-size: 80%;
+}
+.tto-kok table {
+  text-indent: 0;
+  border-color: inherit;
+  border-collapse: collapse;
+}
+.tto-kok ol,
+.tto-kok ul,
+.tto-kok menu {
+  list-style: none;
+}
+.tto-kok img,
+.tto-kok svg,
+.tto-kok video,
+.tto-kok canvas,
+.tto-kok audio,
+.tto-kok iframe,
+.tto-kok embed,
+.tto-kok object {
+  display: block;
+  vertical-align: middle;
+}
+.tto-kok img,
+.tto-kok video {
+  max-width: 100%;
+  height: auto;
+}
+.tto-kok button,
+.tto-kok input,
+.tto-kok select,
+.tto-kok optgroup,
+.tto-kok textarea,
+.tto-kok ::file-selector-button {
+  font: inherit;
+  font-feature-settings: inherit;
+  font-variation-settings: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  border-radius: 0;
+  background-color: transparent;
+  opacity: 1;
+}
+.tto-kok ::placeholder {
+  opacity: 1;
+  color: color-mix(in oklab, currentcolor 50%, transparent);
+}
+.tto-kok textarea {
+  resize: vertical;
+}
+.tto-kok ::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+.tto-kok ::-webkit-date-and-time-value {
+  min-height: 1lh;
+  text-align: inherit;
+}
+.tto-kok ::-webkit-datetime-edit {
+  display: inline-flex;
+}
+.tto-kok ::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+.tto-kok ::-webkit-calendar-picker-indicator {
+  line-height: 1;
+}
+.tto-kok button,
+.tto-kok input:where([type='button'], [type='reset'], [type='submit']),
+.tto-kok ::file-selector-button {
+  appearance: button;
+}
+.tto-kok ::-webkit-inner-spin-button,
+.tto-kok ::-webkit-outer-spin-button {
+  height: auto;
+}
+.tto-kok [hidden]:where(:not([hidden='until-found'])) {
+  display: none !important;
+}
+
+/* ── Toast animasyonu (orijinal src/index.css) ── */
+@keyframes tto-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.tto-kok .animate-fadeIn {
+  animation: tto-fadeIn 0.2s ease-out;
+}
+
+/* ── Kaydırma çubuğu (WebKit) ── */
+.tto-kok ::-webkit-scrollbar,
+.tto-kok::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.tto-kok ::-webkit-scrollbar-track,
+.tto-kok::-webkit-scrollbar-track {
+  background: #e8eaf0;
+}
+.tto-kok ::-webkit-scrollbar-thumb,
+.tto-kok::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, #6366f1 45%, transparent);
+  border-radius: 3px;
+}

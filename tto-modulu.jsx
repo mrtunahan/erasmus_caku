@@ -6,9 +6,9 @@
 //   • Talep formu  — Üniversite ile İşbirliği Talep Formu (TTO-TF-001)
 //   • Yol Haritası — talebin akışı (akademisyen → TTO birimi → karar)
 //
-// YÖNETİCİ tarafı (TTO yöneticisi / üniversite yetkilisi / admin):
-//   • İş Kayıtları, Firmalar, Akademisyenler, Oranlar — danışmanlık işleri ve
-//     akademisyen ödemeleri defteri (tto-odeme-yonetimi.jsx, lib/tto-odeme.js)
+// TTO birimine kayıtlı akademisyen (TTO yöneticisi) modülü açınca TTO
+// Otomasyonu ekranları gelir (iş kayıtları, akademisyen ödemeleri, firmalar,
+// oranlar — tto-otomasyon/). Kendi talepleri için oradan buraya geçer.
 //
 // Kurallar (zorunlu alanlar, durum geçişleri, akademisyenin dokunamayacağı
 // TTO alanları, şablon değişkenleri) lib/tto-talep.js'te; sunucu aynı
@@ -37,7 +37,7 @@ import {
   ttoEtiketDegerleri,
   ttoWordGovdesi,
 } from './lib/tto-talep.js';
-import { TtoOdemeYonetimi, TTO_YONETIM_SEKMELERI } from './tto-odeme-yonetimi.jsx';
+import TtoOtomasyon from './tto-otomasyon/App.jsx';
 
 const { useState, useEffect, useCallback, useMemo } = React;
 
@@ -919,13 +919,11 @@ function TtoApp({ currentUser }) {
   const [acik, setAcik] = useState(null); // düzenlenen / görüntülenen talep
   const [profil, setProfil] = useState(null);
   const [ayarKaydi, setAyarKaydi] = useState(null);
-  // Yönetici sekmelerinin görünmesi yalnız kolaylıktır; asıl kapı sunucudadır
-  // (bayrak girişte TTO birimi üyeliğinden hesaplanır — server/lib/tto-birim.js).
-  const yonetici = !!(
-    currentUser &&
-    (currentUser.isTtoYoneticisi || currentUser.isUniversityAdmin || currentUser.role === 'admin')
-  );
-  const yonetimSekmesi = TTO_YONETIM_SEKMELERI.some((s) => s.id === sekme);
+  // TTO Otomasyonu yalnız TTO birimine kayıtlı akademisyene (ve sistem
+  // yöneticisine) görünür. Bu yalnız görünürlüktür; asıl kapı sunucudadır
+  // (bayrak girişte birim üyeliğinden hesaplanır — server/lib/tto-birim.js).
+  const yonetici = !!(currentUser && (currentUser.isTtoYoneticisi || currentUser.role === 'admin'));
+  const [otomasyonAcik, setOtomasyonAcik] = useState(yonetici);
 
   const yukle = useCallback(async () => {
     setHata('');
@@ -934,7 +932,7 @@ function TtoApp({ currentUser }) {
       const liste = (await oku('tto_talepleri')) || [];
       // Sunucu akademisyene zaten yalnız kendi taleplerini verir; TTO
       // yöneticisi bütün listeyi alır — "Taleplerim" yine yalnız kendisininkini
-      // gösterir (gelen taleplerin incelenmesi henüz yönetici sekmelerinde yok).
+      // gösterir (yönetici paneli 2. aşamada).
       const benim = liste.filter((t) => metin(t.sahip) === kimlik);
       benim.sort((a, b) =>
         String(b.updatedAt || b.createdAt || '').localeCompare(
@@ -1005,22 +1003,48 @@ function TtoApp({ currentUser }) {
       { id: 'talepler', label: 'Taleplerim' },
       { id: 'form', label: acik ? (acik.id ? 'Talep' : 'Yeni talep') : 'Yeni talep' },
       { id: 'yol', label: 'Yol Haritası' },
-      ...(yonetici ? TTO_YONETIM_SEKMELERI.map((s) => ({ ...s, yonetim: true })) : []),
     ],
-    [acik, yonetici]
+    [acik]
   );
 
+  if (yonetici && otomasyonAcik) {
+    return (
+      <TtoOtomasyon
+        currentUser={currentUser}
+        onTalepler={() => setOtomasyonAcik(false)}
+        // Modül seçimi hash ile yapılır; boş hash kabuğun varsayılan sayfasıdır.
+        onDon={() => {
+          window.location.hash = '';
+        }}
+      />
+    );
+  }
+
   return (
-    <div
-      style={{ maxWidth: yonetimSekmesi ? 1240 : 980, margin: '0 auto', padding: '8px 4px 40px' }}
-    >
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: T.navy }}>Teknoloji Transfer Ofisi</div>
-        <div style={{ fontSize: 13, color: T.soluk, marginTop: 2 }}>
-          {yonetimSekmesi
-            ? 'Danışmanlık iş kayıtları ve akademisyen ödemeleri'
-            : 'ÇAKÜ TTO A.Ş. ile üniversite işbirliği talepleri'}
+    <div style={{ maxWidth: 980, margin: '0 auto', padding: '8px 4px 40px' }}>
+      <div
+        style={{
+          marginBottom: 16,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: T.navy }}>
+            Teknoloji Transfer Ofisi
+          </div>
+          <div style={{ fontSize: 13, color: T.soluk, marginTop: 2 }}>
+            ÇAKÜ TTO A.Ş. ile üniversite işbirliği talepleri
+          </div>
         </div>
+        {yonetici && (
+          <button style={dugme('birincil')} onClick={() => setOtomasyonAcik(true)}>
+            TTO Otomasyonu →
+          </button>
+        )}
       </div>
 
       <div
@@ -1033,13 +1057,11 @@ function TtoApp({ currentUser }) {
           overflowX: 'auto',
         }}
       >
-        {sekmeler.map((s, i) => {
+        {sekmeler.map((s) => {
           const aktif = sekme === s.id;
-          const ayrac = s.yonetim && !(sekmeler[i - 1] && sekmeler[i - 1].yonetim);
           return (
             <button
               key={s.id}
-              title={s.yonetim ? 'TTO yöneticisi' : undefined}
               role="tab"
               aria-selected={aktif}
               onClick={() => {
@@ -1057,9 +1079,6 @@ function TtoApp({ currentUser }) {
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 fontFamily: "'Inter', sans-serif",
-                // Yönetici sekmeleri akademisyen sekmelerinden ayrılır.
-                marginLeft: ayrac ? 12 : 0,
-                boxShadow: ayrac ? `-12px 0 0 -11px ${T.kenar}` : 'none',
               }}
             >
               {s.label}
@@ -1091,7 +1110,6 @@ function TtoApp({ currentUser }) {
         />
       )}
       {sekme === 'yol' && <YolHaritasi />}
-      {yonetici && yonetimSekmesi && <TtoOdemeYonetimi sekme={sekme} setSekme={setSekme} />}
     </div>
   );
 }

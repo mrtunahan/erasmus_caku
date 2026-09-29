@@ -4,7 +4,6 @@ import {
   kurusTl,
   yuzdeOku,
   hesapla,
-  netKurus,
   ibanGecerliMi,
   ibanBicimle,
   adCakisiyorMu,
@@ -14,11 +13,7 @@ import {
   isKaydiYazmaKarari,
   isKaydiHatalari,
   bosIsKaydi,
-  sonrakiSiraNo,
-  kayitlariSuz,
-  ozetHesapla,
-  excelSatirlari,
-  TTO_EXCEL_BASLIKLARI,
+  projeYazmaKarari,
   ttoOdemeKoleksiyonuMu,
 } from '../lib/tto-odeme.js';
 
@@ -153,6 +148,15 @@ describe('firma / akademisyen yazma kararı', () => {
       true
     );
   });
+  it('proje adını zorunlu tutar, aynı adlı projeyi reddeder', () => {
+    expect(projeYazmaKarari({ tur: 'add', veri: { ad: ' ' } }).izin).toBe(false);
+    const r = projeYazmaKarari({
+      tur: 'add',
+      veri: { ad: 'P-1', aciklama: 'x' },
+      digerleri: [{ id: '1', ad: 'p-1' }],
+    });
+    expect(r.izin).toBe(false);
+  });
   it('akademisyenin IBAN’ını doğrular ve sadeleştirir', () => {
     expect(akademisyenYazmaKarari({ tur: 'add', veri: { ad: 'A', iban: 'TR12' } }).izin).toBe(
       false
@@ -215,15 +219,24 @@ describe('iş kaydı yazma kararı', () => {
     expect(r.izin).toBe(true);
     expect(veri.ttoPayiKurus).toBe(300000);
   });
-  it('ödendi durumunda ödeme tarihi ister', () => {
-    const r = isKaydiYazmaKarari({
-      tur: 'add',
-      veri: tamKayit({ odeme: 'odendi' }),
-      oranKaydi: ORAN,
-    });
-    expect(r.izin).toBe(false);
-    const veri = tamKayit({ odeme: 'odendi', odemeTarihi: '2026-03-01' });
+  it('ödendi işaretlemek için tarih şart değil (orijinal davranış)', () => {
+    const veri = tamKayit({ odeme: 'odendi' });
     expect(isKaydiYazmaKarari({ tur: 'add', veri, oranKaydi: ORAN }).izin).toBe(true);
+  });
+  it('yalnız ödeme durumu değişince tutarlara dokunmaz (oran sonradan değişmiş olsa bile)', () => {
+    const mevcut = tamKayit(hesapla(1000000, ORAN));
+    const yeniOran = { ...ORAN, ttoPayi: 30 };
+    const veri = { odeme: 'odendi', kdvKurus: 5, ttoPayiKurus: 5 };
+    const r = isKaydiYazmaKarari({ tur: 'update', mevcut, veri, oranKaydi: yeniOran });
+    expect(r.izin).toBe(true);
+    expect('kdvKurus' in veri).toBe(false);
+    expect('ttoPayiKurus' in veri).toBe(false);
+  });
+  it('manuel düzeltme kapatılınca yeniden hesaplar', () => {
+    const mevcut = tamKayit({ manuelDuzeltme: true, kdvKurus: 1, stopajSonrasiKurus: 1 });
+    const veri = { manuelDuzeltme: false };
+    expect(isKaydiYazmaKarari({ tur: 'update', mevcut, veri, oranKaydi: ORAN }).izin).toBe(true);
+    expect(veri.kdvKurus).toBe(200000);
   });
   it('olmayan kaydın güncellenmesini reddeder', () => {
     expect(isKaydiYazmaKarari({ tur: 'update', mevcut: null, veri: {} }).izin).toBe(false);
@@ -237,63 +250,10 @@ describe('iş kaydı yazma kararı', () => {
   });
 });
 
-describe('liste yardımcıları', () => {
-  const firmalar = [
-    { id: 'f1', ad: 'Işık Mühendislik' },
-    { id: 'f2', ad: 'Aydos' },
-  ];
-  const akad = [{ id: 'a1', ad: 'Ayşe Yılmaz' }];
-  const kayitlar = [
-    {
-      ...tamKayit(hesapla(1000000, ORAN)),
-      id: 1,
-      siraNo: 1,
-      faturaKurus: 1000000,
-      tahsilat: 'edildi',
-    },
-    {
-      ...tamKayit(hesapla(500000, ORAN)),
-      id: 2,
-      siraNo: 2,
-      faturaKurus: 500000,
-      firmaId: 'f2',
-      odeme: 'odendi',
-      odemeTarihi: '2026-01-05',
-    },
-    { ...tamKayit(), id: 3, yil: 2025, siraNo: 9 },
-  ];
-
-  it('yıl içinde sıradaki numarayı verir', () => {
-    expect(sonrakiSiraNo(kayitlar, 2026)).toBe(3);
-    expect(sonrakiSiraNo(kayitlar, 2025)).toBe(10);
-    expect(sonrakiSiraNo(kayitlar, 2030)).toBe(1);
-  });
-  it('firma adında Türkçe/ASCII duyarsız arar', () => {
-    const r = kayitlariSuz(kayitlar, { arama: 'isik' }, firmalar, akad);
-    expect(r.map((k) => k.id)).toEqual([1, 3]);
-  });
-  it('yıl ve ödeme durumuna göre süzer', () => {
-    expect(kayitlariSuz(kayitlar, { yil: 2026, odeme: 'odendi' }).map((k) => k.id)).toEqual([2]);
-    expect(kayitlariSuz(kayitlar, { tahsilat: 'edildi' }).map((k) => k.id)).toEqual([1]);
-  });
-  it('özet toplamları ve tahsil edilip ödenmeyen tutarı hesaplar', () => {
-    const o = ozetHesapla(kayitlar.slice(0, 2));
-    expect(o.adet).toBe(2);
-    expect(o.faturaKurus).toBe(1500000);
-    expect(o.odenenKurus).toBe(netKurus(kayitlar[1]));
-    expect(o.tahsilEdilipOdenmeyenKurus).toBe(netKurus(kayitlar[0]));
-    expect(o.stopajKurus).toBe(170000 + 85000);
-  });
-  it('Excel satırlarını başlıkla ve sayı hücreleriyle üretir', () => {
-    const s = excelSatirlari(kayitlar.slice(0, 1), firmalar, akad);
-    expect(s[0]).toEqual(TTO_EXCEL_BASLIKLARI);
-    expect(s[1][2]).toBe('Işık Mühendislik');
-    expect(s[1][7]).toBe(10000);
-    expect(s[1][15]).toBe(6800);
-    expect(s[1].length).toBe(TTO_EXCEL_BASLIKLARI.length);
-  });
+describe('koleksiyonlar', () => {
   it('yönetici koleksiyonlarını tanır', () => {
     expect(ttoOdemeKoleksiyonuMu('tto_is_kayitlari')).toBe(true);
+    expect(ttoOdemeKoleksiyonuMu('tto_projeler')).toBe(true);
     expect(ttoOdemeKoleksiyonuMu('tto_talepleri')).toBe(false);
   });
 });
