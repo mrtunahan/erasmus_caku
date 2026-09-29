@@ -310,3 +310,20 @@ describe('fakülte kimliğinin iki biçimi', () => {
     expect(canViewTemplate({ facultyId: '64ff90' }, sablonSlug, DEPT_FAC)).toBe(false);
   });
 });
+
+describe('TTO şablonu yalnız üniversite yetkilisinde', () => {
+  const tpl = { module: 'tto', scope: 'university' };
+  it('üniversite yetkilisi yönetir', () => {
+    expect(canManageTemplate({ isUniversityAdmin: true }, tpl, {})).toBe(true);
+  });
+  it('fakülte ve bölüm yetkilisi yönetemez (bölüm kapsamlı TTO kaydı olsa bile)', () => {
+    expect(canManageTemplate({ isFacultyManager: true, facultyId: 'f1' }, tpl, {})).toBe(false);
+    expect(
+      canManageTemplate(
+        { isDeptManager: true, departmentId: 'd1' },
+        { module: 'tto', scope: 'department', departmentId: 'd1' },
+        {}
+      )
+    ).toBe(false);
+  });
+});

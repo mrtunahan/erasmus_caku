@@ -55,6 +55,8 @@ const ALLOWED_MODULES = new Set([
   'yataygecis',
   // Ders devam (yoklama) listesi — akademisyenin dönem çıktısı.
   'yoklama',
+  // TTO işbirliği talep formu — YALNIZ üniversite yetkilisi yükler.
+  'tto',
 ]);
 
 // İzinli dosya uzantıları + MIME
@@ -272,6 +274,16 @@ router.post('/', writeLimiter, softAuthMiddleware, upload.single('file'), async 
       return res.status(403).json({ error: 'Şablon yükleme yetkiniz yok.' });
     }
 
+    // TTO formu kurum geneli bir belgedir: yalnız üniversite yetkilisi
+    // yükler ve kapsam her zaman üniversitedir (akademisyen tarafı şablonu
+    // bölümden bağımsız çözer).
+    if (module_ === 'tto' && !scope.isUniversityAdmin) {
+      cleanupFile(req.file);
+      return res
+        .status(403)
+        .json({ error: 'TTO şablonunu yalnız üniversite yetkilisi yükleyebilir.' });
+    }
+
     // Kapsamı kullanıcı rolünden çıkar — bölüm yetkilisi sadece KENDİ
     // bölümüne, fakülte yetkilisi KENDİ fakültesine yükler.
     let templateScope = 'department';
@@ -279,7 +291,8 @@ router.post('/', writeLimiter, softAuthMiddleware, upload.single('file'), async 
     let facultyId = '';
     if (scope.isUniversityAdmin) {
       // Üni yetkilisi alanı seçebilir; varsayılan 'university'
-      templateScope = asPlainString(req.body.scope) || 'university';
+      templateScope =
+        module_ === 'tto' ? 'university' : asPlainString(req.body.scope) || 'university';
       if (templateScope === 'department') {
         departmentId = asPlainString(req.body.departmentId) || '';
         if (!departmentId) {

@@ -54,6 +54,10 @@ function canManageTemplate(scope, tpl, deptFacMap, kimlikHaritasi, fakulteHarita
   // çağrılar bozulmaz (bkz. server/lib/bolum-kimlik.js).
   const ayni = (a, b) => ayniBolum(a, b, kimlikHaritasi);
   if (s.isUniversityAdmin) return true;
+  // TTO şablonu kurum genelidir (ÇAKÜ TTO A.Ş. formu) ve yalnız üniversite
+  // yetkilisi tarafından yüklenir/yönetilir; bölüm ya da fakülte kendi
+  // kopyasını koyarak formu değiştiremez.
+  if (t.module === 'tto') return false;
   if (s.isFacultyManager) {
     if (t.scope === 'faculty' && ayniFak(t.facultyId, s.facultyId)) return true;
     if (t.scope === 'department') {

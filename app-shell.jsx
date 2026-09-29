@@ -141,6 +141,8 @@ function computeAvailableDepts(currentUser, adminScope, memurAtamalari) {
 // açılır — aksi hâlde fakültesinde henüz bölüm olmayan bir yetkili, bölüm
 // ekleyeceği ekrana (Fakülte Yönetimi) hiç ulaşamazdı.
 const BOLUMDEN_BAGIMSIZ_MODULLER = new Set([
+  // TTO talebi kişiye aittir, bölüm seçimine bağlı değildir.
+  'tto',
   'univ',
   'tanitim',
   'fakulte',
@@ -831,7 +833,9 @@ const Sidebar = ({
           </div>
           {(isOnExtraDept && isExternalUser
             ? COMMON_MODULES.filter((m) => m.id === 'portal')
-            : COMMON_MODULES
+            : COMMON_MODULES.filter((m) =>
+                window.ortakModulGorunurMu ? window.ortakModulGorunurMu(m, currentUser) : true
+              )
           ).map((mod) => {
             const isActive = currentRoute === mod.id;
             return (
@@ -2560,6 +2564,7 @@ function AppShell() {
       isFacultyManager: user.isFacultyManager || false,
       isDeptManager: user.isDeptManager || false,
       isStajCoordinator: user.isStajCoordinator || false,
+      isTtoYoneticisi: user.isTtoYoneticisi || false,
       // Memur rolü — yenileme sonrası da korunmalı (aksi halde rol/erişim kaybolur).
       isMemur: user.isMemur || false,
       memurModules: Array.isArray(user.memurModules) ? user.memurModules : [],
@@ -2895,7 +2900,9 @@ function AppShell() {
       ? isExternalUser
         ? ['portal']
         : []
-      : COMMON_MODULES.map((m) => m.id);
+      : COMMON_MODULES.filter((m) =>
+          window.ortakModulGorunurMu ? window.ortakModulGorunurMu(m, currentUser) : true
+        ).map((m) => m.id);
     // Bölüm yetkilisi yönetim modülleri görür ama Audit Log hariç.
     // Audit Log yalnız üniversite yetkilisinde; menüden gizlemek yetmez,
     // adres satırından girilebilen rota da kapatılır.
@@ -3175,6 +3182,7 @@ function AppShell() {
         akreditasyon: window.AkreditasyonApp,
         yapayzeka: window.YapayZekaApp,
         yolharitalari: window.YolHaritalariApp,
+        tto: window.TtoApp,
         yataygecis: window.YatayGecisApp,
         tabanpuan: window.TabanPuanModuluApp,
         dikeygecis: window.DikeyGecisApp,

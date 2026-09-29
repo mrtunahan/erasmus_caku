@@ -65,6 +65,13 @@ function satirYazKurali() {
 
 // Staj yol haritasında da aynı desen: harita değil ADIM yazılıyor. Noktalı
 // anahtarın biçimi orada tanımlı ve testli (lib/staj-adim-yaz.js).
+// TTO talep kuralları: istemciyle AYNI dosya (lib/tto-talep.js).
+let ttoKuraliSozu = null;
+function ttoKurali() {
+  if (!ttoKuraliSozu) ttoKuraliSozu = import('../../lib/tto-talep.js');
+  return ttoKuraliSozu;
+}
+
 let adimYazSozu = null;
 function adimYazKurali() {
   if (!adimYazSozu) adimYazSozu = import('../../lib/staj-adim-yaz.js');
@@ -302,6 +309,11 @@ const ALLOWED_COLLECTIONS = [
   // bölümün çıktı rengi. Saat ayarı bölüme özeldir; bir bölümün 08:30'da
   // başlaması diğerini etkilemez. Yalnız bölüm yetkilisi ve üstü yazar.
   'bolum_program_ayarlari',
+  // TTO (Teknoloji Transfer Ofisi) — akademisyenin işbirliği talep formları
+  // ve formun kuruma ait değişkenleri (doküman kodu, revizyon, iletişim).
+  // Kurallar lib/tto-talep.js'te; öğrenciye tamamen kapalı.
+  'tto_talepleri',
+  'tto_ayarlar',
 ];
 
 // passwords koleksiyonu yalnızca sunucu tarafında (auth.js) doğrudan okunur.
@@ -376,12 +388,13 @@ const STAFF_ROLES = new Set(['professor', 'bolum_yetkilisi', 'admin']);
 // alanlar mevcut değerlerine SABİTLENİR — böylece sıradan bir akademisyenin
 // kendi kaydına isUniversityAdmin:true yazarak admin'e yükselmesi engellenir,
 // tam-doküman güncelleyen meşru akışlar ise bozulmaz.
-const PRIV_FIELDS = ['isUniversityAdmin', 'isFacultyManager', 'isDeptManager'];
+const PRIV_FIELDS = ['isUniversityAdmin', 'isFacultyManager', 'isDeptManager', 'isTtoYoneticisi'];
 
 const PRIV_ETIKET = {
   isUniversityAdmin: 'üniversite yetkilisi',
   isFacultyManager: 'fakülte yetkilisi',
   isDeptManager: 'bölüm yetkilisi',
+  isTtoYoneticisi: 'TTO yöneticisi',
 };
 
 // Yapısal koleksiyonlar: bayraksız (sade) professor rolü yazamaz
@@ -555,6 +568,10 @@ const STUDENT_DELETE_OWNED = new Set(['portal_posts', 'portal_posts_comments']);
 
 // Öğrencilerin hiç okuyamayacağı koleksiyonlar (personel modülleri)
 const STUDENT_READ_DENY = new Set([
+  // TTO talepleri personelin kurumsal/ticari başvurularıdır (firma, bütçe,
+  // vergi bilgisi); öğrenci ekranı yoktur.
+  'tto_talepleri',
+  'tto_ayarlar',
   // Memur belge kutusu: başka öğrencilerin resmî çıktıları ve dilekçe
   // adresleri. Hiçbir öğrenci ekranı bu koleksiyonu kullanmıyor; kenar
   // çubuğu sayacı 403'ü sessizce boş liste sayar (lib/api-hata.js).
@@ -670,6 +687,7 @@ async function getActorFlags(db, user) {
     facManager: false,
     deptManager: false,
     stajYetkilisi: false,
+    ttoYonetici: false,
   };
   if (!user) return yok;
   if (user.role === 'admin')
@@ -679,6 +697,7 @@ async function getActorFlags(db, user) {
       facManager: true,
       deptManager: true,
       stajYetkilisi: true,
+      ttoYonetici: true,
     };
   if (user.role !== 'professor' || !user.identifier) return yok;
   const hit = actorFlagsCache.get(user.identifier);
@@ -698,6 +717,9 @@ async function getActorFlags(db, user) {
         // Fakülte staj yetkilisi: staj sürecinin sahibi. Etap tarihlerini
         // DEĞİŞTİREMEZ ama acil durumda kayıt kapısını gerekçeyle aralayabilir.
         stajYetkilisi: !!prof.isStajCoordinator,
+        // TTO yöneticisi: akademisyenlerden atanır (üniversite yetkilisi
+        // verir); bütün TTO taleplerini görür ve karara bağlar.
+        ttoYonetici: !!prof.isTtoYoneticisi,
       };
     }
   } catch (_) {
@@ -842,6 +864,42 @@ async function enforceWritePolicies(db, op, user) {
         status: 403,
         error: `Bu koleksiyonu yalnız yöneticiler düzenleyebilir: ${op.collection}`,
       };
+    }
+  }
+
+  // a0c) TTO — ayarlar yalnız TTO yöneticisi / üniversite yetkilisi; talepte
+  // sahip yalnız kendi kaydını, durum kurallarına göre yazar
+  // (bkz. lib/tto-talep.js → sahipYazmaKarari).
+  if (op.collection === 'tto_ayarlar') {
+    const flags = await getActorFlags(db, user);
+    if (!flags.admin && !flags.uniAdmin && !flags.ttoYonetici) {
+      return {
+        allow: false,
+        status: 403,
+        error: 'TTO ayarlarını yalnız TTO yöneticisi ya da üniversite yetkilisi değiştirebilir.',
+      };
+    }
+  }
+  if (op.collection === 'tto_talepleri') {
+    const flags = await getActorFlags(db, user);
+    if (!flags.admin && !flags.uniAdmin && !flags.ttoYonetici) {
+      let mevcutTalep = null;
+      try {
+        mevcutTalep = op.docId ? await findExistingDoc(db, op) : null;
+      } catch (_) {
+        mevcutTalep = null;
+      }
+      // Sahibin `set`i kaydı komple değiştirmesin: TTO'nun yazdığı alanlar
+      // (talep no, iade notu) silinirdi. Birleştirmeye çevrilir.
+      if (op.type === 'set' && mevcutTalep) op.merge = true;
+      const T = await ttoKurali();
+      const karar = T.sahipYazmaKarari({
+        tur: op.type,
+        mevcut: mevcutTalep,
+        veri: op.data,
+        kimlik: user.identifier,
+      });
+      if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
     }
   }
 
@@ -2640,6 +2698,15 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
+    // TTO talepleri: akademisyen YALNIZ kendi talebini görür; bütün liste
+    // TTO yöneticisi ve üniversite yetkilisine açıktır.
+    if (DB_AUTH_ENFORCED && user && collection === 'tto_talepleri') {
+      const flags = await getActorFlags(db, user);
+      if (!flags.admin && !flags.uniAdmin && !flags.ttoYonetici) {
+        filter.sahip = { $eq: String(user.identifier || '') };
+      }
+    }
+
     // Gizli alanlar (ör. yoklama anahtarı) veritabanından HİÇ okunmaz.
     const gizliProj = gizliAlanProjeksiyonu(collection);
     let cursor = gizliProj ? col.find(filter, { projection: gizliProj }) : col.find(filter);
@@ -2795,6 +2862,19 @@ router.get('/:collection/:docId', async (req, res) => {
     }
     // Gizli alanlar hiçbir rol için bu kapıdan çıkmaz (bkz. lib/gizli-alanlar.js).
     gizliAlanlariCikar(doc, collection);
+
+    // TTO talebi: başkasının talebi tek belge olarak da okunamaz.
+    if (DB_AUTH_ENFORCED && user && collection === 'tto_talepleri') {
+      const flags = await getActorFlags(db, user);
+      if (
+        !flags.admin &&
+        !flags.uniAdmin &&
+        !flags.ttoYonetici &&
+        String(doc.sahip || '') !== String(user.identifier || '')
+      ) {
+        return res.status(403).json({ error: 'Bu talebe erişim yetkiniz yok.' });
+      }
+    }
 
     // Memur: tek doküman okuması da aynı kapsama tabi — liste süzülüp bu uç
     // açık kalırsa kimlik tahmin ederek belge çekilebilirdi.
