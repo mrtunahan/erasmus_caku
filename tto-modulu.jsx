@@ -31,6 +31,7 @@ import {
   ttoAyarlari,
   ttoDosyaAdi,
   ttoSablonVerisi,
+  ttoEtiketDegerleri,
   ttoWordGovdesi,
 } from './lib/tto-talep.js';
 
@@ -144,13 +145,16 @@ async function wordAktar(talep, ayarKaydi) {
   const dosya = ttoDosyaAdi(talep);
   const TE = window.TemplateEngine;
   if (TE && TE.produceFromTemplate) {
+    const veri = ttoSablonVerisi(talep, ayarKaydi);
     const r = await TE.produceFromTemplate({
       module: 'tto',
       docType: 'talep',
       // Kurum geneli şablon: bölümden bağımsız çözülür (üniversite kapsamı).
       departmentId: '',
-      staticData: ttoSablonVerisi(talep, ayarKaydi),
+      staticData: veri,
       rows: [],
+      // Doküman kodu, revizyon, TTO adres/telefon üst-alt bilgide durur.
+      ustAltBilgi: ttoEtiketDegerleri(veri),
       filename: dosya,
     });
     if (r && r.ok) return { ok: true, kaynak: 'sablon' };

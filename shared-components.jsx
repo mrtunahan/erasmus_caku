@@ -338,6 +338,7 @@ import {
 import { XLSX_STIL, calismaKitabiParcalari, xlsxDosyaAdi } from './lib/xlsx-yaz.js';
 import { WORD_MIME, belgeDosyaAdi, wordPaketDosyalari } from './lib/word-belge.js';
 import { TTO_SABLON_DEGISKENLERI } from './lib/tto-talep.js';
+import { ustAltSozluk, ustAltBilgiDoldur, UST_ALT_PARCA_RX } from './lib/docx-ust-alt-bilgi.js';
 import {
   PROFIL_ALANLARI,
   PROFIL_BELGELERI,
@@ -4311,6 +4312,19 @@ const TemplateEngine = (() => {
     }
 
     zip.file('word/document.xml', out);
+
+    // İsteğe bağlı: üst/alt bilgi yer tutucuları (opts.ustAltBilgi = { etiket: değer }).
+    // Verilmezse header/footer'a hiç dokunulmaz — mevcut modüller etkilenmez.
+    if (opts && opts.ustAltBilgi) {
+      const sozluk = ustAltSozluk(opts.ustAltBilgi);
+      const parcalar = Object.keys(zip.files).filter((ad) => UST_ALT_PARCA_RX.test(ad));
+      for (const ad of parcalar) {
+        const eski = await zip.file(ad).async('string');
+        const yeni = ustAltBilgiDoldur(eski, sozluk);
+        if (yeni !== eski) zip.file(ad, yeni);
+      }
+    }
+
     return zip.generateAsync({
       type: 'blob',
       mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -4379,7 +4393,7 @@ const TemplateEngine = (() => {
   // Uçtan uca yardımcı: modül+belge-türü için atanmış şablonu çözer, verilerle
   // doldurur ve indirir. Şablon yoksa/eşleme yoksa { ok:false, reason } döner
   // — çağıran modül isterse gömülü çıktıya (fallback) düşer.
-  //   opts: { module, docType, departmentId, staticData, rows, filename }
+  //   opts: { module, docType, departmentId, staticData, rows, filename, ustAltBilgi? }
   async function produceFromTemplate(opts) {
     const token = localStorage.getItem('caku_auth_token');
     const headers = token ? { Authorization: 'Bearer ' + token } : {};
@@ -4443,6 +4457,7 @@ const TemplateEngine = (() => {
     try {
       blob = await generateDocx(buf, tpl.fields, _staticData, _rows, {
         stripRowBold: !!opts.stripRowBold,
+        ustAltBilgi: opts.ustAltBilgi || null,
       });
     } catch (e) {
       // Motor bozuk XML üretti (şablonun karmaşık yapısı) — sessiz bozuk
