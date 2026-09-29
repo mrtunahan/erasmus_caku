@@ -337,6 +337,7 @@ import {
 } from './lib/ders-egitmenleri.js';
 import { XLSX_STIL, calismaKitabiParcalari, xlsxDosyaAdi } from './lib/xlsx-yaz.js';
 import { WORD_MIME, belgeDosyaAdi, wordPaketDosyalari } from './lib/word-belge.js';
+import { TTO_SABLON_DEGISKENLERI } from './lib/tto-talep.js';
 import {
   PROFIL_ALANLARI,
   PROFIL_BELGELERI,
@@ -1019,7 +1020,26 @@ const COMMON_MODULES = [
     label: 'Anketler',
     icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01',
   },
+  {
+    // Teknoloji Transfer Ofisi — akademisyenin üniversite ile işbirliği
+    // talebi (TTO-TF-001). Bütün personele açık, öğrenciye kapalı
+    // (`sadecePersonel`; sunucu da öğrenci okumasını reddeder).
+    id: 'tto',
+    label: 'TTO',
+    sadecePersonel: true,
+    icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z',
+  },
 ];
+
+// Ortak modül bu kullanıcıya görünür mü? `sadecePersonel` modüller öğrenciye
+// (ve rolü çözülemeyen oturuma) kapalıdır. Kenar çubuğu ve rota koruması
+// AYNI kararı buradan okur.
+window.ortakModulGorunurMu = function (mod, user) {
+  if (!mod) return false;
+  if (!mod.sadecePersonel) return true;
+  const rol = user && (user.baseRole || user.role);
+  return rol === 'professor' || rol === 'bolum_yetkilisi' || rol === 'admin';
+};
 
 // Admin-only modüller
 const ADMIN_MODULES = [
@@ -3545,6 +3565,14 @@ window.TEMPLATE_VARS = {
 };
 
 // Bir modül+belge-türü için değişken setini çöz
+// TTO — Üniversite ile İşbirliği Talep Formu. Değişkenler kural dosyasında
+// (lib/tto-talep.js) tanımlı; şablonu yalnız üniversite yetkilisi yükler.
+window.TEMPLATE_VARS.tto = {
+  docTypes: [{ id: 'talep', label: 'Üniversite ile İşbirliği Talep Formu (TTO-TF-001)' }],
+  talep: { static: TTO_SABLON_DEGISKENLERI, row: [] },
+  default: { static: TTO_SABLON_DEGISKENLERI, row: [] },
+};
+
 window.templateVarsFor = function (module, docType) {
   const mod = window.TEMPLATE_VARS[module] || window.TEMPLATE_VARS._generic;
   return mod[docType || 'default'] || mod.default || window.TEMPLATE_VARS._generic.default;
@@ -9245,6 +9273,8 @@ const LoginModal = ({ onLogin }) => {
             isFacultyManager: !!p.isFacultyManager,
             isDeptManager: !!p.isDeptManager,
             isStajCoordinator: !!p.isStajCoordinator,
+            // TTO yöneticisi (akademisyenlerden atanır) — TTO yönetici paneli.
+            isTtoYoneticisi: !!p.isTtoYoneticisi,
             // Memur rolü + atandığı modüller (yalnız bunların çıktısına erişir).
             isMemur: !!p.isMemur,
             memurModules: Array.isArray(p.memurModules) ? p.memurModules : [],

@@ -176,6 +176,10 @@ window.__lazyModules = {
     loader: () => import('./akreditasyon-modulu.jsx'),
     component: 'AkreditasyonApp',
   },
+  tto: {
+    loader: () => import('./tto-modulu.jsx'),
+    component: 'TtoApp',
+  },
 };
 
 // ── Phase 3: App Shell (routing & navigation) ──

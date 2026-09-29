@@ -26,6 +26,9 @@ const SB_MODULES = [
   { id: 'akreditasyon', label: 'Akreditasyon', color: '#0F766E' },
   { id: 'anket', label: 'Anketler', color: '#06B6D4' },
   { id: 'yoklama', label: 'Ders Devam Listesi', color: '#7C3AED' },
+  // TTO formu kurum geneli: sunucu yalnız üniversite yetkilisinin yüklemesine
+  // izin verir (server/routes/templates.js), diğerlerine seçenek gösterilmez.
+  { id: 'tto', label: 'TTO (Teknoloji Transfer Ofisi)', color: '#B45309', sadeceUni: true },
 ];
 // ══════════════════════════════════════════════════════════════
 // GÖRÜNÜM BELİRTECLERİ
@@ -1404,13 +1407,15 @@ function AddTemplateModal(props) {
               onChange={(e) => {
                 const mod = e.target.value;
                 setModule(mod);
+                // TTO formu kurum genelidir: kapsam her zaman üniversite.
+                if (mod === 'tto') setScope('university');
                 // Modül değişince belge türünü o modülün ilk türüne çek
                 const types = docTypesOf(mod);
                 setDocType(types[0] ? types[0].id : 'default');
               }}
               style={sbSecim}
             >
-              {SB_MODULES.map((m) => (
+              {SB_MODULES.filter((m) => !m.sadeceUni || isUniAdmin).map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
                 </option>
@@ -1438,7 +1443,12 @@ function AddTemplateModal(props) {
         <div style={sbIkili}>
           {(isUniAdmin || isFacMgr) && (
             <SB_FormField label="Kapsam *">
-              <select value={scope} onChange={(e) => setScope(e.target.value)} style={sbSecim}>
+              <select
+                value={scope}
+                onChange={(e) => setScope(e.target.value)}
+                disabled={module_ === 'tto'}
+                style={sbSecim}
+              >
                 {isUniAdmin && <option value="university">Üniversite Geneli</option>}
                 {(isUniAdmin || isFacMgr) && <option value="faculty">Fakülte Geneli</option>}
                 <option value="department">Bölüm</option>
