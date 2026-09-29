@@ -307,6 +307,14 @@ describe('TTO yöneticisi = TTO birimine kayıtlı akademisyen', () => {
       ttoBirimUyesiMi([{ departmentId: 'bilgisayar', additionalDepartments: ['b77'] }], bolumler)
     ).toBe(true);
   });
+  it('ana birimi TTO olup başka bölümlerde ders veren akademisyen yöneticidir', () => {
+    expect(
+      ttoBirimUyesiMi(
+        [{ departmentId: 'b77', additionalDepartments: ['bilgisayar', 'makine'] }],
+        bolumler
+      )
+    ).toBe(true);
+  });
   it('aynı adlı kayıtlardan biri TTO’daysa yeterlidir', () => {
     expect(
       ttoBirimUyesiMi([{ departmentId: 'bilgisayar' }, { departmentId: 'b77' }], bolumler)
