@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const { getDbSafe } = require('../config/database');
 const { profilBul } = require('../lib/akademisyen-kimlik');
+const { ttoBirimUyesi } = require('../lib/tto-birim');
 const { kapsamNumaralari } = require('../lib/ogrenci-baglanti');
 const {
   generateToken,
@@ -460,6 +461,13 @@ async function fetchProfessorProfile(professorName) {
     // profili görebiliyordu. İkisi de aynı birleşik profili okur.
     const doc = await profilBul(db, professorName);
     if (!doc) return null;
+    // TTO yöneticisi = TTO birimine kayıtlı akademisyen (routes/db.js ile aynı kural).
+    let ttoYoneticisi = false;
+    try {
+      ttoYoneticisi = await ttoBirimUyesi(db, professorName);
+    } catch (_) {
+      /* birim okunamazsa yönetici sayılmaz */
+    }
     return {
       // ⚠ KAYIT KİMLİĞİ. Bu alan yoktu ve memur atamaları (bölüm, memur)
       // kimliğe bağlı olduğu için memur oturumunda ataması HİÇ çözülemiyordu:
@@ -475,8 +483,8 @@ async function fetchProfessorProfile(professorName) {
       isFacultyManager: !!doc.isFacultyManager,
       isDeptManager: !!doc.isDeptManager,
       isStajCoordinator: !!doc.isStajCoordinator,
-      // TTO yöneticisi (akademisyenlerden atanır) — TTO modülünün yönetici paneli.
-      isTtoYoneticisi: !!doc.isTtoYoneticisi,
+      // TTO yöneticisi — TTO birimine kayıtlı akademisyen (server/lib/tto-birim.js).
+      isTtoYoneticisi: ttoYoneticisi,
       // Memur rolü — akademisyenden sayılmaz; yalnız atandığı modüllere erişir.
       isMemur: !!doc.isMemur,
       memurModules: Array.isArray(doc.memurModules) ? doc.memurModules : [],

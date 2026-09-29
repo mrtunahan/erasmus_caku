@@ -4,7 +4,7 @@
 // 1. aşama: AKADEMİSYEN tarafı.
 //   • Taleplerim   — kendi talepleri, durumları, Word çıktısı
 //   • Talep formu  — Üniversite ile İşbirliği Talep Formu (TTO-TF-001)
-//   • Yol Haritası — modülün uygulama adımları (1. ve 2. aşama)
+//   • Yol Haritası — talebin akışı (akademisyen → TTO birimi → karar)
 //
 // Kurallar (zorunlu alanlar, durum geçişleri, akademisyenin dokunamayacağı
 // TTO alanları, şablon değişkenleri) lib/tto-talep.js'te; sunucu aynı
@@ -21,7 +21,6 @@ import {
   TTO_PROJE_ALANLAR,
   TTO_DURUMLAR,
   TTO_OZET_SINIRI,
-  TTO_YOL_HARITASI,
   akademisyenDuzenleyebilirMi,
   bosTalep,
   profildenGenelBilgi,
@@ -860,7 +859,11 @@ function YolHaritasi() {
   const akis = [
     ['1', 'Akademisyen formu doldurur', 'Taslak olarak saklar, Word çıktısı alabilir.'],
     ['2', 'TTO’ya gönderir', 'İnceleme başlayana kadar geri çekip düzenleyebilir.'],
-    ['3', 'TTO yöneticisi inceler', 'Talep no ve başvuruyu alan kişiyi girer.'],
+    [
+      '3',
+      'TTO birimi inceler',
+      'TTO birimine kayıtlı yönetici talep no ve başvuruyu alan kişiyi girer.',
+    ],
     ['4', 'Karar', 'Onay, düzeltme için iade ya da ret.'],
     ['5', 'Onaylı belge akademisyene döner', 'Taleplerim listesinden indirilir.'],
   ];
@@ -895,67 +898,6 @@ function YolHaritasi() {
           ))}
         </div>
       </div>
-      {TTO_YOL_HARITASI.map((asama) => {
-        const biten = asama.adimlar.filter((x) => x.durum === 'tamam').length;
-        return (
-          <div key={asama.asama} style={kart}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 12,
-              }}
-            >
-              <div style={{ fontSize: 14, fontWeight: 800, color: T.navy }}>{asama.asama}</div>
-              <span style={{ fontSize: 12, color: T.soluk, fontWeight: 600 }}>
-                {biten} / {asama.adimlar.length}
-              </span>
-            </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {asama.adimlar.map((x) => {
-                const tamam = x.durum === 'tamam';
-                return (
-                  <div
-                    key={x.baslik}
-                    style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13.5 }}
-                  >
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        flex: '0 0 20px',
-                        height: 20,
-                        borderRadius: '50%',
-                        border: `2px solid ${tamam ? T.basari : T.kenarGiris}`,
-                        background: tamam ? T.basari : 'transparent',
-                        color: '#fff',
-                        fontSize: 11,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 800,
-                      }}
-                    >
-                      {tamam ? '✓' : ''}
-                    </span>
-                    <span style={{ color: tamam ? T.metin : T.soluk }}>{x.baslik}</span>
-                    <span
-                      style={{
-                        marginLeft: 'auto',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: tamam ? T.basari : T.soluk,
-                      }}
-                    >
-                      {tamam ? 'Tamamlandı' : 'Sırada'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }

@@ -13,6 +13,8 @@ import {
   profildenGenelBilgi,
   TTO_AYAR_VARSAYILAN,
   TTO_SABLON_DEGISKENLERI,
+  ttoBirimAdiMi,
+  ttoBirimUyesiMi,
 } from '../lib/tto-talep.js';
 
 function tamTalep(ek) {
@@ -284,5 +286,43 @@ describe('TTO şablon değişkenleri Şablonlar ekranında otomatik eşlenir', (
     Object.entries(bekle).forEach(([token, id]) => {
       expect([...(harita[norm(token)] || [])]).toEqual([id]);
     });
+  });
+});
+
+describe('TTO yöneticisi = TTO birimine kayıtlı akademisyen', () => {
+  const bolumler = [
+    { id: 'bilgisayar', name: 'Bilgisayar Mühendisliği' },
+    { _docId: 'b77', name: 'Teknoloji Transfer Ofisi', kimlikler: ['b77', 'tto-eski'] },
+  ];
+  it('birim adını tanır', () => {
+    expect(ttoBirimAdiMi('TEKNOLOJİ TRANSFER OFİSİ')).toBe(true);
+    expect(ttoBirimAdiMi('ÇAKÜ TTO A.Ş.')).toBe(true);
+    expect(ttoBirimAdiMi('Otomotiv')).toBe(false);
+    expect(ttoBirimAdiMi('Bilgisayar Mühendisliği')).toBe(false);
+  });
+  it('ana birim, ek birim ve eski kimlik ile üye sayılır', () => {
+    expect(ttoBirimUyesiMi([{ departmentId: 'b77' }], bolumler)).toBe(true);
+    expect(ttoBirimUyesiMi([{ departmentId: 'tto-eski' }], bolumler)).toBe(true);
+    expect(
+      ttoBirimUyesiMi([{ departmentId: 'bilgisayar', additionalDepartments: ['b77'] }], bolumler)
+    ).toBe(true);
+  });
+  it('aynı adlı kayıtlardan biri TTO’daysa yeterlidir', () => {
+    expect(
+      ttoBirimUyesiMi([{ departmentId: 'bilgisayar' }, { departmentId: 'b77' }], bolumler)
+    ).toBe(true);
+  });
+  it('başka birimdeki akademisyen yönetici değildir; eski bayrak yetki vermez', () => {
+    expect(ttoBirimUyesiMi([{ departmentId: 'bilgisayar', isTtoYoneticisi: true }], bolumler)).toBe(
+      false
+    );
+    expect(ttoBirimUyesiMi([], bolumler)).toBe(false);
+    expect(ttoBirimUyesiMi([{ departmentId: 'b77' }], [])).toBe(false);
+  });
+  it('kimliksiz eski kayıtta yalnız birim adına bakılır', () => {
+    expect(ttoBirimUyesiMi([{ department: 'Teknoloji Transfer Ofisi' }], bolumler)).toBe(true);
+    expect(ttoBirimUyesiMi([{ departmentId: 'bilgisayar', department: 'TTO' }], bolumler)).toBe(
+      false
+    );
   });
 });

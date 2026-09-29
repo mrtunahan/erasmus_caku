@@ -9288,7 +9288,7 @@ const LoginModal = ({ onLogin }) => {
             isFacultyManager: !!p.isFacultyManager,
             isDeptManager: !!p.isDeptManager,
             isStajCoordinator: !!p.isStajCoordinator,
-            // TTO yöneticisi (akademisyenlerden atanır) — TTO yönetici paneli.
+            // TTO yöneticisi — sunucu TTO birimine kayıtlı olmasından hesaplar.
             isTtoYoneticisi: !!p.isTtoYoneticisi,
             // Memur rolü + atandığı modüller (yalnız bunların çıktısına erişir).
             isMemur: !!p.isMemur,
