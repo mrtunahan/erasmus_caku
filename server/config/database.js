@@ -159,6 +159,24 @@ async function setupIndexes(database) {
       .collection('muafiyet_history')
       .createIndex({ departmentId: 1, approvedAt: -1 }, { background: true });
 
+    // TTO iş kayıtları: sıra no YIL İÇİNDE tekildir. Sunucu max+1 damgalar
+    // (routes/db.js); iki yönetici aynı anda kayıt eklerse ikincisi burada
+    // durur ve 409 alır — sessizce aynı numarayı taşıyan iki kayıt oluşmaz.
+    try {
+      await database.collection('tto_is_kayitlari').createIndex(
+        { yil: 1, siraNo: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { siraNo: { $type: 'number' } },
+          background: true,
+        }
+      );
+    } catch (err) {
+      if (!/already exists|equivalent index/i.test(err.message)) {
+        console.warn('[indexes] tto_is_kayitlari yil+siraNo unique:', err.message);
+      }
+    }
+
     // Performans modülü — akademisyen gösterge değerleri
     await database
       .collection('performance_data')
