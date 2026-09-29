@@ -34,6 +34,13 @@ const KAYNAK = 'tto-otomasyon';
 const UYGULA = process.env.UYGULA === '1';
 
 function sqliteAc(dosya) {
+  if (!require('fs').existsSync(dosya)) {
+    throw new Error(
+      'Dosya bulunamadı: ' +
+        dosya +
+        '\nTTO Otomasyonu veritabanının (backend/data/tto.db) bu sunucudaki gerçek yolunu verin.'
+    );
+  }
   let DatabaseSync;
   try {
     ({ DatabaseSync } = require('node:sqlite'));
