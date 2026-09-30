@@ -2549,6 +2549,11 @@ function AppShell() {
   ];
 
   const handleLogin = (user) => {
+    // Okuma önbelleği (15 sn) giriş öncesinden kalmasın: giriş ekranı
+    // akademisyenleri KİMLİKSİZ okur ve sunucu yalnız ad/unvan/bölüm döndürür.
+    // Önbellek temizlenmezse girişten sonraki ilk saniyelerde her ekran bu
+    // kısıtlı listeyi görüyordu (ör. gözetmenlik rolü "yok" sanılıyordu).
+    if (window.apiInvalidate) window.apiInvalidate();
     setCurrentUser(user);
     const safeUser = {
       role: user.role,
@@ -2622,6 +2627,9 @@ function AppShell() {
     } catch (_) {
       /* yok say */
     }
+    // Çıkan kullanıcının okuduğu veri, aynı sekmede giriş yapan bir sonraki
+    // kullanıcıya önbellekten sunulmasın.
+    if (window.apiInvalidate) window.apiInvalidate();
     setCurrentUser(null);
     navigate('portal');
   };

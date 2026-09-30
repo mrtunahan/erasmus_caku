@@ -101,6 +101,8 @@ import {
   ogrenciNotu as muafiyetOgrenciNotu,
   notEslemesiGerekli as muafiyetNotEslemesiGerekli,
 } from './lib/muafiyet-belge-notu.js';
+import * as GozetmenKurallari from './lib/gozetmen.js';
+import { GozetmenKurallariPaneli } from './gozetmen-kurallari.jsx';
 import {
   DUZENLENEBILIR_ALANLAR as MUAFIYET_DUZENLENEBILIR_ALANLAR,
   duzenleyebilirMi as muafiyetDuzenleyebilirMi,
@@ -15320,6 +15322,10 @@ window.sinavKabulKaydi = kabulKaydi;
 window.gozetmenMusaitsizGunler = musaitsizGunler;
 window.gozetmenMusaitsizlikHaritasi = musaitsizlikHaritasi;
 window.gozetmenMusaitMi = gozetmenMusaitMi;
+// Gözetmenlik bölüme bağlı; kurallar (hoca, gözetmen sayısı) ve atama tek
+// yerde (lib/gozetmen.js). Bölüm Yönetimi ile Sınav Otomasyonu aynısını çağırır.
+window.Gozetmen = GozetmenKurallari;
+window.GozetmenKurallariPaneli = GozetmenKurallariPaneli;
 window.belgeGonderimHataMetni = gonderimHataMetni;
 window.belgeGonderimBilgiMetni = gonderimBilgiMetni;
 // Muafiyet/intibak kayıt durumu — kart rengi, açıklama ve liste sırası.

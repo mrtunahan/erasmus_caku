@@ -64,8 +64,6 @@ const DEPT_CLASSROOMS = [
   { name: 'M11103', capacity: 58 },
 ];
 
-const DEPT_SUPERVISORS = []; // Artık kullanılmıyor — gözetmenler professors koleksiyonundan roles:["gozetmen"] ile okunur
-
 const ALL_FACULTY_CLASSROOMS = [
   { name: 'M10Z04', capacity: 25 },
   { name: 'M10Z05', capacity: 30 },
@@ -81,10 +79,6 @@ const ALL_FACULTY_CLASSROOMS = [
   { name: 'M111BL', capacity: '' },
   { name: 'M122BL', capacity: '' },
 ];
-
-function assignClassroom(studentCount) {
-  return assignClassroomFromList(DEPT_CLASSROOMS, studentCount);
-}
 
 // Genel salon atama fonksiyonu: tek salon → 2'li kombinasyon → 3+ salon (greedy)
 function assignClassroomFromList(rooms, studentCount) {
@@ -122,123 +116,35 @@ function assignClassroomFromList(rooms, studentCount) {
   return selected.map((r) => r.name).join(' - ');
 }
 
-function _assignSupervisorsToExams(exams) {
-  return assignSupervisorsFromList(DEPT_SUPERVISORS, exams, assignClassroom);
+// ── Gözetmen ataması ──
+// Kurallar (dersin hocası, kaç gözetmen) ve dağıtım lib/gozetmen.js'te,
+// Bölüm Yönetimi ile ortak ve test altında. Burada yalnız çağrılır.
+// Kurallar bölüm kaydından okunur: departments.gozetmenKurali (hoca) ve
+// departments.gozetmenSayiKurali (salon başına gözetmen).
+// Kayıt KİMLİKLE bulunur, ada göre değil: bölüm listesi burada ada göre
+// eşleniyor ve aynı adlı iki kayıt varsa kuralın yazılmadığı kayıt seçilip
+// çıktı varsayılan kurallarla üretiliyordu.
+async function bolumGozetmenKurallari(bolumId) {
+  let bolum = null;
+  try {
+    const liste = await window.apiRead('departments');
+    bolum = window.Gozetmen ? window.Gozetmen.bolumKaydiniBul(liste, bolumId) : null;
+  } catch (_) {
+    bolum = null;
+  }
+  return {
+    hocaKurali: bolum && bolum.gozetmenKurali,
+    sayiKurali: bolum && bolum.gozetmenSayiKurali,
+  };
 }
 
-// ── Dersin kendi hocasının gözetmenlik kuralı ──
-// Bu kural bölümden bölüme değişir: bazı bölümlerde dersin hocasının kendi
-// sınavında bulunması ZORUNLU, bazılarında ise gözetmenlik bilinçli olarak
-// bağımsız tutulur. Bu yüzden kural bölüm kaydında saklanır
-// (departments.gozetmenKurali) ve buraya seçenek olarak geçilir.
-//   'zorunlu'  → dersin hocası her zaman gözetmenlerden biridir
-//   'tercihli' → hocası gözetmen havuzundaysa önceliklidir (VARSAYILAN)
-//   'haric'    → hoca kendi sınavına otomatik atanmaz
-const _GOZETMEN_KURALLARI = [
-  {
-    id: 'tercihli',
-    label: 'Tercihli (önerilen)',
-    desc: 'Dersin hocası gözetmen havuzundaysa kendi sınavına öncelikli atanır, zorunlu değildir.',
-  },
-  {
-    id: 'zorunlu',
-    label: 'Zorunlu',
-    desc: 'Dersin hocası kendi sınavında her zaman gözetmen olarak yer alır.',
-  },
-  {
-    id: 'haric',
-    label: 'Hariç',
-    desc: 'Dersin hocası kendi sınavına otomatik gözetmen atanmaz; gözetmenlik bağımsız yürütülür.',
-  },
-];
-const GOZETMEN_KURALI_VARSAYILAN = 'tercihli';
-
-// Genel gözetmen atama: toplam sınav süresine göre dengeli dağıtım.
-// DETERMİNİSTİK (Y1): rastgele karıştırma yerine sabit sıra (tarih, saat, kod)
-// kullanılır — aynı dönem her export'ta AYNI gözetmen listesini üretir
-// (resmi belge tekrar üretilebilir). Sınavda elle atanmış gözetmen varsa
-// otomatik atama yerine ona saygı duyulur.
-//
-// İki ek kural:
-//  1) ÇAKIŞMA: bir gözetmen aynı gün+saatte iki sınava atanamaz.
-//  2) DERSİN HOCASI: yukarıdaki bölüm kuralına göre zorunlu/tercihli/hariç.
-function assignSupervisorsFromList(supervisorNames, exams, classroomFn, options) {
-  const kural = (options && options.ownLecturerRule) || GOZETMEN_KURALI_VARSAYILAN;
-  const totalMinutes = {};
-  supervisorNames.forEach((s) => (totalMinutes[s] = 0));
-  // Ad eşleştirmesi: sınavdaki hoca adı ile gözetmen listesindeki ad birebir
-  // aynı olmayabilir (boşluk/büyük-küçük harf). Türkçe duyarlı normalize.
-  const norm = (v) =>
-    String(v == null ? '' : v)
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLocaleLowerCase('tr-TR');
-  const havuzAdi = {};
-  supervisorNames.forEach((s) => (havuzAdi[norm(s)] = s));
-
-  // Çakışma takibi: gözetmen adı → dolu olduğu "tarih|saat" anahtarları
-  const dolu = {};
-  supervisorNames.forEach((s) => (dolu[s] = new Set()));
-  const slotKey = (e) => (e.date || '') + '|' + (e.timeSlot || '');
-  // Gün bazlı müsaitsizlik: izinli/görevli olduğu günde atanmaz
-  // (Bölüm Yönetimi → Gözetmenler ekranından girilir).
-  const musaitsizlik = (options && options.musaitsizlik) || {};
-  const gunMusait = (s, exam) =>
-    !window.gozetmenMusaitMi || window.gozetmenMusaitMi(s, exam && exam.date, musaitsizlik);
-  const musait = (s, exam) => gunMusait(s, exam) && (!dolu[s] || !dolu[s].has(slotKey(exam)));
-  const isaretle = (s, exam, duration) => {
-    if (totalMinutes[s] != null) totalMinutes[s] += duration;
-    if (dolu[s]) dolu[s].add(slotKey(exam));
-  };
-
-  const assignments = {};
-  const examKey = (e) => e.id || e.code + e.date + e.timeSlot;
-  const ordered = [...exams].sort((a, b) => {
-    const da = (a.date || '') + (a.timeSlot || '') + (a.code || '');
-    const db = (b.date || '') + (b.timeSlot || '') + (b.code || '');
-    return da < db ? -1 : da > db ? 1 : 0;
+function gozetmenleriDagit(havuz, exams, classroomFn, secenekler) {
+  const G = window.Gozetmen;
+  if (!G || !G.gozetmenAta) return { atamalar: {}, uyarilar: [] };
+  return G.gozetmenAta(havuz || [], exams, {
+    ...(secenekler || {}),
+    salonBul: classroomFn,
   });
-  ordered.forEach((exam) => {
-    const duration = exam.duration || 60;
-    // Elle atanmış gözetmen(ler): virgülle ayrılmış olabilir
-    const manual = String(exam.supervisor || '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (manual.length > 0) {
-      manual.forEach((s) => isaretle(s, exam, duration));
-      assignments[examKey(exam)] = manual;
-      return;
-    }
-    const room = classroomFn(exam.studentCount);
-    const roomCount = room.split(' - ').length;
-    const numSupervisors =
-      roomCount >= 3 ? roomCount : roomCount === 2 ? 3 : exam.studentCount < 30 ? 1 : 2;
-
-    // Dersin hocası havuzda mı?
-    const hocaAdi = havuzAdi[norm(exam.professor)] || null;
-    const assigned = [];
-
-    if (hocaAdi && kural !== 'haric' && musait(hocaAdi, exam)) {
-      // 'zorunlu' → her hâlükârda; 'tercihli' → öncelikli olarak eklenir.
-      assigned.push(hocaAdi);
-    }
-
-    // Kalan kontenjan: en az yüklü ve o saatte MÜSAİT gözetmenlerden.
-    const sortedSups = [...supervisorNames]
-      .filter((s) => assigned.indexOf(s) < 0 && musait(s, exam))
-      // 'haric' kuralında hoca kendi sınavına atanmaz
-      .filter((s) => !(kural === 'haric' && hocaAdi && s === hocaAdi))
-      .sort((a, b) => totalMinutes[a] - totalMinutes[b] || (a < b ? -1 : a > b ? 1 : 0));
-
-    while (assigned.length < numSupervisors && sortedSups.length > 0) {
-      assigned.push(sortedSups.shift());
-    }
-
-    assigned.forEach((s) => isaretle(s, exam, duration));
-    assignments[examKey(exam)] = assigned;
-  });
-  return assignments;
 }
 
 const TIME_SLOTS = [];
@@ -2409,7 +2315,8 @@ async function exportToXLSX(
   customClassrooms,
   customSupervisors,
   deptName,
-  gozetmenKurali,
+  // { hocaKurali, sayiKurali } — bölüm kaydındaki gözetmen kuralları
+  gozetmenKurallari,
   // Gözetmenin izinli/görevli olduğu günler — { 'Ad Soyad': ['2026-06-01'] }.
   // Dekanlık çıktısı da canlı ekranla AYNI atamayı üretmeli.
   musaitsizlik
@@ -2453,19 +2360,31 @@ async function exportToXLSX(
 
   // Use custom supervisors/classrooms if provided, otherwise use defaults
   const exportClassrooms = customClassrooms || DEPT_CLASSROOMS;
-  const exportSupervisorNames = customSupervisors || DEPT_SUPERVISORS;
+  const exportSupervisorNames = customSupervisors || [];
 
   // Supervisor assignment for export (süre bazlı dengeli dağıtım)
   function exportAssignClassroom(studentCount) {
     return assignClassroomFromList(exportClassrooms, studentCount);
   }
 
-  const exportSupervisorMap = assignSupervisorsFromList(
+  const { atamalar: exportSupervisorMap, uyarilar: gozetmenUyarilari } = gozetmenleriDagit(
     exportSupervisorNames,
     sorted,
     exportAssignClassroom,
-    { ownLecturerRule: gozetmenKurali, musaitsizlik: musaitsizlik || {} }
+    { ...(gozetmenKurallari || {}), musaitsizlik: musaitsizlik || {} }
   );
+  // Eksik atama sessiz geçmesin: çıktı yine üretilebilir ama yetkili bilerek
+  // üretir (gözetmen yetmedi, zorunlu hoca müsait değil, havuz boş…).
+  if (gozetmenUyarilari.length > 0) {
+    const devam = window.confirm(
+      'Gözetmen atamasında ' +
+        gozetmenUyarilari.length +
+        ' uyarı var:\n\n' +
+        window.Gozetmen.uyariMetni(gozetmenUyarilari) +
+        '\n\nÇıktı bu hâliyle üretilsin mi?'
+    );
+    if (!devam) return;
+  }
 
   const enriched = sorted.map((exam) => {
     const key = exam.id || exam.code + exam.date + exam.timeSlot;
@@ -2791,6 +2710,8 @@ function SinavOtomasyonuApp({
   const [tumSalonlar, setTumSalonlar] = useState([]);
   const [cakismaKabulleri, setCakismaKabulleri] = useState([]);
   const [cakismaPaneli, setCakismaPaneli] = useState(false);
+  // Gözetmen kuralları (hoca + salon başına gözetmen) — bölüm kaydında durur.
+  const [gozetmenKuralAcik, setGozetmenKuralAcik] = useState(false);
   const [kabulEdilen, setKabulEdilen] = useState(null); // şartlı kabul modalı
 
   // State
@@ -2825,31 +2746,6 @@ function SinavOtomasyonuApp({
       setSelectedDeptId(activeDepartment);
     }
   }, [activeDepartment]);
-
-  // Dynamic classroom assignment using department-specific classrooms
-  const assignClassroomDynamic = useCallback(
-    (studentCount) => {
-      const rooms = deptClassrooms.length > 0 ? deptClassrooms : DEPT_CLASSROOMS;
-      return assignClassroomFromList(rooms, studentCount);
-    },
-    [deptClassrooms]
-  );
-
-  // Dynamic supervisor assignment using department-specific supervisors
-  const _assignSupervisorsDynamic = useCallback(
-    (exams) => {
-      const supervisorNames =
-        deptSupervisors.length > 0 ? deptSupervisors.map((s) => s.name) : DEPT_SUPERVISORS;
-      return assignSupervisorsFromList(supervisorNames, exams, assignClassroomDynamic, {
-        ownLecturerRule: selectedDept?.gozetmenKurali || GOZETMEN_KURALI_VARSAYILAN,
-        // İzinli/görevli olduğu güne gözetmen atanmaz.
-        musaitsizlik: window.gozetmenMusaitsizlikHaritasi
-          ? window.gozetmenMusaitsizlikHaritasi(deptSupervisors)
-          : {},
-      });
-    },
-    [deptSupervisors, assignClassroomDynamic, selectedDept]
-  );
 
   // ── Seed data to DB ──
   const seedData = async () => {
@@ -2992,6 +2888,25 @@ function SinavOtomasyonuApp({
     return [];
   };
 
+  // Bölümün gözetmenleri: gözetmenlik bölüme bağlı (professors.gozetmenBolumleri);
+  // eski kayıtlar (yalnız roles:['gozetmen']) kendi bölümlerinde sayılır.
+  const bolumGozetmenleriniOku = async (deptId) => {
+    if (!deptId) return [];
+    const G = window.Gozetmen || {};
+    const bolumler = window.DEPARTMENTS || [];
+    const bolumAdi =
+      (departments.find((d) => d.id === deptId) || bolumler.find((d) => d.id === deptId) || {})
+        .name || '';
+    const hepsi = (await window.apiRead('professors')) || [];
+    return hepsi
+      .filter((p) =>
+        G.bolumGozetmeniMi
+          ? G.bolumGozetmeniMi(p, deptId, bolumler, bolumAdi)
+          : (p.roles || []).includes('gozetmen')
+      )
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
+  };
+
   // ── Load department-specific classrooms and supervisors ──
   const loadDeptResources = async (deptId) => {
     if (!deptId) return;
@@ -3005,14 +2920,10 @@ function SinavOtomasyonuApp({
             .sort((a, b) => (a.capacity || 0) - (b.capacity || 0))
         );
       }
-      // Gözetmenler: professors koleksiyonundan roles filtreyle
-      const pRef = getProfessorsRef();
-      if (pRef) {
-        const snap = await pRef.where('departmentId', '==', deptId).get();
-        const allProfs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        const sups = allProfs.filter((p) => (p.roles || []).includes('gozetmen'));
-        setDeptSupervisors(sups.sort((a, b) => (a.name || '').localeCompare(b.name || '')));
-      }
+      // Gözetmenler: bu BÖLÜMÜN gözetmen listesi (lib/gozetmen.js). Başka
+      // bölümden atanmış akademisyenler de dahil; bu yüzden bölüm süzgeci
+      // olmadan okunur.
+      setDeptSupervisors(await bolumGozetmenleriniOku(deptId));
     } catch (e) {
       console.error('Load dept resources error:', e);
     }
@@ -3224,15 +3135,8 @@ function SinavOtomasyonuApp({
               .sort((a, b) => (a.capacity || 0) - (b.capacity || 0))
           : []
       );
-      // Gözetmenler: professors'tan roles ile filtrele
-      const allProfsForSup = profsSnap
-        ? profsSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        : [];
-      setDeptSupervisors(
-        allProfsForSup
-          .filter((p) => (p.roles || []).includes('gozetmen'))
-          .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'))
-      );
+      // Gözetmenler: bu bölümün gözetmen listesi (başka bölümden atananlar dahil)
+      setDeptSupervisors(await bolumGozetmenleriniOku(selectedDeptId));
     } catch (e) {
       console.error('Load error:', e);
     }
@@ -3835,33 +3739,6 @@ function SinavOtomasyonuApp({
     await loadDeptResources(selectedDeptId);
   };
 
-  // ── Department Supervisor CRUD handlers (professors koleksiyonu üzerinden) ──
-  const _handleSupervisorSave = async (existingSup, formData) => {
-    if (existingSup) {
-      // Düzenleme — professors koleksiyonunda güncelle
-      await DBWrite.update('professors', existingSup.id, formData);
-    } else {
-      // Yeni gözetmen — professors'a roles:["gozetmen"] ile ekle
-      const roles = ['gozetmen'];
-      await DBWrite.add('professors', {
-        ...formData,
-        roles,
-        departmentId: selectedDeptId,
-        isExternal: false,
-        createdAt: new Date().toISOString(),
-      });
-    }
-    await loadDeptResources(selectedDeptId);
-  };
-
-  const _handleSupervisorDelete = async (sup) => {
-    if (!confirm(`"${sup.name}" gözetmenlikten çıkarılacak mı?`)) return;
-    // Profesörü silme — sadece gozetmen rolünü kaldır
-    const roles = (sup.roles || []).filter((r) => r !== 'gozetmen');
-    await DBWrite.update('professors', sup.id, { roles });
-    await loadDeptResources(selectedDeptId);
-  };
-
   // ══════════════════════════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════════════════════════
@@ -4327,12 +4204,20 @@ function SinavOtomasyonuApp({
                     {cakismaOzet.kabul > 0 ? ' · ' + cakismaOzet.kabul + ' şartlı kabul' : ''}
                   </button>
                 )}
+                {canManage && selectedDeptId && (
+                  <GhostBtn
+                    onClick={() => setGozetmenKuralAcik(true)}
+                    style={{ fontSize: 12, padding: '4px 10px' }}
+                  >
+                    Gözetmen Kuralları
+                  </GhostBtn>
+                )}
                 {/* Dekanlık/Bölüm çıktıları yalnızca bölüm/fakülte/üniversite
                     yetkililerinde görünür; sıradan akademisyende gizli. */}
                 {canManage && periodExams.length > 0 && (
                   <>
                     <GhostBtn
-                      onClick={() =>
+                      onClick={async () =>
                         cikisIzniVar() &&
                         exportToXLSX(
                           periodExams,
@@ -4341,7 +4226,7 @@ function SinavOtomasyonuApp({
                           deptClassrooms.length > 0 ? deptClassrooms : null,
                           deptSupervisors.length > 0 ? deptSupervisors.map((s) => s.name) : null,
                           selectedDept?.name || null,
-                          selectedDept?.gozetmenKurali || GOZETMEN_KURALI_VARSAYILAN,
+                          await bolumGozetmenKurallari(selectedDeptId),
                           window.gozetmenMusaitsizlikHaritasi
                             ? window.gozetmenMusaitsizlikHaritasi(deptSupervisors)
                             : {}
@@ -4834,6 +4719,22 @@ function SinavOtomasyonuApp({
               setEditingPeriod(null);
             }}
           />
+        )}
+
+        {gozetmenKuralAcik && window.GozetmenKurallariPaneli && (
+          <Modal
+            open={true}
+            title={'Gözetmen Kuralları' + (selectedDept?.name ? ' — ' + selectedDept.name : '')}
+            onClose={() => setGozetmenKuralAcik(false)}
+            width={720}
+          >
+            <div style={{ fontSize: 12.5, color: '#6B7280', marginBottom: 12, lineHeight: 1.55 }}>
+              Dekanlık çıktısındaki otomatik gözetmen ataması bu kurallarla yapılır. Gözetmen
+              listesi Bölüm Yönetimi → Gözetmenler ekranından yönetilir ({deptSupervisors.length}{' '}
+              gözetmen tanımlı).
+            </div>
+            <window.GozetmenKurallariPaneli departmentId={selectedDeptId} />
+          </Modal>
         )}
 
         {kabulEdilen && (

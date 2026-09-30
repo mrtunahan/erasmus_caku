@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════════════
 // ÇAKÜ Bölüm Yönetimi Modülü
 // Bölümler, Sınıf/Salonlar ve Gözetmenlerin tanımlandığı ortak alan
-// Gözetmenler artık professors koleksiyonunda roles:["gozetmen"] ile yönetilir
+// Gözetmenlik BÖLÜME bağlıdır: professors.gozetmenBolumleri (lib/gozetmen.js)
 // ══════════════════════════════════════════════════════════════
 
 const { useState, useEffect, useMemo } = React;
@@ -261,6 +261,9 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   const [departments, setDepartments] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
   const [professors, setProfessors] = useState([]);
+  // Bütün akademisyenler: başka bölümden atanmış gözetmenler ve fakülte
+  // yetkilisinin seçim listesi bölümün kendi listesinde yok.
+  const [tumAkademisyenler, setTumAkademisyenler] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [editingItem, setEditingItem] = useState(null);
@@ -296,15 +299,80 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     });
   }, [professors, activeDepartment]);
 
-  // Gözetmenler = professors koleksiyonunda roles'ında "gozetmen" olanlar
-  const supervisors = useMemo(() => {
-    return professors.filter((p) => (p.roles || []).includes('gozetmen'));
-  }, [professors]);
+  // ── GÖZETMENLER: bölüme bağlı (lib/gozetmen.js) ──
+  // Eskiden gözetmenlik kişiye bağlıydı (roles:['gozetmen']) ve bir bölümde
+  // gözetmen yapılan kişi diğer bölümünün listesine de düşüyordu.
+  const G = window.Gozetmen || {};
+  const gozetmenMi = (p) =>
+    G.bolumGozetmeniMi
+      ? G.bolumGozetmeniMi(p, activeDepartment, window.DEPARTMENTS || [], aktifBolumAdi)
+      : (p.roles || []).includes('gozetmen');
+  const supervisors = useMemo(
+    () =>
+      tumAkademisyenler
+        .filter(gozetmenMi)
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'tr')),
+    [tumAkademisyenler, activeDepartment, aktifBolumAdi]
+  );
 
-  // Gözetmen olmayan profesörler (gözetmen eklerken seçim listesi)
+  // Fakülte/üniversite yetkilisi BAŞKA bölümlerden de akademisyen seçebilir
+  // (bir bölümün gözetmen açığı diğerinden kapatılır); bölüm yetkilisi yalnız
+  // kendi bölümünden. Sunucu da aynı kuralı uygular (server/lib/gozetmen-yazma.js).
+  const baskaBolumdenSecebilir = isAdmin;
+  // Akademisyen → bölüm adı (seçim listesinde ve tabloda gösterilir).
+  const kisiBolumAdi = useMemo(() => {
+    const m = {};
+    const liste = (departments.length ? departments : window.DEPARTMENTS || []).map((d) => ({
+      id: d.id,
+      name: d.name,
+    }));
+    tumAkademisyenler.forEach((p) => {
+      const d = liste.find((x) =>
+        window.profMatchesDept
+          ? window.profMatchesDept({ ...p, additionalDepartments: [] }, x.id, x.name)
+          : p.departmentId === x.id
+      );
+      if (d) m[p.id] = d.name;
+    });
+    return m;
+  }, [tumAkademisyenler, departments]);
+
+  // Gözetmen olmayan akademisyenler (eklerken seçim listesi)
   const nonSupervisorProfs = useMemo(() => {
-    return professors.filter((p) => !(p.roles || []).includes('gozetmen'));
-  }, [professors]);
+    const aday = baskaBolumdenSecebilir
+      ? tumAkademisyenler.filter(
+          (p) => !p.isMemur && (departments.length === 0 || kisiBolumAdi[p.id])
+        )
+      : professors.filter((p) => !p.isMemur);
+    const kendi = new Set(professors.map((p) => p.id));
+    return aday
+      .filter((p) => !gozetmenMi(p))
+      .sort(
+        (a, b) =>
+          (kendi.has(a.id) ? 0 : 1) - (kendi.has(b.id) ? 0 : 1) ||
+          String(a.name || '').localeCompare(String(b.name || ''), 'tr')
+      );
+  }, [tumAkademisyenler, professors, departments, kisiBolumAdi, activeDepartment, aktifBolumAdi]);
+  const bolumunKendisi = useMemo(() => new Set(professors.map((p) => p.id)), [professors]);
+
+  const gozetmenlikYaz = async (prof, ekle) => {
+    // Yama kaydın TAZE hâlinden hesaplanır: ekrandaki liste bayat olabilir
+    // (başka bir bölüm bu arada aynı kişiyi eklemiş/çıkarmış olabilir) ve
+    // bayat listeyi geri yazmak o bölümün gözetmenliğini silerdi.
+    let guncel = prof;
+    try {
+      const oku = window.apiReadDocFresh || window.apiReadDoc;
+      const r = await oku('professors', String(prof.id));
+      if (r && r.exists) guncel = { ...prof, ...r.data };
+    } catch (_) {
+      /* okunamazsa ekrandaki kayıtla devam */
+    }
+    const yama = G.gozetmenlikYamasi
+      ? G.gozetmenlikYamasi(guncel, activeDepartment, ekle, window.DEPARTMENTS || [])
+      : null;
+    if (!yama) throw new Error('Gözetmen kuralları yüklenemedi.');
+    await DBWrite.update('professors', prof.id, yama);
+  };
 
   // Veri yükleme — direkt MongoDB API
   const loadData = async () => {
@@ -340,6 +408,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
           : p.departmentId === activeDepartment
       );
       setProfessors(profs.map((d) => ({ id: d.id, ...d })));
+      setTumAkademisyenler((allProfs || []).map((d) => ({ id: d.id, ...d })));
     } catch (e) {
       console.error(e);
     } finally {
@@ -475,12 +544,9 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     try {
       if (editingItem === 'new_sup') {
         if (form.selectedProfId) {
-          // Mevcut profesöre gozetmen rolü ekle
-          const prof = professors.find((p) => p.id === form.selectedProfId);
-          if (prof) {
-            const roles = [...new Set([...(prof.roles || []), 'gozetmen'])];
-            await DBWrite.update('professors', prof.id, { roles });
-          }
+          // Mevcut akademisyeni BU bölümün gözetmeni yap
+          const prof = tumAkademisyenler.find((p) => p.id === form.selectedProfId);
+          if (prof) await gozetmenlikYaz(prof, true);
         } else if (form.newName.trim()) {
           // Yeni profesör oluştur ve gozetmen rolü ver
           await DBWrite.add('professors', {
@@ -488,6 +554,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
             departmentId: activeDepartment,
             isExternal: false,
             roles: ['gozetmen'],
+            gozetmenBolumleri: [activeDepartment],
             createdAt: new Date().toISOString(),
           });
         } else {
@@ -533,10 +600,8 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     setSaving(true);
     try {
       for (const id of topluSecim) {
-        const prof = professors.find((p) => p.id === id);
-        if (!prof) continue;
-        const roles = [...new Set([...(prof.roles || []), 'gozetmen'])];
-        await DBWrite.update('professors', prof.id, { roles });
+        const prof = tumAkademisyenler.find((p) => p.id === id);
+        if (prof) await gozetmenlikYaz(prof, true);
       }
       setTopluSecim([]);
       await loadData();
@@ -568,11 +633,15 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   };
 
   const handleSupRemoveRole = async (s) => {
-    if (!confirm(`${s.name} gözetmenlikten çıkarılacak. Akademisyen kaydı silinmez. Emin misiniz?`))
+    if (
+      !confirm(
+        `${s.name} bu bölümün gözetmen listesinden çıkarılacak. Başka bölümlerdeki ` +
+          'gözetmenliği ve akademisyen kaydı silinmez. Emin misiniz?'
+      )
+    )
       return;
     try {
-      const roles = (s.roles || []).filter((r) => r !== 'gozetmen');
-      await DBWrite.update('professors', s.id, { roles });
+      await gozetmenlikYaz(s, false);
       await loadData();
     } catch (e) {
       alert('Hata: ' + e.message);
@@ -784,7 +853,9 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                 {/* Kural paneli KENDİ kartında: tabloyla aynı kartın içindeyken
                     ikisi tek bir uzun blok gibi okunuyor, ayarın nerede bitip
                     listenin nerede başladığı belli olmuyordu. */}
-                <GozetmenKurali departmentId={activeDepartment} />
+                {window.GozetmenKurallariPaneli && (
+                  <window.GozetmenKurallariPaneli departmentId={activeDepartment} />
+                )}
               </>
             )}
             <div
@@ -923,9 +994,17 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                             marginBottom: 8,
                           }}
                         >
-                          Bölümün diğer akademisyenleri ({nonSupervisorProfs.length}) — seçip
-                          topluca gözetmen yapın
+                          {baskaBolumdenSecebilir
+                            ? 'Fakültenin diğer akademisyenleri'
+                            : 'Bölümün diğer akademisyenleri'}{' '}
+                          ({nonSupervisorProfs.length}) — seçip topluca gözetmen yapın
                         </div>
+                        {baskaBolumdenSecebilir && (
+                          <div style={{ fontSize: 12, color: '#6B7280', margin: '-4px 0 8px' }}>
+                            Fakülte yetkilisi olarak başka bölümlerin akademisyenlerini de bu bölüme
+                            gözetmen verebilirsiniz; önce bu bölümünkiler listelenir.
+                          </div>
+                        )}
                         <div
                           style={{
                             display: 'flex',
@@ -958,6 +1037,11 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                               >
                                 {secili ? '✓ ' : '+ '}
                                 {p.name}
+                                {!bolumunKendisi.has(p.id) && kisiBolumAdi[p.id] && (
+                                  <span style={{ opacity: 0.7, fontWeight: 500 }}>
+                                    {' · ' + kisiBolumAdi[p.id]}
+                                  </span>
+                                )}
                               </button>
                             );
                           })}
@@ -1004,7 +1088,18 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                             : [];
                           return (
                             <tr key={s.id}>
-                              <td style={{ ...byTd, fontWeight: 600 }}>{s.name}</td>
+                              <td style={{ ...byTd, fontWeight: 600 }}>
+                                {s.name}
+                                {!bolumunKendisi.has(s.id) && (
+                                  <span style={{ marginLeft: 8 }}>
+                                    <BYRozet renk={BY.amber} zemin={BY.amberPale}>
+                                      {kisiBolumAdi[s.id]
+                                        ? kisiBolumAdi[s.id] + ' bölümünden'
+                                        : 'başka bölümden'}
+                                    </BYRozet>
+                                  </span>
+                                )}
+                              </td>
                               <td style={byTd}>
                                 <button
                                   onClick={() => {
@@ -1291,6 +1386,9 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                   {nonSupervisorProfs.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
+                      {!bolumunKendisi.has(p.id) && kisiBolumAdi[p.id]
+                        ? ' — ' + kisiBolumAdi[p.id]
+                        : ''}
                     </option>
                   ))}
                 </select>
@@ -4168,134 +4266,3 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
 }
 
 window.BolumYonetimiModuluApp = BolumYonetimiModuluApp;
-
-// ══════════════════════════════════════════════════════════════
-// Gözetmen Kuralı — dersin kendi hocasının gözetmenliği
-//
-// Bu kural bölümden bölüme değişir: bazı bölümlerde dersin hocasının kendi
-// sınavında bulunması zorunlu, bazılarında gözetmenlik bilinçli olarak
-// bağımsız tutulur. Kural bölüm kaydında (departments.gozetmenKurali)
-// saklanır ve sınav otomasyonunun dekanlık çıktısında uygulanır.
-// ══════════════════════════════════════════════════════════════
-const GOZETMEN_KURAL_SECENEKLERI = [
-  {
-    id: 'tercihli',
-    label: 'Tercihli',
-    desc: 'Dersin hocası gözetmen listesindeyse kendi sınavına öncelikli atanır, ama zorunlu değildir. Kalan gözetmenler yük dengesine göre seçilir.',
-  },
-  {
-    id: 'zorunlu',
-    label: 'Zorunlu',
-    desc: 'Dersin hocası kendi sınavında her zaman gözetmen olarak yer alır. Gözetmen listesinde olması gerekir.',
-  },
-  {
-    id: 'haric',
-    label: 'Hariç',
-    desc: 'Dersin hocası kendi sınavına otomatik atanmaz; gözetmenlik tamamen bağımsız yürütülür.',
-  },
-];
-
-function GozetmenKurali({ departmentId }) {
-  const [kural, setKural] = useState('tercihli');
-  const [yukleniyor, setYukleniyor] = useState(true);
-  const [kaydediliyor, setKaydediliyor] = useState(false);
-  const [mesaj, setMesaj] = useState('');
-
-  useEffect(() => {
-    let alive = true;
-    setYukleniyor(true);
-    window
-      .apiReadDoc('departments', String(departmentId))
-      .then((r) => {
-        if (!alive) return;
-        setKural((r?.exists && r.data?.gozetmenKurali) || 'tercihli');
-      })
-      .catch(() => {})
-      .finally(() => alive && setYukleniyor(false));
-    return () => {
-      alive = false;
-    };
-  }, [departmentId]);
-
-  const kaydet = async (yeni) => {
-    setKural(yeni);
-    setKaydediliyor(true);
-    setMesaj('');
-    try {
-      await DBWrite.set('departments', String(departmentId), { gozetmenKurali: yeni }, true);
-      if (window.apiInvalidate) window.apiInvalidate('departments');
-      setMesaj('Kaydedildi.');
-      setTimeout(() => setMesaj(''), 2500);
-    } catch (e) {
-      setMesaj('Kaydedilemedi: ' + e.message);
-    } finally {
-      setKaydediliyor(false);
-    }
-  };
-
-  if (yukleniyor) return null;
-
-  return (
-    <div style={{ ...byKart, background: BY.surfaceMuted, marginBottom: 14 }}>
-      <div style={{ fontSize: 13.5, fontWeight: 700, color: '#1F2937', marginBottom: 4 }}>
-        Dersin hocası kendi sınavında gözetmen olsun mu?
-      </div>
-      <div style={{ fontSize: 12.5, color: '#6B7280', marginBottom: 12, lineHeight: 1.55 }}>
-        Bu kural bölümden bölüme değişir. Seçiminiz sınav otomasyonundaki otomatik gözetmen
-        atamasında ve dekanlık çıktısında uygulanır.
-      </div>
-
-      <div style={{ display: 'grid', gap: 8 }}>
-        {GOZETMEN_KURAL_SECENEKLERI.map((s) => {
-          const secili = kural === s.id;
-          return (
-            <label
-              key={s.id}
-              style={{
-                display: 'flex',
-                gap: 10,
-                alignItems: 'flex-start',
-                padding: '10px 12px',
-                border: '1.5px solid ' + (secili ? '#2563EB' : '#E5E7EB'),
-                background: secili ? '#EFF6FF' : 'white',
-                borderRadius: 10,
-                cursor: kaydediliyor ? 'wait' : 'pointer',
-              }}
-            >
-              <input
-                type="radio"
-                name={'gozetmen-kurali-' + departmentId}
-                checked={secili}
-                disabled={kaydediliyor}
-                onChange={() => kaydet(s.id)}
-                style={{ marginTop: 3, cursor: 'inherit' }}
-              />
-              <span>
-                <span
-                  style={{ fontSize: 13, fontWeight: 700, color: secili ? '#1D4ED8' : '#1F2937' }}
-                >
-                  {s.label}
-                </span>
-                <span
-                  style={{
-                    display: 'block',
-                    fontSize: 12.5,
-                    color: '#6B7280',
-                    lineHeight: 1.5,
-                    marginTop: 2,
-                  }}
-                >
-                  {s.desc}
-                </span>
-              </span>
-            </label>
-          );
-        })}
-      </div>
-
-      {mesaj && (
-        <div style={{ fontSize: 12, color: '#059669', fontWeight: 600, marginTop: 8 }}>{mesaj}</div>
-      )}
-    </div>
-  );
-}
