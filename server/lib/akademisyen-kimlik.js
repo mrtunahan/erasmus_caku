@@ -87,7 +87,7 @@ function profilBirlestir(kayitlar) {
   });
   // Liste alanları BİRLEŞTİRİLİR, seçilmez: kişinin bir kaydında 'gozetmen',
   // ötekinde ek bölüm varsa ikisi de geçerlidir.
-  ['roles', 'additionalDepartments', 'memurModules'].forEach((alan) => {
+  ['roles', 'additionalDepartments', 'memurModules', 'gozetmenBolumleri'].forEach((alan) => {
     const hepsi = liste.flatMap((d) => (Array.isArray(d[alan]) ? d[alan] : []));
     if (hepsi.length) birlesik[alan] = [...new Set(hepsi)];
   });

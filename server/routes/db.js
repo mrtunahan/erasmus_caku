@@ -38,6 +38,7 @@ const { yeniKayitSahipligi } = require('../lib/ogrenci-sahiplik-damga');
 const { gizliAlanProjeksiyonu, gizliAlanlariCikar } = require('../lib/gizli-alanlar');
 // Yapısal kayıtlarda hiyerarşi koruması (bölüm yetkilisi, akademisyen adı).
 const { bolumYetkilisiYapisalYazim, akademisyenAdDegisimi } = require('../lib/yapisal-yazma');
+const { gozetmenYazmaKarari } = require('../lib/gozetmen-yazma');
 // Öğrencinin başkasının kaydını okuması: kural (hangi koleksiyon nasıl daralır)
 // tek dosyada ve testli — bkz. server/lib/ogrenci-okuma.js.
 const {
@@ -987,11 +988,33 @@ async function enforceWritePolicies(db, op, user) {
   if (STRUCTURE_MANAGER_WRITE.has(op.collection) && user.role === 'professor') {
     const flags = await getActorFlags(db, user);
     if (!flags.uniAdmin && !flags.facManager) {
-      return {
-        allow: false,
-        status: 403,
-        error: `Bu koleksiyonu yalnız yöneticiler düzenleyebilir: ${op.collection}`,
-      };
+      // Akademisyen girişiyle gelen BÖLÜM YETKİLİSİ (isDeptManager) kendi
+      // bölüm kaydına, ayrı bölüm yetkilisi girişiyle aynı kuralla yazar.
+      // Bu olmadan gözetmen kuralı ve sınav ayarları "yalnız yöneticiler
+      // düzenleyebilir" diye reddediliyordu: arayüz bu kişiye ekranı
+      // gösteriyor, kaydet düğmesi hata veriyordu.
+      if (flags.deptManager && op.collection === 'departments') {
+        let profil = null;
+        let mevcutYapi = null;
+        try {
+          profil = await profilBul(db, user.identifier);
+          mevcutYapi = op.docId ? await findExistingDoc(db, op) : null;
+        } catch (_) {
+          profil = null;
+        }
+        const yk = bolumYetkilisiYapisalYazim(
+          op,
+          { role: 'bolum_yetkilisi', departmentId: (profil && profil.departmentId) || '' },
+          mevcutYapi
+        );
+        if (!yk.izin) return { allow: false, status: 403, error: yk.hata };
+      } else {
+        return {
+          allow: false,
+          status: 403,
+          error: `Bu koleksiyonu yalnız yöneticiler düzenleyebilir: ${op.collection}`,
+        };
+      }
     }
   }
 
@@ -1649,7 +1672,18 @@ async function enforceWritePolicies(db, op, user) {
     (user.role === 'professor' || user.role === 'bolum_yetkilisi')
   ) {
     const flags = await getActorFlags(db, user);
-    if (!flags.admin && !flags.uniAdmin && !flags.facManager && !flags.deptManager) {
+    // Ayrı "bölüm yetkilisi" girişinin (role='bolum_yetkilisi') professors
+    // kaydı ve bayrağı yok; getActorFlags onu yetkisiz döndürüyor. Yukarıdaki
+    // açıklamanın dediği gibi bölüm yetkilisi ETKİLENMEMELİ — yoksa Bölüm
+    // Yönetimi'nde gözetmen ekleyip çıkaramıyordu.
+    const bolumYetkilisiGirisi = user.role === 'bolum_yetkilisi';
+    if (
+      !flags.admin &&
+      !flags.uniAdmin &&
+      !flags.facManager &&
+      !flags.deptManager &&
+      !bolumYetkilisiGirisi
+    ) {
       if (op.type === 'add' || op.type === 'delete') {
         return {
           allow: false,
@@ -1685,6 +1719,36 @@ async function enforceWritePolicies(db, op, user) {
         });
       }
     }
+  }
+
+  // b0') GÖZETMENLİK: hangi bölümün gözetmen listesini kim değiştirebilir
+  // (bkz. lib/gozetmen-yazma.js). Sade akademisyenin isteğinden bu alan
+  // yukarıda zaten düşürüldü.
+  if (
+    op.collection === 'professors' &&
+    op.data &&
+    typeof op.data === 'object' &&
+    'gozetmenBolumleri' in op.data
+  ) {
+    const flags = await getActorFlags(db, user);
+    let mevcutKisi = null;
+    let profil = null;
+    try {
+      if (op.type !== 'add') mevcutKisi = await findExistingDoc(db, op);
+      if (user.role === 'professor') profil = await profilBul(db, user.identifier);
+      else if (user.role === 'bolum_yetkilisi') profil = { departmentId: user.departmentId || '' };
+    } catch (_) {
+      profil = profil || null;
+    }
+    const bolumler = await db.collection('departments').find({}).toArray();
+    const karar = gozetmenYazmaKarari({
+      op,
+      mevcut: mevcutKisi,
+      flags,
+      bolumYetkilisi: user.role === 'bolum_yetkilisi',
+      kapsam: aktorKapsami(profil, bolumler),
+    });
+    if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
   }
 
   // b0) Akademisyen ADI değişimi: aynı adlı kayıtların bayrakları birleştiği
