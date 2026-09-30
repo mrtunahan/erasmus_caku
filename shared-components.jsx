@@ -102,6 +102,7 @@ import {
   notEslemesiGerekli as muafiyetNotEslemesiGerekli,
 } from './lib/muafiyet-belge-notu.js';
 import * as GozetmenKurallari from './lib/gozetmen.js';
+import * as SinavBirlesim from './lib/sinav-birlesim.js';
 import { GozetmenKurallariPaneli } from './gozetmen-kurallari.jsx';
 import {
   DUZENLENEBILIR_ALANLAR as MUAFIYET_DUZENLENEBILIR_ALANLAR,
@@ -15325,6 +15326,8 @@ window.gozetmenMusaitMi = gozetmenMusaitMi;
 // Gözetmenlik bölüme bağlı; kurallar (hoca, gözetmen sayısı) ve atama tek
 // yerde (lib/gozetmen.js). Bölüm Yönetimi ile Sınav Otomasyonu aynısını çağırır.
 window.Gozetmen = GozetmenKurallari;
+// Aynı saatte birlikte yapılan sınavlar (şubeler, farklı müfredatlar) tek oturum.
+window.SinavBirlesim = SinavBirlesim;
 window.GozetmenKurallariPaneli = GozetmenKurallariPaneli;
 window.belgeGonderimHataMetni = gonderimHataMetni;
 window.belgeGonderimBilgiMetni = gonderimBilgiMetni;
