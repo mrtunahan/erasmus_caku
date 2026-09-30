@@ -891,7 +891,225 @@ const PeriodConfigModal = ({ period, onSave, onClose, departmentId, seviye = 'li
 // ══════════════════════════════════════════════════════════════
 // Edit Exam Modal
 // ══════════════════════════════════════════════════════════════
-const EditExamModal = ({ exam, professors, onSave, onRemove, onClose, readOnly = false }) => {
+// ── Ortak oturum bilgisi (düzenleme penceresinde) ──
+const OrtakOturumBilgisi = ({ exam, grup, onAyir }) => {
+  const SB = window.SinavBirlesim;
+  const ozet = SB.oturumOzeti(grup);
+  return (
+    <div
+      style={{
+        border: '1.5px dashed #0F766E',
+        background: '#F0FDFA',
+        borderRadius: 8,
+        padding: '10px 12px',
+        fontSize: 12.5,
+        color: '#134E4A',
+      }}
+    >
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>
+        Ortak sınav — {grup.length} ders, toplam {ozet.toplamOgrenci} öğrenci
+      </div>
+      <div style={{ display: 'grid', gap: 4 }}>
+        {grup.map((u) => (
+          <div key={u.id} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <b>{u.code}</b>
+            <span>{u.name}</span>
+            <span style={{ opacity: 0.75 }}>
+              · {u.sinif === 5 ? 'Seçmeli' : u.sinif + '. sınıf'} · {u.studentCount || 0} öğr.
+              {u.professor ? ' · ' + u.professor : ''}
+            </span>
+            {u.id !== exam.id && (
+              <span style={{ fontSize: 11, color: '#0F766E', fontWeight: 600 }}>
+                ({SB.ILISKILER[SB.birlesimIliskisi(exam, u)].etiket})
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11.5, marginTop: 8, opacity: 0.85, lineHeight: 1.5 }}>
+        Salon toplam öğrenci sayısına göre bir kez seçilir; gözetmenler oturumun tamamı için atanır.
+        Salon ya da gözetmen değişikliği bütün derslere uygulanır.
+      </div>
+      {onAyir && (
+        <button
+          type="button"
+          onClick={onAyir}
+          style={{
+            marginTop: 8,
+            padding: '5px 12px',
+            borderRadius: 6,
+            border: '1px solid #0F766E',
+            background: 'white',
+            color: '#0F766E',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          Bu dersi ortak oturumdan ayır
+        </button>
+      )}
+    </div>
+  );
+};
+
+// ── Aynı saate ders bırakıldığında ──
+// Saat doluysa ne yapılacağını kullanıcı seçer. Sistem ilişkiyi tanır
+// (aynı dersin şubeleri / aynı ad farklı kod / farklı ders) ve birleştirmeyi
+// önerir; aynı sınıfın öğrencileri iki ayrı sınava giremeyeceği için o
+// durumda "ayrı ekle" kapalıdır.
+const AyniSaatPenceresi = ({
+  ders,
+  tarih,
+  saat,
+  karar,
+  birlestirebilir,
+  onBirlestir,
+  onAyriEkle,
+  onClose,
+}) => {
+  const SB = window.SinavBirlesim;
+  const [mesgul, setMesgul] = useState(false);
+  const calistir = async (fn) => {
+    setMesgul(true);
+    try {
+      await fn();
+    } finally {
+      setMesgul(false);
+    }
+  };
+  const renk = SINIF_COLORS[ders.sinif] || SINIF_COLORS[1];
+  return (
+    <Modal open={true} title="Bu saatte başka sınav var" onClose={onClose} width={640}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div
+          style={{
+            padding: 10,
+            background: renk.bg,
+            color: renk.text,
+            borderRadius: 8,
+            fontSize: 13,
+          }}
+        >
+          <b>{ders.code}</b> — {ders.name}
+          <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>
+            {ders.sinif === 5 ? 'Seçmeli' : ders.sinif + '. sınıf'} · {ders.studentCount || 0}{' '}
+            öğrenci{ders.professor ? ' · ' + ders.professor : ''} · {tarih} {saat}
+          </div>
+        </div>
+
+        <div style={{ fontSize: 12.5, color: '#4B5563', lineHeight: 1.55 }}>
+          Birlikte yapılacaksa (aynı dersin şubeleri, farklı sınıf ya da müfredattaki karşılığı,
+          ortak salonda yapılacak dersler) <b>ortak sınav</b> olarak birleştirin: salon toplam
+          öğrenci sayısına göre bir kez seçilir, gözetmenler oturumun tamamına atanır ve dersler
+          birbiriyle çakışma sayılmaz.
+        </div>
+
+        {karar.oturumlar.map((o) => {
+          const iliski = SB.ILISKILER[o.iliski];
+          return (
+            <div
+              key={o.anahtar}
+              data-secenek={o.anahtar}
+              style={{
+                border: '1px solid ' + (o.iliski === 'farkli' ? '#E5E7EB' : '#99F6E4'),
+                background: o.iliski === 'farkli' ? 'white' : '#F0FDFA',
+                borderRadius: 10,
+                padding: '10px 12px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1F2937' }}>
+                  {o.uyeler.length > 1 ? 'Ortak sınav: ' : ''}
+                  {o.ozet.kodlar.join(' + ')}{' '}
+                  <span style={{ fontWeight: 500, color: '#6B7280' }}>({o.ozet.timeSlot})</span>
+                </div>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: o.iliski === 'farkli' ? '#6B7280' : '#0F766E',
+                  }}
+                >
+                  {iliski.etiket}
+                </span>
+              </div>
+              {o.uyeler.map((u) => (
+                <div key={u.id} style={{ fontSize: 12, color: '#4B5563', marginTop: 3 }}>
+                  {u.code} {u.name} · {u.sinif === 5 ? 'Seçmeli' : u.sinif + '. sınıf'} ·{' '}
+                  {u.studentCount || 0} öğr.{u.professor ? ' · ' + u.professor : ''}
+                </div>
+              ))}
+              <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 5 }}>
+                {iliski.aciklama} Birleşince toplam{' '}
+                <b>{o.ozet.toplamOgrenci + (Number(ders.studentCount) || 0)} öğrenci</b>.
+                {o.ayniSinif ? ' Aynı sınıfın öğrencileri bu sınavda.' : ''}
+              </div>
+              <div style={{ marginTop: 8 }}>
+                {o.zatenVar ? (
+                  <span style={{ fontSize: 12, color: '#B45309', fontWeight: 600 }}>
+                    Bu ders zaten bu oturumda.
+                  </span>
+                ) : birlestirebilir ? (
+                  <Btn onClick={() => calistir(() => onBirlestir(o))} disabled={mesgul}>
+                    Bununla ortak sınav yap
+                  </Btn>
+                ) : (
+                  <span style={{ fontSize: 12, color: '#6B7280' }}>
+                    Birleştirmeyi bölüm yetkilisi yapar.
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {!karar.ayriEklenebilir && (
+          <div
+            style={{
+              fontSize: 12.5,
+              color: '#991B1B',
+              background: '#FEF2F2',
+              border: '1px solid #FECACA',
+              borderRadius: 8,
+              padding: '8px 12px',
+            }}
+          >
+            {karar.engel}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <GhostBtn onClick={onClose}>İptal</GhostBtn>
+          <GhostBtn
+            onClick={() => calistir(onAyriEkle)}
+            disabled={!karar.ayriEklenebilir || mesgul}
+          >
+            Ayrı sınav olarak ekle
+          </GhostBtn>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+const EditExamModal = ({
+  exam,
+  grup = [],
+  onAyir,
+  professors,
+  onSave,
+  onRemove,
+  onClose,
+  readOnly = false,
+}) => {
   const [studentCount, setStudentCount] = useState(exam?.studentCount || '');
   const [supervisor, setSupervisor] = useState(exam?.supervisor || '');
   const [room, setRoom] = useState(exam?.room || '');
@@ -940,6 +1158,34 @@ const EditExamModal = ({ exam, professors, onSave, onRemove, onClose, readOnly =
         >
           <strong>{exam.code}</strong> - {exam.name}
         </div>
+        {grup.length > 1 && (
+          <OrtakOturumBilgisi
+            exam={exam}
+            grup={grup}
+            onAyir={
+              !readOnly && onAyir
+                ? async () => {
+                    const ayniSinif = grup.some(
+                      (u) => u.id !== exam.id && window.SinavBirlesim.ayniSinifMi(exam, u)
+                    );
+                    if (
+                      !confirm(
+                        'Bu sınav ortak oturumdan ayrılacak ve aynı saatte ayrı sınav olarak kalacak.' +
+                          (ayniSinif
+                            ? '\n\nOturumda aynı sınıftan başka ders var: ayrılınca çakışma olarak ' +
+                              'işaretlenir; sınavı başka saate taşımanız gerekir.'
+                            : '') +
+                          '\n\nDevam edilsin mi?'
+                      )
+                    )
+                      return;
+                    await onAyir(exam);
+                    onClose();
+                  }
+                : null
+            }
+          />
+        )}
         {readOnly && (
           <div
             style={{
@@ -1419,6 +1665,29 @@ const DraggableCourseCard = ({ course, isPlaced: _isPlaced, placedCount = 0, can
 // ══════════════════════════════════════════════════════════════
 // Calendar Grid Cell
 // ══════════════════════════════════════════════════════════════
+// Bir günün sınavlarını ZAMAN BLOKLARINA ayırır: saatleri örtüşen sınavlar
+// aynı bloktadır. Hücre bloğun ilk yarım saatinde çizilir ve bloğun sonuna
+// kadar uzar; bloktaki bütün sınavlar (şubeler, farklı sınıflar, ortak
+// oturumlar) içinde listelenir. Eskiden hücre yalnız İLK sınavı gösteriyordu:
+// aynı saate konan ikinci ders takvimde hiç görünmüyordu.
+function gunBloklari(gununSinavlari) {
+  const l = [...gununSinavlari]
+    .map((e) => {
+      const bas = timeToSlotIndex(e.timeSlot);
+      return { e, bas, bit: bas + Math.max(1, slotSpan(Number(e.duration) || 60)) };
+    })
+    .sort((a, b) => a.bas - b.bas || a.bit - b.bit);
+  const bloklar = [];
+  l.forEach((x) => {
+    const son = bloklar[bloklar.length - 1];
+    if (son && x.bas < son.bit) {
+      son.bit = Math.max(son.bit, x.bit);
+      son.sinavlar.push(x.e);
+    } else bloklar.push({ bas: x.bas, bit: x.bit, sinavlar: [x.e] });
+  });
+  return bloklar;
+}
+
 const CalendarCell = ({
   day,
   timeSlot,
@@ -1430,69 +1699,78 @@ const CalendarCell = ({
 }) => {
   const [dragOver, setDragOver] = useState(false);
   const dateStr = formatDateISO(day);
+  const SB = window.SinavBirlesim || {};
 
-  const examHere = placedExams.find((e) => e.date === dateStr && e.timeSlot === timeSlot);
-
-  const coveredBy = placedExams.find((e) => {
-    if (e.date !== dateStr) return false;
-    const startIdx = timeToSlotIndex(e.timeSlot);
-    const span = slotSpan(e.duration);
-    return slotIndex > startIdx && slotIndex < startIdx + span;
-  });
-
-  if (coveredBy) return null;
-
-  const examSpan = examHere ? slotSpan(examHere.duration) : 1;
-  const color = examHere ? SINIF_COLORS[examHere.sinif] || SINIF_COLORS[1] : null;
+  const bloklar = gunBloklari(placedExams.filter((e) => e.date === dateStr));
+  const blok = bloklar.find((b) => slotIndex >= b.bas && slotIndex < b.bit);
+  if (blok && blok.bas !== slotIndex) return null;
 
   const handleDragOver = (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOver(true);
   };
-
   const handleDragLeave = () => setDragOver(false);
-
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
     try {
       const courseData = JSON.parse(e.dataTransfer.getData('application/json'));
-      onDrop(courseData, dateStr, timeSlot);
+      // Dolu bloğa bırakılan ders bloğun başlangıç saatine gelir; birleştirme
+      // ya da ayrı ekleme kararı handleDrop'taki pencerede verilir.
+      onDrop(courseData, dateStr, blok ? blok.sinavlar[0].timeSlot : timeSlot);
     } catch (err) {
       console.error('Drop error:', err);
     }
   };
 
   const cellHeight = 40;
+  const span = blok ? blok.bit - blok.bas : 1;
+  const oturumlar = blok && SB.oturumlar ? SB.oturumlar(blok.sinavlar) : [];
+  // Birleştirilmemiş aynı sınıf örtüşmesi: aynı öğrenciler iki sınava birden
+  // giremez — hücre kırmızı çerçeveyle işaretlenir.
+  const sinifCakismasi =
+    !!blok &&
+    oturumlar.some((a, i) =>
+      oturumlar
+        .slice(i + 1)
+        .some((b) =>
+          a.uyeler.some((x) => b.uyeler.some((y) => SB.zamanOrtusur(x, y) && SB.ayniSinifMi(x, y)))
+        )
+    );
+  const tekRenk = blok ? SINIF_COLORS[blok.sinavlar[0].sinif] || SINIF_COLORS[1] : null;
+  const coklu = !!blok && blok.sinavlar.length > 1;
 
   return (
     <td
-      onDragOver={!examHere ? handleDragOver : undefined}
-      onDragLeave={!examHere ? handleDragLeave : undefined}
-      onDrop={!examHere ? handleDrop : undefined}
-      onClick={examHere ? () => onExamClick(examHere) : undefined}
-      rowSpan={examHere ? examSpan : 1}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onClick={blok && !coklu ? () => onExamClick(blok.sinavlar[0]) : undefined}
+      rowSpan={span}
+      data-tarih={dateStr}
+      data-saat={timeSlot}
+      data-blok={blok ? blok.sinavlar.length : 0}
       style={{
-        border: '1px solid #E5E7EB',
+        border: sinifCakismasi ? '2px solid #DC2626' : '1px solid #E5E7EB',
         padding: 0,
-        height: examHere ? cellHeight * examSpan : cellHeight,
+        height: cellHeight * span,
         minWidth: 100,
         maxWidth: 'none',
         verticalAlign: 'top',
-        background: examHere ? color.bg : dragOver ? '#DBEAFE' : 'white',
-        cursor: examHere ? 'pointer' : 'default',
+        background: dragOver ? '#DBEAFE' : blok ? (coklu ? '#F8FAFC' : tekRenk.bg) : 'white',
+        cursor: blok && !coklu ? 'pointer' : 'default',
         transition: 'background 0.15s',
         position: 'relative',
       }}
     >
-      {examHere && (
+      {blok && !coklu && (
         <div
           style={{
             padding: '3px 5px',
             fontSize: 10,
             lineHeight: 1.3,
-            color: color.text,
+            color: tekRenk.text,
             height: '100%',
             overflow: 'hidden',
             fontWeight: 600,
@@ -1503,13 +1781,81 @@ const CalendarCell = ({
             textAlign: 'center',
           }}
         >
-          <div>{examHere.code}</div>
-          <div style={{ fontWeight: 400, fontSize: 9 }}>{examHere.name}</div>
-          {examHere.studentCount > 0 && (
+          <div>{blok.sinavlar[0].code}</div>
+          <div style={{ fontWeight: 400, fontSize: 9 }}>{blok.sinavlar[0].name}</div>
+          {blok.sinavlar[0].studentCount > 0 && (
             <div style={{ fontSize: 9, opacity: 0.7, marginTop: 1 }}>
-              {examHere.studentCount} öğrenci
+              {blok.sinavlar[0].studentCount} öğrenci
             </div>
           )}
+        </div>
+      )}
+      {coklu && (
+        <div style={{ padding: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {sinifCakismasi && (
+            <div
+              title="Aynı sınıfın öğrencileri aynı saatte iki ayrı sınavda. Birleştirin ya da birini başka saate alın."
+              style={{ fontSize: 9, fontWeight: 700, color: '#DC2626', textAlign: 'center' }}
+            >
+              ⚠ Aynı sınıf çakışıyor
+            </div>
+          )}
+          {oturumlar.map(({ anahtar, uyeler }) => {
+            const ortak = uyeler.length > 1;
+            const ozet = SB.oturumOzeti ? SB.oturumOzeti(uyeler) : null;
+            return (
+              <div
+                key={anahtar}
+                data-oturum={ortak ? 'ortak' : 'tek'}
+                style={{
+                  border: ortak ? '1.5px dashed #0F766E' : 'none',
+                  borderRadius: 5,
+                  padding: ortak ? 2 : 0,
+                  background: ortak ? '#F0FDFA' : 'transparent',
+                }}
+              >
+                {ortak && (
+                  <div
+                    style={{ fontSize: 8.5, fontWeight: 700, color: '#0F766E', padding: '0 2px' }}
+                  >
+                    Ortak sınav · {ozet ? ozet.toplamOgrenci : ''} öğr.
+                  </div>
+                )}
+                {uyeler.map((u) => {
+                  const r = SINIF_COLORS[u.sinif] || SINIF_COLORS[1];
+                  return (
+                    <div
+                      key={u.id}
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        onExamClick(u);
+                      }}
+                      title={`${u.code} — ${u.name}${u.professor ? ' · ' + u.professor : ''}`}
+                      style={{
+                        background: r.bg,
+                        color: r.text,
+                        borderRadius: 4,
+                        padding: '2px 4px',
+                        marginTop: 2,
+                        fontSize: 9.5,
+                        lineHeight: 1.25,
+                        cursor: 'pointer',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <b>{u.code}</b>
+                      {u.timeSlot !== blok.sinavlar[0].timeSlot ? ' · ' + u.timeSlot : ''}
+                      <span style={{ opacity: 0.75 }}>
+                        {' '}
+                        · {u.sinif === 5 ? 'Seç.' : u.sinif + '. sınıf'}
+                        {u.studentCount > 0 ? ' · ' + u.studentCount : ''}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       )}
     </td>
@@ -1625,6 +1971,15 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
                 </td>
                 <td style={{ padding: '10px 12px' }}>
                   <strong>{exam.code}</strong> - {exam.name}
+                  {exam.birlesimId && window.SinavBirlesim && (
+                    <div style={{ fontSize: 11, color: '#0F766E', fontWeight: 600, marginTop: 2 }}>
+                      Ortak sınav:{' '}
+                      {window.SinavBirlesim.grupUyeleri(exam, placedExams)
+                        .filter((u) => u.id !== exam.id)
+                        .map((u) => u.code + (u.sinif !== exam.sinif ? ` (${u.sinif}. sınıf)` : ''))
+                        .join(', ')}
+                    </div>
+                  )}
                 </td>
                 <td style={{ padding: '10px 12px', fontSize: 12 }}>{exam.professor}</td>
                 <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 12 }}>
@@ -2193,9 +2548,24 @@ async function exportDeptPrintable(
     return a.timeSlot.localeCompare(b.timeSlot);
   });
 
+  const oturumSalonu = window.SinavBirlesim
+    ? window.SinavBirlesim.oturumSalonlari(sorted, (n, dolu) => {
+        const rooms =
+          customClassrooms && customClassrooms.length > 0 ? customClassrooms : DEPT_CLASSROOMS;
+        return assignClassroomFromList(
+          rooms.filter((r) => !(dolu || []).includes(r.name)),
+          n
+        );
+      })
+    : {};
   const enriched = sorted.map((exam) => {
     // Elle atanmış salon varsa ona saygı duy; yoksa otomatik ata (Y1).
-    const room = exam.room || assignRoom(exam.studentCount);
+    // Ortak sınavda salon toplam öğrenciye göre bir kez seçilir (Dekanlık
+    // çıktısıyla aynı kural).
+    const room =
+      oturumSalonu[exam.id || exam.code + exam.date + exam.timeSlot] ||
+      exam.room ||
+      assignRoom(exam.studentCount);
     const [sh, sm] = exam.timeSlot.split(':').map(Number);
     const totalMin = sh * 60 + sm + (exam.duration || 60);
     const eh = String(Math.floor(totalMin / 60)).padStart(2, '0');
@@ -2367,9 +2737,22 @@ async function exportToXLSX(
     return assignClassroomFromList(exportClassrooms, studentCount);
   }
 
+  // Salon OTURUM başına: ortak sınavda toplam öğrenciye göre bir kez seçilir
+  // ve bütün derslere yazılır; aynı saatte dolu salonlar atlanır
+  // (lib/sinav-birlesim.js). Elle salon esastır.
+  const oturumSalonu = window.SinavBirlesim
+    ? window.SinavBirlesim.oturumSalonlari(sorted, (n, dolu) =>
+        assignClassroomFromList(
+          exportClassrooms.filter((r) => !(dolu || []).includes(r.name)),
+          n
+        )
+      )
+    : {};
+  const salonAnahtari = (e) => e.id || e.code + e.date + e.timeSlot;
+  // Gözetmen sayısı GERÇEKTE seçilen salonlara göre hesaplansın.
   const { atamalar: exportSupervisorMap, uyarilar: gozetmenUyarilari } = gozetmenleriDagit(
     exportSupervisorNames,
-    sorted,
+    sorted.map((e) => ({ ...e, room: oturumSalonu[salonAnahtari(e)] || e.room })),
     exportAssignClassroom,
     { ...(gozetmenKurallari || {}), musaitsizlik: musaitsizlik || {} }
   );
@@ -2389,7 +2772,7 @@ async function exportToXLSX(
   const enriched = sorted.map((exam) => {
     const key = exam.id || exam.code + exam.date + exam.timeSlot;
     // Elle atanmış salon/gözetmene saygı duy; yoksa otomatik (Y1)
-    const room = exam.room || exportAssignClassroom(exam.studentCount);
+    const room = oturumSalonu[key] || exam.room || exportAssignClassroom(exam.studentCount);
     const supervisors = (exportSupervisorMap[key] || []).join(', ');
     const [sh, sm] = exam.timeSlot.split(':').map(Number);
     const totalMin = sh * 60 + sm + (exam.duration || 60);
@@ -2581,17 +2964,21 @@ async function exportToXLSX(
       var slotMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
 
       exportAllClassrooms.forEach(function (classroom) {
-        var exam = dayExams.find(function (e) {
+        // Salonda aynı saatte birden çok ders olabilir (ortak sınav, şubeler):
+        // hepsinin kodu yazılır — eskiden yalnız ilki görünüyordu.
+        var kodlar = [];
+        dayExams.forEach(function (e) {
           var rooms = e.assignedRoom.split(' - ').map(function (r) {
             return r.trim();
           });
-          if (rooms.indexOf(classroom.name) === -1) return false;
+          if (rooms.indexOf(classroom.name) === -1) return;
           var eParts = e.timeSlot.split(':');
           var examStart = parseInt(eParts[0]) * 60 + parseInt(eParts[1]);
           var examEnd = examStart + (e.duration || 60);
-          return slotMin >= examStart && slotMin < examEnd;
+          if (slotMin >= examStart && slotMin < examEnd && kodlar.indexOf(e.code) === -1)
+            kodlar.push(e.code);
         });
-        row.push(exam ? exam.code : '');
+        row.push(kodlar.join(' / '));
       });
 
       data.push(row);
@@ -3388,14 +3775,21 @@ function SinavOtomasyonuApp({
 
   const cakismalar = useMemo(() => {
     if (!window.sinavCakismalariBul) return [];
-    const kapsam = (tumSinavlar.length > 0 ? tumSinavlar : periodExams).filter(
-      (e) => e && e.date && donemGunleri.has(e.date)
-    );
+    // Fakülte geneli liste yalnız sınav SAYISI değişince yeniden okunuyor;
+    // birleştirme, ayırma ya da salon/gözetmen düzenlemesi sayıyı değiştirmediği
+    // için denetim bayat veriyle yapılıyordu. Bu bölümün ekrandaki güncel
+    // sınavları listedeki eski kopyalarının yerine geçer.
+    const yerel = new Set(placedExams.map((e) => String(e.id)));
+    const guncel =
+      tumSinavlar.length > 0
+        ? [...tumSinavlar.filter((e) => !yerel.has(String(e.id))), ...placedExams]
+        : periodExams;
+    const kapsam = guncel.filter((e) => e && e.date && donemGunleri.has(e.date));
     return window.sinavCakismalariBul(kapsam, {
       salonKapasiteleri,
       kabuller: cakismaKabulleri,
     });
-  }, [tumSinavlar, periodExams, donemGunleri, salonKapasiteleri, cakismaKabulleri]);
+  }, [tumSinavlar, placedExams, periodExams, donemGunleri, salonKapasiteleri, cakismaKabulleri]);
 
   const cakismaOzet = window.sinavCakismaOzeti
     ? window.sinavCakismaOzeti(cakismalar)
@@ -3464,54 +3858,105 @@ function SinavOtomasyonuApp({
   }, [poolCourses]);
 
   // ── Drop handler ──
+  // Bir saate birden çok ders konabilir. Saat doluysa karar kullanıcıya
+  // sorulur (AyniSaatPenceresi): birlikte yapılacaksa ORTAK SINAV olarak
+  // birleştirilir (şubeler, farklı müfredattaki karşılığı, ortak salon),
+  // değilse ayrı sınav olarak eklenir — aynı sınıfın öğrencileri iki ayrı
+  // sınava birden giremeyeceği için o durumda ayrı ekleme kapalıdır.
+  const yeniSinavVerisi = (courseData, dateStr, timeSlot, ek) => ({
+    courseId: courseData.id,
+    code: courseData.code,
+    name: courseData.name,
+    sinif: courseData.sinif,
+    duration: courseData.duration,
+    professor: courseData.professor,
+    date: dateStr,
+    timeSlot: timeSlot,
+    periodId: activePeriodId,
+    departmentId: selectedDeptId || null,
+    seviye: courseData.seviye || seviye,
+    studentCount: courseData.studentCount || 0,
+    supervisor: '',
+    room: '',
+    createdAt: new Date().toISOString(),
+    ...(ek || {}),
+  });
+
+  const sinavEkle = async (examData) => {
+    try {
+      const result = await DBWrite.add('sinav_programi', examData);
+      setPlacedExams((prev) => [...prev, { id: result.id, ...examData }]);
+      return true;
+    } catch (e) {
+      console.error('Drop save error:', e);
+      alert('Kayıt hatası: ' + e.message);
+      return false;
+    }
+  };
+
+  const [ayniSaat, setAyniSaat] = useState(null); // { ders, tarih, saat, karar }
+
   const handleDrop = async (courseData, dateStr, timeSlot) => {
     // Akademisyen sadece kendi derslerini yerleştirebilir
     if (isProfessor && courseData.professor !== currentUser?.name) {
       alert('Sadece kendi derslerinizi programa ekleyebilirsiniz.');
       return;
     }
-    const span = slotSpan(courseData.duration);
-    const dropSlotIdx = timeToSlotIndex(timeSlot);
-
-    const conflict = periodExams.find((e) => {
-      if (e.date !== dateStr) return false;
-      if (e.sinif !== courseData.sinif) return false;
-      const eStart = timeToSlotIndex(e.timeSlot);
-      const eSpan = slotSpan(e.duration);
-      return !(dropSlotIdx + span <= eStart || dropSlotIdx >= eStart + eSpan);
-    });
-
-    if (conflict) {
-      alert(
-        `Çakışma! ${conflict.code} aynı sınıf (${courseData.sinif}. Sınıf) için aynı zaman diliminde zaten var.`
-      );
+    const SB = window.SinavBirlesim;
+    const karar = SB
+      ? SB.yerlestirmeSecenekleri(courseData, dateStr, timeSlot, periodExams)
+      : { oturumlar: [], ayriEklenebilir: true, engel: '' };
+    if (karar.oturumlar.length === 0) {
+      await sinavEkle(yeniSinavVerisi(courseData, dateStr, timeSlot));
       return;
     }
+    setAyniSaat({ ders: courseData, tarih: dateStr, saat: timeSlot, karar });
+  };
 
-    const examData = {
-      courseId: courseData.id,
-      code: courseData.code,
-      name: courseData.name,
-      sinif: courseData.sinif,
-      duration: courseData.duration,
-      professor: courseData.professor,
-      date: dateStr,
-      timeSlot: timeSlot,
-      periodId: activePeriodId,
-      departmentId: selectedDeptId || null,
-      seviye: courseData.seviye || seviye,
-      studentCount: courseData.studentCount || 0,
-      supervisor: '',
-      room: '',
-      createdAt: new Date().toISOString(),
-    };
-
+  // Seçilen oturumla ortak sınav: oturumun bağı yoksa kurulur, yeni ders
+  // oturumun saatine, salonuna ve (elle girilmişse) gözetmenine katılır.
+  const ortakSinavYap = async (oturum) => {
+    const SB = window.SinavBirlesim;
+    if (!ayniSaat || !SB) return;
+    const bid = oturum.uyeler.map((u) => u.birlesimId).find(Boolean) || SB.yeniBirlesimId();
     try {
+      for (const u of oturum.uyeler) {
+        if (u.birlesimId !== bid) await DBWrite.update('sinav_programi', u.id, { birlesimId: bid });
+      }
+      const examData = yeniSinavVerisi(ayniSaat.ders, oturum.ozet.date, oturum.ozet.timeSlot, {
+        birlesimId: bid,
+        room: oturum.ozet.room || '',
+        supervisor: oturum.ozet.supervisor || '',
+      });
       const result = await DBWrite.add('sinav_programi', examData);
-      setPlacedExams((prev) => [...prev, { id: result.id, ...examData }]);
+      const uyeIdleri = new Set(oturum.uyeler.map((u) => u.id));
+      setPlacedExams((prev) => [
+        ...prev.map((e) => (uyeIdleri.has(e.id) ? { ...e, birlesimId: bid } : e)),
+        { id: result.id, ...examData },
+      ]);
+      setAyniSaat(null);
     } catch (e) {
-      console.error('Drop save error:', e);
-      alert('Kayıt hatası: ' + e.message);
+      alert('Birleştirilemedi: ' + e.message);
+    }
+  };
+
+  const ayriEkle = async () => {
+    if (!ayniSaat) return;
+    if (await sinavEkle(yeniSinavVerisi(ayniSaat.ders, ayniSaat.tarih, ayniSaat.saat)))
+      setAyniSaat(null);
+  };
+
+  // Ortak oturumdan ayırma: kalan tek üye olursa onun bağı da çözülür.
+  const birlesimdenAyir = async (exam) => {
+    const SB = window.SinavBirlesim;
+    if (!SB) return;
+    const yamalar = SB.birlesimdenCikarYamalari(exam, periodExams);
+    try {
+      for (const y of yamalar) await DBWrite.update('sinav_programi', y.id, { birlesimId: '' });
+      const ayrilan = new Set(yamalar.map((y) => y.id));
+      setPlacedExams((prev) => prev.map((e) => (ayrilan.has(e.id) ? { ...e, birlesimId: '' } : e)));
+    } catch (e) {
+      alert('Ayrılamadı: ' + e.message);
     }
   };
 
@@ -3524,7 +3969,23 @@ function SinavOtomasyonuApp({
     try {
       const { id, ...data } = updatedExam;
       await DBWrite.update('sinav_programi', id, data);
-      setPlacedExams((prev) => prev.map((e) => (e.id === id ? updatedExam : e)));
+      // Ortak sınav tek oturumdur: salon ve gözetmen bütün üyelerde aynı olmalı.
+      const SB = window.SinavBirlesim;
+      const digerleri =
+        SB && updatedExam.birlesimId
+          ? SB.grupUyeleri(updatedExam, periodExams).filter((e) => e.id !== id)
+          : [];
+      const ortak = { room: updatedExam.room || '', supervisor: updatedExam.supervisor || '' };
+      for (const u of digerleri) {
+        if ((u.room || '') !== ortak.room || (u.supervisor || '') !== ortak.supervisor)
+          await DBWrite.update('sinav_programi', u.id, ortak);
+      }
+      const digerIdleri = new Set(digerleri.map((u) => u.id));
+      setPlacedExams((prev) =>
+        prev.map((e) =>
+          e.id === id ? updatedExam : digerIdleri.has(e.id) ? { ...e, ...ortak } : e
+        )
+      );
     } catch (e) {
       console.error('Update error:', e);
       alert('Güncelleme hatası: ' + e.message);
@@ -3538,8 +3999,20 @@ function SinavOtomasyonuApp({
       return;
     }
     try {
+      // Ortak oturumdan çıkan sınav: geride tek üye kalırsa onun bağı da çözülür.
+      const SB = window.SinavBirlesim;
+      const kalan =
+        SB && exam.birlesimId
+          ? SB.grupUyeleri(exam, periodExams).filter((e) => e.id !== exam.id)
+          : [];
       await DBWrite.remove('sinav_programi', exam.id);
-      setPlacedExams((prev) => prev.filter((e) => e.id !== exam.id));
+      if (kalan.length === 1)
+        await DBWrite.update('sinav_programi', kalan[0].id, { birlesimId: '' });
+      setPlacedExams((prev) =>
+        prev
+          .filter((e) => e.id !== exam.id)
+          .map((e) => (kalan.length === 1 && e.id === kalan[0].id ? { ...e, birlesimId: '' } : e))
+      );
     } catch (e) {
       console.error('Remove error:', e);
       alert('Silme hatası: ' + e.message);
@@ -4700,6 +5173,12 @@ function SinavOtomasyonuApp({
         {editingExam && (
           <EditExamModal
             exam={editingExam}
+            grup={
+              window.SinavBirlesim && editingExam.birlesimId
+                ? window.SinavBirlesim.grupUyeleri(editingExam, turkishifiedPeriodExams)
+                : []
+            }
+            onAyir={canManage ? birlesimdenAyir : null}
             professors={professors}
             onSave={handleUpdateExam}
             onRemove={handleRemoveExam}
@@ -4718,6 +5197,16 @@ function SinavOtomasyonuApp({
               setShowPeriodModal(false);
               setEditingPeriod(null);
             }}
+          />
+        )}
+
+        {ayniSaat && (
+          <AyniSaatPenceresi
+            {...ayniSaat}
+            birlestirebilir={canManage}
+            onBirlestir={ortakSinavYap}
+            onAyriEkle={ayriEkle}
+            onClose={() => setAyniSaat(null)}
           />
         )}
 
