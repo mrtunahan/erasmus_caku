@@ -10812,7 +10812,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
   // Üretilen belgenin önizlemesi: { blob, filename, baslik, belge }
   // Belge önce görüntülenir; kullanıcı sonra "İndir" veya "Gönder" der.
   const [onizleme, setOnizleme] = useState(null);
-  // Memur yazısından ÖNCE not eşlemesi onayı (yalnız ders muafiyetinde).
+  // Memur yazısından ÖNCE not eşlemesi onayı (ders muafiyeti ve dikey geçişte).
   const [notEsleme, setNotEsleme] = useState(null);
   const [thresholds, setThresholds] = useState({
     autoApprove: CALIBRATION.autoApprove,
@@ -11014,8 +11014,12 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
       // Belgedeki ÇAKÜ not sütunu, karşı kurumun notunun çevrilmiş hâlidir ve
       // bu çeviriyi ONAYLAYAN akademisyendir. Onaysız üretilen belge ya boş
       // sütunla ya da kimsenin bakmadığı bir değerle memura gidiyordu.
-      // Yaz intibakında bu adım zaten kendi fazında var (belge_teslim).
-      if (!dilekceModu && kayitTuru === 'muafiyet' && amac !== 'onayli') {
+      // Dikey geçiş de aynı adımdan geçer (bkz. notEslemesiGerekli); yaz
+      // intibakında bu adım zaten kendi fazında var (belge_teslim).
+      const notEslemesiGerekli = window.muafiyetNotEslemesiGerekli
+        ? window.muafiyetNotEslemesiGerekli(kayitTuru)
+        : kayitTuru === 'muafiyet' || kayitTuru === 'dikey';
+      if (!dilekceModu && notEslemesiGerekli && amac !== 'onayli') {
         setNotEsleme(rec);
         return;
       }

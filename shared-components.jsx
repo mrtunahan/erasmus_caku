@@ -99,6 +99,7 @@ import {
   belgeNotlari as muafiyetBelgeNotlari,
   notsuzSatirlar as muafiyetNotsuzSatirlar,
   ogrenciNotu as muafiyetOgrenciNotu,
+  notEslemesiGerekli as muafiyetNotEslemesiGerekli,
 } from './lib/muafiyet-belge-notu.js';
 import {
   DUZENLENEBILIR_ALANLAR as MUAFIYET_DUZENLENEBILIR_ALANLAR,
@@ -15401,6 +15402,7 @@ window.cakuSecenekBul = cakuSecenekBul;
 window.muafiyetBelgeNotlari = muafiyetBelgeNotlari;
 window.muafiyetNotsuzSatirlar = muafiyetNotsuzSatirlar;
 window.muafiyetOgrenciNotu = muafiyetOgrenciNotu;
+window.muafiyetNotEslemesiGerekli = muafiyetNotEslemesiGerekli;
 
 // Muafiyet reddi — gerekçe zorunluluğu ve öğrenci bildirimi.
 window.muafiyetKararGecerliMi = muafiyetKararGecerliMi;

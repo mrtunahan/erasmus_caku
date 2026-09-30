@@ -6,6 +6,7 @@ import {
   cakuBasariNotu,
   belgeNotlari,
   notsuzSatirlar,
+  notEslemesiGerekli,
 } from '../lib/muafiyet-belge-notu.js';
 
 function satir(ek) {
@@ -174,5 +175,24 @@ describe('notsuzSatirlar', () => {
 
   it('boş kayıt çökmez', () => {
     expect(notsuzSatirlar(null)).toEqual([]);
+  });
+});
+
+describe('notEslemesiGerekli', () => {
+  it('ders muafiyetinde belge öncesi not eşlemesi istenir', () => {
+    expect(notEslemesiGerekli('muafiyet')).toBe(true);
+  });
+
+  it('dikey geçişte de istenir — yoksa ÇAKÜ harf notu sütunu boş çıkıyordu', () => {
+    expect(notEslemesiGerekli('dikey')).toBe(true);
+  });
+
+  it('türü olmayan eski kayıt muafiyet sayılır', () => {
+    expect(notEslemesiGerekli(undefined)).toBe(true);
+    expect(notEslemesiGerekli('')).toBe(true);
+  });
+
+  it('yaz intibakında istenmez (not kendi aşamasında girilir)', () => {
+    expect(notEslemesiGerekli('intibak')).toBe(false);
   });
 });
