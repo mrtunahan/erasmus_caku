@@ -543,10 +543,12 @@ describe('TTO süreci uçtan uca (kural katmanı)', () => {
         ...belge('onayli_basvuru'),
       }).izin
     ).toBe(true);
-    expect(yaz(AYSE, { durum: 'proforma_gonderildi' }).hata).toMatch(/Proforma \(TTO imzalı\)/);
+    expect(yaz(AYSE, { durum: 'proforma_gonderildi' }).hata).toMatch(
+      /Proforma \(TTO imzalı ve kaşeli\)/
+    );
     expect(yaz(AYSE, { durum: 'proforma_gonderildi', ...belge('proforma_tto') }).izin).toBe(true);
 
-    expect(yaz(ALI, { durum: 'proforma_dondu' }).hata).toMatch(/firma imzalı/);
+    expect(yaz(ALI, { durum: 'proforma_dondu' }).hata).toMatch(/firma onaylı, imzalı/);
     expect(yaz(ALI, { durum: 'proforma_dondu', ...belge('proforma_firma') }).izin).toBe(true);
 
     // Eksik proforma: gerekçeyle geri gönderilebilir; sonra yeniden gelir.
@@ -675,14 +677,14 @@ describe('ttoBildirimPlani — süreç aşamaları', () => {
         yapan: 'Dr. Ali Veli',
         yoneticiler: YON,
       })[0].body
-    ).toMatch(/firma imzalı ve kaşeli proformayı yükledi/);
+    ).toMatch(/firma onaylı, imzalı ve kaşeli proformayı gönderdi/);
     expect(
       ttoBildirimPlani({
         eski: tal({ durum: 'onaylandi' }),
         yeni: tal({ durum: 'proforma_gonderildi' }),
         yapan: 'Dr. Ayşe Yılmaz',
       })[0].body
-    ).toMatch(/Firmaya doldurtup imzalatın/);
+    ).toMatch(/Firmaya onaylatıp imzalatın/);
     expect(
       ttoBildirimPlani({
         eski: tal({ durum: 'genel_sekreterlikte' }),
@@ -706,6 +708,6 @@ describe('ttoBildirimPlani — süreç aşamaları', () => {
       yapan: 'Dr. Ayşe Yılmaz',
       eklenenBelgeler: [{ tur: 'proforma_tto' }],
     });
-    expect(b[0].body).toMatch(/Proforma \(TTO imzalı\)/);
+    expect(b[0].body).toMatch(/Proforma \(TTO imzalı ve kaşeli\)/);
   });
 });

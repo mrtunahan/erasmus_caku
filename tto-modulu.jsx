@@ -713,7 +713,7 @@ function Taleplerim({ talepler, yukleniyor, hata, onAc, onYeni, onYenile, ayarKa
                       Sıra sizde:{' '}
                       {d === 'iade'
                         ? 'formu düzeltip imzalı hâliyle yeniden gönderin.'
-                        : 'firma imzalı ve kaşeli proformayı yükleyin.'}
+                        : 'proformayı firmaya onaylatıp imzalatın, kaşeletin ve geri gönderin.'}
                     </div>
                   )}
                   {Array.isArray(t.belgeler) && t.belgeler.length > 0 && (
@@ -933,14 +933,14 @@ function YolHaritasi() {
     ],
     [
       '5',
-      'TTO kendi imzaladığı proformayı yükler',
-      'Proforma akademisyene iletilir.',
+      'TTO proformayı hazırlar, imzalar ve kaşeler',
+      'İmzalı ve kaşeli proforma PDF olarak sisteme yüklenip akademisyene gönderilir.',
       'TTO yöneticisi',
     ],
     [
       '6',
-      'Akademisyen proformayı firmaya doldurtur, imzalatır ve kaşeletir',
-      'Firma onaylı proforma PDF olarak yüklenip TTO’ya gönderilir. Eksikse TTO gerekçeyle geri gönderir.',
+      'Akademisyen proformayı firmaya onaylatır, imzalatır ve kaşeletir',
+      'Firma onaylı, imzalı ve kaşeli proforma PDF olarak yüklenip TTO yöneticisine geri gönderilir. Uygun değilse TTO gerekçeyle yeniden gönderir.',
       'Akademisyen',
     ],
     [
