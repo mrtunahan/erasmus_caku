@@ -15,6 +15,7 @@ import {
   TTO_SABLON_DEGISKENLERI,
   ttoBirimAdiMi,
   ttoBirimUyesiMi,
+  yoneticiYazmaKarari,
 } from '../lib/tto-talep.js';
 
 function tamTalep(ek) {
@@ -332,5 +333,77 @@ describe('TTO yöneticisi = TTO birimine kayıtlı akademisyen', () => {
     expect(ttoBirimUyesiMi([{ departmentId: 'bilgisayar', department: 'TTO' }], bolumler)).toBe(
       false
     );
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// 2. aşama: TTO yöneticisinin inceleme ve kararı
+// ══════════════════════════════════════════════════════════════
+describe('yoneticiYazmaKarari', () => {
+  const SIMDI = new Date('2026-10-01T10:00:00Z');
+  const gelen = (ek) => ({
+    sahip: 'Dr. Ali Veli',
+    durum: 'gonderildi',
+    genel: { adSoyad: 'Ali Veli' },
+    gecmis: [{ olay: 'gonderildi' }],
+    ...ek,
+  });
+  const k = (mevcut, veri, kimlik = 'Dr. Ayşe Yılmaz', tur = 'update') => {
+    const r = yoneticiYazmaKarari({ tur, mevcut, veri, kimlik, simdi: SIMDI });
+    return { ...r, veri };
+  };
+
+  it('incelemeye alır, başlangıcı damgalar', () => {
+    const r = k(gelen(), { durum: 'incelemede' });
+    expect(r.izin).toBe(true);
+    expect(r.veri.incelemeBaslangic).toBe(SIMDI.toISOString());
+    expect(r.veri.gecmis.at(-1)).toMatchObject({ kim: 'Dr. Ayşe Yılmaz', olay: 'incelemede' });
+  });
+
+  it('onay talep no ve alan kişi ister; karar sunucuda damgalanır', () => {
+    expect(k(gelen(), { durum: 'onaylandi' }).hata).toMatch(/Talep No.*Alan Kişi/);
+    const r = k(gelen(), {
+      durum: 'onaylandi',
+      talepNo: '2026/014',
+      alanKisi: 'Ayşe Yılmaz',
+      kararVeren: 'sahte',
+      onayliBelgeUrl: '/api/files/download/tto/x.pdf',
+    });
+    expect(r.izin).toBe(true);
+    expect(r.veri).toMatchObject({
+      karar: 'onaylandi',
+      kararVeren: 'Dr. Ayşe Yılmaz',
+      kararTarihi: SIMDI.toISOString(),
+      talepTarihi: '2026-10-01',
+      onayliBelgeUrl: '/api/files/download/tto/x.pdf',
+    });
+  });
+
+  it('iade ve ret gerekçe ister', () => {
+    expect(k(gelen(), { durum: 'iade' }).izin).toBe(false);
+    expect(k(gelen(), { durum: 'reddedildi', yoneticiNotu: ' ' }).izin).toBe(false);
+    expect(k(gelen(), { durum: 'iade', yoneticiNotu: 'Bütçe eksik' }).izin).toBe(true);
+  });
+
+  it('içeriğe dokunamaz', () => {
+    const r = k(gelen(), { genel: { adSoyad: 'Başka' } });
+    expect(r.izin).toBe(false);
+    expect(r.hata).toMatch(/yalnız sahibi/);
+  });
+
+  it('taslağa ve iade edilmişe karar veremez; kararı incelemeye geri alabilir', () => {
+    expect(k(gelen({ durum: 'taslak' }), { durum: 'incelemede' }).izin).toBe(false);
+    expect(
+      k(gelen({ durum: 'iade' }), { durum: 'onaylandi', talepNo: '1', alanKisi: 'x' }).izin
+    ).toBe(false);
+    const r = k(gelen({ durum: 'onaylandi', karar: 'onaylandi' }), { durum: 'incelemede' });
+    expect(r.izin).toBe(true);
+    expect(r.veri.karar).toBe('');
+  });
+
+  it('başkasının talebini silemez; kendi talebinde sahip kuralı geçerli', () => {
+    expect(k(gelen(), {}, 'Dr. Ayşe Yılmaz', 'delete').izin).toBe(false);
+    expect(k(gelen({ sahip: 'Dr. Ayşe Yılmaz' }), { durum: 'taslak' }).sahipKurali).toBe(true);
+    expect(k(null, { genel: {} }, 'Dr. Ayşe Yılmaz', 'add').sahipKurali).toBe(true);
   });
 });

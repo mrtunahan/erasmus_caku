@@ -1,7 +1,7 @@
 // ══════════════════════════════════════════════════════════════
 // ÇAKÜ — TTO (Teknoloji Transfer Ofisi) Modülü
 //
-// 1. aşama: AKADEMİSYEN tarafı.
+// AKADEMİSYEN tarafı (1. aşama) ve TTO YÖNETİCİSİNİN gelen talepleri (2. aşama).
 //   • Taleplerim   — kendi talepleri, durumları, Word çıktısı
 //   • Talep formu  — Üniversite ile İşbirliği Talep Formu (TTO-TF-001)
 //   • Yol Haritası — talebin akışı (akademisyen → TTO birimi → karar)
@@ -246,11 +246,79 @@ function bolumAdiBul(profil) {
   return d ? metin(d.name) : '';
 }
 
-function TalepFormu({ talep, ayarKaydi, onKapat, onKaydedildi, kimlik, profil }) {
+// Kilitli formun üstünde: talep şu an nerede, TTO ne dedi?
+function DurumBildirimi({ talep }) {
+  const t = talep || {};
+  const d = t.durum || 'taslak';
+  const renk = {
+    gonderildi: ['#EFF6FF', '#BFDBFE', '#1E40AF'],
+    incelemede: ['#FFFBEB', '#FDE68A', '#92400E'],
+    onaylandi: ['#ECFDF5', '#A7F3D0', '#065F46'],
+    reddedildi: ['#FEF2F2', '#FECACA', '#991B1B'],
+  }[d] || ['#EFF6FF', '#BFDBFE', '#1E40AF'];
+  let govde;
+  if (d === 'gonderildi') {
+    govde =
+      'Bu talep TTO’ya gönderildi ve değiştirilemez. Değişiklik yapmak için “Taleplerim” listesinden geri çekin (TTO incelemeye almadıysa).';
+  } else if (d === 'incelemede') {
+    govde = 'TTO talebinizi inceliyor. Karar verildiğinde burada ve bildirimlerinizde görünür.';
+  } else if (d === 'onaylandi') {
+    govde = (
+      <>
+        <b>Talebiniz TTO tarafından onaylandı</b>
+        {t.kararTarihi ? ' (' + tarihTr(t.kararTarihi) + ')' : ''}.
+        {t.talepNo ? ' Talep No: ' + t.talepNo + '.' : ''}
+        {t.onayliBelgeUrl
+          ? ' Onaylı belgeyi aşağıdan indirebilirsiniz.'
+          : ' “Word olarak indir” ile TTO bilgileri işlenmiş formu alabilirsiniz.'}
+        {metin(t.yoneticiNotu) && <div style={{ marginTop: 6 }}>TTO notu: {t.yoneticiNotu}</div>}
+      </>
+    );
+  } else if (d === 'reddedildi') {
+    govde = (
+      <>
+        <b>Talebiniz TTO tarafından reddedildi</b>
+        {t.kararTarihi ? ' (' + tarihTr(t.kararTarihi) + ')' : ''}.
+        {metin(t.yoneticiNotu) && <div style={{ marginTop: 6 }}>Gerekçe: {t.yoneticiNotu}</div>}
+      </>
+    );
+  } else {
+    return null;
+  }
+  return (
+    <div
+      style={{
+        ...kart,
+        background: renk[0],
+        borderColor: renk[1],
+        color: renk[2],
+        fontSize: 13,
+        padding: 14,
+        lineHeight: 1.6,
+      }}
+    >
+      {govde}
+      {d === 'onaylandi' && t.onayliBelgeUrl && (
+        <div style={{ marginTop: 10 }}>
+          <a
+            href={t.onayliBelgeUrl + '?download=true'}
+            style={{ ...dugme('vurgu'), textDecoration: 'none', display: 'inline-block' }}
+          >
+            Onaylı belgeyi indir
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TalepFormu({ talep, ayarKaydi, onKapat, onKaydedildi, kimlik, profil, saltOkunur }) {
   const [form, setForm] = useState(talep);
   const [mesgul, setMesgul] = useState('');
   const [mesaj, setMesaj] = useState(null); // { tur: 'hata'|'bilgi', metin, liste? }
-  const kilitli = !akademisyenDuzenleyebilirMi(form.durum);
+  // `saltOkunur`: TTO yöneticisi başkasının talebini inceliyor — form
+  // akademisyenin beyanıdır, yönetici içeriğe dokunmaz (lib/tto-talep.js).
+  const kilitli = !!saltOkunur || !akademisyenDuzenleyebilirMi(form.durum);
   // Form değişince eski eksik/uyarı listesi ekranda kalmasın (düzeltilmiş
   // bir alan hâlâ eksik görünüyordu).
   useEffect(() => {
@@ -396,22 +464,8 @@ function TalepFormu({ talep, ayarKaydi, onKapat, onKaydedildi, kimlik, profil })
         </div>
       </div>
 
-      {kilitli && (
-        <div
-          style={{
-            ...kart,
-            background: '#EFF6FF',
-            borderColor: '#BFDBFE',
-            color: '#1E40AF',
-            fontSize: 13,
-            padding: 14,
-          }}
-        >
-          Bu talep TTO’ya gönderildi ve değiştirilemez. Değişiklik yapmak için “Taleplerim”
-          listesinden geri çekin (TTO incelemeye almadıysa).
-        </div>
-      )}
-      {form.durum === 'iade' && metin(form.yoneticiNotu) && (
+      {kilitli && !saltOkunur && <DurumBildirimi talep={form} />}
+      {!saltOkunur && form.durum === 'iade' && metin(form.yoneticiNotu) && (
         <div
           style={{
             ...kart,
@@ -423,6 +477,9 @@ function TalepFormu({ talep, ayarKaydi, onKapat, onKaydedildi, kimlik, profil })
           }}
         >
           <b>TTO’nun iade notu:</b> {form.yoneticiNotu}
+          <div style={{ marginTop: 6, color: '#7F1D1D' }}>
+            Formu düzeltip yeniden “TTO’ya gönder”in.
+          </div>
         </div>
       )}
 
@@ -804,9 +861,16 @@ function Taleplerim({ talepler, yukleniyor, hata, onAc, onYeni, onYenile, ayarKa
                       : 'Son düzenleme: ' + tarihTr(t.updatedAt || t.createdAt)}
                     {t.talepNo ? ' · Talep No: ' + t.talepNo : ''}
                   </div>
-                  {d === 'iade' && metin(t.yoneticiNotu) && (
+                  {(d === 'iade' || d === 'reddedildi') && metin(t.yoneticiNotu) && (
                     <div style={{ fontSize: 12.5, color: '#991B1B', marginTop: 6 }}>
-                      İade notu: {t.yoneticiNotu}
+                      {d === 'iade' ? 'İade notu: ' : 'Ret gerekçesi: '}
+                      {t.yoneticiNotu}
+                    </div>
+                  )}
+                  {d === 'onaylandi' && (
+                    <div style={{ fontSize: 12.5, color: '#065F46', marginTop: 6 }}>
+                      TTO onayladı{t.kararTarihi ? ' · ' + tarihTr(t.kararTarihi) : ''}
+                      {metin(t.yoneticiNotu) ? ' · Not: ' + t.yoneticiNotu : ''}
                     </div>
                   )}
                 </div>
@@ -858,6 +922,419 @@ function Taleplerim({ talepler, yukleniyor, hata, onAc, onYeni, onYenile, ayarKa
 }
 
 // ══════════════════════════════════════════════════════════════
+// GELEN TALEPLER (TTO YÖNETİCİSİ — 2. aşama)
+//
+// Akademisyenin gönderdiği talepler buraya düşer. Yönetici talebi açar,
+// "TTO tarafından doldurulacaktır" alanlarını doldurur ve karar verir:
+// onay, düzeltme için iade ya da ret. Karar talebin kaydına yazılır;
+// akademisyen "Taleplerim"de durumu, notu ve onaylı belgeyi görür ve
+// bildirim alır. Kurallar lib/tto-talep.js → yoneticiYazmaKarari.
+// ══════════════════════════════════════════════════════════════
+const GELEN_SUZGECLERI = [
+  { id: 'bekleyen', label: 'Bekleyen', durumlar: ['gonderildi', 'incelemede'] },
+  { id: 'iade', label: 'İade edilen', durumlar: ['iade'] },
+  { id: 'onaylandi', label: 'Onaylanan', durumlar: ['onaylandi'] },
+  { id: 'reddedildi', label: 'Reddedilen', durumlar: ['reddedildi'] },
+  { id: 'tumu', label: 'Tümü', durumlar: null },
+];
+
+function GelenTalepler({ talepler, yukleniyor, hata, onIncele, onYenile }) {
+  const [suzgec, setSuzgec] = useState('bekleyen');
+  const [ara, setAra] = useState('');
+  const sayi = (s) =>
+    s.durumlar ? talepler.filter((t) => s.durumlar.indexOf(t.durum) >= 0).length : talepler.length;
+  const secili = GELEN_SUZGECLERI.find((x) => x.id === suzgec) || GELEN_SUZGECLERI[0];
+  const q = metin(ara).toLocaleLowerCase('tr');
+  const liste = talepler
+    .filter((t) => !secili.durumlar || secili.durumlar.indexOf(t.durum) >= 0)
+    .filter(
+      (t) =>
+        !q ||
+        [t.sahip, t.talepNo, talepBasligi(t), t.genel && t.genel.kurum]
+          .map((x) => metin(x).toLocaleLowerCase('tr'))
+          .some((x) => x.indexOf(q) >= 0)
+    )
+    .sort((a, b) =>
+      String(b.gonderimTarihi || b.updatedAt || '').localeCompare(
+        String(a.gonderimTarihi || a.updatedAt || '')
+      )
+    );
+
+  if (yukleniyor) {
+    return <div style={{ padding: 40, textAlign: 'center', color: T.soluk }}>Yükleniyor…</div>;
+  }
+  return (
+    <div>
+      <div style={{ fontSize: 13, color: T.soluk, marginBottom: 12 }}>
+        Akademisyenlerin TTO’ya gönderdiği işbirliği talepleri. Talebi açıp TTO alanlarını doldurun
+        ve karar verin; karar akademisyenin “Taleplerim” listesine ve bildirimlerine düşer.
+      </div>
+      {hata && (
+        <div role="alert" style={{ ...kart, padding: 12, fontSize: 13, color: '#991B1B' }}>
+          {hata}
+        </div>
+      )}
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          marginBottom: 14,
+        }}
+      >
+        {GELEN_SUZGECLERI.map((x) => {
+          const aktif = x.id === suzgec;
+          return (
+            <button
+              key={x.id}
+              data-suzgec={x.id}
+              onClick={() => setSuzgec(x.id)}
+              style={{
+                ...dugme(aktif ? 'birincil' : 'sessiz'),
+                padding: '7px 13px',
+                fontSize: 12.5,
+              }}
+            >
+              {x.label} ({sayi(x)})
+            </button>
+          );
+        })}
+        <input
+          value={ara}
+          onChange={(e) => setAra(e.target.value)}
+          placeholder="Akademisyen, talep no, kurum…"
+          style={{ ...giris, width: 240, marginLeft: 'auto' }}
+        />
+        <button style={dugme('sessiz')} onClick={onYenile}>
+          Yenile
+        </button>
+      </div>
+      {liste.length === 0 ? (
+        <div style={{ ...kart, textAlign: 'center', padding: 36, color: T.soluk }}>
+          {suzgec === 'bekleyen' ? 'Bekleyen talep yok.' : 'Bu grupta talep yok.'}
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {liste.map((t) => (
+            <div
+              key={t.id}
+              data-talep={t.id}
+              style={{
+                ...kart,
+                marginBottom: 0,
+                padding: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 14.5, fontWeight: 700, color: T.metin }}>
+                    {talepBasligi(t)}
+                  </span>
+                  <DurumCipi durum={t.durum} />
+                </div>
+                <div style={{ fontSize: 12.5, color: T.metin, marginTop: 4 }}>
+                  {metin(t.genel && t.genel.adSoyad) || t.sahip}
+                  {metin(t.genel && t.genel.kurum) ? ' · ' + t.genel.kurum : ''}
+                </div>
+                <div style={{ fontSize: 12, color: T.soluk, marginTop: 2 }}>
+                  Gönderim: {tarihTr(t.gonderimTarihi)}
+                  {t.talepNo ? ' · Talep No: ' + t.talepNo : ''}
+                  {t.kararTarihi ? ' · Karar: ' + tarihTr(t.kararTarihi) : ''}
+                </div>
+              </div>
+              <button style={dugme('birincil')} onClick={() => onIncele(t)}>
+                {t.durum === 'gonderildi' || t.durum === 'incelemede' ? 'İncele' : 'Aç'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Karar paneli: TTO alanları + not + onaylı belge + karar düğmeleri.
+function KararPaneli({ talep, kimlik, onDegisti }) {
+  const t = talep || {};
+  const d = t.durum || 'taslak';
+  const [alan, setAlan] = useState(() => ({
+    talepNo: metin(t.talepNo),
+    talepTarihi: metin(t.talepTarihi).slice(0, 10) || new Date().toISOString().slice(0, 10),
+    alanKisi: metin(t.alanKisi) || kimlik,
+    yoneticiNotu: metin(t.yoneticiNotu),
+    onayliBelgeUrl: metin(t.onayliBelgeUrl),
+    onayliBelgeAdi: metin(t.onayliBelgeAdi),
+  }));
+  const [mesgul, setMesgul] = useState('');
+  const [mesaj, setMesaj] = useState(null);
+  const yaz = (k, v) => setAlan((a) => ({ ...a, [k]: v }));
+  const karara = d === 'gonderildi' || d === 'incelemede';
+  const kararli = d === 'onaylandi' || d === 'reddedildi';
+
+  const bildir = async (durum) => {
+    if (!window.Notify || !window.Notify.send || !metin(t.sahip)) return;
+    const baslik = talepBasligi(t);
+    const metinler = {
+      incelemede: 'TTO talebinizi incelemeye aldı.',
+      onaylandi:
+        'Talebiniz onaylandı' + (alan.talepNo ? ' (Talep No: ' + alan.talepNo + ')' : '') + '.',
+      iade: 'Talebiniz düzeltme için iade edildi: ' + alan.yoneticiNotu,
+      reddedildi: 'Talebiniz reddedildi: ' + alan.yoneticiNotu,
+    };
+    if (!metinler[durum]) return;
+    try {
+      await window.Notify.send({
+        recipientType: 'user',
+        recipientId: metin(t.sahip),
+        module: 'tto',
+        type: durum === 'onaylandi' ? 'basari' : durum === 'incelemede' ? 'bilgi' : 'uyari',
+        title: 'TTO · ' + baslik,
+        body: metinler[durum],
+        link: '#tto',
+        meta: { talepId: t.id, durum },
+      });
+    } catch (_e) {
+      /* bildirim opsiyonel — karar zaten kayda yazıldı */
+    }
+  };
+
+  const yazdir = async (durum, onay) => {
+    if (onay && !confirm(onay)) return;
+    setMesgul(durum || 'kaydet');
+    setMesaj(null);
+    try {
+      const veri = { ...alan };
+      if (durum) veri.durum = durum;
+      await window.DBWrite.update('tto_talepleri', String(t.id), veri);
+      if (window.apiInvalidate) window.apiInvalidate('tto_talepleri');
+      if (durum && durum !== d) await bildir(durum);
+      setMesaj({
+        ok: true,
+        metin: durum
+          ? (TTO_DURUMLAR[durum] || {}).label + ' — akademisyene iletildi.'
+          : 'TTO bilgileri kaydedildi.',
+      });
+      if (onDegisti) await onDegisti(t.id);
+    } catch (e) {
+      setMesaj({ ok: false, metin: (e && e.message) || 'Kaydedilemedi.' });
+    } finally {
+      setMesgul('');
+    }
+  };
+
+  const belgeYukle = async (dosya) => {
+    if (!dosya) return;
+    setMesgul('belge');
+    setMesaj(null);
+    try {
+      const fd = new FormData();
+      fd.append('folder', 'tto_onayli');
+      fd.append('file', dosya);
+      const r = await fetch('/api/files/upload?folder=tto_onayli', {
+        method: 'POST',
+        body: fd,
+        credentials: 'include',
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+      setAlan((a) => ({ ...a, onayliBelgeUrl: j.downloadURL || '', onayliBelgeAdi: dosya.name }));
+    } catch (e) {
+      setMesaj({ ok: false, metin: 'Belge yüklenemedi: ' + ((e && e.message) || '') });
+    } finally {
+      setMesgul('');
+    }
+  };
+
+  const satir = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: 12,
+  };
+  return (
+    <div style={{ ...kart, borderColor: '#C7D2FE', background: '#F8FAFF' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ fontSize: 15, fontWeight: 800, color: T.navy }}>TTO incelemesi</div>
+        <DurumCipi durum={d} />
+        {t.kararVeren && (
+          <span style={{ fontSize: 12, color: T.soluk }}>
+            Karar: {t.kararVeren} · {tarihTr(t.kararTarihi)}
+          </span>
+        )}
+      </div>
+      {d === 'iade' && (
+        <div style={{ fontSize: 13, color: '#991B1B', marginBottom: 12 }}>
+          Talep düzeltme için akademisyene iade edildi; yeniden gönderildiğinde burada “Bekleyen”
+          olarak görünür.
+        </div>
+      )}
+      <div style={satir}>
+        <label>
+          <span style={etiket}>Talep No *</span>
+          <input
+            data-alan="talepNo"
+            style={giris}
+            value={alan.talepNo}
+            disabled={d === 'iade'}
+            onChange={(e) => yaz('talepNo', e.target.value)}
+          />
+        </label>
+        <label>
+          <span style={etiket}>Talep Tarihi</span>
+          <input
+            type="date"
+            style={giris}
+            value={alan.talepTarihi}
+            disabled={d === 'iade'}
+            onChange={(e) => yaz('talepTarihi', e.target.value)}
+          />
+        </label>
+        <label>
+          <span style={etiket}>Başvuruyu Alan Kişi *</span>
+          <input
+            data-alan="alanKisi"
+            style={giris}
+            value={alan.alanKisi}
+            disabled={d === 'iade'}
+            onChange={(e) => yaz('alanKisi', e.target.value)}
+          />
+        </label>
+      </div>
+      <label style={{ display: 'block', marginTop: 12 }}>
+        <span style={etiket}>Akademisyene not (iade ve ret için zorunlu)</span>
+        <textarea
+          data-alan="yoneticiNotu"
+          style={{ ...giris, minHeight: 70, resize: 'vertical' }}
+          value={alan.yoneticiNotu}
+          disabled={d === 'iade'}
+          onChange={(e) => yaz('yoneticiNotu', e.target.value)}
+        />
+      </label>
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12 }}
+      >
+        <span style={{ ...etiket, marginBottom: 0 }}>Onaylı belge (isteğe bağlı):</span>
+        {alan.onayliBelgeUrl ? (
+          <>
+            <a href={alan.onayliBelgeUrl} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>
+              {alan.onayliBelgeAdi || 'Yüklenen belge'}
+            </a>
+            <button
+              style={{ ...dugme('sessiz'), padding: '5px 10px', fontSize: 12 }}
+              disabled={d === 'iade'}
+              onClick={() => setAlan((a) => ({ ...a, onayliBelgeUrl: '', onayliBelgeAdi: '' }))}
+            >
+              Kaldır
+            </button>
+          </>
+        ) : (
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx"
+            disabled={d === 'iade' || mesgul === 'belge'}
+            onChange={(e) => belgeYukle(e.target.files && e.target.files[0])}
+            style={{ fontSize: 12.5 }}
+          />
+        )}
+        <span style={{ fontSize: 11.5, color: T.soluk }}>
+          İmzalı/kaşeli formu yükleyin; yüklemezseniz akademisyen TTO bilgileri işlenmiş Word
+          çıktısını alır.
+        </span>
+      </div>
+
+      {mesaj && (
+        <div
+          role="status"
+          style={{
+            marginTop: 12,
+            fontSize: 13,
+            fontWeight: 600,
+            color: mesaj.ok ? T.basari : T.tehlike,
+          }}
+        >
+          {mesaj.metin}
+        </div>
+      )}
+
+      {d !== 'iade' && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+          {d === 'gonderildi' && (
+            <button
+              style={dugme('sessiz')}
+              disabled={!!mesgul}
+              onClick={() => yazdir('incelemede')}
+            >
+              {mesgul === 'incelemede' ? 'Kaydediliyor…' : 'İncelemeye al'}
+            </button>
+          )}
+          {karara && (
+            <>
+              <button
+                style={{ ...dugme('birincil'), background: T.basari, borderColor: T.basari }}
+                disabled={!!mesgul}
+                onClick={() =>
+                  yazdir('onaylandi', 'Talep onaylanıp akademisyene iletilecek. Devam edilsin mi?')
+                }
+              >
+                {mesgul === 'onaylandi' ? 'Onaylanıyor…' : 'Onayla ve akademisyene gönder'}
+              </button>
+              <button
+                style={dugme('sessiz')}
+                disabled={!!mesgul}
+                onClick={() =>
+                  yazdir(
+                    'iade',
+                    'Talep düzeltme için akademisyene iade edilecek. Devam edilsin mi?'
+                  )
+                }
+              >
+                {mesgul === 'iade' ? 'İade ediliyor…' : 'Düzeltme için iade et'}
+              </button>
+              <button
+                style={dugme('tehlike')}
+                disabled={!!mesgul}
+                onClick={() => yazdir('reddedildi', 'Talep reddedilecek. Emin misiniz?')}
+              >
+                {mesgul === 'reddedildi' ? 'Reddediliyor…' : 'Reddet'}
+              </button>
+            </>
+          )}
+          <button style={dugme('sessiz')} disabled={!!mesgul} onClick={() => yazdir(null)}>
+            {mesgul === 'kaydet' ? 'Kaydediliyor…' : 'Bilgileri kaydet'}
+          </button>
+          {kararli && (
+            <button
+              style={dugme('sessiz')}
+              disabled={!!mesgul}
+              onClick={() =>
+                yazdir(
+                  'incelemede',
+                  'Karar geri alınıp talep yeniden incelemeye alınacak. Emin misiniz?'
+                )
+              }
+            >
+              Kararı geri al
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // YOL HARİTASI
 // ══════════════════════════════════════════════════════════════
 function YolHaritasi() {
@@ -867,10 +1344,14 @@ function YolHaritasi() {
     [
       '3',
       'TTO birimi inceler',
-      'TTO birimine kayıtlı yönetici talep no ve başvuruyu alan kişiyi girer.',
+      'TTO yöneticisi “Gelen Talepler”de talebi açar, talep no ve başvuruyu alan kişiyi girer.',
     ],
     ['4', 'Karar', 'Onay, düzeltme için iade ya da ret.'],
-    ['5', 'Onaylı belge akademisyene döner', 'Taleplerim listesinden indirilir.'],
+    [
+      '5',
+      'Karar akademisyene döner',
+      'Durum, TTO notu ve onaylı belge Taleplerim listesinde görünür; bildirim de gider.',
+    ],
   ];
   return (
     <div>
@@ -907,6 +1388,18 @@ function YolHaritasi() {
   );
 }
 
+/** Kayıttaki talebi formun beklediği tam biçime getirir (eksik alt alanlar boş). */
+function formaHazirla(t) {
+  const bos = bosTalep({});
+  return {
+    ...bos,
+    ...t,
+    genel: { ...bos.genel, ...(t.genel || {}) },
+    proje: { ...bos.proje, ...(t.proje || {}) },
+    nitelik: Array.isArray(t.nitelik) ? t.nitelik : [],
+  };
+}
+
 // ══════════════════════════════════════════════════════════════
 // MODÜL
 // ══════════════════════════════════════════════════════════════
@@ -914,6 +1407,9 @@ function TtoApp({ currentUser }) {
   const kimlik = metin(currentUser && (currentUser.identifier || currentUser.name));
   const [sekme, setSekme] = useState('talepler');
   const [talepler, setTalepler] = useState([]);
+  // TTO yöneticisinin gördüğü bütün gönderilmiş talepler (Gelen Talepler).
+  const [gelenler, setGelenler] = useState([]);
+  const [incelenen, setIncelenen] = useState(null);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [hata, setHata] = useState('');
   const [acik, setAcik] = useState(null); // düzenlenen / görüntülenen talep
@@ -930,10 +1426,11 @@ function TtoApp({ currentUser }) {
     try {
       const oku = window.apiRead.strict || window.apiRead;
       const liste = (await oku('tto_talepleri')) || [];
-      // Sunucu akademisyene zaten yalnız kendi taleplerini verir; TTO
-      // yöneticisi bütün listeyi alır — "Taleplerim" yine yalnız kendisininkini
-      // gösterir (yönetici paneli 2. aşamada).
+      // Sunucu akademisyene yalnız kendi taleplerini verir; TTO yöneticisi
+      // bunlara ek olarak GÖNDERİLMİŞ bütün talepleri alır. "Taleplerim"
+      // yalnız kendisininkini, "Gelen Talepler" gönderilmiş olanları gösterir.
       const benim = liste.filter((t) => metin(t.sahip) === kimlik);
+      setGelenler(liste.filter((t) => t.durum && t.durum !== 'taslak'));
       benim.sort((a, b) =>
         String(b.updatedAt || b.createdAt || '').localeCompare(
           String(a.updatedAt || a.createdAt || '')
@@ -981,14 +1478,7 @@ function TtoApp({ currentUser }) {
   };
 
   const talepAc = (t) => {
-    const bos = bosTalep({});
-    setAcik({
-      ...bos,
-      ...t,
-      genel: { ...bos.genel, ...(t.genel || {}) },
-      proje: { ...bos.proje, ...(t.proje || {}) },
-      nitelik: Array.isArray(t.nitelik) ? t.nitelik : [],
-    });
+    setAcik(formaHazirla(t));
     setSekme('form');
   };
 
@@ -998,20 +1488,45 @@ function TtoApp({ currentUser }) {
     yukle();
   };
 
+  const bekleyenSayisi = gelenler.filter(
+    (t) => t.durum === 'gonderildi' || t.durum === 'incelemede'
+  ).length;
+
+  // Kararın ardından listeyi tazele ve incelenen talebi güncel hâliyle tut.
+  const incelemeDegisti = async (id) => {
+    try {
+      const r = await window.apiReadDoc('tto_talepleri', String(id));
+      if (r && r.exists) setIncelenen({ ...r.data, id: r.id || id });
+    } catch (_e) {
+      /* liste tazelemesi yine çalışır */
+    }
+    await yukle();
+  };
+
   const sekmeler = useMemo(
-    () => [
-      { id: 'talepler', label: 'Taleplerim' },
-      { id: 'form', label: acik ? (acik.id ? 'Talep' : 'Yeni talep') : 'Yeni talep' },
-      { id: 'yol', label: 'Yol Haritası' },
-    ],
-    [acik]
+    () =>
+      [
+        yonetici && {
+          id: 'gelen',
+          label: 'Gelen Talepler' + (bekleyenSayisi > 0 ? ' (' + bekleyenSayisi + ')' : ''),
+        },
+        incelenen && sekme === 'incele' && { id: 'incele', label: 'İnceleme' },
+        { id: 'talepler', label: 'Taleplerim' },
+        { id: 'form', label: acik ? (acik.id ? 'Talep' : 'Yeni talep') : 'Yeni talep' },
+        { id: 'yol', label: 'Yol Haritası' },
+      ].filter(Boolean),
+    [acik, yonetici, bekleyenSayisi, incelenen, sekme]
   );
 
   if (yonetici && otomasyonAcik) {
     return (
       <TtoOtomasyon
         currentUser={currentUser}
-        onTalepler={() => setOtomasyonAcik(false)}
+        bekleyenTalep={bekleyenSayisi}
+        onTalepler={() => {
+          setOtomasyonAcik(false);
+          setSekme('gelen');
+        }}
         // Modül seçimi hash ile yapılır; boş hash kabuğun varsayılan sayfasıdır.
         onDon={() => {
           window.location.hash = '';
@@ -1087,6 +1602,52 @@ function TtoApp({ currentUser }) {
         })}
       </div>
 
+      {sekme === 'gelen' && yonetici && (
+        <GelenTalepler
+          talepler={gelenler}
+          yukleniyor={yukleniyor}
+          hata={hata}
+          onYenile={yukle}
+          onIncele={(t) => {
+            setIncelenen(t);
+            setSekme('incele');
+          }}
+        />
+      )}
+      {sekme === 'incele' && incelenen && (
+        <div>
+          <button
+            style={{ ...dugme('sessiz'), marginBottom: 12 }}
+            onClick={() => {
+              setIncelenen(null);
+              setSekme('gelen');
+            }}
+          >
+            ← Gelen talepler
+          </button>
+          <KararPaneli
+            // Kimlikle anahtarlanır: karardan sonra panel yeniden kurulmasın,
+            // "akademisyene iletildi" mesajı ve girilen alanlar kalsın.
+            key={incelenen.id}
+            talep={incelenen}
+            kimlik={kimlik}
+            onDegisti={incelemeDegisti}
+          />
+          <TalepFormu
+            key={'incele-' + incelenen.id + ':' + (incelenen.updatedAt || '')}
+            talep={formaHazirla(incelenen)}
+            ayarKaydi={ayarKaydi}
+            kimlik={kimlik}
+            profil={null}
+            saltOkunur
+            onKapat={() => {
+              setIncelenen(null);
+              setSekme('gelen');
+            }}
+            onKaydedildi={yukle}
+          />
+        </div>
+      )}
       {sekme === 'talepler' && (
         <Taleplerim
           talepler={talepler}
