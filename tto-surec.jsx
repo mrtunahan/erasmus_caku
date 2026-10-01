@@ -24,6 +24,9 @@ import {
   asamaSirasi,
   eksikGecisBelgeleri,
   ttoPdfDosyaAdi,
+  ttoDosyaAdi,
+  ttoSablonVerisi,
+  ttoEtiketDegerleri,
 } from './lib/tto-talep.js';
 import {
   T,
@@ -76,6 +79,87 @@ export async function pdfAktar(talep, ayarKaydi) {
   } catch (e) {
     return { ok: false, hata: 'PDF oluşturulamadı: ' + ((e && e.message) || e) };
   }
+}
+
+function blobIndir(blob, ad) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = ad;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+export const WORD_UYARISI =
+  'Form, kurumun Şablonlar modülüne yüklenen Word şablonundan üretildi ve Word (.docx) olarak indirildi; sunucu bu belgeyi PDF’e çeviremedi. Lütfen Word’de açıp “Farklı Kaydet → PDF” ile PDF’e çevirin, çıktısını imzalayıp kaşeleyin ve PDF olarak yükleyin.';
+
+/**
+ * Başvuru formunu indirir.
+ *
+ *   1) Kurum Şablonlar → TTO modülüne Word şablonu yüklediyse belge ONDAN
+ *      üretilir (kurumun biçimi birebir korunur) ve sunucuda PDF'e çevrilir
+ *      (LibreOffice — server/lib/docx-pdf.js).
+ *   2) Sunucu çeviremezse belge Word olarak iner; akademisyenden PDF'e
+ *      çevirmesi istenir (`uyari`).
+ *   3) Şablon yoksa yerleşik PDF (lib/tto-pdf.js).
+ *
+ * @returns {Promise<{ok:boolean, kaynak?:string, uyari?:string, hata?:string}>}
+ */
+export async function formIndir(talep, ayarKaydi) {
+  const TE = window.TemplateEngine;
+  let not = '';
+  if (TE && TE.produceFromTemplate) {
+    const veri = ttoSablonVerisi(talep, ayarKaydi);
+    const r = await TE.produceFromTemplate({
+      module: 'tto',
+      docType: 'talep',
+      // Kurum geneli şablon: bölümden bağımsız çözülür (üniversite kapsamı).
+      departmentId: '',
+      staticData: veri,
+      rows: [],
+      // Doküman kodu, revizyon, TTO adres/telefon üst-alt bilgide durur.
+      ustAltBilgi: ttoEtiketDegerleri(veri),
+      filename: ttoDosyaAdi(talep),
+      noDownload: true,
+    });
+    if (r && r.ok && r.blob) {
+      try {
+        const token = localStorage.getItem('caku_auth_token');
+        const yanit = await fetch('/api/files/docx-pdf', {
+          method: 'POST',
+          credentials: 'include',
+          headers: Object.assign(
+            {
+              'Content-Type':
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            },
+            token ? { Authorization: 'Bearer ' + token } : {}
+          ),
+          body: r.blob,
+        });
+        if (yanit.ok) {
+          blobIndir(await yanit.blob(), ttoPdfDosyaAdi(talep));
+          return { ok: true, kaynak: 'sablon-pdf' };
+        }
+      } catch (_e) {
+        /* çeviri yoksa Word'e düşülür */
+      }
+      blobIndir(r.blob, ttoDosyaAdi(talep));
+      return { ok: true, kaynak: 'sablon-word', uyari: WORD_UYARISI };
+    }
+    const sablonYok =
+      r && ['no-template', 'no-mapping', 'not-docx', 'network'].indexOf(r.reason) >= 0;
+    if (r && !sablonYok) {
+      not =
+        'Kurum şablonundan belge üretilemedi (' +
+        (r.message || r.reason) +
+        '); form yerleşik biçimle PDF olarak indirildi.';
+    }
+  }
+  const p = await pdfAktar(talep, ayarKaydi);
+  if (!p.ok) return p;
+  return { ok: true, kaynak: 'yerlesik', uyari: not };
 }
 
 // ── Dosya yükleme (yalnız PDF) ──
@@ -337,11 +421,14 @@ function Mesaj({ mesaj }) {
 // ══════════════════════════════════════════════════════════════
 export function GonderimKarti({ talep, ayarKaydi, imzali, onImzali, onMesaj }) {
   const [hazirlaniyor, setHazirlaniyor] = useState(false);
+  const [uyari, setUyari] = useState('');
   const indir = async () => {
     setHazirlaniyor(true);
-    const r = await pdfAktar(talep, ayarKaydi);
+    setUyari('');
+    const r = await formIndir(talep, ayarKaydi);
     setHazirlaniyor(false);
     if (!r.ok && onMesaj) onMesaj({ tur: 'hata', metin: r.hata });
+    if (r.ok && r.uyari) setUyari(r.uyari);
   };
   const adim = (no, baslik, govde) => (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -375,15 +462,35 @@ export function GonderimKarti({ talep, ayarKaydi, imzali, onImzali, onMesaj }) {
       <div style={{ display: 'grid', gap: 12 }}>
         {adim(
           1,
-          'Formu PDF olarak indirin',
-          <button
-            type="button"
-            style={{ ...dugme('sessiz'), marginTop: 6 }}
-            onClick={indir}
-            disabled={hazirlaniyor}
-          >
-            {hazirlaniyor ? 'Hazırlanıyor…' : 'Başvuru formunu PDF indir'}
-          </button>
+          'Başvuru formunu indirin',
+          <div>
+            <button
+              type="button"
+              style={{ ...dugme('sessiz'), marginTop: 6 }}
+              onClick={indir}
+              disabled={hazirlaniyor}
+            >
+              {hazirlaniyor ? 'Hazırlanıyor…' : 'Başvuru formunu indir'}
+            </button>
+            {uyari && (
+              <div
+                role="alert"
+                data-form-uyari
+                style={{
+                  marginTop: 8,
+                  padding: '9px 11px',
+                  borderRadius: 8,
+                  background: '#FFFBEB',
+                  border: '1px solid #FCD34D',
+                  color: '#92400E',
+                  fontSize: 12.5,
+                  lineHeight: 1.55,
+                }}
+              >
+                {uyari}
+              </div>
+            )}
+          </div>
         )}
         {adim(
           2,
@@ -401,7 +508,7 @@ export function GonderimKarti({ talep, ayarKaydi, imzali, onImzali, onMesaj }) {
         )}
       </div>
       <div style={{ fontSize: 12, color: T.soluk, marginTop: 10 }}>
-        Formda değişiklik yaparsanız PDF’i yeniden indirip imzalı hâlini yeniden yükleyin.
+        Formda değişiklik yaparsanız formu yeniden indirip imzalı hâlini yeniden yükleyin.
       </div>
     </div>
   );

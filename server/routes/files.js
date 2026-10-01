@@ -919,4 +919,42 @@ router.ogrenciDosyayaErisebilirMi = ogrenciDosyayaErisebilirMi;
 // Testler için: birleştirme yardımcıları saf fonksiyonlardır, uç noktayı
 // ayağa kaldırmadan doğrulanabilsinler.
 
+// ══════════════════════════════════════════════════════════════
+// POST /api/files/docx-pdf — Word (.docx) → PDF (LibreOffice)
+//
+// Gövde: ham .docx baytları. Yanıt: application/pdf. LibreOffice kurulu
+// değilse 501 döner; istemci belgeyi Word olarak indirir ve kullanıcıdan
+// PDF'e çevirmesini ister (bkz. server/lib/docx-pdf.js).
+// ══════════════════════════════════════════════════════════════
+const docxPdf = require('../lib/docx-pdf');
+const cevirLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Çok fazla çeviri isteği.' },
+});
+router.post(
+  '/docx-pdf',
+  cevirLimiter,
+  requireAuth,
+  express.raw({ type: () => true, limit: '15mb' }),
+  async (req, res) => {
+    try {
+      if (!(await docxPdf.kullanilabilir())) {
+        return res.status(501).json({ error: 'Sunucuda PDF çevirici (LibreOffice) kurulu değil.' });
+      }
+      const pdf = await docxPdf.docxPdfCevir(req.body);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(pdf);
+    } catch (e) {
+      console.warn('[docx-pdf]', e && e.message);
+      return res
+        .status(e && e.durum ? e.durum : 500)
+        .json({ error: (e && e.message) || 'Çevrilemedi.' });
+    }
+  }
+);
+
 module.exports = router;
