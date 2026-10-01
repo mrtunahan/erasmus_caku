@@ -116,9 +116,17 @@ describe('oturumdaBaskasiKullandiMi', () => {
     expect(r.ogrenciNo).toBe('111');
   });
 
-  it('çerez silinip gizli sekme açılsa da iz yakalar', () => {
+  // Aynı model telefonlar aynı izi üretir: iz tek başına reddetmez, işaretler.
+  it('yalnız iz eşleşirse reddetmez, işaretler', () => {
     const r = oturumdaBaskasiKullandiMi(kayitlar, { id: 'ch-yeni', iz: 'iz-a' }, '333');
-    expect(r.cakisma).toBe(true);
+    expect(r.cakisma).toBe(false);
+    expect(r.izEslesti).toBe(true);
+    expect(r.ogrenciNo).toBe('111');
+  });
+
+  it('kimliği olmayan cihazda iz yine yalnız işaretler', () => {
+    const r = oturumdaBaskasiKullandiMi(kayitlar, { id: '', iz: 'iz-b' }, '333');
+    expect(r).toEqual({ cakisma: false, izEslesti: true, ogrenciNo: '222' });
   });
 
   // Kendi ikinci okutması çakışma değildir.
@@ -247,6 +255,7 @@ describe('mesajlar', () => {
 
   it('akademisyene satır uyarısı', () => {
     expect(kayitUyarisi({ cihazPaylasildi: true })).toMatch(/başka bir öğrenci/);
+    expect(kayitUyarisi({ ayniIzOgrenci: '240905002' })).toMatch(/240905002.*aynı model/);
     expect(kayitUyarisi({ yeniCihaz: true })).toMatch(/yeni bir cihaz/);
     expect(kayitUyarisi({})).toBe('');
   });

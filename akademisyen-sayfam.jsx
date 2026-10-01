@@ -216,8 +216,12 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
 
   const durumDegistir = (no) => {
     setElleDurumlar((o) => {
-      const sira = ['var', 'yok', 'izinli'];
-      const suan = o[no] || (katilimlar.some((k) => metin(k.studentNumber) === no) ? 'var' : 'yok');
+      // Okutmamış öğrenciye ilk tık "var" olmalı (telefonu olmayan öğrenci
+      // en sık durum). Eskiden yok → izinli geçiyordu; "var" için iki tık
+      // gerekiyordu.
+      const okuttu = katilimlar.some((k) => metin(k.studentNumber) === no);
+      const sira = okuttu ? ['var', 'yok', 'izinli'] : ['yok', 'var', 'izinli'];
+      const suan = o[no] || (okuttu ? 'var' : 'yok');
       const sonraki = sira[(sira.indexOf(suan) + 1) % sira.length];
       return { ...o, [no]: sonraki };
     });
@@ -631,6 +635,29 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
                             yeni cihaz
                           </span>
                         )}
+                        {/* Parmak izi başka bir öğrencininkiyle aynı: aynı
+                            model telefon ya da gizli sekme. Reddedilmez. */}
+                        {s.ayniIzOgrenci && (
+                          <span
+                            title={
+                              'Cihaz bilgileri ' +
+                              s.ayniIzOgrenci +
+                              ' numaralı öğrencininkiyle aynı (aynı model telefon ya da gizli sekme olabilir)'
+                            }
+                            style={{
+                              marginLeft: 7,
+                              padding: '1px 7px',
+                              borderRadius: 999,
+                              background: 'rgba(148,163,184,0.22)',
+                              border: '1px solid rgba(148,163,184,0.55)',
+                              color: '#CBD5E1',
+                              fontSize: 10,
+                              fontWeight: 800,
+                            }}
+                          >
+                            benzer cihaz
+                          </span>
+                        )}
                       </span>
                       <span
                         style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}
@@ -1034,7 +1061,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   );
 
   // ── Yoklama başlat ──
-  const yoklamaBaslat = async (ders, parca) => {
+  const yoklamaBaslat = async (ders, parca, hafta) => {
     const dersId = metin(ders.id || ders._docId);
     const P = window.DersParcasi || {};
     const p = P.parcaCoz ? P.parcaCoz(parca) : 'teori';
@@ -1057,10 +1084,13 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
             ? P.parcaSaati(ders, p, yoklamaAyarlari[ayarAnahtari])
             : Number(ders.saat) || 1,
           departmentId: metin(ders.departmentId || activeDepartment),
+          // Dönemin kaçıncı haftası (panelde seçilir; önerilen hafta dolu gelir).
+          hafta: Number(hafta) > 0 ? Number(hafta) : null,
         }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Yoklama açılamadı.');
+      setTazele((t) => t + 1);
       setTamEkran({
         oturum: d.oturum,
         // ⚠ Sunucu saatiyle aramızdaki fark. Hocanın makinesi ileri/geriyse
@@ -1161,6 +1191,29 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
    * Telefonunu değiştiren ya da dönemlik cihaz hakkını tüketen öğrenci
    * aksi hâlde yoklama veremez hâle gelir.
    */
+  /** Alınmış bir yoklamanın haftasını düzelt (null → seçimi kaldır). */
+  const oturumHaftasiDuzelt = async (oturumId, hafta) => {
+    try {
+      const r = await fetch('/api/yoklama/hafta', {
+        method: 'POST',
+        credentials: 'include',
+        headers: Object.assign(
+          { 'Content-Type': 'application/json' },
+          window.yoklamaBasliklari ? window.yoklamaBasliklari() : {}
+        ),
+        body: JSON.stringify({ oturumId, hafta: Number(hafta) > 0 ? Number(hafta) : null }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Hafta kaydedilemedi.');
+      setOturumlar((liste) =>
+        liste.map((o) => (metin(o.id) === metin(oturumId) ? { ...o, hafta: d.hafta } : o))
+      );
+      if (window.apiInvalidate) window.apiInvalidate('yoklama_oturumlari');
+    } catch (e) {
+      alert('Hafta kaydedilemedi: ' + (e.message || 'bilinmeyen hata'));
+    }
+  };
+
   const cihazSifirla = async (ogrenciNo, adSoyad) => {
     const kim = metin(adSoyad) || metin(ogrenciNo);
     if (!window.confirm(kim + ' için cihaz kaydı sıfırlansın mı? Yeni cihazdan yoklama verebilir.'))
@@ -1559,6 +1612,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
             listeVerisi={listeVerisi}
             baglam={listeBaglami}
             onBaslat={yoklamaBaslat}
+            onHafta={oturumHaftasiDuzelt}
             onAyar={ayarKaydet}
             onCihazSifirla={cihazSifirla}
             onYazdir={listeYazdir}
@@ -2867,6 +2921,7 @@ function ASYoklamaPaneli({
   listeVerisi,
   baglam,
   onBaslat,
+  onHafta,
   onAyar,
   onCihazSifirla,
   onYazdir,
@@ -2925,6 +2980,30 @@ function ASYoklamaPaneli({
   const riskliler = satirlar.filter((s) => s.durum && s.durum.durum === 'riskli');
   const veri = ders && listeVerisi ? listeVerisi(ders, parca) : null;
   const dersBaglami = ders && baglam ? baglam(ders, parca) : null;
+
+  // ── HANGİ HAFTA? ──
+  // Yoklama açılırken haftayı akademisyen seçer; önerilen hafta dolu gelir
+  // (dönem başlangıcı girildiyse takvimden, yoksa alınan yoklamalardan).
+  const haftaUst = YL.haftaSayisiDuzelt ? YL.haftaSayisiDuzelt(dersBaglami?.haftaSayisi) : 14;
+  const haftaSecenekleri = Array.from({ length: haftaUst }, (_, i) => i + 1);
+  const haftaAyari = {
+    donemBaslangici: dersBaglami?.donemBaslangici,
+    haftaSayisi: dersBaglami?.haftaSayisi,
+  };
+  const oturumListesi = dersBaglami ? dersBaglami.oturumlar || [] : [];
+  const onerilen =
+    YL.onerilenHafta && dersBaglami ? YL.onerilenHafta(oturumListesi, haftaAyari) : 1;
+  const [acilisHaftasi, setAcilisHaftasi] = useState('');
+  useEffect(() => setAcilisHaftasi(''), [secili]);
+  const haftaHaritasi =
+    YL.oturumHaftalari && dersBaglami ? YL.oturumHaftalari(oturumListesi, haftaAyari).harita : {};
+  const alinanlar = oturumListesi
+    .slice()
+    .sort((a, b) => metin(b.baslangic || b.tarih).localeCompare(metin(a.baslangic || a.tarih)));
+  const katilanSayisi = (oturumId) =>
+    (dersBaglami?.kayitlar || []).filter(
+      (k) => metin(k.oturumId) === metin(oturumId) && k.durum === 'var'
+    ).length;
 
   if (dersler.length === 0) {
     return (
@@ -3046,8 +3125,40 @@ function ASYoklamaPaneli({
                     Karekod tahtaya yansıtılır; öğrenciler kendi telefonundan okutur.
                   </div>
                 </div>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: AS_NAVY,
+                    marginLeft: 'auto',
+                  }}
+                >
+                  Hafta
+                  <select
+                    data-alan="yoklama-hafta"
+                    value={acilisHaftasi || String(onerilen)}
+                    onChange={(e) => setAcilisHaftasi(e.target.value)}
+                    style={{
+                      padding: '9px 10px',
+                      borderRadius: 9,
+                      border: '1px solid #D1D5DB',
+                      fontSize: 13.5,
+                      fontFamily: 'inherit',
+                      background: '#fff',
+                    }}
+                  >
+                    {haftaSecenekleri.map((n) => (
+                      <option key={n} value={n}>
+                        {n}. hafta{n === onerilen ? ' (önerilen)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button
-                  onClick={() => onBaslat(ders, parca)}
+                  onClick={() => onBaslat(ders, parca, Number(acilisHaftasi || onerilen))}
                   style={{
                     padding: '11px 20px',
                     borderRadius: 11,
@@ -3081,6 +3192,77 @@ function ASYoklamaPaneli({
                   Tam ekran karekodu aç
                 </button>
               </div>
+
+              {/* Alınan yoklamalar — haftası sonradan düzeltilebilir */}
+              {alinanlar.length > 0 && (
+                <div style={AS_KART}>
+                  <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>Alınan yoklamalar</h4>
+                  <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 10px' }}>
+                    Devam listesinde hangi hafta sütununa yazılacağını buradan değiştirebilirsiniz.
+                    "tahmini" yazanlara hafta seçilmemiş; tarihten çıkarıldı.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {alinanlar.map((o) => {
+                      const hNo = haftaHaritasi[metin(o.id)] || 0;
+                      const secili = Number(o.hafta) > 0;
+                      return (
+                        <div
+                          key={o.id}
+                          data-oturum={o.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            flexWrap: 'wrap',
+                            padding: '7px 10px',
+                            borderRadius: 9,
+                            background: '#F9FAFB',
+                            border: '1px solid #EEF0F3',
+                            fontSize: 13,
+                          }}
+                        >
+                          <span style={{ fontWeight: 700, color: AS_NAVY, minWidth: 92 }}>
+                            {window.tarihMetni
+                              ? window.tarihMetni(o.tarih)
+                              : metin(o.tarih || o.baslangic).slice(0, 10)}
+                          </span>
+                          <span style={{ color: '#6B7280' }}>
+                            {katilanSayisi(o.id)} öğrenci var
+                            {o.acik ? ' · açık' : ''}
+                          </span>
+                          <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                            {!secili && hNo > 0 && (
+                              <span style={{ fontSize: 11, color: '#B45309', alignSelf: 'center' }}>
+                                tahmini
+                              </span>
+                            )}
+                            <select
+                              data-alan="oturum-hafta"
+                              value={hNo > 0 ? String(hNo) : ''}
+                              onChange={(e) => onHafta && onHafta(o.id, Number(e.target.value))}
+                              style={{
+                                padding: '5px 8px',
+                                borderRadius: 7,
+                                border: '1px solid #D1D5DB',
+                                fontSize: 12.5,
+                                fontFamily: 'inherit',
+                                background: '#fff',
+                              }}
+                            >
+                              {hNo === 0 && <option value="">Sütun dışı</option>}
+                              {haftaSecenekleri.map((n) => (
+                                <option key={n} value={n}>
+                                  {n}. hafta
+                                </option>
+                              ))}
+                            </select>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Devamsızlık tablosu */}
               <div style={AS_KART}>

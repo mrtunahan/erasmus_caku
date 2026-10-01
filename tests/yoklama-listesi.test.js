@@ -22,6 +22,7 @@ import {
   notluHaftalar,
   oturumHaftalari,
   oturumHaftasi,
+  onerilenHafta,
 } from '../lib/yoklama-listesi.js';
 
 // ── Örnek belgeye (Java Devam Listesi) benzeyen küçük bir ders ──
@@ -142,6 +143,48 @@ describe('oturumHaftalari', () => {
       { haftaSayisi: 15 }
     );
     expect(h.harita).toEqual({ a: 1, b: 1, c: 2 });
+  });
+  // 2026-09-22 Salı, 2026-09-24 Perşembe: aynı takvim haftası.
+  it('sıra yolunda aynı takvim haftasındaki iki gün tek haftaya sayılır', () => {
+    const h = oturumHaftalari(
+      [
+        { id: 'a', tarih: '2026-09-22' },
+        { id: 'b', tarih: '2026-09-24' },
+        { id: 'c', tarih: '2026-09-29' },
+        { id: 'd', tarih: '2026-10-01' },
+      ],
+      { haftaSayisi: 14 }
+    );
+    expect(h.harita).toEqual({ a: 1, b: 1, c: 2, d: 2 });
+  });
+  it('seçilen hafta her şeyden önce gelir', () => {
+    const h = oturumHaftalari(
+      [
+        { id: 'a', tarih: '2026-09-22', hafta: 2 },
+        { id: 'b', tarih: '2026-09-29', hafta: 3 },
+      ],
+      { donemBaslangici: '2026-09-21', haftaSayisi: 14 }
+    );
+    expect(h.kaynak).toBe('secim');
+    expect(h.harita).toEqual({ a: 2, b: 3 });
+  });
+  it('seçimsiz oturum aynı haftadaki seçimi izler; tahmin seçilen numaraları atlar', () => {
+    const h = oturumHaftalari(
+      [
+        { id: 'a', tarih: '2026-09-22', hafta: 1 },
+        { id: 'b', tarih: '2026-09-24' },
+        { id: 'c', tarih: '2026-10-06', hafta: 2 },
+        { id: 'd', tarih: '2026-10-13' },
+      ],
+      { haftaSayisi: 14 }
+    );
+    expect(h.kaynak).toBe('sira');
+    expect(h.harita).toEqual({ a: 1, b: 1, c: 2, d: 3 });
+  });
+  it('hafta sayısını aşan seçim dışarıda sayılır', () => {
+    const h = oturumHaftalari([{ id: 'a', tarih: '2026-09-22', hafta: 16 }], { haftaSayisi: 14 });
+    expect(h.disarida).toBe(1);
+    expect(h.harita).toEqual({});
   });
   it('sütuna sığmayan oturum sayılır, sessizce düşmez', () => {
     const h = oturumHaftalari(OTURUMLAR, { donemBaslangici: '2026-09-21', haftaSayisi: 2 });
@@ -472,5 +515,34 @@ describe('değişken sözlüğü', () => {
     const hepsi = [...YOKLAMA_LISTE_STATIC, ...YOKLAMA_LISTE_ROWS];
     hepsi.forEach((d) => expect(d.label.length).toBeGreaterThan(0));
     expect(new Set(hepsi.map((d) => d.id)).size).toBe(hepsi.length);
+  });
+});
+
+describe('onerilenHafta', () => {
+  it('dönem başlangıcı varsa takvim haftası', () => {
+    expect(
+      onerilenHafta([], { donemBaslangici: '2026-09-21', haftaSayisi: 14, bugun: '2026-10-01' })
+    ).toBe(2);
+  });
+  it('hiç yoklama yoksa 1', () => {
+    expect(onerilenHafta([], { bugun: '2026-10-01' })).toBe(1);
+  });
+  it('bu takvim haftasında yoklama alındıysa aynı hafta', () => {
+    const o = [
+      { id: 'a', tarih: '2026-09-22', hafta: 1 },
+      { id: 'b', tarih: '2026-09-29', hafta: 2 },
+    ];
+    expect(onerilenHafta(o, { bugun: '2026-10-01' })).toBe(2);
+  });
+  it('yeni takvim haftasında bir sonraki hafta, sınırı aşmaz', () => {
+    expect(
+      onerilenHafta([{ id: 'a', tarih: '2026-09-22', hafta: 4 }], { bugun: '2026-10-06' })
+    ).toBe(5);
+    expect(
+      onerilenHafta([{ id: 'a', tarih: '2026-09-22', hafta: 14 }], {
+        haftaSayisi: 14,
+        bugun: '2026-10-06',
+      })
+    ).toBe(14);
   });
 });
