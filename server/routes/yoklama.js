@@ -88,6 +88,14 @@ function adAnahtari(ad) {
     .toLocaleLowerCase('tr');
 }
 
+// Hafta seçiminin üst sınırı (lib/yoklama-listesi.js HAFTA_SINIRI ile aynı).
+const HAFTA_TAVANI = 20;
+/** 1..HAFTA_TAVANI arası tam sayı ya da null. */
+function haftaOku(v) {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= HAFTA_TAVANI ? n : null;
+}
+
 /** Yanıta konacak güvenli oturum gövdesi — gizli anahtar ASLA geçmez. */
 function oturumuTemizle(o, sirrDahil) {
   if (!o) return null;
@@ -102,6 +110,7 @@ function oturumuTemizle(o, sirrDahil) {
     akademisyen: metin(o.akademisyen),
     departmentId: metin(o.departmentId),
     tarih: metin(o.tarih),
+    hafta: haftaOku(o.hafta),
     acik: !!o.acik,
     baslangic: o.baslangic || null,
     bitis: o.bitis || null,
@@ -166,13 +175,23 @@ router.post('/oturum', requireAuth, async (req, res) => {
       parca === 'uygulama'
         ? { parca: 'uygulama' }
         : { $or: [{ parca: 'teori' }, { parca: { $exists: false } }, { parca: '' }] };
+    // ── HANGİ HAFTA? ──
+    // Akademisyen yoklamanın dönemin kaçıncı haftasına ait olduğunu seçer
+    // (istemci önerilen haftayı doldurur). Seçilmezse devam listesi haftayı
+    // tarihten çıkarır (lib/yoklama-listesi.js).
+    const hafta = haftaOku(g.hafta);
     const mevcut = await db.collection(OTURUMLAR).findOne({ dersId, acik: true, ...parcaSuzgeci });
     if (mevcut) {
+      if (hafta && Number(mevcut.hafta) !== hafta) {
+        await db.collection(OTURUMLAR).updateOne({ id: mevcut.id }, { $set: { hafta } });
+        mevcut.hafta = hafta;
+      }
       return res.json({ oturum: oturumuTemizle(mevcut, true), sunucuZamani: Date.now() });
     }
 
+    const oturumId = 'yk-' + crypto.randomBytes(9).toString('hex');
     const oturum = {
-      id: 'yk-' + crypto.randomBytes(9).toString('hex'),
+      id: oturumId,
       // 32 baytlık gizli anahtar — oturuma özel, her açılışta yeniden üretilir.
       sirr: crypto.randomBytes(32).toString('hex'),
       dersId,
@@ -183,11 +202,14 @@ router.post('/oturum', requireAuth, async (req, res) => {
       akademisyen: metin(user.identifier),
       departmentId: metin(g.departmentId || (ders && ders.departmentId)),
       tarih: new Date().toISOString().slice(0, 10),
+      hafta,
       acik: true,
       baslangic: new Date().toISOString(),
       bitis: null,
     };
-    await db.collection(OTURUMLAR).insertOne({ ...oturum });
+    // `_docId`: genel okuma ucu kimliği `_docId || _id`'den kurar; kayıtlar
+    // oturuma `id` ile bağlı olduğundan ikisi aynı olmalı.
+    await db.collection(OTURUMLAR).insertOne({ ...oturum, _docId: oturumId });
     return res.json({ oturum: oturumuTemizle(oturum, true), sunucuZamani: Date.now() });
   } catch (e) {
     console.error('[yoklama]', e && e.message);
@@ -379,7 +401,7 @@ router.post('/imzala', requireAuth, async (req, res) => {
     const cihaz = { id: metin(gelenCihaz.id).slice(0, 80), iz: metin(gelenCihaz.iz).slice(0, 80) };
     const donem = donemAnahtari();
 
-    // 1) OTURUM İÇİ TEKİLLİK — bir cihaz, bir öğrenci.
+    // 1) OTURUM İÇİ TEKİLLİK — bir cihaz (tarayıcı kimliği), bir öğrenci.
     const oturumKayitlari = await db
       .collection(KAYITLAR)
       .find({ oturumId: oturum.id })
@@ -429,8 +451,11 @@ router.post('/imzala', requireAuth, async (req, res) => {
         );
     }
 
+    const kayitId = 'yk-k-' + crypto.randomBytes(8).toString('hex');
     await db.collection(KAYITLAR).insertOne({
-      id: 'yk-k-' + crypto.randomBytes(8).toString('hex'),
+      id: kayitId,
+      // Genel okuma ucu kimliği `_docId || _id`'den kurar; ikisi aynı kalsın.
+      _docId: kayitId,
       oturumId: oturum.id,
       dersId: metin(oturum.dersId),
       // Oturum hangi parçanınsa kayıt da onundur; eski kayıtlarda alan yok
@@ -455,6 +480,9 @@ router.post('/imzala', requireAuth, async (req, res) => {
       cihazId: cihaz.id,
       cihazIz: cihaz.iz,
       yeniCihaz: karar.durum === 'degisti',
+      // Yalnız parmak izi başka bir öğrencininkiyle aynı (aynı model telefon
+      // ya da gizli sekme): reddedilmez, akademisyene uyarı olarak görünür.
+      ayniIzOgrenci: cakisma.izEslesti ? metin(cakisma.ogrenciNo) : '',
       zaman: new Date().toISOString(),
     });
 
@@ -485,7 +513,16 @@ router.get('/oturum/:id', requireAuth, oturumListeLimiter, async (req, res) => {
     const katilimlar = await db
       .collection(KAYITLAR)
       .find({ oturumId: oturum.id })
-      .project({ studentNumber: 1, adSoyad: 1, durum: 1, zaman: 1, elle: 1, yeniCihaz: 1, _id: 0 })
+      .project({
+        studentNumber: 1,
+        adSoyad: 1,
+        durum: 1,
+        zaman: 1,
+        elle: 1,
+        yeniCihaz: 1,
+        ayniIzOgrenci: 1,
+        _id: 0,
+      })
       .toArray();
     return res.json({
       oturum: oturumuTemizle(oturum, sahibiMi(oturum, req.user)),
@@ -522,6 +559,7 @@ router.post('/kapat', requireAuth, async (req, res) => {
     // saniyeler sürüyor, hocanın ekranı o süre boyunca kilitli kalıyordu.
     // Tek `bulkWrite` ile hepsi bir istekte gider.
     const yazmalar = [];
+    const yeniKayitId = () => 'yk-k-' + crypto.randomBytes(8).toString('hex');
     for (const [no, durum] of Object.entries(elle)) {
       const ogrNo = metin(no);
       const d = metin(durum);
@@ -541,7 +579,10 @@ router.post('/kapat', requireAuth, async (req, res) => {
               tarih: metin(oturum.tarih),
               departmentId: metin(oturum.departmentId),
             },
-            $setOnInsert: { id: 'yk-k-' + crypto.randomBytes(8).toString('hex') },
+            $setOnInsert: (() => {
+              const id = yeniKayitId();
+              return { id, _docId: id, parca: metin(oturum.parca) || 'teori' };
+            })(),
           },
           upsert: true,
         },
@@ -560,6 +601,34 @@ router.post('/kapat', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('[yoklama]', e && e.message);
     return res.status(500).json({ error: 'Yoklama kapatılamadı.' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// POST /api/yoklama/hafta — oturumun haftasını düzelt (akademisyen)
+//
+// Yanlış haftaya alınmış (ya da hafta seçilmeden alınmış eski) bir yoklama
+// sonradan doğru haftaya taşınabilsin. `hafta: null` seçimi kaldırır;
+// liste haftayı yeniden tarihten çıkarır.
+// ══════════════════════════════════════════════════════════════
+router.post('/hafta', requireAuth, async (req, res) => {
+  try {
+    const db = await getDbSafe();
+    const g = req.body || {};
+    const oturum = await oturumBul(db, g.oturumId);
+    if (!oturum) return res.status(404).json({ error: 'Oturum bulunamadı.' });
+    if (!sahibiMi(oturum, req.user)) {
+      return res.status(403).json({ error: 'Bu yoklama size ait değil.' });
+    }
+    const hafta = g.hafta === null || g.hafta === '' ? null : haftaOku(g.hafta);
+    if (g.hafta !== null && g.hafta !== '' && !hafta) {
+      return res.status(400).json({ error: 'Hafta 1 ile ' + HAFTA_TAVANI + ' arasında olmalı.' });
+    }
+    await db.collection(OTURUMLAR).updateOne({ id: oturum.id }, { $set: { hafta } });
+    return res.json({ ok: true, hafta });
+  } catch (e) {
+    console.error('[yoklama]', e && e.message);
+    return res.status(500).json({ error: 'Hafta kaydedilemedi.' });
   }
 });
 

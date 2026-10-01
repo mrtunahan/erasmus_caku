@@ -710,6 +710,8 @@ const STUDENT_READ_STRIPPED = {
   ],
 };
 // Tek istekte dönebilecek azami doküman sayısı (bellek/DoS koruması)
+// Kendi `id` alanı okumada korunan koleksiyonlar (bkz. liste okuması).
+const KENDI_KIMLIKLI = new Set(['yoklama_oturumlari', 'yoklama_kayitlari']);
 const MAX_READ_LIMIT = 20000;
 
 // Aktör bayrakları (uniAdmin/facManager) — professors üzerinden, 60 sn cache
@@ -2984,8 +2986,17 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
+    // Yoklama oturumları ve kayıtları kendi `id`'leriyle ('yk-…') birbirine
+    // bağlıdır (kayıt.oturumId === oturum.id). Bu kayıtlar /api/yoklama
+    // tarafından `_docId` olmadan yazıldığından aşağıdaki `_docId || _id`
+    // projeksiyonu oturumun kimliğini ObjectId'ye çeviriyor, devam listesi
+    // hiçbir kaydı oturumuna bağlayamıyordu (herkes ✗). Bu koleksiyonlara
+    // genel API'den yazılamadığı için saklı `id` güvenilirdir.
+    const kendiKimligi = KENDI_KIMLIKLI.has(collection);
     const result = docs.map((doc) => {
-      const { _id, _docId, ...rest } = doc;
+      const { _id: hamId, _docId: hamDocId, ...rest } = doc;
+      const _docId = (kendiKimligi && rest.id) || hamDocId;
+      const _id = hamId;
       // Öğrenci okuması: BAŞKASININ kaydı slot alanlarına indirgenir, kendi
       // kaydı olduğu gibi döner (bkz. STUDENT_READ_MASKED).
       if (decision.maske) {

@@ -40,6 +40,7 @@ function imzala(db, { ogrNo, kod: ham, cihaz, simdi = T }) {
     studentNumber: ogrNo,
     cihazId: cihaz.id,
     cihazIz: cihaz.iz,
+    ayniIzOgrenci: cakisma.izEslesti ? cakisma.ogrenciNo : undefined,
     yeniCihaz: karar.durum === 'degisti',
     durum: 'var',
   });
@@ -57,12 +58,16 @@ describe("saldırı: B, A'nın hesabına girip okutur", () => {
     expect(db.kayitlar).toHaveLength(1);
   });
 
-  // Kimlik tarayıcıda saklanıyor; silinebilir. Parmak izi silinemez.
-  it('çerez silmek / gizli sekme açmak kontrolü atlatmaz', () => {
+  // Kimlik silinip (gizli sekme) okutulursa yalnız iz eşleşir. İz aynı model
+  // telefonlarda da eşleştiği için reddedilmez; kayıt işaretlenir ve
+  // akademisyen listede görür.
+  it('gizli sekmeyle okutma reddedilmez ama işaretlenir', () => {
     const db = bosDb();
     imzala(db, { ogrNo: 'B', kod: kod(), cihaz: TELEFON_B });
     const r = imzala(db, { ogrNo: 'A', kod: kod(), cihaz: { id: 'ch-YENI', iz: 'iz-B' } });
-    expect(r.sebep).toBe('cihaz_paylasimi');
+    expect(r.ok).toBe(true);
+    expect(db.kayitlar[1].ayniIzOgrenci).toBe('B');
+    expect(C.kayitUyarisi(db.kayitlar[1])).toMatch(/aynı model/);
   });
 
   // ⚠ Sıranın tersi de işe yaramaz ve ceza saldırganın kendisine döner:
@@ -124,6 +129,16 @@ describe('meşru akış bozulmuyor', () => {
     expect(imzala(db, { ogrNo: 'A', kod: kod(), cihaz: TELEFON_A }).ok).toBe(true);
     expect(imzala(db, { ogrNo: 'B', kod: kod(), cihaz: TELEFON_B }).ok).toBe(true);
     expect(db.kayitlar.every((k) => !k.yeniCihaz)).toBe(true);
+  });
+
+  // Sınıfta aynı model telefonu kullanan öğrenciler aynı parmak izini üretir.
+  it('aynı model telefonlu öğrencilerin hepsi yoklama verir', () => {
+    const db = bosDb();
+    const iz = 'iz-iphone13';
+    ['A', 'B', 'C', 'D'].forEach((no) => {
+      expect(imzala(db, { ogrNo: no, kod: kod(), cihaz: { id: 'ch-' + no, iz } }).ok).toBe(true);
+    });
+    expect(db.kayitlar).toHaveLength(4);
   });
 
   it('aynı öğrencinin ikinci okutması "zaten alındı" der', () => {
