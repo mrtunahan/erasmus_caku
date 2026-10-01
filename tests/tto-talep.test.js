@@ -20,6 +20,10 @@ import {
   ekBelgeleriHazirla,
   eksikGecisBelgeleri,
   asamaSirasi,
+  tcKimlikGecerliMi,
+  ibanGecerliMi,
+  ibanGoster,
+  odemeBilgisiHatalari,
 } from '../lib/tto-talep.js';
 
 const PDF = (ad) => '/api/files/download/tto_belgeler/1700000000_' + ad;
@@ -524,6 +528,12 @@ describe('TTO süreci uçtan uca (kural katmanı)', () => {
     return r;
   };
   const belge = (tur) => ({ ekBelgeler: [{ tur, url: PDF(tur + '.pdf'), ad: tur + '.pdf' }] });
+  const ODEME = {
+    adres: 'Uluyazı Kampüsü, Merkez / Çankırı',
+    tcKimlikNo: '10000000146',
+    iban: 'TR33 0006 1005 1978 6457 8413 26',
+    kaydet: true,
+  };
 
   it('her aşama zorunlu belgesiyle ilerler', () => {
     kayit = Object.assign(tamTalep(), { id: 't1', sahip: ALI, durum: 'taslak' });
@@ -548,13 +558,35 @@ describe('TTO süreci uçtan uca (kural katmanı)', () => {
     );
     expect(yaz(AYSE, { durum: 'proforma_gonderildi', ...belge('proforma_tto') }).izin).toBe(true);
 
-    expect(yaz(ALI, { durum: 'proforma_dondu' }).hata).toMatch(/firma onaylı, imzalı/);
-    expect(yaz(ALI, { durum: 'proforma_dondu', ...belge('proforma_firma') }).izin).toBe(true);
+    // Ödeme bilgileri (adres, TC, IBAN) proformayla birlikte zorunlu.
+    expect(yaz(ALI, { durum: 'proforma_dondu', ...belge('proforma_firma') }).hata).toMatch(
+      /Ödeme bilgileri/
+    );
+    expect(
+      yaz(ALI, {
+        durum: 'proforma_dondu',
+        odemeBilgileri: { ...ODEME, iban: 'TR330006100519786457841327' },
+        ...belge('proforma_firma'),
+      }).hata
+    ).toMatch(/IBAN/);
+    expect(yaz(ALI, { durum: 'proforma_dondu', odemeBilgileri: ODEME }).hata).toMatch(
+      /firma onaylı, imzalı/
+    );
+    expect(
+      yaz(ALI, { durum: 'proforma_dondu', odemeBilgileri: ODEME, ...belge('proforma_firma') }).izin
+    ).toBe(true);
+    expect(kayit.odemeBilgileri).toMatchObject({
+      tcKimlikNo: '10000000146',
+      iban: 'TR330006100519786457841326',
+      kaydet: true,
+    });
 
     // Eksik proforma: gerekçeyle geri gönderilebilir; sonra yeniden gelir.
     expect(yaz(AYSE, { durum: 'proforma_gonderildi' }).hata).toMatch(/gerekçe/);
     expect(yaz(AYSE, { durum: 'proforma_gonderildi', yoneticiNotu: 'Kaşe eksik' }).izin).toBe(true);
-    expect(yaz(ALI, { durum: 'proforma_dondu', ...belge('proforma_firma') }).izin).toBe(true);
+    expect(
+      yaz(ALI, { durum: 'proforma_dondu', odemeBilgileri: ODEME, ...belge('proforma_firma') }).izin
+    ).toBe(true);
 
     expect(yaz(AYSE, { durum: 'genel_sekreterlikte', ...belge('ust_yazi') }).izin).toBe(true);
     const gorev = yaz(AYSE, { durum: 'gorevlendirildi', ...belge('yonetim_karari') });
@@ -709,5 +741,39 @@ describe('ttoBildirimPlani — süreç aşamaları', () => {
       eklenenBelgeler: [{ tur: 'proforma_tto' }],
     });
     expect(b[0].body).toMatch(/Proforma \(TTO imzalı ve kaşeli\)/);
+  });
+});
+
+describe('ödeme bilgileri doğrulaması', () => {
+  it('TC kimlik numarası algoritması', () => {
+    expect(tcKimlikGecerliMi('10000000146')).toBe(true);
+    expect(tcKimlikGecerliMi('10000000147')).toBe(false);
+    expect(tcKimlikGecerliMi('01234567890')).toBe(false);
+    expect(tcKimlikGecerliMi('1234567890')).toBe(false);
+  });
+  it('IBAN: TR + 24 hane ve mod-97', () => {
+    expect(ibanGecerliMi('tr33 0006 1005 1978 6457 8413 26')).toBe(true);
+    expect(ibanGecerliMi('TR330006100519786457841327')).toBe(false);
+    expect(ibanGecerliMi('DE89370400440532013000')).toBe(false);
+    expect(ibanGoster('TR330006100519786457841326')).toBe('TR33 0006 1005 1978 6457 8413 26');
+  });
+  it('eksik adres ve geçersiz alanlar ayrı ayrı söylenir', () => {
+    expect(odemeBilgisiHatalari({ adres: 'kısa', tcKimlikNo: '1', iban: 'x' })).toHaveLength(3);
+    expect(
+      odemeBilgisiHatalari({
+        adres: 'Uluyazı Kampüsü, Çankırı',
+        tcKimlikNo: '10000000146',
+        iban: 'TR330006100519786457841326',
+      })
+    ).toEqual([]);
+  });
+  it('ödeme bilgisi başka aşamada yazılamaz', () => {
+    const r = sahipYazmaKarari({
+      tur: 'update',
+      mevcut: { sahip: 'Dr. A', durum: 'incelemede' },
+      veri: { odemeBilgileri: { adres: 'x' } },
+      kimlik: 'Dr. A',
+    });
+    expect(r.izin).toBe(false);
   });
 });
