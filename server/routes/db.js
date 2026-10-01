@@ -2546,22 +2546,37 @@ async function muafiyetSayaclariTazele(db, colName, docId, data) {
 // asıl işlem geri alınmaz; yalnız günlüğe düşer.
 // ══════════════════════════════════════════════════════════════
 async function ttoBildirimleriGonder(db, op, sonuc, user, touched) {
-  if (!op || op.collection !== 'tto_talepleri' || !op._ttoOnce || op.type === 'delete') return;
+  if (!op || op.collection !== 'tto_talepleri' || !op._ttoOnce) return;
   try {
     const T = await ttoKurali();
     const once = op._ttoOnce;
-    const yeni = Object.assign({}, once, op.data || {}, {
-      id: String(op.docId || (sonuc && sonuc.id) || once.id || ''),
-    });
+    const silindi = op.type === 'delete';
+    const yeni = silindi
+      ? Object.assign({}, once)
+      : Object.assign({}, once, op.data || {}, {
+          id: String(op.docId || (sonuc && sonuc.id) || once.id || ''),
+        });
+    // Bu istekte eklenen belgeler (sunucu damgalı liste ile öncekinin farkı).
+    const oncekiIdler = new Set(
+      (Array.isArray(once.belgeler) ? once.belgeler : []).map((b) => b && b.id)
+    );
+    const eklenenBelgeler = silindi
+      ? []
+      : (Array.isArray(yeni.belgeler) ? yeni.belgeler : []).filter(
+          (b) => b && !oncekiIdler.has(b.id)
+        );
     const yapan = String((user && user.identifier) || '');
     const sahipYapti =
-      (yeni.durum || 'taslak') !== (once.durum || 'taslak') &&
-      String(yeni.sahip || once.sahip || '') === yapan;
+      !silindi &&
+      String(yeni.sahip || once.sahip || '') === yapan &&
+      ((yeni.durum || 'taslak') !== (once.durum || 'taslak') || eklenenBelgeler.length > 0);
     const plan = T.ttoBildirimPlani({
       eski: once,
       yeni,
       yapan,
       yoneticiler: sahipYapti ? await ttoYoneticileri(db) : [],
+      eklenenBelgeler,
+      silindi,
     });
     if (plan.length === 0) return;
     const simdi = new Date().toISOString();
@@ -3006,10 +3021,8 @@ router.get('/:collection', async (req, res) => {
       if (!flags.admin && !flags.ttoYonetici) {
         filter.sahip = { $eq: ben };
       } else if (!flags.admin) {
-        filter.$or = [
-          { sahip: { $eq: ben } },
-          { durum: { $in: ['gonderildi', 'incelemede', 'iade', 'onaylandi', 'reddedildi'] } },
-        ];
+        const T = await ttoKurali();
+        filter.$or = [{ sahip: { $eq: ben } }, { durum: { $in: T.TTO_GONDERILMIS_DURUMLAR } }];
       }
     }
 

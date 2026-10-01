@@ -122,9 +122,16 @@ router.post(
 
     // Staj modülü yalnızca PDF kabul eder. Hatalı dosyayı diskte bırakmamak için
     // reddedilen dosyayı sileriz.
-    if (folder.startsWith('staj_belgeler')) {
+    // TTO süreç belgeleri de (imzalı başvuru, proforma, karar, görevlendirme,
+    // fatura) yalnız PDF'tir: iki taraf da tarayıcıda açıp indirebilmeli.
+    // ⚠ Uzantı .pdf OLMALI (mimetype yetmez): talep kaydı belgeyi adresinin
+    // .pdf ile bitmesinden tanır (lib/tto-talep.js → ekBelgeleriHazirla).
+    const ttoBelgesi = folder === 'tto_belgeler';
+    if (folder.startsWith('staj_belgeler') || ttoBelgesi) {
       const ext = path.extname(req.file.originalname).toLowerCase();
-      const isPdf = ext === '.pdf' || req.file.mimetype === 'application/pdf';
+      const isPdf = ttoBelgesi
+        ? ext === '.pdf'
+        : ext === '.pdf' || req.file.mimetype === 'application/pdf';
       if (!isPdf) {
         try {
           fs.unlinkSync(req.file.path);
@@ -132,7 +139,9 @@ router.post(
           /* ignore */
         }
         return res.status(400).json({
-          error: 'Staj belgeleri yalnızca PDF formatında yüklenebilir.',
+          error: ttoBelgesi
+            ? 'TTO belgeleri yalnızca PDF formatında yüklenebilir.'
+            : 'Staj belgeleri yalnızca PDF formatında yüklenebilir.',
         });
       }
     }
