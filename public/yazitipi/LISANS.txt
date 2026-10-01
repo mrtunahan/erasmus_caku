@@ -12,3 +12,13 @@ Lisans metni: https://openfontlicense.org
 Dosyalar Google Fonts'un latin ve latin-ext altkümeleridir (Türkçe
 ğ ş ı İ için latin-ext gerekli). Sayfa dış kaynağa bağlanmadığı için
 (CSP: default-src 'self') yazı tipleri burada barındırılır.
+
+  DejaVu Sans (DejaVuSans-tr.ttf, DejaVuSans-Bold-tr.ttf)
+                   — Copyright (c) 2003 Bitstream, Inc. (Bitstream Vera);
+                     DejaVu değişiklikleri kamu malıdır.
+                     https://dejavu-fonts.github.io/License.html
+                     Lisans gömmeye, alt küme almaya ve yeniden dağıtmaya
+                     izin verir. Bu dosyalar Latin, Latin Genişletilmiş-A
+                     (Türkçe), noktalama ve onay kutusu (☐ ☒) karakterlerine
+                     indirgenmiş alt kümelerdir. TTO talep formunun PDF
+                     çıktısında gömülü kullanılır (lib/tto-pdf.js).
