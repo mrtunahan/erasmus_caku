@@ -27,6 +27,11 @@ import {
   ttoDosyaAdi,
   ttoSablonVerisi,
   ttoEtiketDegerleri,
+  tcKimlikGecerliMi,
+  ibanGecerliMi,
+  ibanGoster,
+  ibanNormalle,
+  odemeBilgisiHatalari,
 } from './lib/tto-talep.js';
 import {
   T,
@@ -34,6 +39,9 @@ import {
   giris,
   etiket,
   dugme,
+  pasif,
+  KartBaslik,
+  Eylemler,
   metin,
   tarihTr,
   tarihSaatTr,
@@ -183,7 +191,9 @@ export async function belgeDosyasiYukle(dosya) {
 
 /**
  * Tek belge seçici: PDF seçilince hemen yüklenir; kayda geçmesi için
- * çağıran `deger`i işlemin `ekBelgeler`ine koyar.
+ * çağıran `deger`i işlemin `ekBelgeler`ine koyar. Tek satır: solda belge
+ * adı ve açıklama, sağda seçim düğmesi (tarayıcının çıplak dosya kutusu
+ * yerine — her yerde aynı görünsün).
  */
 export function BelgeSecici({ tur, deger, onDegis, zorunlu, aciklama, kilitli }) {
   const [yukleniyor, setYukleniyor] = useState(false);
@@ -208,48 +218,54 @@ export function BelgeSecici({ tur, deger, onDegis, zorunlu, aciklama, kilitli })
     <div
       data-belge-secici={tur}
       style={{
-        border: `1px dashed ${deger ? '#86EFAC' : zorunlu ? '#FCA5A5' : T.kenarGiris}`,
+        border: `1px ${deger ? 'solid' : 'dashed'} ${deger ? '#86EFAC' : T.kenarGiris}`,
         background: deger ? '#F0FDF4' : '#FFFFFF',
         borderRadius: 10,
-        padding: '10px 12px',
+        padding: '12px 14px',
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 700, color: T.metin }}>
-        {tanim.label} {zorunlu && <span style={{ color: T.tehlike }}>*</span>}
-        <span style={{ fontSize: 11.5, fontWeight: 500, color: T.soluk }}> · yalnız PDF</span>
-      </div>
-      {aciklama && <div style={{ fontSize: 12, color: T.soluk, marginTop: 2 }}>{aciklama}</div>}
-      <div
-        style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 8 }}
-      >
-        {deger ? (
-          <>
-            <a href={deger.url} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>
-              {deger.ad || 'Yüklenen belge'}
-            </a>
-            {!kilitli && (
-              <button
-                type="button"
-                style={{ ...dugme('sessiz'), padding: '4px 10px', fontSize: 12 }}
-                onClick={() => onDegis(null)}
-              >
-                Kaldır
-              </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.metin }}>
+            {tanim.label} {zorunlu && <span style={{ color: T.tehlike }}>*</span>}
+          </div>
+          <div style={{ fontSize: 12, color: T.soluk, marginTop: 2, lineHeight: 1.5 }}>
+            {deger ? (
+              <a href={deger.url} target="_blank" rel="noreferrer" style={{ color: T.basari }}>
+                ✓ {deger.ad || 'Yüklenen belge'}
+              </a>
+            ) : (
+              aciklama || 'Yalnız PDF.'
             )}
-          </>
+          </div>
+        </div>
+        {deger ? (
+          !kilitli && (
+            <button type="button" style={dugme('sessiz')} onClick={() => onDegis(null)}>
+              Kaldır
+            </button>
+          )
         ) : (
-          <input
-            type="file"
-            accept="application/pdf,.pdf"
-            disabled={kilitli || yukleniyor}
-            onChange={sec}
-            style={{ fontSize: 12.5 }}
-          />
+          <label
+            style={{
+              ...dugme('sessiz'),
+              ...(kilitli || yukleniyor ? pasif : {}),
+              minWidth: 120,
+            }}
+          >
+            {yukleniyor ? 'Yükleniyor…' : 'PDF seç'}
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              disabled={kilitli || yukleniyor}
+              onChange={sec}
+              style={{ display: 'none' }}
+            />
+          </label>
         )}
-        {yukleniyor && <span style={{ fontSize: 12, color: T.soluk }}>Yükleniyor…</span>}
       </div>
       {hata && (
-        <div role="alert" style={{ fontSize: 12.5, color: T.tehlike, marginTop: 6 }}>
+        <div role="alert" style={{ fontSize: 12.5, color: T.tehlike, marginTop: 8 }}>
           {hata}
         </div>
       )}
@@ -274,69 +290,90 @@ export function talepBelgeleri(t) {
   return liste;
 }
 
+/** Talebe en son yüklenen belirli türdeki belge. */
+export function sonBelge(t, tur) {
+  const l = talepBelgeleri(t).filter((b) => b.tur === tur);
+  return l.length ? l[l.length - 1] : null;
+}
+
+const ROL_CIP = {
+  tto: { metin: 'TTO', renk: '#1D4ED8', zemin: '#EFF6FF' },
+  akademisyen: { metin: 'Akademisyen', renk: '#7C3AED', zemin: '#F5F3FF' },
+};
+
 /** Belge listesi — iki taraf da görür, açar, indirir. */
 export function BelgeListesi({ talep, baslik = 'Belgeler' }) {
   const liste = talepBelgeleri(talep);
   return (
     <div style={kart} data-belge-listesi>
-      <div style={{ fontSize: 14, fontWeight: 800, color: T.navy, marginBottom: 10 }}>
-        {baslik} ({liste.length})
-      </div>
+      <KartBaslik
+        baslik={baslik + ' (' + liste.length + ')'}
+        aciklama="Akademisyen ve TTO’nun yüklediği bütün belgeler (PDF)."
+      />
       {liste.length === 0 ? (
         <div style={{ fontSize: 13, color: T.soluk }}>Henüz belge yüklenmedi.</div>
       ) : (
         <div style={{ display: 'grid', gap: 8 }}>
           {liste.map((b) => {
-            const tto = b.rol === 'tto';
+            const c = ROL_CIP[b.rol] || ROL_CIP.akademisyen;
             return (
               <div
                 key={b.id || b.url}
                 data-belge={b.tur}
                 style={{
-                  display: 'flex',
+                  display: 'grid',
+                  gridTemplateColumns: '96px minmax(0, 1fr) auto',
                   alignItems: 'center',
-                  gap: 10,
-                  flexWrap: 'wrap',
-                  padding: '9px 12px',
-                  borderRadius: 9,
+                  gap: 12,
+                  padding: '10px 12px',
+                  borderRadius: 10,
                   background: T.zemin,
                   border: `1px solid ${T.kenar}`,
                 }}
               >
                 <span
                   style={{
-                    fontSize: 10.5,
+                    justifySelf: 'start',
+                    fontSize: 11,
                     fontWeight: 800,
-                    padding: '2px 7px',
+                    padding: '3px 9px',
                     borderRadius: 999,
-                    color: tto ? '#1D4ED8' : '#7C3AED',
-                    background: tto ? '#EFF6FF' : '#F5F3FF',
+                    color: c.renk,
+                    background: c.zemin,
                   }}
                 >
-                  {tto ? 'TTO' : 'Akademisyen'}
+                  {c.metin}
                 </span>
-                <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+                <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: T.metin }}>
                     {(TTO_BELGE_TURLERI[b.tur] || {}).label || b.tur}
                   </div>
-                  <div style={{ fontSize: 11.5, color: T.soluk }}>
+                  <div
+                    style={{
+                      fontSize: 11.5,
+                      color: T.soluk,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={b.ad}
+                  >
                     {b.ad} · {b.yukleyen} · {tarihSaatTr(b.tarih)}
                   </div>
                 </div>
-                <a
-                  href={b.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ ...dugme('sessiz'), padding: '6px 12px', textDecoration: 'none' }}
-                >
-                  Görüntüle
-                </a>
-                <a
-                  href={b.url + '?download=true'}
-                  style={{ ...dugme('vurgu'), padding: '6px 12px', textDecoration: 'none' }}
-                >
-                  İndir
-                </a>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <a
+                    href={b.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ ...dugme('sessiz'), minWidth: 104 }}
+                  >
+                    Görüntüle
+                  </a>
+                  <a href={b.url + '?download=true'} style={{ ...dugme('vurgu'), minWidth: 104 }}>
+                    İndir
+                  </a>
+                </div>
               </div>
             );
           })}
@@ -346,20 +383,19 @@ export function BelgeListesi({ talep, baslik = 'Belgeler' }) {
   );
 }
 
-/** Aşama çizgisi: tamamlanan, şu anki ve sıradaki aşamalar. */
+/** Aşama çizgisi: eşit aralıklı yedi adım; tamamlanan, şu anki, sıradaki. */
 export function SurecCizgisi({ durum }) {
   const d = durum || 'taslak';
   const sira = asamaSirasi(d);
   const tamamlandi = d === 'tamamlandi';
+  const n = TTO_ASAMALAR.length;
   return (
     <div
       data-surec
       style={{
-        display: 'flex',
-        gap: 4,
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        margin: '4px 0 12px',
+        display: 'grid',
+        gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`,
+        margin: '2px 0 16px',
       }}
     >
       {TTO_ASAMALAR.map((a, i) => {
@@ -368,24 +404,65 @@ export function SurecCizgisi({ durum }) {
         const simdi = no === sira && !tamamlandi;
         const renk = bitti ? T.basari : simdi ? T.birincil : '#CBD5E1';
         return (
-          <div key={a.durum} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div
+            key={a.durum}
+            title={TTO_DURUMLAR[a.durum].label}
+            style={{ position: 'relative', textAlign: 'center', padding: '0 2px' }}
+          >
+            {i > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 13,
+                  left: 0,
+                  width: '50%',
+                  height: 2,
+                  background: no <= sira || tamamlandi ? T.basari : '#E2E8F0',
+                }}
+              />
+            )}
+            {i < n - 1 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 13,
+                  right: 0,
+                  width: '50%',
+                  height: 2,
+                  background: no < sira || tamamlandi ? T.basari : '#E2E8F0',
+                }}
+              />
+            )}
             <span
-              title={TTO_DURUMLAR[a.durum].label}
               style={{
+                position: 'relative',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '4px 9px',
-                borderRadius: 999,
-                fontSize: 11.5,
-                fontWeight: simdi ? 800 : 600,
+                justifyContent: 'center',
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                fontSize: 12,
+                fontWeight: 800,
                 color: bitti || simdi ? '#fff' : T.soluk,
                 background: bitti || simdi ? renk : '#F1F5F9',
+                border: `2px solid ${bitti || simdi ? renk : '#E2E8F0'}`,
+                boxSizing: 'border-box',
               }}
             >
-              {bitti ? '✓' : no} {a.kisa}
+              {bitti ? '✓' : no}
             </span>
-            {i < TTO_ASAMALAR.length - 1 && <span style={{ color: '#CBD5E1' }}>›</span>}
+            <div
+              style={{
+                marginTop: 6,
+                fontSize: 11.5,
+                lineHeight: 1.3,
+                fontWeight: simdi ? 800 : 600,
+                color: simdi ? T.birincil : bitti ? T.metin : T.soluk,
+              }}
+            >
+              {a.kisa}
+            </div>
           </div>
         );
       })}
@@ -404,7 +481,7 @@ function Mesaj({ mesaj }) {
     <div
       role="status"
       style={{
-        marginTop: 10,
+        marginTop: 12,
         fontSize: 13,
         fontWeight: 600,
         color: mesaj.ok ? T.basari : T.tehlike,
@@ -415,11 +492,57 @@ function Mesaj({ mesaj }) {
   );
 }
 
+// Numaralı adım hücresi (gönderim kartı ve proforma kartı aynı biçimi kullanır).
+function Adim({ no, baslik, children }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        padding: 14,
+        borderRadius: 10,
+        background: T.yuzey,
+        border: `1px solid ${T.kenar}`,
+        minWidth: 0,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span
+          style={{
+            flex: '0 0 24px',
+            height: 24,
+            borderRadius: '50%',
+            background: T.navy,
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 800,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {no}
+        </span>
+        <div style={{ fontSize: 13.5, fontWeight: 700, color: T.metin }}>{baslik}</div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+const ADIM_IZGARASI = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+  gap: 12,
+};
+
 // ══════════════════════════════════════════════════════════════
 // AKADEMİSYEN — gönderim kartı (taslak / iade)
-// Formu PDF indir → imzala, kaşele → imzalı PDF'i yükle → gönder.
+// Formu indir → imzala, kaşele → imzalı PDF'i yükle. Beyan onaylanmadan
+// form indirilemez; gönder düğmesi formun altındadır.
 // ══════════════════════════════════════════════════════════════
-export function GonderimKarti({ talep, ayarKaydi, imzali, onImzali, onMesaj }) {
+export function GonderimKarti({ talep, ayarKaydi, imzali, onImzali, onMesaj, beyan }) {
   const [hazirlaniyor, setHazirlaniyor] = useState(false);
   const [uyari, setUyari] = useState('');
   const indir = async () => {
@@ -430,86 +553,154 @@ export function GonderimKarti({ talep, ayarKaydi, imzali, onImzali, onMesaj }) {
     if (!r.ok && onMesaj) onMesaj({ tur: 'hata', metin: r.hata });
     if (r.ok && r.uyari) setUyari(r.uyari);
   };
-  const adim = (no, baslik, govde) => (
-    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-      <span
-        style={{
-          flex: '0 0 22px',
-          height: 22,
-          borderRadius: '50%',
-          background: T.navy,
-          color: '#fff',
-          fontSize: 11.5,
-          fontWeight: 700,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {no}
-      </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: T.metin }}>{baslik}</div>
-        {govde}
-      </div>
-    </div>
-  );
   return (
     <div style={{ ...kart, borderColor: '#BFDBFE', background: '#F8FAFF' }} data-gonderim>
-      <div style={{ fontSize: 14, fontWeight: 800, color: T.navy, marginBottom: 12 }}>
-        TTO’ya gönderim
-      </div>
-      <div style={{ display: 'grid', gap: 12 }}>
-        {adim(
-          1,
-          'Başvuru formunu indirin',
-          <div>
-            <button
-              type="button"
-              style={{ ...dugme('sessiz'), marginTop: 6 }}
-              onClick={indir}
-              disabled={hazirlaniyor}
-            >
-              {hazirlaniyor ? 'Hazırlanıyor…' : 'Başvuru formunu indir'}
-            </button>
-            {uyari && (
-              <div
-                role="alert"
-                data-form-uyari
-                style={{
-                  marginTop: 8,
-                  padding: '9px 11px',
-                  borderRadius: 8,
-                  background: '#FFFBEB',
-                  border: '1px solid #FCD34D',
-                  color: '#92400E',
-                  fontSize: 12.5,
-                  lineHeight: 1.55,
-                }}
-              >
-                {uyari}
-              </div>
-            )}
+      <KartBaslik
+        baslik="TTO’ya gönderim"
+        aciklama="Formu indirip imzalayın ve kaşeleyin; imzalı hâlini PDF olarak yükleyin. Formda değişiklik yaparsanız formu yeniden indirip imzalı hâlini yeniden yükleyin."
+      />
+      <div style={ADIM_IZGARASI}>
+        <Adim no={1} baslik="Başvuru formunu indirin">
+          <div style={{ fontSize: 12.5, color: T.soluk, lineHeight: 1.5 }}>
+            {beyan
+              ? 'Form doldurduğunuz bilgilerle hazırlanır.'
+              : 'Önce yukarıdaki beyan kutusunu onaylayın.'}
           </div>
-        )}
-        {adim(
-          2,
-          'Çıktıyı imzalayın ve kaşeleyin',
-          <div style={{ fontSize: 12.5, color: T.soluk, marginTop: 2 }}>
-            “Başvuru sahibinin kaşe ve imza” alanını doldurup belgeyi tarayın.
+          <button
+            type="button"
+            style={{
+              ...dugme('sessiz'),
+              ...(!beyan || hazirlaniyor ? pasif : {}),
+              alignSelf: 'flex-start',
+            }}
+            onClick={indir}
+            disabled={!beyan || hazirlaniyor}
+          >
+            {hazirlaniyor ? 'Hazırlanıyor…' : 'Başvuru formunu indir'}
+          </button>
+        </Adim>
+        <Adim no={2} baslik="İmzalayın ve kaşeleyin">
+          <div style={{ fontSize: 12.5, color: T.soluk, lineHeight: 1.5 }}>
+            “Başvuru sahibinin kaşe ve imza” alanını doldurup belgeyi tarayın (PDF).
           </div>
-        )}
-        {adim(
-          3,
-          'İmzalı ve kaşeli formu yükleyin',
-          <div style={{ marginTop: 6 }}>
-            <BelgeSecici tur="basvuru_imzali" zorunlu deger={imzali} onDegis={onImzali} />
-          </div>
-        )}
+        </Adim>
+        <Adim no={3} baslik="İmzalı formu yükleyin">
+          <BelgeSecici
+            tur="basvuru_imzali"
+            zorunlu
+            deger={imzali}
+            onDegis={onImzali}
+            aciklama="Taranmış, imzalı ve kaşeli form."
+          />
+        </Adim>
       </div>
-      <div style={{ fontSize: 12, color: T.soluk, marginTop: 10 }}>
-        Formda değişiklik yaparsanız formu yeniden indirip imzalı hâlini yeniden yükleyin.
+      {uyari && (
+        <div
+          role="alert"
+          data-form-uyari
+          style={{
+            marginTop: 12,
+            padding: '10px 12px',
+            borderRadius: 8,
+            background: '#FFFBEB',
+            border: '1px solid #FCD34D',
+            color: '#92400E',
+            fontSize: 12.5,
+            lineHeight: 1.55,
+          }}
+        >
+          {uyari}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// AKADEMİSYEN — ödeme bilgileri (adres, TC, IBAN)
+// Firma onaylı proformayla birlikte ZORUNLU; kurallar lib/tto-talep.js.
+// ══════════════════════════════════════════════════════════════
+function OdemeBilgileriFormu({ deger, onDegis }) {
+  const d = deger || {};
+  const yaz_ = (k, v) => onDegis({ ...d, [k]: v });
+  const hata = (alan) => {
+    const v = metin(d[alan]);
+    if (!v) return '';
+    if (alan === 'tcKimlikNo' && !tcKimlikGecerliMi(v)) return 'Geçerli bir T.C. kimlik no değil.';
+    if (alan === 'iban' && !ibanGecerliMi(v)) return 'Geçerli bir TR IBAN değil.';
+    return '';
+  };
+  const alan = (id, label, props, zorunlu = true) => (
+    <label style={{ display: 'block', minWidth: 0 }}>
+      <span style={etiket}>
+        {label} {zorunlu && <span style={{ color: T.tehlike }}>*</span>}
+      </span>
+      <input
+        data-odeme={id}
+        style={{ ...giris, borderColor: hata(id) ? '#FCA5A5' : T.kenarGiris }}
+        value={d[id] || ''}
+        onChange={(e) => yaz_(id, e.target.value)}
+        {...props}
+      />
+      <span
+        style={{ display: 'block', minHeight: 16, fontSize: 11.5, color: T.tehlike, marginTop: 3 }}
+      >
+        {hata(id)}
+      </span>
+    </label>
+  );
+  return (
+    <div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: 12,
+        }}
+      >
+        {alan('tcKimlikNo', 'T.C. kimlik numarası', {
+          inputMode: 'numeric',
+          maxLength: 11,
+          placeholder: '11 hane',
+        })}
+        {alan('iban', 'IBAN', {
+          placeholder: 'TR00 0000 0000 0000 0000 0000 00',
+          maxLength: 34,
+          onBlur: () => ibanGecerliMi(d.iban) && yaz_('iban', ibanGoster(d.iban)),
+        })}
+        {alan('bankaAdi', 'Banka adı', { placeholder: 'İsteğe bağlı' }, false)}
       </div>
+      <label style={{ display: 'block' }}>
+        <span style={etiket}>
+          Açık adres <span style={{ color: T.tehlike }}>*</span>
+        </span>
+        <textarea
+          data-odeme="adres"
+          rows={2}
+          style={{ ...giris, resize: 'vertical' }}
+          value={d.adres || ''}
+          onChange={(e) => yaz_('adres', e.target.value)}
+        />
+      </label>
+      <label
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginTop: 10,
+          fontSize: 13,
+          color: T.metin,
+          cursor: 'pointer',
+        }}
+      >
+        <input
+          type="checkbox"
+          data-odeme="kaydet"
+          checked={d.kaydet === true}
+          onChange={(e) => yaz_('kaydet', e.target.checked)}
+        />
+        Bu bilgileri sonraki başvurularımda kullanmak üzere kaydet
+      </label>
     </div>
   );
 }
@@ -525,29 +716,38 @@ const AKADEMISYEN_METNI = {
   onaylandi: (t) =>
     'Başvurunuz onaylandı' +
     (t.talepNo ? ' (Talep No: ' + t.talepNo + ')' : '') +
-    '. TTO onaylı başvuru formu belgelerinizde. TTO proformayı hazırlıyor.',
+    '. TTO proformayı hazırlıyor.',
   proforma_gonderildi: () =>
-    'Sıra sizde: TTO’nun imzalayıp kaşelediği proformayı indirin; firmaya onaylatıp imzalatın ve kaşeletin, PDF olarak yükleyip TTO’ya geri gönderin.',
+    'Sıra sizde: TTO’nun imzalayıp kaşelediği proformayı firmaya onaylatıp imzalatın ve kaşeletin; ödeme bilgilerinizi girip TTO’ya geri gönderin.',
   proforma_dondu: () =>
     'Firma onaylı proforma TTO’da. TTO talebinizi yönetim kararı için Genel Sekreterliğe gönderecek.',
   genel_sekreterlikte: () => 'Talebiniz yönetim kararı için Genel Sekreterlikte.',
   gorevlendirildi: () =>
-    'Yönetim kararı çıktı. Görevlendirme yazınız ve karar belgeleriniz aşağıda. Fatura kesildiğinde süreç tamamlanır.',
+    'Yönetim kararı çıktı. Görevlendirme yazınız ve karar belgesi aşağıda. Fatura kesildiğinde süreç tamamlanır.',
   tamamlandi: (t) =>
     'Fatura kesildi' + (t.faturaNo ? ' (No: ' + t.faturaNo + ')' : '') + '. Süreç tamamlandı.',
   reddedildi: () => 'Talebiniz reddedildi.',
 };
 
-export function AkademisyenSurecKarti({ talep, onDegisti }) {
+export function AkademisyenSurecKarti({ talep, onDegisti, kayitliOdeme }) {
   const t = talep || {};
   const d = t.durum || 'taslak';
   const [firma, setFirma] = useState(null);
-  const [ek, setEk] = useState(null);
-  const [mesgul, setMesgul] = useState('');
+  // Kayıtlı ödeme bilgileri (önceki başvuruda "kaydet" seçildiyse) dolu gelir.
+  const [odeme, setOdeme] = useState(() => {
+    const k = kayitliOdeme || {};
+    return {
+      adres: k.adres || '',
+      tcKimlikNo: k.tcKimlikNo || '',
+      iban: k.iban ? ibanGoster(k.iban) : '',
+      bankaAdi: k.bankaAdi || '',
+      kaydet: !!kayitliOdeme,
+    };
+  });
+  const [mesgul, setMesgul] = useState(false);
   const [mesaj, setMesaj] = useState(null);
   const metinFn = AKADEMISYEN_METNI[d];
   if (!metinFn) return null;
-  const kapali = d === 'tamamlandi' || d === 'reddedildi';
   const renk =
     d === 'reddedildi'
       ? ['#FEF2F2', '#FECACA', '#991B1B']
@@ -556,83 +756,148 @@ export function AkademisyenSurecKarti({ talep, onDegisti }) {
         : d === 'tamamlandi' || d === 'gorevlendirildi' || d === 'onaylandi'
           ? ['#ECFDF5', '#A7F3D0', '#065F46']
           : ['#EFF6FF', '#BFDBFE', '#1E40AF'];
+  const proforma = sonBelge(t, 'proforma_tto');
+  const odemeHatalari = odemeBilgisiHatalari(odeme);
+  const hazir = !!firma && odemeHatalari.length === 0;
 
-  const islem = async (tur, veri, basari) => {
-    setMesgul(tur);
+  const gonder = async () => {
+    setMesgul(true);
     setMesaj(null);
     try {
-      await yaz(t.id, veri);
-      setMesaj({ ok: true, metin: basari });
-      if (tur === 'firma') setFirma(null);
-      if (tur === 'ek') setEk(null);
+      await yaz(t.id, {
+        durum: 'proforma_dondu',
+        ekBelgeler: [firma],
+        odemeBilgileri: { ...odeme, iban: ibanNormalle(odeme.iban) },
+      });
+      setFirma(null);
+      setMesaj({ ok: true, metin: 'Firma onaylı proforma ve ödeme bilgileri TTO’ya gönderildi.' });
       if (onDegisti) await onDegisti(t.id);
     } catch (e) {
       setMesaj({ ok: false, metin: (e && e.message) || 'Gönderilemedi.' });
     } finally {
-      setMesgul('');
+      setMesgul(false);
     }
   };
 
   return (
     <>
-      <div
-        data-akademisyen-surec
-        style={{ ...kart, background: renk[0], borderColor: renk[1], color: renk[2] }}
-      >
+      <div style={kart} data-akademisyen-surec>
+        <KartBaslik baslik="Süreç" />
         <SurecCizgisi durum={d} />
-        <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>{metinFn(t)}</div>
-        {metin(t.yoneticiNotu) &&
-          (d === 'reddedildi' || d === 'proforma_gonderildi' || d === 'onaylandi') && (
-            <div style={{ fontSize: 13, marginTop: 6 }}>
-              <b>TTO notu:</b> {t.yoneticiNotu}
-            </div>
-          )}
-
-        {d === 'proforma_gonderildi' && (
-          <div style={{ marginTop: 12, color: T.metin }}>
-            <BelgeSecici
-              tur="proforma_firma"
-              zorunlu
-              deger={firma}
-              onDegis={setFirma}
-              aciklama="Firmanın onayladığı, imzaladığı ve kaşelediği proforma."
-            />
-            <button
-              style={{ ...dugme('birincil'), marginTop: 10 }}
-              disabled={!firma || !!mesgul}
-              onClick={() =>
-                islem(
-                  'firma',
-                  { durum: 'proforma_dondu', ekBelgeler: [firma] },
-                  'Firma onaylı proforma TTO’ya gönderildi.'
-                )
-              }
-            >
-              {mesgul === 'firma' ? 'Gönderiliyor…' : 'Proformayı TTO’ya gönder'}
-            </button>
-          </div>
-        )}
+        <div
+          style={{
+            padding: '12px 14px',
+            borderRadius: 10,
+            background: renk[0],
+            border: `1px solid ${renk[1]}`,
+            color: renk[2],
+            fontSize: 13.5,
+            lineHeight: 1.6,
+          }}
+        >
+          {metinFn(t)}
+          {metin(t.yoneticiNotu) &&
+            (d === 'reddedildi' || d === 'proforma_gonderildi' || d === 'onaylandi') && (
+              <div style={{ marginTop: 6 }}>
+                <b>TTO notu:</b> {t.yoneticiNotu}
+              </div>
+            )}
+        </div>
         <Mesaj mesaj={mesaj} />
       </div>
 
-      <BelgeListesi talep={t} />
-
-      {!kapali && (
-        <div style={kart}>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: T.navy, marginBottom: 8 }}>
-            Ek belge gönder (isteğe bağlı)
+      {d === 'proforma_gonderildi' && (
+        <div style={{ ...kart, borderColor: '#DDD6FE', background: '#FBFAFF' }} data-proforma>
+          <KartBaslik
+            baslik="Proformayı firmaya onaylatın"
+            aciklama="Üç adımı tamamlayınca proformayı ve ödeme bilgilerinizi TTO’ya gönderin."
+          />
+          <div style={ADIM_IZGARASI}>
+            <Adim no={1} baslik="TTO proformasını indirin">
+              <div style={{ fontSize: 12.5, color: T.soluk, lineHeight: 1.5 }}>
+                TTO tarafından hazırlanmış, imzalı ve kaşeli proforma.
+              </div>
+              {proforma && (
+                <a
+                  href={proforma.url + '?download=true'}
+                  style={{ ...dugme('sessiz'), alignSelf: 'flex-start' }}
+                >
+                  Proformayı indir
+                </a>
+              )}
+            </Adim>
+            <Adim no={2} baslik="Firmaya onaylatıp yükleyin">
+              <BelgeSecici
+                tur="proforma_firma"
+                zorunlu
+                deger={firma}
+                onDegis={setFirma}
+                aciklama="Firmanın onayladığı, imzaladığı ve kaşelediği proforma."
+              />
+            </Adim>
           </div>
-          <BelgeSecici tur="ek" deger={ek} onDegis={setEk} />
-          <button
-            style={{ ...dugme('sessiz'), marginTop: 10 }}
-            disabled={!ek || !!mesgul}
-            onClick={() => islem('ek', { ekBelgeler: [ek] }, 'Ek belge TTO’ya iletildi.')}
+          <div style={{ marginTop: 12 }}>
+            <Adim no={3} baslik="Ödeme bilgileriniz">
+              {kayitliOdeme && (
+                <div style={{ fontSize: 12.5, color: T.soluk }}>
+                  Kayıtlı bilgileriniz dolduruldu; gerekirse düzeltin.
+                </div>
+              )}
+              <OdemeBilgileriFormu deger={odeme} onDegis={setOdeme} />
+            </Adim>
+          </div>
+          <Eylemler
+            sol={
+              !hazir && (
+                <span style={{ fontSize: 12.5, color: T.soluk }}>
+                  {!firma ? 'Firma onaylı proformayı yükleyin.' : odemeHatalari[0]}
+                </span>
+              )
+            }
           >
-            {mesgul === 'ek' ? 'Gönderiliyor…' : 'Ek belgeyi gönder'}
-          </button>
+            <button
+              style={{ ...dugme('birincil'), ...(!hazir || mesgul ? pasif : {}) }}
+              disabled={!hazir || mesgul}
+              onClick={gonder}
+            >
+              {mesgul ? 'Gönderiliyor…' : 'Proformayı TTO’ya gönder'}
+            </button>
+          </Eylemler>
         </div>
       )}
+
+      <BelgeListesi talep={t} />
     </>
+  );
+}
+
+/** Yönetici panelinde: akademisyenin girdiği ödeme bilgileri. */
+function OdemeBilgileriKarti({ odeme }) {
+  if (!odeme) return null;
+  const satir = (k, v) => (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: T.soluk }}>{k}</div>
+      <div style={{ fontSize: 13.5, color: T.metin, marginTop: 2, wordBreak: 'break-word' }}>
+        {v || '—'}
+      </div>
+    </div>
+  );
+  return (
+    <div style={kart} data-odeme-karti>
+      <KartBaslik baslik="Akademisyenin ödeme bilgileri" />
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 14,
+        }}
+      >
+        {satir('T.C. kimlik no', odeme.tcKimlikNo)}
+        {satir('IBAN', ibanGoster(odeme.iban))}
+        {satir('Banka', odeme.bankaAdi)}
+        {satir('Adres', odeme.adres)}
+      </div>
+    </div>
   );
 }
 
@@ -675,9 +940,7 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
         ok: true,
         metin: yeni
           ? (TTO_DURUMLAR[yeni] || {}).label + ' — akademisyene iletildi.'
-          : ekler.length > 0
-            ? 'Belge yüklendi ve akademisyene iletildi.'
-            : 'Kaydedildi.',
+          : 'Kaydedildi.',
       });
       if (onDegisti) await onDegisti(t.id);
     } catch (e) {
@@ -707,13 +970,14 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
 
   const ttoAlanlari = { ...alan };
   // Geçiş düğmesi (bileşen değil, düz işlev: her çizimde yeniden kurulmasın).
-  const dg = ({ yeni, tur = 'birincil', etiketi, onay, alanlar, belgeGerek = true, stil }) => {
+  const dg = ({ yeni, tur = 'birincil', etiketi, onay, alanlar, belgeGerek = true }) => {
     const eks = belgeGerek && yeni ? eksik(yeni) : [];
+    const kapali = !!mesgul || eks.length > 0;
     return (
       <button
         key={(yeni || 'kaydet') + etiketi}
-        style={{ ...dugme(tur), ...(stil || {}) }}
-        disabled={!!mesgul || eks.length > 0}
+        style={{ ...dugme(tur), ...(kapali ? pasif : {}) }}
+        disabled={kapali}
         title={eks.length ? 'Önce yükleyin: ' + eks.join(', ') : ''}
         onClick={() => gecis(yeni, onay, alanlar)}
       >
@@ -726,24 +990,26 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
       <span style={etiket}>{etiketMetni}</span>
       <textarea
         data-alan="yoneticiNotu"
-        style={{ ...giris, minHeight: 64, resize: 'vertical' }}
+        rows={2}
+        style={{ ...giris, resize: 'vertical' }}
         value={alan.yoneticiNotu}
         onChange={(e) => yazAlan('yoneticiNotu', e.target.value)}
       />
     </label>
   );
-  const satir = {
+  const izgara = {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
     gap: 12,
   };
-  const dugmeler = { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 };
+  const bilgi = (m) => <div style={{ fontSize: 13, color: T.metin, lineHeight: 1.6 }}>{m}</div>;
 
   let govde = null;
+  let eylemler = null;
   if (ilkAsama) {
     govde = (
       <>
-        <div style={satir}>
+        <div style={izgara}>
           <label>
             <span style={etiket}>Talep No *</span>
             <input
@@ -778,99 +1044,79 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
             zorunlu
             deger={belge.onayli_basvuru}
             onDegis={belgeAyarla('onayli_basvuru')}
-            aciklama="Akademisyenin imzalı ve kaşeli formunu TTO adına imzalayıp yükleyin. Onay için zorunludur."
+            aciklama="Akademisyenin imzalı formunu TTO adına imzalayıp yükleyin. Onay için zorunludur."
           />
         </div>
         {not('Akademisyene not (iade ve ret için zorunlu)')}
-        <div style={dugmeler}>
-          {d === 'gonderildi' &&
-            dg({
-              yeni: 'incelemede',
-              tur: 'sessiz',
-              etiketi: 'İncelemeye al',
-              belgeGerek: false,
-              alanlar: ttoAlanlari,
-            })}
-          {dg({
-            yeni: 'onaylandi',
-            etiketi: 'Onayla ve akademisyene gönder',
-            onay: 'Başvuru onaylanıp akademisyene iletilecek. Devam edilsin mi?',
-            alanlar: ttoAlanlari,
-            stil: { background: T.basari, borderColor: T.basari },
-          })}
-          {dg({
-            yeni: 'iade',
+      </>
+    );
+    eylemler = (
+      <>
+        {dg({
+          yeni: 'reddedildi',
+          tur: 'tehlike',
+          etiketi: 'Reddet',
+          onay: 'Talep reddedilecek. Emin misiniz?',
+          alanlar: ttoAlanlari,
+        })}
+        {dg({
+          yeni: 'iade',
+          tur: 'sessiz',
+          etiketi: 'Düzeltme için iade et',
+          onay: 'Talep düzeltme için akademisyene iade edilecek. Devam edilsin mi?',
+          alanlar: ttoAlanlari,
+        })}
+        {d === 'gonderildi' &&
+          dg({
+            yeni: 'incelemede',
             tur: 'sessiz',
-            etiketi: 'Düzeltme için iade et',
-            onay: 'Talep düzeltme için akademisyene iade edilecek. Devam edilsin mi?',
+            etiketi: 'İncelemeye al',
+            belgeGerek: false,
             alanlar: ttoAlanlari,
           })}
-          {dg({
-            yeni: 'reddedildi',
-            tur: 'tehlike',
-            etiketi: 'Reddet',
-            onay: 'Talep reddedilecek. Emin misiniz?',
-            alanlar: ttoAlanlari,
-          })}
-          {dg({ yeni: null, tur: 'sessiz', etiketi: 'Bilgileri kaydet', alanlar: ttoAlanlari })}
-        </div>
+        {dg({ yeni: null, tur: 'sessiz', etiketi: 'Kaydet', alanlar: ttoAlanlari })}
+        {dg({
+          yeni: 'onaylandi',
+          tur: 'basari',
+          etiketi: 'Onayla',
+          onay: 'Başvuru onaylanıp akademisyene iletilecek. Devam edilsin mi?',
+          alanlar: ttoAlanlari,
+        })}
       </>
     );
   } else if (d === 'onaylandi') {
     govde = (
+      <BelgeSecici
+        tur="proforma_tto"
+        zorunlu
+        deger={belge.proforma_tto}
+        onDegis={belgeAyarla('proforma_tto')}
+        aciklama="Hazırladığınız, imzalayıp kaşelediğiniz proforma. Akademisyen firmaya onaylatıp geri gönderecek."
+      />
+    );
+    eylemler = (
       <>
-        <BelgeSecici
-          tur="proforma_tto"
-          zorunlu
-          deger={belge.proforma_tto}
-          onDegis={belgeAyarla('proforma_tto')}
-          aciklama="Hazırladığınız, TTO adına imzalayıp kaşelediğiniz proforma. Akademisyen bunu firmaya onaylatıp imzalatacak ve kaşeletecek."
-        />
-        <div style={dugmeler}>
-          {dg({ yeni: 'proforma_gonderildi', etiketi: 'Proformayı akademisyene gönder' })}
-          {dg({
-            yeni: 'incelemede',
-            tur: 'sessiz',
-            etiketi: 'Onayı geri al',
-            onay: 'Onay geri alınıp talep yeniden incelemeye alınacak. Emin misiniz?',
-            belgeGerek: false,
-          })}
-        </div>
+        {dg({
+          yeni: 'incelemede',
+          tur: 'sessiz',
+          etiketi: 'Onayı geri al',
+          onay: 'Onay geri alınıp talep yeniden incelemeye alınacak. Emin misiniz?',
+          belgeGerek: false,
+        })}
+        {dg({ yeni: 'proforma_gonderildi', etiketi: 'Proformayı akademisyene gönder' })}
       </>
     );
   } else if (d === 'proforma_gonderildi') {
-    govde = (
-      <>
-        <div style={{ fontSize: 13, color: T.metin }}>
-          Proforma akademisyende: firmanın onaylayıp imzaladığı ve kaşelediği proforma bekleniyor.
-          Proformayı değiştirmeniz gerekirse yenisini yükleyebilirsiniz.
-        </div>
-        <div style={{ marginTop: 10 }}>
-          <BelgeSecici
-            tur="proforma_tto"
-            deger={belge.proforma_tto}
-            onDegis={belgeAyarla('proforma_tto')}
-          />
-        </div>
-        <div style={dugmeler}>
-          <button
-            style={dugme('sessiz')}
-            disabled={!belge.proforma_tto || !!mesgul}
-            onClick={() => gecis(null)}
-          >
-            Yeni proformayı gönder
-          </button>
-        </div>
-      </>
+    govde = bilgi(
+      'Proforma akademisyende. Firmanın onaylayıp imzaladığı ve kaşelediği proforma ile akademisyenin ödeme bilgileri bekleniyor.'
     );
   } else if (d === 'proforma_dondu') {
     govde = (
       <>
-        <div style={{ fontSize: 13, color: T.metin }}>
-          Firma onaylı proforma geldi (belgelerde). Uygunsa yönetim kararı için Genel Sekreterliğe
-          gönderin; eksikse gerekçeyle akademisyene geri gönderin.
-        </div>
-        <div style={{ marginTop: 10 }}>
+        {bilgi(
+          'Firma onaylı proforma ve ödeme bilgileri geldi. Uygunsa yönetim kararı için Genel Sekreterliğe gönderin; eksikse gerekçeyle akademisyene geri gönderin.'
+        )}
+        <div style={{ marginTop: 12 }}>
           <BelgeSecici
             tur="ust_yazi"
             deger={belge.ust_yazi}
@@ -879,31 +1125,38 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
           />
         </div>
         {not('Akademisyene not (proformayı geri gönderirken zorunlu)')}
-        <div style={dugmeler}>
-          {dg({
-            yeni: 'genel_sekreterlikte',
-            etiketi: 'Genel Sekreterliğe gönderildi',
-            onay: 'Talep Genel Sekreterliğe gönderildi olarak işaretlenecek. Devam edilsin mi?',
-            alanlar: { yoneticiNotu: alan.yoneticiNotu },
-          })}
-          {dg({
-            yeni: 'proforma_gonderildi',
-            tur: 'sessiz',
-            etiketi: 'Proformayı düzeltme için geri gönder',
-            alanlar: { yoneticiNotu: alan.yoneticiNotu },
-            belgeGerek: false,
-          })}
-        </div>
+      </>
+    );
+    eylemler = (
+      <>
+        {dg({
+          yeni: 'proforma_gonderildi',
+          tur: 'sessiz',
+          etiketi: 'Akademisyene geri gönder',
+          alanlar: { yoneticiNotu: alan.yoneticiNotu },
+          belgeGerek: false,
+        })}
+        {dg({
+          yeni: 'genel_sekreterlikte',
+          etiketi: 'Genel Sekreterliğe gönderildi',
+          onay: 'Talep Genel Sekreterliğe gönderildi olarak işaretlenecek. Devam edilsin mi?',
+          alanlar: { yoneticiNotu: alan.yoneticiNotu },
+        })}
       </>
     );
   } else if (d === 'genel_sekreterlikte') {
     govde = (
       <>
-        <div style={{ fontSize: 13, color: T.metin, marginBottom: 10 }}>
-          Yönetim kararı çıktığında kararı ve görevlendirme yazısını yükleyin; akademisyene
-          iletilir.
-        </div>
-        <div style={{ display: 'grid', gap: 10 }}>
+        {bilgi(
+          'Yönetim kararı çıktığında kararı ve görevlendirme yazısını yükleyin; akademisyene iletilir.'
+        )}
+        <div
+          style={{
+            ...izgara,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            marginTop: 12,
+          }}
+        >
           <BelgeSecici
             tur="yonetim_karari"
             zorunlu
@@ -918,110 +1171,99 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
           />
         </div>
         {not('Akademisyene not (olumsuz kararda zorunlu)')}
-        <div style={dugmeler}>
-          {dg({
-            yeni: 'gorevlendirildi',
-            etiketi: 'Görevlendirme yazısını akademisyene ilet',
-            alanlar: { yoneticiNotu: alan.yoneticiNotu },
-            stil: { background: T.basari, borderColor: T.basari },
-          })}
-          {dg({
-            yeni: 'reddedildi',
-            tur: 'tehlike',
-            etiketi: 'Olumsuz karar — reddet',
-            onay: 'Yönetim kararı olumsuz: talep reddedilecek. Emin misiniz?',
-            alanlar: { yoneticiNotu: alan.yoneticiNotu },
-            belgeGerek: false,
-          })}
-        </div>
+      </>
+    );
+    eylemler = (
+      <>
+        {dg({
+          yeni: 'reddedildi',
+          tur: 'tehlike',
+          etiketi: 'Olumsuz karar — reddet',
+          onay: 'Yönetim kararı olumsuz: talep reddedilecek. Emin misiniz?',
+          alanlar: { yoneticiNotu: alan.yoneticiNotu },
+          belgeGerek: false,
+        })}
+        {dg({
+          yeni: 'gorevlendirildi',
+          tur: 'basari',
+          etiketi: 'Görevlendirmeyi ilet',
+          alanlar: { yoneticiNotu: alan.yoneticiNotu },
+        })}
       </>
     );
   } else if (d === 'gorevlendirildi') {
     govde = (
-      <>
-        <div style={satir}>
-          <label>
-            <span style={etiket}>Fatura No</span>
-            <input
-              data-alan="faturaNo"
-              style={giris}
-              value={alan.faturaNo}
-              onChange={(e) => yazAlan('faturaNo', e.target.value)}
-            />
-          </label>
-        </div>
-        <div style={{ marginTop: 10 }}>
-          <BelgeSecici tur="fatura" zorunlu deger={belge.fatura} onDegis={belgeAyarla('fatura')} />
-        </div>
-        <div style={dugmeler}>
-          {dg({
-            yeni: 'tamamlandi',
-            etiketi: 'Fatura kesildi — süreci tamamla',
-            alanlar: { faturaNo: alan.faturaNo },
-            stil: { background: T.basari, borderColor: T.basari },
-          })}
-        </div>
-      </>
+      <div
+        style={{
+          ...izgara,
+          gridTemplateColumns: 'minmax(180px, 240px) minmax(0, 1fr)',
+          alignItems: 'end',
+        }}
+      >
+        <label>
+          <span style={etiket}>Fatura No</span>
+          <input
+            data-alan="faturaNo"
+            style={giris}
+            value={alan.faturaNo}
+            onChange={(e) => yazAlan('faturaNo', e.target.value)}
+          />
+        </label>
+        <BelgeSecici tur="fatura" zorunlu deger={belge.fatura} onDegis={belgeAyarla('fatura')} />
+      </div>
     );
+    eylemler = dg({
+      yeni: 'tamamlandi',
+      tur: 'basari',
+      etiketi: 'Fatura kesildi — tamamla',
+      alanlar: { faturaNo: alan.faturaNo },
+    });
   } else if (d === 'reddedildi') {
-    govde = (
-      <div style={dugmeler}>
-        {dg({
-          yeni: 'incelemede',
-          tur: 'sessiz',
-          etiketi: 'Kararı geri al',
-          onay: 'Ret geri alınıp talep yeniden incelemeye alınacak. Emin misiniz?',
-          belgeGerek: false,
-        })}
-      </div>
-    );
+    govde = bilgi('Talep reddedildi' + (t.yoneticiNotu ? ': ' + t.yoneticiNotu : '.'));
+    eylemler = dg({
+      yeni: 'incelemede',
+      tur: 'sessiz',
+      etiketi: 'Kararı geri al',
+      onay: 'Ret geri alınıp talep yeniden incelemeye alınacak. Emin misiniz?',
+      belgeGerek: false,
+    });
   } else if (d === 'iade') {
-    govde = (
-      <div style={{ fontSize: 13, color: '#991B1B' }}>
-        Talep düzeltme için akademisyene iade edildi; yeniden gönderildiğinde burada “Sizde
-        bekleyen” olarak görünür.
-      </div>
+    govde = bilgi(
+      'Talep düzeltme için akademisyene iade edildi; yeniden gönderildiğinde “Sizde bekleyen” listesine düşer.'
     );
   } else if (d === 'tamamlandi') {
-    govde = (
-      <div style={{ fontSize: 13, color: '#065F46' }}>
-        Süreç tamamlandı{t.faturaNo ? ' · Fatura No: ' + t.faturaNo : ''}.
-      </div>
-    );
+    govde = bilgi('Süreç tamamlandı' + (t.faturaNo ? ' · Fatura No: ' + t.faturaNo : '') + '.');
   }
+
+  const meta = [
+    t.talepNo && 'Talep No: ' + t.talepNo,
+    t.kararVeren && 'Karar: ' + t.kararVeren + ' · ' + tarihTr(t.kararTarihi),
+  ]
+    .filter(Boolean)
+    .join('  ·  ');
 
   return (
     <>
-      <div style={{ ...kart, borderColor: '#C7D2FE', background: '#F8FAFF' }} data-yonetici-surec>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            flexWrap: 'wrap',
-            marginBottom: 6,
-          }}
-        >
-          <div style={{ fontSize: 15, fontWeight: 800, color: T.navy }}>TTO süreci</div>
-          <DurumCipi durum={d} />
-          {t.talepNo && <span style={{ fontSize: 12, color: T.soluk }}>Talep No: {t.talepNo}</span>}
-          {t.kararVeren && (
-            <span style={{ fontSize: 12, color: T.soluk }}>
-              Karar: {t.kararVeren} · {tarihTr(t.kararTarihi)}
-            </span>
-          )}
-          <button
-            style={{ ...dugme('tehlike'), marginLeft: 'auto', padding: '6px 12px', fontSize: 12.5 }}
-            disabled={!!mesgul}
-            onClick={sil}
-          >
-            {mesgul === 'sil' ? 'Siliniyor…' : 'Talebi sil'}
-          </button>
-        </div>
+      <div style={{ ...kart, borderColor: '#C7D2FE' }} data-yonetici-surec>
+        <KartBaslik baslik="TTO süreci" aciklama={meta || null} sag={<DurumCipi durum={d} />} />
         <SurecCizgisi durum={d} />
         {govde}
         <Mesaj mesaj={mesaj} />
+        <Eylemler
+          sol={
+            <button
+              style={{ ...dugme('tehlike'), ...(mesgul ? pasif : {}) }}
+              disabled={!!mesgul}
+              onClick={sil}
+            >
+              {mesgul === 'sil' ? 'Siliniyor…' : 'Talebi sil'}
+            </button>
+          }
+        >
+          {eylemler}
+        </Eylemler>
       </div>
+      {t.odemeBilgileri && <OdemeBilgileriKarti odeme={t.odemeBilgileri} />}
       <BelgeListesi talep={t} />
     </>
   );

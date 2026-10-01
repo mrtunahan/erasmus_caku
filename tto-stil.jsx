@@ -49,11 +49,19 @@ export function dugme(tur) {
   const t = {
     birincil: { bg: T.navy, fg: '#fff', bd: T.navy },
     vurgu: { bg: T.birincil, fg: '#fff', bd: T.birincil },
+    basari: { bg: T.basari, fg: '#fff', bd: T.basari },
     sessiz: { bg: T.yuzey, fg: T.metin, bd: T.kenarGiris },
     tehlike: { bg: T.yuzey, fg: T.tehlike, bd: '#FCA5A5' },
   }[tur || 'sessiz'];
+  // Bütün düğmeler (ve düğme gibi görünen bağlantılar) aynı yükseklikte:
+  // yan yana dizildiklerinde hizalı dursun.
   return {
-    padding: '9px 16px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxSizing: 'border-box',
+    height: 38,
+    padding: '0 16px',
     borderRadius: 8,
     border: `1px solid ${t.bd}`,
     background: t.bg,
@@ -61,8 +69,62 @@ export function dugme(tur) {
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    textDecoration: 'none',
     fontFamily: "'Inter', sans-serif",
   };
+}
+
+/** Pasif düğme görünümü (tıklanamaz olduğu belli olsun). */
+export const pasif = { opacity: 0.45, cursor: 'not-allowed' };
+
+/** Kartın üst satırı: solda başlık (ve açıklama), sağda isteğe bağlı öğe. */
+export function KartBaslik({ baslik, aciklama, sag }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: 12,
+        flexWrap: 'wrap',
+        marginBottom: 14,
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: T.navy }}>{baslik}</div>
+        {aciklama && (
+          <div style={{ fontSize: 12.5, color: T.soluk, marginTop: 3, lineHeight: 1.5 }}>
+            {aciklama}
+          </div>
+        )}
+      </div>
+      {sag && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{sag}</div>}
+    </div>
+  );
+}
+
+/** Kartın alt eylem çubuğu: düğmeler sağa hizalı, birincil en sağda. */
+export function Eylemler({ children, sol }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+        flexWrap: 'wrap',
+        marginTop: 16,
+        paddingTop: 14,
+        borderTop: `1px solid ${T.kenar}`,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>{sol}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 export const metin = (v) => String(v == null ? '' : v).trim();
