@@ -6,8 +6,9 @@
 //      PDF'i yükleyerek TTO'ya gönderir.
 //   2. TTO inceler; iade eder, reddeder ya da talep no ve TTO ONAYLI
 //      (imzalı) başvuru formunu yükleyerek onaylar.
-//   3. TTO kendi imzaladığı proformayı yükler → akademisyene gider.
-//   4. Akademisyen proformayı firmaya doldurtur, imzalatıp kaşeletir, yükler.
+//   3. TTO proformayı hazırlar, imzalar, kaşeler ve yükler → akademisyene gider.
+//   4. Akademisyen proformayı firmaya onaylatır, imzalatıp kaşeletir ve TTO'ya
+//      geri gönderir.
 //   5. TTO Genel Sekreterliğe gönderir.
 //   6. Yönetim kararı çıkınca TTO kararı ve görevlendirme yazısını yükler →
 //      akademisyene iletilir.
@@ -419,7 +420,7 @@ const AKADEMISYEN_METNI = {
     (t.talepNo ? ' (Talep No: ' + t.talepNo + ')' : '') +
     '. TTO onaylı başvuru formu belgelerinizde. TTO proformayı hazırlıyor.',
   proforma_gonderildi: () =>
-    'Sıra sizde: TTO imzalı proformayı indirin, firmaya doldurtup imzalatın ve kaşeletin, PDF olarak yükleyip TTO’ya gönderin.',
+    'Sıra sizde: TTO’nun imzalayıp kaşelediği proformayı indirin; firmaya onaylatıp imzalatın ve kaşeletin, PDF olarak yükleyip TTO’ya geri gönderin.',
   proforma_dondu: () =>
     'Firma onaylı proforma TTO’da. TTO talebinizi yönetim kararı için Genel Sekreterliğe gönderecek.',
   genel_sekreterlikte: () => 'Talebiniz yönetim kararı için Genel Sekreterlikte.',
@@ -487,7 +488,7 @@ export function AkademisyenSurecKarti({ talep, onDegisti }) {
               zorunlu
               deger={firma}
               onDegis={setFirma}
-              aciklama="Firmanın doldurduğu, imzaladığı ve kaşelediği proforma."
+              aciklama="Firmanın onayladığı, imzaladığı ve kaşelediği proforma."
             />
             <button
               style={{ ...dugme('birincil'), marginTop: 10 }}
@@ -716,7 +717,7 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
           zorunlu
           deger={belge.proforma_tto}
           onDegis={belgeAyarla('proforma_tto')}
-          aciklama="TTO adına imzaladığınız proforma. Akademisyen bunu firmaya doldurtup imzalatacak."
+          aciklama="Hazırladığınız, TTO adına imzalayıp kaşelediğiniz proforma. Akademisyen bunu firmaya onaylatıp imzalatacak ve kaşeletecek."
         />
         <div style={dugmeler}>
           {dg({ yeni: 'proforma_gonderildi', etiketi: 'Proformayı akademisyene gönder' })}
@@ -734,7 +735,7 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
     govde = (
       <>
         <div style={{ fontSize: 13, color: T.metin }}>
-          Proforma akademisyende: firmanın doldurup imzaladığı ve kaşelediği proforma bekleniyor.
+          Proforma akademisyende: firmanın onaylayıp imzaladığı ve kaşelediği proforma bekleniyor.
           Proformayı değiştirmeniz gerekirse yenisini yükleyebilirsiniz.
         </div>
         <div style={{ marginTop: 10 }}>
