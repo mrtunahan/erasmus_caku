@@ -42,4 +42,49 @@ async function ttoBirimUyesi(db, ad) {
   return T.ttoBirimUyesiMi(kayitlar, bolumler);
 }
 
-module.exports = { ttoBirimUyesi };
+/**
+ * TTO yöneticilerinin (TTO birimine kayıtlı akademisyenlerin) adları.
+ * Gelen talep bildirimi bunlara gider. Aynı adlı birden çok kayıt tek kişi
+ * sayılır; kural ttoBirimUyesi ile aynıdır.
+ */
+async function ttoYoneticileri(db) {
+  const [T, kayitlar, bolumler] = await Promise.all([
+    kural(),
+    db
+      .collection('professors')
+      .find(
+        {},
+        { projection: { name: 1, departmentId: 1, additionalDepartments: 1, department: 1 } }
+      )
+      .toArray(),
+    db
+      .collection('departments')
+      .find(
+        {},
+        {
+          projection: {
+            id: 1,
+            _docId: 1,
+            code: 1,
+            name: 1,
+            shortName: 1,
+            kimlikler: 1,
+            eskiKimlikler: 1,
+          },
+        }
+      )
+      .toArray(),
+  ]);
+  const kisiler = new Map();
+  kayitlar.forEach((k) => {
+    const ad = String((k && k.name) || '').trim();
+    if (!ad) return;
+    if (!kisiler.has(ad)) kisiler.set(ad, []);
+    kisiler.get(ad).push(k);
+  });
+  return [...kisiler.entries()]
+    .filter(([, liste]) => T.ttoBirimUyesiMi(liste, bolumler))
+    .map(([ad]) => ad);
+}
+
+module.exports = { ttoBirimUyesi, ttoYoneticileri };

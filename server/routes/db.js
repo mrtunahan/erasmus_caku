@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
-const { ttoBirimUyesi } = require('../lib/tto-birim');
+const { ttoBirimUyesi, ttoYoneticileri } = require('../lib/tto-birim');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
 // ── ANKET KAPSAMI: istemciyle AYNI kural dosyası ──
 // Kuralın CJS ikizini yazmak yerine ESM modülü dinamik olarak alınır (Node 22
@@ -1047,11 +1047,11 @@ async function enforceWritePolicies(db, op, user) {
       // çevrilir.
       if (op.type === 'set' && mevcutTalep) op.merge = true;
       const T = await ttoKurali();
-      // TTO yöneticisi (ve üniversite yetkilisi) gelen talebi inceler ve
-      // karara bağlar; içeriğe dokunamaz (bkz. yoneticiYazmaKarari). Kendi
-      // talebinde sahip kuralı geçerlidir.
+      // YALNIZ TTO yöneticisi gelen talebi inceler ve karara bağlar; içeriğe
+      // dokunamaz (bkz. yoneticiYazmaKarari). Kendi talebinde sahip kuralı
+      // geçerlidir. Üniversite yetkilisi burada sıradan akademisyendir.
       let sahipKurali = true;
-      if (flags.uniAdmin || flags.ttoYonetici) {
+      if (flags.ttoYonetici) {
         const yk = T.yoneticiYazmaKarari({
           tur: op.type,
           mevcut: mevcutTalep,
@@ -1070,6 +1070,12 @@ async function enforceWritePolicies(db, op, user) {
             kimlik: user.identifier,
           });
       if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
+      // Yazma başarıyla bitince bildirim üretmek için önceki hâl saklanır
+      // (bkz. ttoBildirimleriGonder). İstemciye/DB'ye gitmez.
+      Object.defineProperty(op, '_ttoOnce', {
+        value: mevcutTalep || {},
+        enumerable: false,
+      });
     }
   }
 
@@ -2534,6 +2540,51 @@ async function muafiyetSayaclariTazele(db, colName, docId, data) {
 }
 
 // Tek işlem yap
+// ══════════════════════════════════════════════════════════════
+// TTO TALEP BİLDİRİMLERİ — yazma BAŞARIYLA bittikten sonra.
+// Kim, ne zaman: lib/tto-talep.js → ttoBildirimPlani. Bildirim yazılamazsa
+// asıl işlem geri alınmaz; yalnız günlüğe düşer.
+// ══════════════════════════════════════════════════════════════
+async function ttoBildirimleriGonder(db, op, sonuc, user, touched) {
+  if (!op || op.collection !== 'tto_talepleri' || !op._ttoOnce || op.type === 'delete') return;
+  try {
+    const T = await ttoKurali();
+    const once = op._ttoOnce;
+    const yeni = Object.assign({}, once, op.data || {}, {
+      id: String(op.docId || (sonuc && sonuc.id) || once.id || ''),
+    });
+    const yapan = String((user && user.identifier) || '');
+    const sahipYapti =
+      (yeni.durum || 'taslak') !== (once.durum || 'taslak') &&
+      String(yeni.sahip || once.sahip || '') === yapan;
+    const plan = T.ttoBildirimPlani({
+      eski: once,
+      yeni,
+      yapan,
+      yoneticiler: sahipYapti ? await ttoYoneticileri(db) : [],
+    });
+    if (plan.length === 0) return;
+    const simdi = new Date().toISOString();
+    await db.collection('notifications').insertMany(
+      plan.map((b) => ({
+        recipientType: 'user',
+        recipientId: b.recipientId,
+        module: 'tto',
+        type: b.type,
+        title: b.title,
+        body: b.body,
+        link: 'tto',
+        meta: b.meta,
+        readBy: [],
+        createdAt: simdi,
+      }))
+    );
+    if (touched) touched.add('notifications');
+  } catch (e) {
+    console.warn('[tto] bildirim gönderilemedi:', e && e.message);
+  }
+}
+
 async function executeSingleOp(db, op) {
   const colName = getCollectionName(op);
   const col = db.collection(colName);
@@ -2704,6 +2755,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
     if (operations.length === 1) {
       const result = await executeSingleOp(db, operations[0]);
       addTouched(operations[0]);
+      await ttoBildirimleriGonder(db, operations[0], result, req.user, touched);
       emitDbWrite(req, touched);
       return res.json(result);
     }
@@ -2712,6 +2764,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
     for (const op of operations) {
       const result = await executeSingleOp(db, op);
       addTouched(op);
+      await ttoBildirimleriGonder(db, op, result, req.user, touched);
       if (result.id) addedIds.push(result.id);
     }
     emitDbWrite(req, touched);
@@ -2943,13 +2996,14 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
-    // TTO talepleri: akademisyen YALNIZ kendi talebini görür. TTO yöneticisi
-    // ve üniversite yetkilisi GÖNDERİLMİŞ talepleri görür; başkasının
-    // taslağı gönderilene kadar yalnız sahibinindir.
+    // TTO talepleri: akademisyen YALNIZ kendi talebini görür. Başkalarının
+    // GÖNDERİLMİŞ taleplerini yalnız TTO yöneticisi görür (üniversite
+    // yetkilisi dahil başka hiçbir rol görmez); başkasının taslağı
+    // gönderilene kadar yalnız sahibinindir.
     if (DB_AUTH_ENFORCED && user && collection === 'tto_talepleri') {
       const flags = await getActorFlags(db, user);
       const ben = String(user.identifier || '');
-      if (!flags.admin && !flags.uniAdmin && !flags.ttoYonetici) {
+      if (!flags.admin && !flags.ttoYonetici) {
         filter.sahip = { $eq: ben };
       } else if (!flags.admin) {
         filter.$or = [
@@ -3129,7 +3183,7 @@ router.get('/:collection/:docId', async (req, res) => {
       const flags = await getActorFlags(db, user);
       const kendisinin = String(doc.sahip || '') === String(user.identifier || '');
       const gonderilmis = !!doc.durum && doc.durum !== 'taslak';
-      if (!flags.admin && !kendisinin && !((flags.uniAdmin || flags.ttoYonetici) && gonderilmis)) {
+      if (!flags.admin && !kendisinin && !(flags.ttoYonetici && gonderilmis)) {
         return res.status(403).json({ error: 'Bu talebe erişim yetkiniz yok.' });
       }
     }

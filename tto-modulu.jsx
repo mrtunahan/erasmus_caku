@@ -36,6 +36,7 @@ import {
   ttoSablonVerisi,
   ttoEtiketDegerleri,
   ttoWordGovdesi,
+  talepBasligi,
 } from './lib/tto-talep.js';
 import TtoOtomasyon from './tto-otomasyon/App.jsx';
 
@@ -131,15 +132,6 @@ function DurumCipi({ durum }) {
       {d.label}
     </span>
   );
-}
-
-// Talebin listede görünen adı: proje adı, yoksa seçilen ilk nitelik.
-function talepBasligi(t) {
-  const p = metin(t && t.proje && t.proje.ad);
-  if (p) return p;
-  const n = Array.isArray(t && t.nitelik) ? t.nitelik : [];
-  const ilk = TTO_NITELIKLER.find((x) => n.indexOf(x.id) >= 0);
-  return ilk ? ilk.label : 'Başlıksız talep';
 }
 
 // ── Word çıktısı ──
@@ -927,8 +919,9 @@ function Taleplerim({ talepler, yukleniyor, hata, onAc, onYeni, onYenile, ayarKa
 // Akademisyenin gönderdiği talepler buraya düşer. Yönetici talebi açar,
 // "TTO tarafından doldurulacaktır" alanlarını doldurur ve karar verir:
 // onay, düzeltme için iade ya da ret. Karar talebin kaydına yazılır;
-// akademisyen "Taleplerim"de durumu, notu ve onaylı belgeyi görür ve
-// bildirim alır. Kurallar lib/tto-talep.js → yoneticiYazmaKarari.
+// akademisyen "Taleplerim"de durumu, notu ve onaylı belgeyi görür.
+// Bildirimleri sunucu gönderir (lib/tto-talep.js → ttoBildirimPlani);
+// yazma kuralları yoneticiYazmaKarari'nde.
 // ══════════════════════════════════════════════════════════════
 const GELEN_SUZGECLERI = [
   { id: 'bekleyen', label: 'Bekleyen', durumlar: ['gonderildi', 'incelemede'] },
@@ -1076,33 +1069,6 @@ function KararPaneli({ talep, kimlik, onDegisti }) {
   const karara = d === 'gonderildi' || d === 'incelemede';
   const kararli = d === 'onaylandi' || d === 'reddedildi';
 
-  const bildir = async (durum) => {
-    if (!window.Notify || !window.Notify.send || !metin(t.sahip)) return;
-    const baslik = talepBasligi(t);
-    const metinler = {
-      incelemede: 'TTO talebinizi incelemeye aldı.',
-      onaylandi:
-        'Talebiniz onaylandı' + (alan.talepNo ? ' (Talep No: ' + alan.talepNo + ')' : '') + '.',
-      iade: 'Talebiniz düzeltme için iade edildi: ' + alan.yoneticiNotu,
-      reddedildi: 'Talebiniz reddedildi: ' + alan.yoneticiNotu,
-    };
-    if (!metinler[durum]) return;
-    try {
-      await window.Notify.send({
-        recipientType: 'user',
-        recipientId: metin(t.sahip),
-        module: 'tto',
-        type: durum === 'onaylandi' ? 'basari' : durum === 'incelemede' ? 'bilgi' : 'uyari',
-        title: 'TTO · ' + baslik,
-        body: metinler[durum],
-        link: '#tto',
-        meta: { talepId: t.id, durum },
-      });
-    } catch (_e) {
-      /* bildirim opsiyonel — karar zaten kayda yazıldı */
-    }
-  };
-
   const yazdir = async (durum, onay) => {
     if (onay && !confirm(onay)) return;
     setMesgul(durum || 'kaydet');
@@ -1112,7 +1078,6 @@ function KararPaneli({ talep, kimlik, onDegisti }) {
       if (durum) veri.durum = durum;
       await window.DBWrite.update('tto_talepleri', String(t.id), veri);
       if (window.apiInvalidate) window.apiInvalidate('tto_talepleri');
-      if (durum && durum !== d) await bildir(durum);
       setMesaj({
         ok: true,
         metin: durum
@@ -1418,7 +1383,17 @@ function TtoApp({ currentUser }) {
   // TTO Otomasyonu yalnız TTO birimine kayıtlı akademisyene (ve sistem
   // yöneticisine) görünür. Bu yalnız görünürlüktür; asıl kapı sunucudadır
   // (bayrak girişte birim üyeliğinden hesaplanır — server/lib/tto-birim.js).
-  const yonetici = !!(currentUser && (currentUser.isTtoYoneticisi || currentUser.role === 'admin'));
+  // ⚠ role === 'admin' TEK BAŞINA YETMEZ: üniversite ve fakülte yetkilileri
+  // istemcide 'admin' rolüyle açılır (yönetim kabuğu). Onlar TTO yöneticisi
+  // değildir; talepleri göremez (sunucu da vermez). Yalnız sistem yöneticisi.
+  const sistemYoneticisi = !!(
+    currentUser &&
+    currentUser.role === 'admin' &&
+    !currentUser.isUniversityAdmin &&
+    !currentUser.isFacultyManager &&
+    currentUser.baseRole !== 'professor'
+  );
+  const yonetici = !!(currentUser && (currentUser.isTtoYoneticisi || sistemYoneticisi));
   const [otomasyonAcik, setOtomasyonAcik] = useState(yonetici);
 
   const yukle = useCallback(async () => {

@@ -193,8 +193,10 @@ function useHashRoute(defaultRoute = 'portal') {
     }
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
+  // Bildirim bağlantıları '#erasmus' gibi başında # ile de gelebilir;
+  // olduğu gibi eklenince adres '##erasmus' oluyor, sayfa açılmıyordu.
   const navigate = useCallback((newRoute) => {
-    window.location.hash = '#' + newRoute;
+    window.location.hash = '#' + String(newRoute || '').replace(/^#+/, '');
   }, []);
   return [route, navigate];
 }
