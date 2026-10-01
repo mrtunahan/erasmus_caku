@@ -19,8 +19,9 @@
  * Offline Asistan'a taşınırken (tasarım aynı kaldı):
  *   - Oturumu Offline Asistan yönetir: "Çıkış" düğmesinin yerinde aynı
  *     görünümde "Offline Asistan'a dön" düğmesi var.
- *   - Menünün altına "İşbirliği Talepleri" eklendi — TTO akademisyeni de
- *     kendi talep formuna buradan ulaşır.
+ *   - Menünün altına "İşbirliği Talepleri" eklendi — TTO yöneticisi gelen
+ *     talepleri (rozet: karar bekleyen sayısı) ve kendi talep formunu
+ *     buradan açar.
  */
 
 import { useContext, useEffect, useState } from 'react';
@@ -56,7 +57,7 @@ const NAV_ITEMS = [
 export default function AppShell({ activePath, children }) {
   const location = useLocation();
   const [user, setUser] = useState(null);
-  const { onDon, onTalepler } = useContext(KabukBaglami);
+  const { onDon, onTalepler, bekleyenTalep } = useContext(KabukBaglami);
 
   useEffect(() => {
     apiFetch('/api/auth/me')
@@ -133,6 +134,14 @@ export default function AppShell({ activePath, children }) {
             >
               <DocumentIcon className="w-5 h-5" />
               <span className="text-sm">İşbirliği Talepleri</span>
+              {bekleyenTalep > 0 && (
+                <span
+                  title="Karar bekleyen talep"
+                  className="ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full bg-primary text-white text-xs font-semibold flex items-center justify-center"
+                >
+                  {bekleyenTalep}
+                </span>
+              )}
             </button>
           </div>
         )}

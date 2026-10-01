@@ -23,7 +23,7 @@ import FirmsList from './pages/FirmsList.jsx';
 import FirmDetail from './pages/FirmDetail.jsx';
 import Settings from './pages/Settings.jsx';
 
-export default function TtoOtomasyon({ currentUser, onDon, onTalepler }) {
+export default function TtoOtomasyon({ currentUser, onDon, onTalepler, bekleyenTalep }) {
   const { toasts, showToast, dismissToast } = useToast();
   const kok = useRef(null);
   oturumAyarla(currentUser);
@@ -62,7 +62,7 @@ export default function TtoOtomasyon({ currentUser, onDon, onTalepler }) {
       className="tto-kok"
       style={{ position: 'fixed', inset: 0, zIndex: 2000, overflowY: 'auto' }}
     >
-      <KabukBaglami.Provider value={{ onDon, onTalepler }}>
+      <KabukBaglami.Provider value={{ onDon, onTalepler, bekleyenTalep }}>
         <BellekYonlendirici baslangic="/" onDegis={sayfaDegisti}>
           <Rotalar rotalar={rotalar} varsayilan="/" />
         </BellekYonlendirici>

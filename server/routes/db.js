@@ -1035,23 +1035,40 @@ async function enforceWritePolicies(db, op, user) {
   }
   if (op.collection === 'tto_talepleri') {
     const flags = await getActorFlags(db, user);
-    if (!flags.admin && !flags.uniAdmin && !flags.ttoYonetici) {
+    if (!flags.admin) {
       let mevcutTalep = null;
       try {
         mevcutTalep = op.docId ? await findExistingDoc(db, op) : null;
       } catch (_) {
         mevcutTalep = null;
       }
-      // Sahibin `set`i kaydı komple değiştirmesin: TTO'nun yazdığı alanlar
-      // (talep no, iade notu) silinirdi. Birleştirmeye çevrilir.
+      // `set` kaydı komple değiştirmesin: karşı tarafın yazdığı alanlar
+      // (TTO'nun talep no'su, akademisyenin formu) silinirdi. Birleştirmeye
+      // çevrilir.
       if (op.type === 'set' && mevcutTalep) op.merge = true;
       const T = await ttoKurali();
-      const karar = T.sahipYazmaKarari({
-        tur: op.type,
-        mevcut: mevcutTalep,
-        veri: op.data,
-        kimlik: user.identifier,
-      });
+      // TTO yöneticisi (ve üniversite yetkilisi) gelen talebi inceler ve
+      // karara bağlar; içeriğe dokunamaz (bkz. yoneticiYazmaKarari). Kendi
+      // talebinde sahip kuralı geçerlidir.
+      let sahipKurali = true;
+      if (flags.uniAdmin || flags.ttoYonetici) {
+        const yk = T.yoneticiYazmaKarari({
+          tur: op.type,
+          mevcut: mevcutTalep,
+          veri: op.data,
+          kimlik: user.identifier,
+        });
+        if (!yk.izin) return { allow: false, status: 403, error: yk.hata };
+        sahipKurali = !!yk.sahipKurali;
+      }
+      const karar = !sahipKurali
+        ? { izin: true }
+        : T.sahipYazmaKarari({
+            tur: op.type,
+            mevcut: mevcutTalep,
+            veri: op.data,
+            kimlik: user.identifier,
+          });
       if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
     }
   }
@@ -2926,12 +2943,19 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
-    // TTO talepleri: akademisyen YALNIZ kendi talebini görür; bütün liste
-    // TTO yöneticisi ve üniversite yetkilisine açıktır.
+    // TTO talepleri: akademisyen YALNIZ kendi talebini görür. TTO yöneticisi
+    // ve üniversite yetkilisi GÖNDERİLMİŞ talepleri görür; başkasının
+    // taslağı gönderilene kadar yalnız sahibinindir.
     if (DB_AUTH_ENFORCED && user && collection === 'tto_talepleri') {
       const flags = await getActorFlags(db, user);
+      const ben = String(user.identifier || '');
       if (!flags.admin && !flags.uniAdmin && !flags.ttoYonetici) {
-        filter.sahip = { $eq: String(user.identifier || '') };
+        filter.sahip = { $eq: ben };
+      } else if (!flags.admin) {
+        filter.$or = [
+          { sahip: { $eq: ben } },
+          { durum: { $in: ['gonderildi', 'incelemede', 'iade', 'onaylandi', 'reddedildi'] } },
+        ];
       }
     }
 
@@ -3103,12 +3127,9 @@ router.get('/:collection/:docId', async (req, res) => {
     // TTO talebi: başkasının talebi tek belge olarak da okunamaz.
     if (DB_AUTH_ENFORCED && user && collection === 'tto_talepleri') {
       const flags = await getActorFlags(db, user);
-      if (
-        !flags.admin &&
-        !flags.uniAdmin &&
-        !flags.ttoYonetici &&
-        String(doc.sahip || '') !== String(user.identifier || '')
-      ) {
+      const kendisinin = String(doc.sahip || '') === String(user.identifier || '');
+      const gonderilmis = !!doc.durum && doc.durum !== 'taslak';
+      if (!flags.admin && !kendisinin && !((flags.uniAdmin || flags.ttoYonetici) && gonderilmis)) {
         return res.status(403).json({ error: 'Bu talebe erişim yetkiniz yok.' });
       }
     }

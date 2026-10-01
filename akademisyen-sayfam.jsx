@@ -726,6 +726,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   const [sekme, setSekme] = useState('genel');
   const [tamEkran, setTamEkran] = useState(null); // { oturum, saatFarki, ogrenciler }
   const [tazele, setTazele] = useState(0);
+  const ilkYuklemeRef = useRef(false);
 
   const donem =
     window.donemEtiketi && window.donemEtiketi(new Date()) === 'Bahar' ? 'bahar' : 'guz';
@@ -736,7 +737,11 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
       setYukleniyor(false);
       return;
     }
-    setYukleniyor(true);
+    // ⚠ Bekleme ekranı YALNIZ İLK YÜKLEMEDE. Her kayıttan sonraki tazelemede
+    // de gösterilince bütün sayfa sökülüp yeniden kuruluyordu: yoklama
+    // ayarını kaydeden hoca seçtiği dersten ve Ayarlar sekmesinden atılıp
+    // ilk dersin "Yoklama al" sekmesine dönüyordu.
+    if (!ilkYuklemeRef.current) setYukleniyor(true);
     setHata('');
     try {
       const [profs, ders, prog, bol, ogr, rnd, ayar, otr, kyt, dersSecim] = await Promise.all([
@@ -798,6 +803,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     } catch (e) {
       setHata(e?.message || 'Sayfa yüklenemedi.');
     } finally {
+      ilkYuklemeRef.current = true;
       setYukleniyor(false);
     }
   }, [benimAd, benimAnahtar, R]);
@@ -1147,8 +1153,10 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         true
       );
       setTazele((t) => t + 1);
+      return true;
     } catch (e) {
       alert('Yoklama ayarları kaydedilemedi: ' + (e.message || 'bilinmeyen hata'));
+      return false;
     }
   };
 
@@ -2956,6 +2964,11 @@ function ASYoklamaPaneli({
   // Ders yapılmayan haftalar: {3: 'Bayram'} — devam listesinde o sütun
   // işaret yerine sebebini gösterir.
   const [notlar, setNotlar] = useState({});
+  // Kaydet düğmesinin geri bildirimi: eskiden kaydetmek hiçbir iz
+  // bırakmıyordu, hoca kaydolup olmadığını anlamak için sekmeyi yeniden
+  // açıyordu.
+  const [ayarDurumu, setAyarDurumu] = useState('');
+  useEffect(() => setAyarDurumu(''), [secili]);
 
   useEffect(() => {
     const a = secim ? ayarlar[secim.anahtar] || {} : {};
@@ -3492,8 +3505,10 @@ function ASYoklamaPaneli({
                 <p
                   style={{ margin: '0 0 12px', fontSize: 11.5, color: '#9CA3AF', lineHeight: 1.6 }}
                 >
-                  Devam listesindeki hafta sütunlarını belirler. Dönem başlangıcı girilmezse
-                  yoklamalar sırayla numaralanır ve ara tatil sütunları kaydırabilir.
+                  Devam listesindeki hafta sütunlarını ve yoklama açarken önerilen haftayı belirler.
+                  Yoklamayı açarken seçtiğiniz hafta her zaman önceliklidir; hafta seçilmemiş
+                  yoklamalar dönem başlangıcına göre, o da yoksa takvim haftası sırasına göre
+                  yerleşir.
                 </p>
                 <div
                   style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}
@@ -3574,33 +3589,43 @@ function ASYoklamaPaneli({
                 </div>
               </div>
 
-              <button
-                onClick={() =>
-                  onAyar(ders, {
-                    parca,
-                    limitDegeri: limit,
-                    limitBirimi: birim,
-                    dersSaati,
-                    haftaSayisi: hafta,
-                    donemBaslangici: baslangic,
-                    haftaNotlari: notlar,
-                  })
-                }
-                style={{
-                  alignSelf: 'flex-start',
-                  padding: '10px 20px',
-                  borderRadius: 10,
-                  border: 'none',
-                  background: AS_NAVY,
-                  color: '#fff',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Ayarları kaydet
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <button
+                  disabled={ayarDurumu === 'kaydediliyor'}
+                  onClick={async () => {
+                    setAyarDurumu('kaydediliyor');
+                    const ok = await onAyar(ders, {
+                      parca,
+                      limitDegeri: limit,
+                      limitBirimi: birim,
+                      dersSaati,
+                      haftaSayisi: hafta,
+                      donemBaslangici: baslangic,
+                      haftaNotlari: notlar,
+                    });
+                    setAyarDurumu(ok ? 'kaydedildi' : '');
+                  }}
+                  style={{
+                    alignSelf: 'flex-start',
+                    padding: '10px 20px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: AS_NAVY,
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {ayarDurumu === 'kaydediliyor' ? 'Kaydediliyor…' : 'Ayarları kaydet'}
+                </button>
+                {ayarDurumu === 'kaydedildi' && (
+                  <span style={{ fontSize: 12.5, fontWeight: 600, color: AS_GREEN }}>
+                    Kaydedildi.
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </>
