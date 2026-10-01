@@ -22,6 +22,24 @@ pm2 logs erasmus_caku --lines 30 --nostream
 Bu adımların hepsini (bağımlılık değişimi denetimi ve sağlık kontrolü dahil)
 `npm run deploy` (scripts/deploy.sh) yapar.
 
+## Word → PDF çevirici (LibreOffice) — TTO başvuru formu
+
+Kurum, Şablonlar → TTO modülüne Word şablonu yüklediyse akademisyenin
+indirdiği başvuru formu o şablondan üretilir ve **sunucuda** PDF'e çevrilir
+(`server/lib/docx-pdf.js`, `POST /api/files/docx-pdf`). Çevirici yoksa form
+Word olarak iner ve akademisyene "Word'de açıp PDF'e çevirin" uyarısı çıkar.
+Şablon yüklenmediyse çevirici gerekmez (yerleşik PDF tarayıcıda üretilir).
+
+```bash
+apt install -y libreoffice-writer-nogui     # yalnız "libreoffice-core" YETMEZ
+soffice --version                           # LibreOffice 7.x/24.x görünmeli
+pm2 restart erasmus_caku                    # çevirici durumu süreç başında belirlenir
+```
+
+⚠ Yalnız `libreoffice-core` kuruluysa `soffice --version` çalışır ama çeviri
+sessizce boş çıkar ("source file could not be loaded"); Writer bileşeni
+şarttır. Farklı bir yoldaysa: `SOFFICE_YOLU=/opt/libreoffice/program/soffice`.
+
 ## nginx: iki tuzak
 
 **1. `sites-enabled/caku-erasmus` bir SYMLINK DEĞİL, ayrı bir kopyadır.**

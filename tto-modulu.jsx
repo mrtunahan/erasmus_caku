@@ -36,7 +36,7 @@ import {
 import TtoOtomasyon from './tto-otomasyon/App.jsx';
 import { T, kart, giris, etiket, dugme, metin, tarihTr, DurumCipi } from './tto-stil.jsx';
 import {
-  pdfAktar,
+  formIndir,
   GonderimKarti,
   AkademisyenSurecKarti,
   BelgeListesi,
@@ -204,7 +204,7 @@ function TalepFormu({ talep, ayarKaydi, onKapat, onKaydedildi, kimlik, profil, s
       setMesaj({
         tur: 'hata',
         metin:
-          'Göndermeden önce formu PDF olarak indirip imzalayın, kaşeleyin ve imzalı hâlini yükleyin (aşağıdaki “TTO’ya gönderim” bölümü).',
+          'Göndermeden önce formu indirip imzalayın, kaşeleyin ve imzalı hâlini PDF olarak yükleyin (aşağıdaki “TTO’ya gönderim” bölümü).',
       });
       return;
     }
@@ -231,8 +231,9 @@ function TalepFormu({ talep, ayarKaydi, onKapat, onKaydedildi, kimlik, profil, s
     setMesgul('pdf');
     setMesaj(null);
     try {
-      const r = await pdfAktar(form, ayarKaydi);
+      const r = await formIndir(form, ayarKaydi);
       if (!r.ok) setMesaj({ tur: 'hata', metin: r.hata });
+      else if (r.uyari) setMesaj({ tur: 'bilgi', metin: r.uyari });
     } finally {
       setMesgul('');
     }
@@ -501,8 +502,8 @@ function TalepFormu({ talep, ayarKaydi, onKapat, onKaydedildi, kimlik, profil, s
           <span>{a.beyanMetni}</span>
         </label>
         <div style={{ fontSize: 12, color: T.soluk, marginTop: 10 }}>
-          Başvuru sahibi: <b>{metin(form.genel.adSoyad) || kimlik}</b> · Kaşe/imza alanı PDF
-          çıktısında yer alır. “Başvuruyu alan kişi” ve talep numarasını TTO doldurur.
+          Başvuru sahibi: <b>{metin(form.genel.adSoyad) || kimlik}</b> · Kaşe/imza alanı indirilen
+          formda yer alır. “Başvuruyu alan kişi” ve talep numarasını TTO doldurur.
         </div>
       </div>
 
@@ -555,15 +556,28 @@ function TalepFormu({ talep, ayarKaydi, onKapat, onKaydedildi, kimlik, profil, s
           borderTop: `1px solid ${T.kenar}`,
         }}
       >
-        <button style={dugme('sessiz')} onClick={pdf} disabled={!!mesgul}>
-          {mesgul === 'pdf' ? 'Hazırlanıyor…' : 'PDF olarak indir'}
-        </button>
+        {/* Düzenlenebilir formda indirme "TTO’ya gönderim" kartındadır (1. adım);
+            burada tekrar edilmez. Kilitli formda (gönderilmiş/yönetici) tek
+            indirme yolu budur. */}
+        {kilitli && (
+          <button style={dugme('sessiz')} onClick={pdf} disabled={!!mesgul}>
+            {mesgul === 'pdf' ? 'Hazırlanıyor…' : 'Başvuru formunu indir'}
+          </button>
+        )}
         {!kilitli && (
           <>
             <button style={dugme('sessiz')} onClick={kaydet} disabled={!!mesgul}>
               {mesgul === 'kaydet' ? 'Kaydediliyor…' : 'Taslak olarak kaydet'}
             </button>
-            <button style={dugme('birincil')} onClick={gonder} disabled={!!mesgul}>
+            <button
+              style={{
+                ...dugme('birincil'),
+                ...(imzali ? {} : { opacity: 0.45, cursor: 'not-allowed' }),
+              }}
+              onClick={gonder}
+              disabled={!!mesgul || !imzali}
+              title={imzali ? '' : 'Önce imzalı ve kaşeli başvuru formunu (PDF) yükleyin.'}
+            >
               {mesgul === 'gonder' ? 'Gönderiliyor…' : 'TTO’ya gönder'}
             </button>
           </>
@@ -593,8 +607,9 @@ function Taleplerim({ talepler, yukleniyor, hata, onAc, onYeni, onYenile, ayarKa
         await window.DBWrite.remove('tto_talepleri', String(t.id));
         await onYenile();
       } else if (tur === 'pdf') {
-        const r = await pdfAktar(t, ayarKaydi);
+        const r = await formIndir(t, ayarKaydi);
         if (!r.ok) setBilgi(r.hata);
+        else if (r.uyari) setBilgi(r.uyari);
       }
     } catch (e) {
       setBilgi(e.message || 'İşlem yapılamadı.');
@@ -915,8 +930,8 @@ function YolHaritasi() {
     ],
     [
       '2',
-      'Formu PDF olarak indirir, imzalar ve kaşeler',
-      '“Başvuru sahibinin kaşe ve imza” alanı doldurulup belge taranır.',
+      'Formu indirir, imzalar ve kaşeler',
+      'Form, kurumun Şablonlar’a yüklediği Word şablonundan PDF olarak üretilir (şablon yoksa yerleşik PDF). Sunucu PDF’e çeviremezse Word iner; akademisyen Word’de “Farklı Kaydet → PDF” ile çevirir. “Başvuru sahibinin kaşe ve imza” alanı doldurulup belge taranır.',
       'Akademisyen',
     ],
     [
