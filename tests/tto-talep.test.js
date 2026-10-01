@@ -16,6 +16,7 @@ import {
   ttoBirimAdiMi,
   ttoBirimUyesiMi,
   yoneticiYazmaKarari,
+  ttoBildirimPlani,
 } from '../lib/tto-talep.js';
 
 function tamTalep(ek) {
@@ -405,5 +406,67 @@ describe('yoneticiYazmaKarari', () => {
     expect(k(gelen(), {}, 'Dr. Ayşe Yılmaz', 'delete').izin).toBe(false);
     expect(k(gelen({ sahip: 'Dr. Ayşe Yılmaz' }), { durum: 'taslak' }).sahipKurali).toBe(true);
     expect(k(null, { genel: {} }, 'Dr. Ayşe Yılmaz', 'add').sahipKurali).toBe(true);
+  });
+});
+
+describe('ttoBildirimPlani', () => {
+  const YON = ['Dr. Ayşe Yılmaz', 'Dr. Mehmet TTO'];
+  const kayit = (ek) => ({
+    id: 'tt-1',
+    sahip: 'Dr. Ali Veli',
+    genel: { adSoyad: 'Ali Veli' },
+    nitelik: ['laboratuvar'],
+    ...ek,
+  });
+  const plan = (eski, yeni, yapan) =>
+    ttoBildirimPlani({ eski: kayit(eski), yeni: kayit(yeni), yapan, yoneticiler: YON });
+
+  it('akademisyen gönderince bütün TTO yöneticilerine gider', () => {
+    const p = plan({ durum: 'taslak' }, { durum: 'gonderildi' }, 'Dr. Ali Veli');
+    expect(p.map((x) => x.recipientId)).toEqual(YON);
+    expect(p[0].body).toMatch(/Ali Veli yeni bir işbirliği talebi gönderdi/);
+    expect(p[0].title).toBe('TTO · Laboratuvar – test analiz hizmetleri');
+    expect(p[0].meta).toEqual({ talepId: 'tt-1', durum: 'gonderildi' });
+  });
+
+  it('iade sonrası yeniden gönderim ve geri çekme de bildirilir', () => {
+    expect(plan({ durum: 'iade' }, { durum: 'gonderildi' }, 'Dr. Ali Veli')[0].body).toMatch(
+      /yeniden gönderdi/
+    );
+    expect(plan({ durum: 'gonderildi' }, { durum: 'taslak' }, 'Dr. Ali Veli')[0].body).toMatch(
+      /geri çekti/
+    );
+  });
+
+  it('yöneticinin kendi talebi kendisine bildirilmez', () => {
+    const p = ttoBildirimPlani({
+      eski: kayit({ sahip: 'Dr. Ayşe Yılmaz', durum: 'taslak' }),
+      yeni: kayit({ sahip: 'Dr. Ayşe Yılmaz', durum: 'gonderildi' }),
+      yapan: 'Dr. Ayşe Yılmaz',
+      yoneticiler: YON,
+    });
+    expect(p.map((x) => x.recipientId)).toEqual(['Dr. Mehmet TTO']);
+  });
+
+  it('yöneticinin kararı talep sahibine gider', () => {
+    const on = plan(
+      { durum: 'incelemede' },
+      { durum: 'onaylandi', talepNo: '2026/1' },
+      'Dr. Ayşe Yılmaz'
+    );
+    expect(on).toHaveLength(1);
+    expect(on[0]).toMatchObject({ recipientId: 'Dr. Ali Veli', type: 'basari' });
+    expect(on[0].body).toMatch(/2026\/1/);
+    const iade = plan(
+      { durum: 'gonderildi' },
+      { durum: 'iade', yoneticiNotu: 'Bütçe' },
+      'Dr. Ayşe Yılmaz'
+    );
+    expect(iade[0].body).toMatch(/iade edildi: Bütçe/);
+  });
+
+  it('durum değişmediyse bildirim yok', () => {
+    expect(plan({ durum: 'incelemede' }, { durum: 'incelemede' }, 'Dr. Ayşe Yılmaz')).toEqual([]);
+    expect(plan({ durum: 'taslak' }, { durum: 'taslak' }, 'Dr. Ali Veli')).toEqual([]);
   });
 });
