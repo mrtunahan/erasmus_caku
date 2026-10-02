@@ -838,9 +838,14 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     return secenekler.map((x) => {
       const c = x.ders;
       const ayar = yoklamaVerisi.ayarlar[x.anahtar] || {};
-      const oturumlar = P.parcaKayitlari
-        ? P.parcaKayitlari(yoklamaVerisi.oturumlar, x.dersId, x.parca)
-        : yoklamaVerisi.oturumlar.filter((o) => metin(o.dersId) === x.dersId);
+      // ⚠ Yalnız içinde bulunulan dönem (lib/yoklama.js → donemOturumlari):
+      // ders yeniden alındığında eski dönemin devamsızlığı görünmesin.
+      const oturumlar = Y.donemOturumlari(
+        P.parcaKayitlari
+          ? P.parcaKayitlari(yoklamaVerisi.oturumlar, x.dersId, x.parca)
+          : yoklamaVerisi.oturumlar.filter((o) => metin(o.dersId) === x.dersId),
+        { donemBaslangici: ayar.donemBaslangici }
+      );
       const kayitlar = P.parcaKayitlari
         ? P.parcaKayitlari(yoklamaVerisi.kayitlar, x.dersId, x.parca)
         : yoklamaVerisi.kayitlar.filter((k) => metin(k.dersId) === x.dersId);

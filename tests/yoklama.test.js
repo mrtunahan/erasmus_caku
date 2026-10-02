@@ -490,3 +490,44 @@ describe('katilimSayimi', () => {
     expect(r.katilim.get('2')).toBeUndefined();
   });
 });
+
+describe('dönem süzgeci', () => {
+  it('dönem anahtarı (haziran bahar, ocak güz)', async () => {
+    const { yoklamaDonemAnahtari: k } = await import('../lib/yoklama.js');
+    expect(k('2026-09-22')).toBe('2026-2027-guz');
+    expect(k('2027-01-10')).toBe('2026-2027-guz');
+    expect(k('2027-02-20')).toBe('2026-2027-bahar');
+    expect(k('2027-06-15')).toBe('2026-2027-bahar');
+    expect(k('2027-07-15')).toBe('2026-2027-yaz');
+    expect(k('bozuk')).toBe('');
+  });
+  const O = [
+    { id: 'gecen-yil', tarih: '2025-10-01', acik: false },
+    { id: 'deneme', tarih: '2026-09-10', acik: false },
+    { id: 'h1', tarih: '2026-09-22', acik: false },
+    { id: 'h2', baslangic: '2026-09-29T09:00:00Z', acik: false },
+  ];
+  it('yalnız bu dönem; dönem başlangıcından önceki deneme sayılmaz', async () => {
+    const { donemOturumlari } = await import('../lib/yoklama.js');
+    const ids = (r) => r.map((x) => x.id);
+    expect(ids(donemOturumlari(O, { bugun: '2026-10-02' }))).toEqual(['deneme', 'h1', 'h2']);
+    expect(ids(donemOturumlari(O, { bugun: '2026-10-02', donemBaslangici: '2026-09-21' }))).toEqual(
+      ['h1', 'h2']
+    );
+    // Geçen yılın dönem başlangıcı bu döneme uygulanmaz.
+    expect(ids(donemOturumlari(O, { bugun: '2026-10-02', donemBaslangici: '2025-09-15' }))).toEqual(
+      ['deneme', 'h1', 'h2']
+    );
+  });
+  it('akademisyen: bu dönem boşsa en son dolu dönem; öğrenci: boş', async () => {
+    const { donemOturumlari } = await import('../lib/yoklama.js');
+    expect(donemOturumlari(O, { bugun: '2027-02-15' })).toEqual([]);
+    expect(
+      donemOturumlari(O, {
+        bugun: '2027-02-15',
+        sonDoluDonem: true,
+        donemBaslangici: '2026-09-21',
+      }).map((x) => x.id)
+    ).toEqual(['h1', 'h2']);
+  });
+});

@@ -1046,9 +1046,14 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
       // Parçası olmayan ESKİ oturum ve kayıtlar teoriye sayılır.
       // Sayım ortak kuralla: yalnız KAPANMIŞ oturumlar, katılım o oturumlara
       // bağlı ve oturum başına bir kez (lib/yoklama.js → katilimSayimi).
-      const dersOturumlari = P.parcaKayitlari
-        ? P.parcaKayitlari(oturumlar, dersId, p)
-        : oturumlar.filter((o) => metin(o.dersId) === dersId);
+      // ⚠ Yalnız içinde bulunulan dönem (lib/yoklama.js → donemOturumlari):
+      // ders sonraki dönemde yine açılınca eski dönemin yoklamaları sayılmasın.
+      const dersOturumlari = Y.donemOturumlari(
+        P.parcaKayitlari
+          ? P.parcaKayitlari(oturumlar, dersId, p)
+          : oturumlar.filter((o) => metin(o.dersId) === dersId),
+        { donemBaslangici: ayar.donemBaslangici, sonDoluDonem: true }
+      );
       const kendi = P.parcaKayitlari
         ? P.parcaKayitlari(katilimKayitlari, dersId, p)
         : katilimKayitlari.filter((k) => metin(k.dersId) === dersId);
@@ -1316,9 +1321,19 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           birlesikDers: metin(ders.birlesikDers),
         },
         ogrenciler: dersinOgrencileri(dersId),
-        oturumlar: P.parcaKayitlari
-          ? P.parcaKayitlari(oturumlar, dersId, p)
-          : (oturumlar || []).filter((o) => metin(o.dersId) === dersId),
+        // Devam listesi, "Alınan yoklamalar" ve önerilen hafta da yalnız bu
+        // dönemin oturumlarıyla (bu dönemde hiç yoksa en son dolu dönem —
+        // şubatta güz listesi basılabilsin).
+        oturumlar: (window.YoklamaKurali || {}).donemOturumlari
+          ? window.YoklamaKurali.donemOturumlari(
+              P.parcaKayitlari
+                ? P.parcaKayitlari(oturumlar, dersId, p)
+                : (oturumlar || []).filter((o) => metin(o.dersId) === dersId),
+              { donemBaslangici: ayar.donemBaslangici, sonDoluDonem: true }
+            )
+          : P.parcaKayitlari
+            ? P.parcaKayitlari(oturumlar, dersId, p)
+            : (oturumlar || []).filter((o) => metin(o.dersId) === dersId),
         kayitlar: P.parcaKayitlari
           ? P.parcaKayitlari(katilimKayitlari, dersId, p)
           : (katilimKayitlari || []).filter((k) => metin(k.dersId) === dersId),
