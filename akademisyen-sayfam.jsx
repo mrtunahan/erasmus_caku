@@ -744,7 +744,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     if (!ilkYuklemeRef.current) setYukleniyor(true);
     setHata('');
     try {
-      const [profs, ders, prog, bol, ogr, rnd, ayar, otr, kyt, dersSecim] = await Promise.all([
+      const [profs, ders, prog, bol, ogr, rnd, ayar, yv, _bos, dersSecim] = await Promise.all([
         window.apiRead('professors').catch(() => []),
         window.apiRead('sinav_dersler').catch(() => []),
         window.apiRead('course_schedules').catch(() => []),
@@ -752,8 +752,17 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         window.apiRead('students').catch(() => []),
         window.apiRead('randevu_talepleri').catch(() => []),
         window.apiRead('yoklama_ayarlari').catch(() => []),
-        window.apiRead('yoklama_oturumlari').catch(() => []),
-        window.apiRead('yoklama_kayitlari').catch(() => []),
+        // ⚠ Yoklama verisi genel okuma ucundan DEĞİL: o uç bütün koleksiyonu
+        // (tavan 20.000) getiriyordu; dönemler biriktikçe liste kesilir,
+        // devamsızlık yanlış hesaplanırdı. Bu uç yalnız hocanın kendi
+        // oturumlarını ve o oturumların kayıtlarını döndürür.
+        fetch('/api/yoklama/akademisyen-veri', {
+          credentials: 'include',
+          headers: window.yoklamaBasliklari ? window.yoklamaBasliklari() : {},
+        })
+          .then((r) => (r.ok ? r.json() : { oturumlar: [], kayitlar: [] }))
+          .catch(() => ({ oturumlar: [], kayitlar: [] })),
+        null,
         // ⚠ DERS SEÇİMİ ARTIK BURADA: öğrenci Benim Sayfam'da dönem bazlı
         // seçim yapıyor ve kayıt student_courses'a yazılıyor. Yoklama listesi
         // yalnız eski `students.myCourseIds` alanına bakıyordu; yeni yoldan
@@ -790,7 +799,9 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         if (k) ayarHarita[k] = a;
       });
       setYoklamaAyarlari(ayarHarita);
-      setOturumlar((otr || []).filter((o) => esit(o.akademisyen, benimAd)));
+      const otr = (yv && yv.oturumlar) || [];
+      const kyt = (yv && yv.kayitlar) || [];
+      setOturumlar(otr.filter((o) => esit(o.akademisyen, benimAd)));
       setKatilimKayitlari(Array.isArray(kyt) ? kyt : []);
       setDersSecimleri(Array.isArray(dersSecim) ? dersSecim : []);
 
@@ -1033,18 +1044,15 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         ? P.parcaSaati(ders, p, ayar)
         : Number(ayar.dersSaati) || Number(ders.saat) || 1;
       // Parçası olmayan ESKİ oturum ve kayıtlar teoriye sayılır.
-      const acilan = (P.parcaKayitlari ? P.parcaKayitlari(oturumlar, dersId, p) : oturumlar).filter(
-        (o) => !o.acik
-      ).length;
+      // Sayım ortak kuralla: yalnız KAPANMIŞ oturumlar, katılım o oturumlara
+      // bağlı ve oturum başına bir kez (lib/yoklama.js → katilimSayimi).
+      const dersOturumlari = P.parcaKayitlari
+        ? P.parcaKayitlari(oturumlar, dersId, p)
+        : oturumlar.filter((o) => metin(o.dersId) === dersId);
       const kendi = P.parcaKayitlari
         ? P.parcaKayitlari(katilimKayitlari, dersId, p)
         : katilimKayitlari.filter((k) => metin(k.dersId) === dersId);
-      const sayac = new Map();
-      kendi.forEach((k) => {
-        if (k.durum !== 'var' && k.durum !== 'izinli') return;
-        const no = metin(k.studentNumber);
-        sayac.set(no, (sayac.get(no) || 0) + 1);
-      });
+      const { acilan, katilim: sayac } = Y.katilimSayimi(dersOturumlari, kendi);
       return dersinOgrencileri(dersId)
         .map((o) => ({
           ...o,
@@ -1199,6 +1207,28 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
    * Telefonunu değiştiren ya da dönemlik cihaz hakkını tüketen öğrenci
    * aksi hâlde yoklama veremez hâle gelir.
    */
+  /** Kapanmış bir yoklamada öğrenci durumlarını sonradan düzelt. */
+  const yoklamaDuzelt = async (oturumId, durumlar) => {
+    try {
+      const r = await fetch('/api/yoklama/duzelt', {
+        method: 'POST',
+        credentials: 'include',
+        headers: Object.assign(
+          { 'Content-Type': 'application/json' },
+          window.yoklamaBasliklari ? window.yoklamaBasliklari() : {}
+        ),
+        body: JSON.stringify({ oturumId, durumlar }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Kaydedilemedi.');
+      setTazele((t) => t + 1);
+      return true;
+    } catch (e) {
+      alert('Yoklama düzeltilemedi: ' + (e.message || 'bilinmeyen hata'));
+      return false;
+    }
+  };
+
   /** Alınmış bir yoklamanın haftasını düzelt (null → seçimi kaldır). */
   const oturumHaftasiDuzelt = async (oturumId, hafta) => {
     try {
@@ -1621,6 +1651,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
             baglam={listeBaglami}
             onBaslat={yoklamaBaslat}
             onHafta={oturumHaftasiDuzelt}
+            onDuzelt={yoklamaDuzelt}
             onAyar={ayarKaydet}
             onCihazSifirla={cihazSifirla}
             onYazdir={listeYazdir}
@@ -2922,6 +2953,134 @@ const AS_TD = {
   whiteSpace: 'nowrap',
 };
 
+// ══════════════════════════════════════════════════════════════
+// Kapanmış yoklamayı düzeltici — derse kayıtlı öğrenciler ve o oturumdaki
+// durumları; yalnız DEĞİŞEN satırlar gönderilir (kayıt `elle: true`).
+// ══════════════════════════════════════════════════════════════
+function YoklamaDuzeltici({ ogrenciler, kayitlar, onKaydet }) {
+  const ilk = useMemo(() => {
+    const h = {};
+    (kayitlar || []).forEach((k) => {
+      h[metin(k.studentNumber)] = metin(k.durum) || 'var';
+    });
+    return h;
+  }, [kayitlar]);
+  const [durum, setDurum] = useState(ilk);
+  const [mesgul, setMesgul] = useState(false);
+  const liste = (ogrenciler || [])
+    .map((o) => ({ no: metin(o.studentNumber), ad: metin(o.adSoyad) || metin(o.studentNumber) }))
+    .filter((o) => o.no)
+    .sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
+  const degisen = {};
+  liste.forEach((o) => {
+    const simdi = durum[o.no] || 'yok';
+    const once = ilk[o.no] || 'yok';
+    if (simdi !== once) degisen[o.no] = simdi;
+  });
+  const sayi = Object.keys(degisen).length;
+  const SECENEK = [
+    ['var', 'Var', '#059669'],
+    ['yok', 'Yok', '#DC2626'],
+    ['izinli', 'İzinli', '#2563EB'],
+  ];
+  return (
+    <div
+      data-duzeltici
+      style={{
+        flexBasis: '100%',
+        marginTop: 8,
+        paddingTop: 10,
+        borderTop: '1px solid #E5E7EB',
+      }}
+    >
+      {liste.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: '#6B7280' }}>Bu derse kayıtlı öğrenci yok.</div>
+      ) : (
+        <div style={{ display: 'grid', gap: 4 }}>
+          {liste.map((o) => {
+            const d = durum[o.no] || 'yok';
+            return (
+              <div
+                key={o.no}
+                data-duzelt-ogrenci={o.no}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) auto',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '4px 0',
+                }}
+              >
+                <span style={{ fontSize: 13, color: AS_NAVY, minWidth: 0 }}>
+                  {o.ad} <span style={{ color: '#9CA3AF', fontSize: 11.5 }}>{o.no}</span>
+                </span>
+                <span style={{ display: 'flex', gap: 4 }}>
+                  {SECENEK.map(([id, ad, renk]) => (
+                    <button
+                      key={id}
+                      data-durum={id}
+                      onClick={() => setDurum((x) => ({ ...x, [o.no]: id }))}
+                      style={{
+                        minWidth: 62,
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        border: '1px solid ' + (d === id ? renk : '#D1D5DB'),
+                        background: d === id ? renk : '#fff',
+                        color: d === id ? '#fff' : '#374151',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {ad}
+                    </button>
+                  ))}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          gap: 10,
+          marginTop: 10,
+        }}
+      >
+        <span style={{ fontSize: 12, color: '#6B7280' }}>
+          {sayi ? sayi + ' öğrencinin durumu değişecek' : 'Değişiklik yok'}
+        </span>
+        <button
+          disabled={!sayi || mesgul}
+          onClick={async () => {
+            setMesgul(true);
+            await onKaydet(degisen);
+            setMesgul(false);
+          }}
+          style={{
+            padding: '7px 16px',
+            borderRadius: 8,
+            border: 'none',
+            background: AS_NAVY,
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: sayi && !mesgul ? 'pointer' : 'not-allowed',
+            opacity: sayi && !mesgul ? 1 : 0.45,
+            fontFamily: 'inherit',
+          }}
+        >
+          {mesgul ? 'Kaydediliyor…' : 'Düzeltmeyi kaydet'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ASYoklamaPaneli({
   dersler,
   ayarlar,
@@ -2930,6 +3089,7 @@ function ASYoklamaPaneli({
   baglam,
   onBaslat,
   onHafta,
+  onDuzelt,
   onAyar,
   onCihazSifirla,
   onYazdir,
@@ -3007,6 +3167,9 @@ function ASYoklamaPaneli({
   const onerilen =
     YL.onerilenHafta && dersBaglami ? YL.onerilenHafta(oturumListesi, haftaAyari) : 1;
   const [acilisHaftasi, setAcilisHaftasi] = useState('');
+  // Kapanmış yoklamayı düzeltme: açık olan satırın oturum kimliği.
+  const [duzeltilen, setDuzeltilen] = useState('');
+  const duzeltAc = (o) => setDuzeltilen((d) => (d === o.id ? '' : o.id));
   useEffect(() => setAcilisHaftasi(''), [secili]);
   const haftaHaritasi =
     YL.oturumHaftalari && dersBaglami ? YL.oturumHaftalari(oturumListesi, haftaAyari).harita : {};
@@ -3211,8 +3374,9 @@ function ASYoklamaPaneli({
                 <div style={AS_KART}>
                   <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>Alınan yoklamalar</h4>
                   <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 10px' }}>
-                    Devam listesinde hangi hafta sütununa yazılacağını buradan değiştirebilirsiniz.
-                    "tahmini" yazanlara hafta seçilmemiş; tarihten çıkarıldı.
+                    Devam listesinde hangi hafta sütununa yazılacağını buradan değiştirebilirsiniz;
+                    "tahmini" yazanlara hafta seçilmemiş, tarihten çıkarıldı. Kapanmış bir yoklamada
+                    öğrencinin durumunu “Düzelt” ile sonradan değiştirebilirsiniz.
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {alinanlar.map((o) => {
@@ -3243,7 +3407,33 @@ function ASYoklamaPaneli({
                             {katilanSayisi(o.id)} öğrenci var
                             {o.acik ? ' · açık' : ''}
                           </span>
-                          <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                          <span
+                            style={{
+                              marginLeft: 'auto',
+                              display: 'flex',
+                              gap: 6,
+                              alignItems: 'center',
+                            }}
+                          >
+                            {!o.acik && (
+                              <button
+                                data-duzelt={o.id}
+                                onClick={() => duzeltAc(o)}
+                                style={{
+                                  padding: '5px 12px',
+                                  borderRadius: 7,
+                                  border: '1px solid #D1D5DB',
+                                  background: duzeltilen === o.id ? AS_NAVY : '#fff',
+                                  color: duzeltilen === o.id ? '#fff' : AS_NAVY,
+                                  fontSize: 12.5,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                {duzeltilen === o.id ? 'Kapat' : 'Düzelt'}
+                              </button>
+                            )}
                             {!secili && hNo > 0 && (
                               <span style={{ fontSize: 11, color: '#B45309', alignSelf: 'center' }}>
                                 tahmini
@@ -3270,6 +3460,19 @@ function ASYoklamaPaneli({
                               ))}
                             </select>
                           </span>
+                          {duzeltilen === o.id && (
+                            <YoklamaDuzeltici
+                              ogrenciler={dersBaglami?.ogrenciler || []}
+                              kayitlar={(dersBaglami?.kayitlar || []).filter(
+                                (k) => metin(k.oturumId) === metin(o.id)
+                              )}
+                              onKaydet={async (durumlar) => {
+                                const ok = onDuzelt ? await onDuzelt(o.id, durumlar) : false;
+                                if (ok) setDuzeltilen('');
+                                return ok;
+                              }}
+                            />
+                          )}
                         </div>
                       );
                     })}
