@@ -18,6 +18,7 @@
 import { hesapla, ibanSadele } from '../lib/tto-odeme.js';
 import { trIcerir, trSirala } from '../lib/tr-metin.js';
 import { calismaKitabiParcalari } from '../lib/xlsx-yaz.js';
+import { talepEslemePlani, anahtarKimlikleri } from '../lib/tto-esleme.js';
 
 export class ApiError extends Error {
   constructor(message, status) {
@@ -35,6 +36,148 @@ let oturum = null;
 /** Giriş yapan kullanıcı (AppShell'deki ad/unvan satırı için). */
 export function oturumAyarla(kullanici) {
   oturum = kullanici || null;
+}
+
+// ══════════════════════════════════════════════════════════════
+// OFFLINE ASİSTAN → OTOMASYON EŞLEMESİ (lib/tto-esleme.js)
+// Otomasyon açılınca bir kez çalışır; bitene kadar ekranların okumaları
+// bekler ki listeler eşlenmiş veriyle gelsin. Hata ekranları durdurmaz.
+// ══════════════════════════════════════════════════════════════
+let eslemeSozu = null;
+
+async function hamOku(ad) {
+  try {
+    const l = await window.apiRead.strict(ad);
+    return Array.isArray(l) ? l : [];
+  } catch {
+    return null;
+  }
+}
+
+async function personelListesi() {
+  const [hocalar, bolumler, fakulteler] = await Promise.all([
+    hamOku('professors'),
+    hamOku('departments'),
+    hamOku('faculties'),
+  ]);
+  const fak = {};
+  (fakulteler || []).forEach((f) => (fak[f.id] = f.name || f.ad));
+  const blm = {};
+  (bolumler || []).forEach((b) => (blm[b.id] = b));
+  return (hocalar || []).map((h) => {
+    const b = blm[h.departmentId] || {};
+    return {
+      ad: h.name,
+      bolum: b.name || h.department || '',
+      fakulte: fak[b.facultyId || h.facultyId] || '',
+    };
+  });
+}
+
+async function eslemeYap() {
+  const sonuc = { akademisyen: 0, firma: 0, kayit: 0, atlanan: [], hatalar: [] };
+  const talepler = await hamOku('tto_talepleri');
+  if (!talepler || talepler.length === 0) return sonuc;
+  const [akademisyenler, firmalar, kayitlar, oranlar, personel, eslemeKaydi] = await Promise.all([
+    oku('tto_akademisyenler'),
+    oku('tto_firmalar'),
+    oku('tto_is_kayitlari'),
+    oku('tto_oranlar'),
+    personelListesi(),
+    Promise.resolve()
+      .then(() => (window.apiReadDocFresh || window.apiReadDoc)('tto_ayarlar', 'esleme'))
+      .catch(() => null),
+  ]);
+  const eslemeVerisi = (eslemeKaydi && eslemeKaydi.exists && eslemeKaydi.data) || {};
+  const yapilanlar = eslemeVerisi.talepler || {};
+  const plan = talepEslemePlani({
+    talepler,
+    akademisyenler,
+    firmalar,
+    kayitlar,
+    personel,
+    oranYillari: oranlar.map((o) => o.yil),
+    yapilanlar,
+  });
+  sonuc.atlanan = plan.atlanan;
+  const dene = async (is, sayac) => {
+    try {
+      await is();
+      if (sayac) sonuc[sayac] += 1;
+    } catch (e) {
+      sonuc.hatalar.push((e && e.message) || 'Eşleme hatası');
+    }
+  };
+  for (const v of plan.akademisyenEkle) {
+    await dene(() => window.DBWrite.add('tto_akademisyenler', v), 'akademisyen');
+  }
+  for (const g of plan.akademisyenGuncelle) {
+    await dene(() => window.DBWrite.update('tto_akademisyenler', String(g.id), g.veri));
+  }
+  for (const v of plan.firmaEkle) {
+    await dene(() => window.DBWrite.add('tto_firmalar', v), 'firma');
+  }
+  for (const g of plan.firmaGuncelle) {
+    await dene(() => window.DBWrite.update('tto_firmalar', String(g.id), g.veri));
+  }
+  if (plan.kayitEkle.length > 0) {
+    const [aGuncel, fGuncel] = await Promise.all([oku('tto_akademisyenler'), oku('tto_firmalar')]);
+    const kim = anahtarKimlikleri(aGuncel, fGuncel);
+    for (const k of plan.kayitEkle) {
+      const akademisyenId = kim.akademisyen.get(k.akademisyenAnahtari);
+      const firmaId = kim.firma.get(k.firmaAnahtari);
+      if (!akademisyenId || !firmaId) continue;
+      await dene(
+        () =>
+          window.DBWrite.add('tto_is_kayitlari', {
+            ...k.veri,
+            akademisyenId: String(akademisyenId),
+            firmaId: String(firmaId),
+            projeId: '',
+          }),
+        'kayit'
+      );
+    }
+  }
+  // Yapılanları kaydet (hata varsa kaydetme: bir sonraki açılışta yeniden
+  // denenir; eşleme ad üzerinden olduğu için çift kayıt oluşmaz).
+  const yeniIsaret = Object.keys(plan.isaretler);
+  if (yeniIsaret.length > 0 && sonuc.hatalar.length === 0) {
+    const talepler2 = { ...yapilanlar };
+    yeniIsaret.forEach((id) => {
+      talepler2[id] = { ...(talepler2[id] || {}), ...plan.isaretler[id] };
+    });
+    await dene(() => window.DBWrite.set('tto_ayarlar', 'esleme', { talepler: talepler2 }, true));
+  }
+  if (window.apiInvalidate) {
+    ['tto_akademisyenler', 'tto_firmalar', 'tto_is_kayitlari'].forEach((k) =>
+      window.apiInvalidate(k)
+    );
+  }
+  return sonuc;
+}
+
+/**
+ * Eşlemeyi başlatır (otomasyon her açıldığında bir kez). Sonuç:
+ * { akademisyen, firma, kayit, atlanan: [{talepNo, sebep}], hatalar }
+ */
+let eslemeDevam = null;
+export function offlineEsle() {
+  // Süren bir aktarım varsa ona katıl (ör. React'in çift çizimi): iki aktarım
+  // aynı anda aynı kişiyi eklemeye çalışmasın.
+  if (eslemeDevam) return eslemeDevam;
+  eslemeSozu = eslemeYap().catch((e) => ({
+    akademisyen: 0,
+    firma: 0,
+    kayit: 0,
+    atlanan: [],
+    hatalar: [(e && e.message) || 'Eşleme yapılamadı.'],
+  }));
+  eslemeDevam = eslemeSozu;
+  eslemeSozu.then(() => {
+    eslemeDevam = null;
+  });
+  return eslemeSozu;
 }
 
 // ── Para ve oran dönüşümleri ──
@@ -144,8 +287,10 @@ function kayitCevir(k, h) {
     final_net_payable: kurusMetin((Number(k.stopajSonrasiKurus) || 0) - digerFon),
     request_date: bos(k.talepTarihi),
     firm_collection_status: TAHSILAT[k.tahsilat] || null,
+    collected_date: bos(k.tahsilTarihi),
     payment_status: ODEME[k.odeme] || 'Ödenmedi',
     paid_date: bos(k.odemeTarihi),
+    talep_id: bos(k.talepId),
     iban_snapshot: bos(k.ibanAnlik),
     notes: bos(k.notlar),
     is_manually_adjusted: !!k.manuelDuzeltme,
@@ -201,6 +346,7 @@ function kayitGovdesi(b) {
     v.odeme = ODEME_GERI[b.payment_status];
   }
   if ('paid_date' in b) v.odemeTarihi = metin(b.paid_date);
+  if ('collected_date' in b) v.tahsilTarihi = metin(b.collected_date);
   if ('iban_snapshot' in b) v.ibanAnlik = ibanSadele(b.iban_snapshot);
   if ('notes' in b) v.notlar = metin(b.notes);
   if ('is_manually_adjusted' in b) v.manuelDuzeltme = !!b.is_manually_adjusted;
@@ -399,6 +545,7 @@ async function firmaDetayi(id) {
       amount_after_withholding: kurusMetin(k.stopajSonrasiKurus),
       other_funds: kurusMetin(k.digerFonKurus),
       firm_collection_status: TAHSILAT[k.tahsilat] || null,
+      collected_date: bos(k.tahsilTarihi),
       payment_status: ODEME[k.odeme] || 'Ödenmedi',
       paid_date: bos(k.odemeTarihi),
     };
@@ -433,18 +580,21 @@ const KISILER = {
     cevir: firmaCevir,
     alanlar: { name: 'ad', tax_no: 'vergiNo', tax_office: 'vergiDairesi', contact_email: 'eposta' },
     bulunamadi: 'Firma bulunamadı.',
+    kayitAlani: 'firmaId',
   },
   academicians: {
     koleksiyon: 'tto_akademisyenler',
     cevir: akademisyenCevir,
     alanlar: { full_name: 'ad', iban: 'iban', department: 'bolum', faculty: 'fakulte' },
     bulunamadi: 'Akademisyen bulunamadı.',
+    kayitAlani: 'akademisyenId',
   },
   projects: {
     koleksiyon: 'tto_projeler',
     cevir: projeCevir,
     alanlar: { name: 'ad', description: 'aciklama' },
     bulunamadi: 'Proje bulunamadı.',
+    kayitAlani: 'projeId',
   },
 };
 
@@ -463,6 +613,46 @@ async function kisiGetir(t, id) {
   const d = (await oku(t.koleksiyon)).find((x) => String(x.id) === String(id));
   if (!d) throw new ApiError(t.bulunamadi, 404);
   return t.cevir(d);
+}
+
+/**
+ * Firma / akademisyen / proje silme. Sunucu, iş kaydında geçen kişiyi
+ * silmez; `kayitlarla=1` verilirse önce o kişinin iş kayıtları silinir
+ * (arayüz bunu ayrıca onaylatır).
+ */
+async function kisiSil(t, id, kayitlarla) {
+  await kisiGetir(t, id);
+  const bagli = (await oku('tto_is_kayitlari')).filter(
+    (k) => String(k[t.kayitAlani]) === String(id)
+  );
+  if (bagli.length > 0) {
+    if (!kayitlarla) {
+      throw new ApiError(
+        'Bu kayıt ' + bagli.length + ' iş kaydında geçiyor; önce o kayıtlar silinmeli.',
+        409
+      );
+    }
+    if (t.kayitAlani === 'projeId') {
+      // Proje iş kaydı için zorunlu değil: kayıtlar kalır, bağ kopar.
+      for (const k of bagli) {
+        await yaz(() => window.DBWrite.update('tto_is_kayitlari', String(k.id), { projeId: '' }));
+      }
+    } else {
+      for (const k of bagli) {
+        await yaz(() => window.DBWrite.remove('tto_is_kayitlari', String(k.id)));
+      }
+    }
+  }
+  await yaz(() => window.DBWrite.remove(t.koleksiyon, String(id)));
+  return null;
+}
+
+/** Silmeden önce sorulur: bu kişi kaç iş kaydında geçiyor? */
+export async function kisiKullanimi(kaynak, id) {
+  const t = KISILER[kaynak];
+  if (!t) return 0;
+  return (await oku('tto_is_kayitlari')).filter((k) => String(k[t.kayitAlani]) === String(id))
+    .length;
 }
 
 // ── Oranlar (settings) ──
@@ -495,6 +685,7 @@ const EXCEL_BASLIKLARI = [
   'Firma Tahsilat Durumu',
   'Ödeme Durumu',
   'Talep Tarihi',
+  'Tahsil Tarihi',
   'Ödeme Tarihi',
   'Notlar',
 ];
@@ -543,6 +734,7 @@ async function excelBlob(q) {
         TAHSILAT[k.tahsilat] || '',
         ODEME[k.odeme] || '',
         k.talepTarihi || '',
+        k.tahsilTarihi || '',
         k.odemeTarihi || '',
         k.notlar || '',
       ];
@@ -577,6 +769,7 @@ export async function disaAktar(url) {
 // apiFetch — orijinal imza
 // ══════════════════════════════════════════════════════════════
 export async function apiFetch(url, options = {}) {
+  if (eslemeSozu) await eslemeSozu;
   const yontem = String(options.method || 'GET').toUpperCase();
   const u = new URL(url, 'http://x');
   const q = u.searchParams;
@@ -620,6 +813,7 @@ export async function apiFetch(url, options = {}) {
       await yaz(() => window.DBWrite.update(t.koleksiyon, String(id), kisiGovdesi(t, govde)));
       return kisiGetir(t, id);
     }
+    if (id && !alt && yontem === 'DELETE') return kisiSil(t, id, q.get('kayitlarla') === '1');
   }
 
   if (kaynak === 'settings') {

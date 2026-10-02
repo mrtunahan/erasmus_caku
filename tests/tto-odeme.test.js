@@ -219,14 +219,41 @@ describe('iş kaydı yazma kararı', () => {
     expect(r.izin).toBe(true);
     expect(veri.ttoPayiKurus).toBe(300000);
   });
-  it('ödendi işaretlemek için tarih şart değil (orijinal davranış)', () => {
-    const veri = tamKayit({ odeme: 'odendi' });
-    expect(isKaydiYazmaKarari({ tur: 'add', veri, oranKaydi: ORAN }).izin).toBe(true);
+  it('ödendi işaretlemek için tarih şart değil: bugün yazılır', () => {
+    const veri = tamKayit({ tahsilat: 'edildi', odeme: 'odendi' });
+    const simdi = new Date('2026-10-02T22:30:00Z'); // İstanbul'da 3 Ekim
+    expect(isKaydiYazmaKarari({ tur: 'add', veri, oranKaydi: ORAN, simdi }).izin).toBe(true);
+    expect(veri.odemeTarihi).toBe('2026-10-03');
+    expect(veri.tahsilTarihi).toBe('2026-10-03');
+  });
+  it('iki aşamalı akış: tahsilat olmadan ödeme işaretlenmez, geri alınca tarih silinir', () => {
+    const simdi = new Date('2026-10-02T09:00:00Z');
+    const mevcut = tamKayit(hesapla(1000000, ORAN));
+    const k = (veri, m = mevcut) =>
+      isKaydiYazmaKarari({ tur: 'update', mevcut: m, veri, oranKaydi: ORAN, simdi });
+    expect(k({ odeme: 'odendi' }).hata).toMatch(/tahsilat yapıldıktan sonra/);
+
+    const v1 = { tahsilat: 'edildi', tahsilTarihi: '2026-09-15' };
+    expect(k(v1).izin).toBe(true);
+    expect(v1.tahsilTarihi).toBe('2026-09-15');
+    const m1 = { ...mevcut, ...v1 };
+
+    expect(k({ odeme: 'odendi', odemeTarihi: '2026-11-01' }, m1).hata).toMatch(/ileri/);
+    const v2 = { odeme: 'odendi' };
+    expect(k(v2, m1).izin).toBe(true);
+    expect(v2.odemeTarihi).toBe('2026-10-02');
+
+    const v3 = { odeme: 'odenmedi' };
+    expect(k(v3, { ...m1, ...v2 }).izin).toBe(true);
+    expect(v3.odemeTarihi).toBe('');
+    // Eski kayıt (ödendi ama tahsilat yok) yalnız not değişince kilitlenmez.
+    const eski = { ...mevcut, odeme: 'odendi', tahsilat: '' };
+    expect(k({ notlar: 'x' }, eski).izin).toBe(true);
   });
   it('yalnız ödeme durumu değişince tutarlara dokunmaz (oran sonradan değişmiş olsa bile)', () => {
     const mevcut = tamKayit(hesapla(1000000, ORAN));
     const yeniOran = { ...ORAN, ttoPayi: 30 };
-    const veri = { odeme: 'odendi', kdvKurus: 5, ttoPayiKurus: 5 };
+    const veri = { tahsilat: 'edildi', odeme: 'odendi', kdvKurus: 5, ttoPayiKurus: 5 };
     const r = isKaydiYazmaKarari({ tur: 'update', mevcut, veri, oranKaydi: yeniOran });
     expect(r.izin).toBe(true);
     expect('kdvKurus' in veri).toBe(false);

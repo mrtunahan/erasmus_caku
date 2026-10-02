@@ -6,9 +6,10 @@
  *   doğrulanmış) AYNEN korunuyor. "Diğer Fon & Harçlar" bunun üstüne
  *   eklenen opsiyonel, ayrı bir 6. kesinti (bkz. final_net_payable).
  * - Sözleşme dosyası yükleme bu modülde YOK — sonraki bir işe ertelendi.
- * - "İki aşamalı ödeme akışı": 1. aşama (Firma → TTO) YENİ alan
- *   (firm_collection_status). 2. aşama (TTO → Akademisyen) zaten var olan
- *   payment_status alanı ile temsil ediliyor — ayrı bir alan icat edilmedi.
+ * - "İki aşamalı ödeme akışı" (Firma → TTO tahsilatı, TTO → akademisyen
+ *   ödemesi) bu formda DEĞİL: İş Kayıtları listesinde kayda tıklayınca
+ *   açılan panelde tarihleriyle görülür ve işaretlenir. Yeni kayıt
+ *   "Tahsil Edilmedi / Ödenmedi" olarak açılır.
  * - TTO payı / stopaj oranlarının "override" edilmesi, tasarımdaki ayrı
  *   checkbox'lar yerine formun zaten var olan tek global
  *   is_manually_adjusted mekanizmasıyla yapılıyor (B-8 kararıyla tutarlı).
@@ -31,8 +32,6 @@ import {
   DocumentIcon,
   CalculatorIcon,
   ReceiptIcon,
-  FlowIcon,
-  InfoIcon,
   BankIcon,
   CopyIcon,
   RestartIcon,
@@ -68,9 +67,6 @@ const EMPTY_FORM = {
   amount_after_tto_share: '',
   amount_after_withholding: '',
   other_funds: '0',
-  firm_collection_status: 'Tahsil Edildi',
-  payment_status: 'Ödenmedi',
-  paid_date: '',
   iban_snapshot: '',
   notes: '',
   is_manually_adjusted: false,
@@ -142,9 +138,6 @@ export default function RecordForm({ showToast }) {
           amount_after_tto_share: d.amount_after_tto_share ?? '',
           amount_after_withholding: d.amount_after_withholding ?? '',
           other_funds: d.other_funds ?? '0',
-          firm_collection_status: d.firm_collection_status ?? 'Tahsil Edildi',
-          payment_status: d.payment_status,
-          paid_date: d.paid_date ?? '',
           iban_snapshot: d.iban_snapshot ?? '',
           notes: d.notes ?? '',
           is_manually_adjusted: d.is_manually_adjusted,
@@ -268,9 +261,9 @@ export default function RecordForm({ showToast }) {
       amount_after_tto_share: form.amount_after_tto_share || '0',
       amount_after_withholding: form.amount_after_withholding || '0',
       other_funds: form.other_funds || '0',
-      firm_collection_status: form.firm_collection_status || null,
-      payment_status: form.payment_status,
-      paid_date: form.paid_date || null,
+      // Tahsilat ve ödeme aşamaları İş Kayıtları listesinden işaretlenir;
+      // düzenlemede bu alanlar gönderilmez (işaretlenmiş aşama bozulmasın).
+      ...(isEdit ? {} : { firm_collection_status: 'Tahsil Edilmedi', payment_status: 'Ödenmedi' }),
       iban_snapshot: form.iban_snapshot || null,
       notes: form.notes || null,
       is_manually_adjusted: form.is_manually_adjusted,
@@ -736,80 +729,6 @@ export default function RecordForm({ showToast }) {
               </div>
             </div>
 
-            {/* İki Aşamalı Ödeme Akışı */}
-            <div className="flex flex-col gap-3 pt-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-on-surface flex items-center gap-1.5">
-                  <FlowIcon className="w-4 h-4 text-primary" />
-                  Süreç / İki Aşamalı Ödeme Akışı
-                </span>
-                <span className="text-[10px] text-on-surface-variant">2 Aşamalı Süreç</span>
-              </div>
-
-              <div className={`flex flex-col gap-2.5 p-3 rounded-xl bg-surface ${INSET_SM}`}>
-                <div className="flex items-center justify-between text-xs font-medium">
-                  <span className="text-on-surface font-semibold flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                    1. Aşama: Firma → TTO Tahsilatı
-                  </span>
-                  <span className="text-[10px] font-mono text-primary px-1.5 py-0.5 rounded bg-primary/10">
-                    Ön Koşul
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Tahsil Edildi', 'Tahsil Edilmedi'].map((opt) => (
-                    <label
-                      key={opt}
-                      className={`relative flex items-center gap-2 p-2.5 rounded-xl bg-surface cursor-pointer transition-all ${
-                        form.firm_collection_status === opt ? INSET_SM : RAISED
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="firmCollectionStatus"
-                        className="text-primary focus:ring-0"
-                        checked={form.firm_collection_status === opt}
-                        onChange={() => setForm((f) => ({ ...f, firm_collection_status: opt }))}
-                      />
-                      <span className="text-xs font-medium text-on-surface">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className={`flex flex-col gap-2.5 p-3 rounded-xl bg-surface ${INSET_SM}`}>
-                <div className="flex items-center justify-between text-xs font-medium">
-                  <span className="text-on-surface font-semibold flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-secondary-fixed-dim" />
-                    2. Aşama: TTO → Akademisyen Hakediş Ödemesi
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Ödendi', 'Ödenmedi'].map((opt) => (
-                    <label
-                      key={opt}
-                      className={`relative flex items-center gap-2 p-2.5 rounded-xl bg-surface cursor-pointer transition-all ${
-                        form.payment_status === opt ? INSET_SM : RAISED
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="academicPaymentStatus"
-                        className="text-primary focus:ring-0"
-                        checked={form.payment_status === opt}
-                        onChange={() => setForm((f) => ({ ...f, payment_status: opt }))}
-                      />
-                      <span className="text-xs font-medium text-on-surface">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-on-surface-variant">
-                  <InfoIcon className="text-primary w-[13px] h-[13px]" />
-                  <span>Akademisyene ödeme, firmadan tahsilat yapıldıktan sonra tamamlanır.</span>
-                </div>
-              </div>
-            </div>
-
             {/* IBAN */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
@@ -843,46 +762,6 @@ export default function RecordForm({ showToast }) {
                     <CopyIcon className="w-[18px] h-[18px]" />
                   </button>
                 )}
-              </div>
-            </div>
-
-            {/* Ödeme Tarihi / IBAN Snapshot / Notlar */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label
-                  className="text-xs font-medium text-on-surface-variant"
-                  htmlFor="form-paid-date"
-                >
-                  Ödeme Tarihi
-                </label>
-                <div className={`flex items-center px-3 py-2.5 rounded-xl bg-surface ${INSET}`}>
-                  <input
-                    id="form-paid-date"
-                    type="date"
-                    value={form.paid_date}
-                    onChange={(e) => setForm((f) => ({ ...f, paid_date: e.target.value }))}
-                    className="w-full bg-transparent text-xs text-on-surface focus:outline-none font-medium"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label
-                  className="text-xs font-medium text-on-surface-variant"
-                  htmlFor="form-payment-status-select"
-                >
-                  Ödeme Durumu (2. Aşama)
-                </label>
-                <div className={`flex items-center px-3 py-2.5 rounded-xl bg-surface ${INSET}`}>
-                  <select
-                    id="form-payment-status-select"
-                    value={form.payment_status}
-                    onChange={(e) => setForm((f) => ({ ...f, payment_status: e.target.value }))}
-                    className="w-full bg-transparent text-xs text-on-surface focus:outline-none font-medium"
-                  >
-                    <option value="Ödenmedi">Ödenmedi</option>
-                    <option value="Ödendi">Ödendi</option>
-                  </select>
-                </div>
               </div>
             </div>
 
