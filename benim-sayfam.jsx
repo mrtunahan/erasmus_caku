@@ -647,9 +647,19 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     if (!isStudent || !currentUser?.studentNumber) return;
     let canli = true;
     (async () => {
-      const [otr, kyt, ayr, prog, bol, rnd] = await Promise.all([
-        window.apiRead('yoklama_oturumlari').catch(() => []),
-        window.apiRead('yoklama_kayitlari').catch(() => []),
+      // ⚠ Yoklama verisi genel okuma ucundan DEĞİL: o uç bütün oturumları
+      // (tavan 20.000) getiriyordu; dönemler biriktikçe liste kesilir ve
+      // devamsızlık yanlış hesaplanırdı. Bu uç yalnız öğrencinin derslerinin
+      // oturumlarını ve kendi kayıtlarını döndürür.
+      const yv = await fetch('/api/yoklama/ogrenci-veri', {
+        credentials: 'include',
+        headers: window.yoklamaBasliklari ? window.yoklamaBasliklari() : {},
+      })
+        .then((r) => (r.ok ? r.json() : { oturumlar: [], kayitlar: [] }))
+        .catch(() => ({ oturumlar: [], kayitlar: [] }));
+      const otr = yv.oturumlar || [];
+      const kyt = yv.kayitlar || [];
+      const [ayr, prog, bol, rnd] = await Promise.all([
         window.apiRead('yoklama_ayarlari').catch(() => []),
         window.apiRead('course_schedules').catch(() => []),
         window.apiRead('departments').catch(() => []),
@@ -831,11 +841,16 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
       const oturumlar = P.parcaKayitlari
         ? P.parcaKayitlari(yoklamaVerisi.oturumlar, x.dersId, x.parca)
         : yoklamaVerisi.oturumlar.filter((o) => metin(o.dersId) === x.dersId);
-      const acilan = oturumlar.filter((o) => !o.acik).length;
       const kayitlar = P.parcaKayitlari
         ? P.parcaKayitlari(yoklamaVerisi.kayitlar, x.dersId, x.parca)
         : yoklamaVerisi.kayitlar.filter((k) => metin(k.dersId) === x.dersId);
-      const katildigi = kayitlar.filter((k) => k.durum === 'var' || k.durum === 'izinli').length;
+      // Ortak sayım kuralı: yalnız KAPANMIŞ oturumlar, katılım o oturumlara
+      // bağlı ve oturum başına bir kez (lib/yoklama.js → katilimSayimi).
+      // Eskiden ders sırasındaki okutma "katıldı"ya eklenip oturum
+      // "açılan"a eklenmediği için devamsızlık bir eksik görünüyordu.
+      const sayim = Y.katilimSayimi(oturumlar, kayitlar);
+      const acilan = sayim.acilan;
+      const katildigi = sayim.katilim.get(metin(currentUser.studentNumber)) || 0;
       const dersSaati = P.parcaSaati
         ? P.parcaSaati(c, x.parca, ayar)
         : Number(ayar.dersSaati) || Number(c.saat) || 1;
@@ -857,7 +872,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         }),
       };
     });
-  }, [myCourseDetails, yoklamaVerisi]);
+  }, [myCourseDetails, yoklamaVerisi, currentUser]);
 
   // Düğmelerin üstünde yazacak sayılar — panel açılmadan da durum görünsün.
   const yoklamaRozeti = useMemo(

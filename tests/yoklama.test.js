@@ -467,3 +467,26 @@ describe('kısa kod', () => {
     expect(kisaKodNormalle('yk-1.56666.9f3a')).toBe('');
   });
 });
+
+describe('katilimSayimi', () => {
+  it('yalnız kapanmış oturumlar ve onlara bağlı kayıtlar sayılır', async () => {
+    const { katilimSayimi } = await import('../lib/yoklama.js');
+    const oturumlar = [
+      { id: 'o1', acik: false },
+      { id: 'o2', acik: false },
+      { id: 'o3', acik: true },
+    ];
+    const kayitlar = [
+      { oturumId: 'o1', studentNumber: '1', durum: 'var' },
+      { oturumId: 'o2', studentNumber: '1', durum: 'izinli' },
+      { oturumId: 'o3', studentNumber: '1', durum: 'var' }, // açık oturum
+      { oturumId: 'o1', studentNumber: '1', durum: 'var' }, // tekrar
+      { oturumId: 'baska-hoca', studentNumber: '1', durum: 'var' },
+      { oturumId: 'o1', studentNumber: '2', durum: 'yok' },
+    ];
+    const r = katilimSayimi(oturumlar, kayitlar);
+    expect(r.acilan).toBe(2);
+    expect(r.katilim.get('1')).toBe(2);
+    expect(r.katilim.get('2')).toBeUndefined();
+  });
+});

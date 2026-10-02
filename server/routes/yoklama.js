@@ -24,16 +24,23 @@
 
 const express = require('express');
 const crypto = require('crypto');
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
 const { profilBul: _profilBul } = require('../lib/akademisyen-kimlik');
+const { kapsamNumaralari } = require('../lib/ogrenci-baglanti');
 
 // Kural dosyası ESM; Node 22 tür algılamasıyla dinamik import sorunsuz.
 let kuralSozu = null;
 function kural() {
   if (!kuralSozu) kuralSozu = import('../../lib/yoklama.js');
   return kuralSozu;
+}
+
+let egitmenKuraliSozu = null;
+function egitmenKurali() {
+  if (!egitmenKuraliSozu) egitmenKuraliSozu = import('../../lib/ders-egitmenleri.js');
+  return egitmenKuraliSozu;
 }
 
 let cihazKuraliSozu = null;
@@ -57,9 +64,15 @@ const router = express.Router();
 // aynı hocanın arka arkaya iki ders yapması için pay. Kötüye kullanımı
 // engellemeye yeter; meşru dersi kesmez.
 const OTURUM_LISTE_ARALIGI_SN = 3;
+//
+// ⚠ SINIR KULLANICI BAŞINADIR, IP BAŞINA DEĞİL. Kampüs ağı dışarıya tek
+// adresten çıkıyor; IP başına sınırda aynı anda yoklama alan iki hoca
+// birbirinin hakkını tüketir, ikincisinin listesi dersin ortasında donardı.
 const oturumListeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: Math.ceil(((15 * 60) / OTURUM_LISTE_ARALIGI_SN) * 1.5),
+  keyGenerator: (req) =>
+    req.user && req.user.identifier ? 'k:' + String(req.user.identifier) : ipKeyGenerator(req.ip),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Canlı liste çok sık yenilendi. Birkaç dakika sonra tekrar deneyin.' },
@@ -78,6 +91,15 @@ function donemAnahtari(d) {
 }
 
 const metin = (v) => String(v == null ? '' : v).trim();
+
+/**
+ * Bugünün tarihi TÜRKİYE SAATİYLE (YYYY-AA-GG).
+ * ⚠ toISOString() UTC verir: gece 00:00–03:00 arasında açılan yoklama bir
+ * önceki güne yazılır, haftası da kayardı.
+ */
+function bugunTr(t) {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Istanbul' }).format(t || new Date());
+}
 
 /** Akademisyen adı karşılaştırması — unvan ve Türkçe büyük/küçük farkı ayıklanır. */
 function adAnahtari(ad) {
@@ -150,14 +172,22 @@ router.post('/oturum', requireAuth, async (req, res) => {
     // ── Hoca yalnız KENDİ dersinin yoklamasını açabilir ──
     // İstemci ders listesini zaten süzüyor; ama kapı burada. Ders kaydındaki
     // eğitmen adı istekteki kimlikle eşleşmiyorsa oturum açılmaz.
+    // ⚠ Hoca alanı `professors` (dizi) / `professor` (metin) — istemcideki
+    // dersEgitmeniMi ile AYNI kural (lib/ders-egitmenleri.js). Eskiden yalnız
+    // `instructor` alanına bakılıyordu; gerçek kayıtlarda bu alan olmadığı
+    // için kontrol hiç işlemiyor, herhangi bir hoca herhangi bir dersin
+    // yoklamasını açabiliyordu.
     const ders = await db
       .collection('sinav_dersler')
       .findOne({ $or: [{ id: dersId }, { _docId: dersId }] });
     if (ders && user.role !== 'admin') {
-      const egitmenler = []
-        .concat(ders.instructor || [], ders.instructors || [], ders.egitmenler || [])
-        .filter(Boolean);
-      const benim = egitmenler.some((e) => adAnahtari(e) === adAnahtari(user.identifier));
+      const E = await egitmenKurali();
+      const egitmenler = E.dersEgitmenleri(ders).concat(
+        E.egitmenleriCoz(
+          [].concat(ders.instructor || [], ders.instructors || [], ders.egitmenler || [])
+        )
+      );
+      const benim = egitmenler.some((e) => E.ayniEgitmen(e, user.identifier));
       if (egitmenler.length > 0 && !benim) {
         return res.status(403).json({ error: 'Bu ders size tanımlı değil.' });
       }
@@ -201,7 +231,7 @@ router.post('/oturum', requireAuth, async (req, res) => {
       dersSaati: Number(g.dersSaati) > 0 ? Number(g.dersSaati) : 1,
       akademisyen: metin(user.identifier),
       departmentId: metin(g.departmentId || (ders && ders.departmentId)),
-      tarih: new Date().toISOString().slice(0, 10),
+      tarih: bugunTr(),
       hafta,
       acik: true,
       baslangic: new Date().toISOString(),
@@ -535,6 +565,56 @@ router.get('/oturum/:id', requireAuth, oturumListeLimiter, async (req, res) => {
   }
 });
 
+// ── Akademisyenin elle işaretleri (kapatırken ve sonradan düzeltirken) ──
+async function elleYaz(db, oturum, durumlar) {
+  // ── Akademisyenin elle işaretleri ──
+  // Telefonu bozuk / pili biten öğrenci yüzünden yoklama tutulamaz
+  // olmamalı; hoca "var" diyebilir. Kayıt `elle: true` ile işaretlenir ki
+  // sonradan hangi yoklamanın elle girildiği görülebilsin.
+  const elle = durumlar && typeof durumlar === 'object' ? durumlar : {};
+  const gecerli = new Set(['var', 'yok', 'izinli']);
+  // ⚠ TEK TEK YAZILMIYOR. Her öğrenci için ayrı `updateOne` demek, 100
+  // kişilik sınıfta 100 ardışık gidiş-dönüş demekti: yoklamayı bitirmek
+  // saniyeler sürüyor, hocanın ekranı o süre boyunca kilitli kalıyordu.
+  // Tek `bulkWrite` ile hepsi bir istekte gider.
+  const yazmalar = [];
+  const yeniKayitId = () => 'yk-k-' + crypto.randomBytes(8).toString('hex');
+  for (const [no, durum] of Object.entries(elle)) {
+    const ogrNo = metin(no);
+    const d = metin(durum);
+    if (!ogrNo || !gecerli.has(d)) continue;
+    yazmalar.push({
+      updateOne: {
+        filter: { oturumId: oturum.id, studentNumber: ogrNo },
+        update: {
+          $set: {
+            durum: d,
+            elle: true,
+            zaman: new Date().toISOString(),
+            dersId: metin(oturum.dersId),
+            dersKodu: metin(oturum.dersKodu),
+            dersAdi: metin(oturum.dersAdi),
+            dersSaati: Number(oturum.dersSaati) > 0 ? Number(oturum.dersSaati) : 1,
+            tarih: metin(oturum.tarih),
+            departmentId: metin(oturum.departmentId),
+          },
+          $setOnInsert: (() => {
+            const id = yeniKayitId();
+            return { id, _docId: id, parca: metin(oturum.parca) || 'teori' };
+          })(),
+        },
+        upsert: true,
+      },
+    });
+  }
+  if (yazmalar.length > 0) {
+    // ordered:false → bir satırdaki hata ötekileri engellemesin; yoklamanın
+    // geri kalanı yazılsın.
+    await db.collection(KAYITLAR).bulkWrite(yazmalar, { ordered: false });
+  }
+  return yazmalar.length;
+}
+
 // ══════════════════════════════════════════════════════════════
 // POST /api/yoklama/kapat — yoklamayı bitir ve listeyi yaz (akademisyen)
 // ══════════════════════════════════════════════════════════════
@@ -548,51 +628,7 @@ router.post('/kapat', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Bu yoklama size ait değil.' });
     }
 
-    // ── Akademisyenin elle işaretleri ──
-    // Telefonu bozuk / pili biten öğrenci yüzünden yoklama tutulamaz
-    // olmamalı; hoca "var" diyebilir. Kayıt `elle: true` ile işaretlenir ki
-    // sonradan hangi yoklamanın elle girildiği görülebilsin.
-    const elle = g.elleDurumlar && typeof g.elleDurumlar === 'object' ? g.elleDurumlar : {};
-    const gecerli = new Set(['var', 'yok', 'izinli']);
-    // ⚠ TEK TEK YAZILMIYOR. Her öğrenci için ayrı `updateOne` demek, 100
-    // kişilik sınıfta 100 ardışık gidiş-dönüş demekti: yoklamayı bitirmek
-    // saniyeler sürüyor, hocanın ekranı o süre boyunca kilitli kalıyordu.
-    // Tek `bulkWrite` ile hepsi bir istekte gider.
-    const yazmalar = [];
-    const yeniKayitId = () => 'yk-k-' + crypto.randomBytes(8).toString('hex');
-    for (const [no, durum] of Object.entries(elle)) {
-      const ogrNo = metin(no);
-      const d = metin(durum);
-      if (!ogrNo || !gecerli.has(d)) continue;
-      yazmalar.push({
-        updateOne: {
-          filter: { oturumId: oturum.id, studentNumber: ogrNo },
-          update: {
-            $set: {
-              durum: d,
-              elle: true,
-              zaman: new Date().toISOString(),
-              dersId: metin(oturum.dersId),
-              dersKodu: metin(oturum.dersKodu),
-              dersAdi: metin(oturum.dersAdi),
-              dersSaati: Number(oturum.dersSaati) > 0 ? Number(oturum.dersSaati) : 1,
-              tarih: metin(oturum.tarih),
-              departmentId: metin(oturum.departmentId),
-            },
-            $setOnInsert: (() => {
-              const id = yeniKayitId();
-              return { id, _docId: id, parca: metin(oturum.parca) || 'teori' };
-            })(),
-          },
-          upsert: true,
-        },
-      });
-    }
-    if (yazmalar.length > 0) {
-      // ordered:false → bir satırdaki hata ötekileri engellemesin; yoklamanın
-      // geri kalanı yazılsın.
-      await db.collection(KAYITLAR).bulkWrite(yazmalar, { ordered: false });
-    }
+    await elleYaz(db, oturum, g.elleDurumlar);
 
     await db
       .collection(OTURUMLAR)
@@ -629,6 +665,116 @@ router.post('/hafta', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('[yoklama]', e && e.message);
     return res.status(500).json({ error: 'Hafta kaydedilemedi.' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// POST /api/yoklama/duzelt — KAPANMIŞ yoklamayı sonradan düzelt (akademisyen)
+//
+// Telefonu çalışmayan, yanlışlıkla reddedilen ya da raporlu öğrenci için
+// yoklama kapandıktan sonra da "var / yok / izinli" yazılabilmeli. Eskiden
+// bunun tek yolu yoklama açıkken tam ekrandan işaretlemekti; kapanınca
+// düzeltilemiyordu. Kayıtlar `elle: true` ile işaretlenir.
+// ══════════════════════════════════════════════════════════════
+router.post('/duzelt', requireAuth, async (req, res) => {
+  try {
+    const db = await getDbSafe();
+    const g = req.body || {};
+    const oturum = await oturumBul(db, g.oturumId);
+    if (!oturum) return res.status(404).json({ error: 'Oturum bulunamadı.' });
+    if (!sahibiMi(oturum, req.user)) {
+      return res.status(403).json({ error: 'Bu yoklama size ait değil.' });
+    }
+    const sayi = await elleYaz(db, oturum, g.durumlar);
+    return res.json({ ok: true, yazilan: sayi });
+  } catch (e) {
+    console.error('[yoklama]', e && e.message);
+    return res.status(500).json({ error: 'Yoklama düzeltilemedi.' });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+// OKUMA UÇLARI — akademisyenin ve öğrencinin yoklama verisi
+//
+// ⚠ GENEL /api/db OKUMASI BÜTÜN KOLEKSİYONU GETİRİYORDU (tavan 20.000).
+// Bir iki dönemde oturum ve kayıt sayısı bu tavanı aşar; liste SESSİZCE
+// kesilir ve devamsızlık yanlış hesaplanırdı. Bu uçlar yalnız ilgili
+// oturumları ve kayıtları döndürür. Cihaz kimliği/izi hiç dönmez.
+// ══════════════════════════════════════════════════════════════
+const KAYIT_PROJEKSIYONU = { _id: 0, cihazId: 0, cihazIz: 0 };
+
+// Akademisyen: kendi açtığı oturumlar + o oturumların kayıtları.
+router.get('/akademisyen-veri', requireAuth, async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || (user.role !== 'professor' && user.role !== 'admin')) {
+      return res.status(403).json({ error: 'Yalnız akademisyen.' });
+    }
+    const db = await getDbSafe();
+    const oturumlar = await db
+      .collection(OTURUMLAR)
+      .find({ akademisyen: metin(user.identifier) })
+      .project({ _id: 0, sirr: 0 })
+      .toArray();
+    const ids = oturumlar.map((o) => o.id).filter(Boolean);
+    const kayitlar = ids.length
+      ? await db
+          .collection(KAYITLAR)
+          .find({ oturumId: { $in: ids } })
+          .project(KAYIT_PROJEKSIYONU)
+          .toArray()
+      : [];
+    return res.json({ oturumlar, kayitlar });
+  } catch (e) {
+    console.error('[yoklama]', e && e.message);
+    return res.status(500).json({ error: 'Yoklama verisi okunamadı.' });
+  }
+});
+
+// Öğrenci: aldığı derslerin oturumları + KENDİ kayıtları (ÇAP'ta bağlı
+// numaralar dahil — ikinci programın kayıtları ayrı numaranın altındadır).
+router.get('/ogrenci-veri', requireAuth, async (req, res) => {
+  try {
+    const user = req.user;
+    const ogrNo = metin(user && (user.studentNumber || user.identifier));
+    if (!user || user.role !== 'student' || !ogrNo) {
+      return res.status(403).json({ error: 'Yalnız öğrenci.' });
+    }
+    const db = await getDbSafe();
+    let kapsam = [ogrNo];
+    try {
+      const bagli = await db
+        .collection('students')
+        .find(
+          { bagliOgrenciNolar: { $exists: true, $ne: [] } },
+          { projection: { studentNumber: 1, bagliOgrenciNolar: 1 } }
+        )
+        .toArray();
+      kapsam = kapsamNumaralari(bagli, ogrNo);
+    } catch (_e) {
+      kapsam = [ogrNo];
+    }
+    const dersKumesi = new Set();
+    for (const no of kapsam) {
+      (await ogrenciVeDersleri(db, no)).dersleri.forEach((d) => dersKumesi.add(d));
+    }
+    const dersleri = [...dersKumesi];
+    const oturumlar = dersleri.length
+      ? await db
+          .collection(OTURUMLAR)
+          .find({ dersId: { $in: dersleri } })
+          .project({ _id: 0, sirr: 0 })
+          .toArray()
+      : [];
+    const kayitlar = await db
+      .collection(KAYITLAR)
+      .find({ studentNumber: { $in: kapsam } })
+      .project(KAYIT_PROJEKSIYONU)
+      .toArray();
+    return res.json({ oturumlar, kayitlar });
+  } catch (e) {
+    console.error('[yoklama]', e && e.message);
+    return res.status(500).json({ error: 'Yoklama verisi okunamadı.' });
   }
 });
 

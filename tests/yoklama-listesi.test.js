@@ -546,3 +546,27 @@ describe('onerilenHafta', () => {
     ).toBe(14);
   });
 });
+
+describe('listeSatirlari — açık oturum ve yabancı kayıt', () => {
+  it('açık oturumun kaydı sayılmaz, hücresi boş; listede olmayan oturum sayılmaz', () => {
+    const satirlar = listeSatirlari({
+      ogrenciler: [{ studentNumber: '1', firstName: 'A', lastName: 'B' }],
+      oturumlar: [
+        { id: 'k1', tarih: '2026-09-22', hafta: 1, acik: false },
+        { id: 'a2', tarih: '2026-09-29', hafta: 2, acik: true },
+      ],
+      kayitlar: [
+        { oturumId: 'k1', studentNumber: '1', durum: 'var' },
+        { oturumId: 'a2', studentNumber: '1', durum: 'var' },
+        { oturumId: 'baska', studentNumber: '1', durum: 'var' },
+      ],
+      haftaSayisi: 14,
+      limitSaat: 10,
+      dersSaati: 2,
+    });
+    expect(satirlar[0].katildigiHafta).toBe(1);
+    expect(satirlar[0].devamsizlikSaati).toBe(0);
+    expect(satirlar[0].hafta1).toBe('✓');
+    expect(satirlar[0].hafta2).toBe('');
+  });
+});
