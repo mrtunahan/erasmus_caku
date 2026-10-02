@@ -122,8 +122,8 @@ router.post(
 
     // Staj modülü yalnızca PDF kabul eder. Hatalı dosyayı diskte bırakmamak için
     // reddedilen dosyayı sileriz.
-    // TTO süreç belgeleri de (imzalı başvuru, proforma, karar, görevlendirme,
-    // fatura) yalnız PDF'tir: iki taraf da tarayıcıda açıp indirebilmeli.
+    // TTO süreç belgeleri de (imzalı başvuru, proforma, fatura) yalnız
+    // PDF'tir: iki taraf da tarayıcıda açıp indirebilmeli.
     // ⚠ Uzantı .pdf OLMALI (mimetype yetmez): talep kaydı belgeyi adresinin
     // .pdf ile bitmesinden tanır (lib/tto-talep.js → ekBelgeleriHazirla).
     const ttoBelgesi = folder === 'tto_belgeler';

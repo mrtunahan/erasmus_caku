@@ -889,6 +889,14 @@ async function ttoOdemeYazmaKarari(db, op) {
   if (birlesik.projeId && !(await findDocByAnyId(db, 'tto_projeler', String(birlesik.projeId)))) {
     return { izin: false, hata: 'Seçilen proje bulunamadı.' };
   }
+  // Bir TTO talebinden yalnız BİR iş kaydı oluşur (otomatik eşleme iki
+  // yöneticide aynı anda çalışsa da çift kayıt olmasın).
+  if (birlesik.talepId && (!mevcut || String(mevcut.talepId || '') !== String(birlesik.talepId))) {
+    const ayni = await kayitlar.findOne({ talepId: String(birlesik.talepId) });
+    if (ayni && kimlik(ayni) !== mevcutId) {
+      return { izin: false, hata: 'Bu TTO talebi için iş kaydı zaten var.' };
+    }
+  }
 
   // Sıra no yıl içinde max+1; yıl değişirse yeni yılda yeniden verilir.
   // Eşzamanlı iki ekleme yil+siraNo benzersiz indeksinde durur (409).

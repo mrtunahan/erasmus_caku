@@ -12,7 +12,15 @@ import { Link } from '../router.jsx';
 import { apiFetch, ApiError } from '../api.js';
 import AppShell from '../components/AppShell';
 import QuickAddFirmModal from '../components/QuickAddFirmModal';
-import { PlusCircleIcon, SearchIcon, ApartmentIcon, BankIcon, MailIcon } from '../components/icons';
+import KayitSilModal from '../components/KayitSilModal';
+import {
+  PlusCircleIcon,
+  SearchIcon,
+  ApartmentIcon,
+  BankIcon,
+  MailIcon,
+  TrashIcon,
+} from '../components/icons';
 
 const CARD =
   'rounded-xl p-5 bg-surface shadow-[6px_6px_12px_rgba(0,0,0,0.08),-6px_-6px_12px_rgba(255,255,255,0.6)]';
@@ -25,6 +33,7 @@ export default function FirmsList({ showToast }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [silHedef, setSilHedef] = useState(null);
 
   function load() {
     setLoading(true);
@@ -133,6 +142,19 @@ export default function FirmsList({ showToast }) {
                     </div>
                   )}
                 </div>
+                <button
+                  type="button"
+                  title="Sil"
+                  data-sil-dugmesi
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSilHedef({ id: f.id, ad: f.name });
+                  }}
+                  className={`ml-auto w-8 h-8 shrink-0 rounded-lg bg-surface flex items-center justify-center text-on-surface-variant hover:text-error ${RAISED} transition-all`}
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
               </div>
               <div className="flex flex-col gap-1.5 pt-3 border-t border-surface-variant/40 text-[11px] text-on-surface-variant">
                 <span className="flex items-center gap-1.5">
@@ -154,6 +176,16 @@ export default function FirmsList({ showToast }) {
         firm={null}
         onClose={() => setCreateOpen(false)}
         onSave={handleCreate}
+      />
+      <KayitSilModal
+        kaynak="firms"
+        hedef={silHedef}
+        onClose={() => setSilHedef(null)}
+        onDeleted={() => {
+          setSilHedef(null);
+          load();
+        }}
+        showToast={showToast}
       />
     </div>
   );

@@ -9,10 +9,10 @@
 //   • Ekran tam sayfa açılır (orijinaldeki gibi); "Offline Asistan'a dön"
 //     düğmesi ya da "İşbirliği Talepleri" bağlantısıyla çıkılır.
 // ══════════════════════════════════════════════════════════════
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './tto.css';
 import { BellekYonlendirici, Rotalar } from './router.jsx';
-import { oturumAyarla } from './api.js';
+import { oturumAyarla, offlineEsle } from './api.js';
 import { KabukBaglami } from './kabuk.js';
 import { useToast, ToastContainer } from './components/Toast.jsx';
 import RecordsList from './pages/RecordsList.jsx';
@@ -35,6 +35,32 @@ export default function TtoOtomasyon({ currentUser, onDon, onTalepler, bekleyenT
     },
     []
   );
+
+  // İşbirliği taleplerindeki akademisyen, firma ve iş bilgilerini aktar.
+  // Çizim sırasında başlatılır: alt sayfaların ilk okumaları (onların
+  // efektleri bu bileşeninkinden ÖNCE çalışır) aktarımı beklesin.
+  const [esleme] = useState(() => offlineEsle());
+  useEffect(() => {
+    esleme.then((s) => {
+      const parca = [
+        s.akademisyen && s.akademisyen + ' akademisyen',
+        s.firma && s.firma + ' firma',
+        s.kayit && s.kayit + ' iş kaydı',
+      ].filter(Boolean);
+      if (parca.length > 0) {
+        showToast(`İşbirliği taleplerinden aktarıldı: ${parca.join(', ')}.`, 'success');
+      }
+      if (s.atlanan.length > 0) {
+        showToast(
+          'İş kaydı açılamayan talep: ' +
+            s.atlanan.map((a) => (a.talepNo ? a.talepNo + ' — ' : '') + a.sebep).join(' · '),
+          'info',
+          8000
+        );
+      }
+      if (s.hatalar.length > 0) showToast('Aktarım hatası: ' + s.hatalar[0], 'error');
+    });
+  }, []);
 
   // Arkadaki Offline Asistan sayfası kaymasın.
   useEffect(() => {

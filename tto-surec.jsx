@@ -6,12 +6,13 @@
 //      PDF'i yükleyerek TTO'ya gönderir.
 //   2. TTO inceler; iade eder, reddeder ya da talep no ve TTO ONAYLI
 //      (imzalı) başvuru formunu yükleyerek onaylar.
-//   3. TTO proformayı hazırlar, imzalar, kaşeler ve yükler → akademisyene gider.
+//   3. TTO proformayı hazırlar, imzalar, kaşeler ve yükler; proformanın
+//      kesildiği firmayı ve tutarı girer → akademisyene gider.
 //   4. Akademisyen proformayı firmaya onaylatır, imzalatıp kaşeletir ve TTO'ya
 //      geri gönderir.
 //   5. TTO Genel Sekreterliğe gönderir.
-//   6. Yönetim kararı çıkınca TTO kararı ve görevlendirme yazısını yükler →
-//      akademisyene iletilir.
+//   6. Yönetim kurulu kararı çıkınca TTO karar tarihini girip onaylar (belge
+//      yüklenmez) → akademisyene bildirilir.
 //   7. TTO faturayı keser ve yükler → süreç tamamlanır.
 //
 // Her belge PDF'tir ve iki taraf da hepsini görür, açar, indirir.
@@ -32,7 +33,9 @@ import {
   ibanGoster,
   ibanNormalle,
   odemeBilgisiHatalari,
+  TTO_FIRMA_ALANLARI,
 } from './lib/tto-talep.js';
+import { kurusTl } from './lib/tto-odeme.js';
 import {
   T,
   kart,
@@ -48,7 +51,14 @@ import {
   DurumCipi,
 } from './tto-stil.jsx';
 
-const { useState } = React;
+const { useState, useEffect } = React;
+
+// Yerel bugün (YYYY-MM-DD); toISOString UTC'dir, gece yarısından sonra bir gün geri kalır.
+function bugunIso() {
+  const d = new Date();
+  const iki = (x) => String(x).padStart(2, '0');
+  return d.getFullYear() + '-' + iki(d.getMonth() + 1) + '-' + iki(d.getDate());
+}
 
 // ── PDF çıktısı ──
 // pdf-lib ve yazı tipi yalnız indirme anında yüklenir (ana pakete girmez).
@@ -722,8 +732,10 @@ const AKADEMISYEN_METNI = {
   proforma_dondu: () =>
     'Firma onaylı proforma TTO’da. TTO talebinizi yönetim kararı için Genel Sekreterliğe gönderecek.',
   genel_sekreterlikte: () => 'Talebiniz yönetim kararı için Genel Sekreterlikte.',
-  gorevlendirildi: () =>
-    'Yönetim kararı çıktı. Görevlendirme yazınız ve karar belgesi aşağıda. Fatura kesildiğinde süreç tamamlanır.',
+  gorevlendirildi: (t) =>
+    'Yönetim kurulu kararı olumlu çıktı' +
+    (t.yonetimKarariTarihi ? ' (' + tarihTr(t.yonetimKarariTarihi) + ')' : '') +
+    '. Fatura kesildiğinde süreç tamamlanır.',
   tamamlandi: (t) =>
     'Fatura kesildi' + (t.faturaNo ? ' (No: ' + t.faturaNo + ')' : '') + '. Süreç tamamlandı.',
   reddedildi: () => 'Talebiniz reddedildi.',
@@ -913,7 +925,23 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
     alanKisi: metin(t.alanKisi) || kimlik,
     yoneticiNotu: metin(t.yoneticiNotu),
     faturaNo: metin(t.faturaNo),
+    yonetimKarariTarihi: metin(t.yonetimKarariTarihi) || bugunIso(),
+    firma: { ad: '', vergiDairesi: '', vergiNo: '', eposta: '', ...(t.firma || {}) },
+    proformaTutari: Number(t.proformaKurus) > 0 ? kurusTl(t.proformaKurus) : '',
   }));
+  const [kararTiki, setKararTiki] = useState(false);
+  // Proforma adımında firma adı önerileri (TTO Otomasyonu'ndaki firmalar).
+  const [firmalar, setFirmalar] = useState([]);
+  useEffect(() => {
+    if (d !== 'onaylandi' || !window.apiRead) return;
+    let iptal = false;
+    Promise.resolve(window.apiRead('tto_firmalar'))
+      .then((l) => !iptal && setFirmalar(Array.isArray(l) ? l : []))
+      .catch(() => {});
+    return () => {
+      iptal = true;
+    };
+  }, [d]);
   const [belge, setBelge] = useState({}); // tür → {tur,url,ad}
   const [mesgul, setMesgul] = useState('');
   const [mesaj, setMesaj] = useState(null);
@@ -968,17 +996,33 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
     }
   };
 
-  const ttoAlanlari = { ...alan };
+  // İlk aşamanın alanları (talep no, tarih, alan kişi, not). Firma/tutar ve
+  // karar tarihi yalnız kendi aşamalarında gönderilir.
+  const ttoAlanlari = {
+    talepNo: alan.talepNo,
+    talepTarihi: alan.talepTarihi,
+    alanKisi: alan.alanKisi,
+    yoneticiNotu: alan.yoneticiNotu,
+  };
   // Geçiş düğmesi (bileşen değil, düz işlev: her çizimde yeniden kurulmasın).
-  const dg = ({ yeni, tur = 'birincil', etiketi, onay, alanlar, belgeGerek = true }) => {
+  const dg = ({
+    yeni,
+    tur = 'birincil',
+    etiketi,
+    onay,
+    alanlar,
+    belgeGerek = true,
+    kosul = true,
+    kosulMetni = '',
+  }) => {
     const eks = belgeGerek && yeni ? eksik(yeni) : [];
-    const kapali = !!mesgul || eks.length > 0;
+    const kapali = !!mesgul || eks.length > 0 || !kosul;
     return (
       <button
         key={(yeni || 'kaydet') + etiketi}
         style={{ ...dugme(tur), ...(kapali ? pasif : {}) }}
         disabled={kapali}
-        title={eks.length ? 'Önce yükleyin: ' + eks.join(', ') : ''}
+        title={eks.length ? 'Önce yükleyin: ' + eks.join(', ') : !kosul ? kosulMetni : ''}
         onClick={() => gecis(yeni, onay, alanlar)}
       >
         {mesgul === (yeni || 'kaydet') ? 'Kaydediliyor…' : etiketi}
@@ -1086,13 +1130,66 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
     );
   } else if (d === 'onaylandi') {
     govde = (
-      <BelgeSecici
-        tur="proforma_tto"
-        zorunlu
-        deger={belge.proforma_tto}
-        onDegis={belgeAyarla('proforma_tto')}
-        aciklama="Hazırladığınız, imzalayıp kaşelediğiniz proforma. Akademisyen firmaya onaylatıp geri gönderecek."
-      />
+      <>
+        <div style={izgara} data-proforma-firma>
+          {TTO_FIRMA_ALANLARI.map((a) => (
+            <label key={a.id}>
+              <span style={etiket}>
+                {a.id === 'ad' ? 'Proformanın kesildiği firma' : a.label}
+                {a.zorunlu && ' *'}
+              </span>
+              <input
+                data-alan={'firma.' + a.id}
+                style={giris}
+                type={a.id === 'eposta' ? 'email' : 'text'}
+                list={a.id === 'ad' ? 'tto-firma-adlari' : undefined}
+                value={alan.firma[a.id] || ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setAlan((x) => {
+                    const firma = { ...x.firma, [a.id]: v };
+                    // Kayıtlı bir firma seçildiyse diğer alanları ondan doldur.
+                    const kayitli = a.id === 'ad' && firmalar.find((f) => metin(f.ad) === metin(v));
+                    if (kayitli) {
+                      ['vergiDairesi', 'vergiNo', 'eposta'].forEach((k) => {
+                        if (!metin(firma[k])) firma[k] = metin(kayitli[k]);
+                      });
+                    }
+                    return { ...x, firma };
+                  });
+                }}
+              />
+            </label>
+          ))}
+          <label>
+            <span style={etiket}>Proforma tutarı (KDV hariç, ₺) *</span>
+            <input
+              data-alan="proformaTutari"
+              style={giris}
+              inputMode="decimal"
+              placeholder="ör. 25.000,00"
+              value={alan.proformaTutari}
+              onChange={(e) => yazAlan('proformaTutari', e.target.value)}
+            />
+          </label>
+        </div>
+        <datalist id="tto-firma-adlari">
+          {firmalar.map((f) => (
+            <option key={f.id} value={f.ad} />
+          ))}
+        </datalist>
+        <div style={{ fontSize: 12, color: T.soluk, margin: '6px 0 12px' }}>
+          Firma ve tutar, yönetim kurulu kararı onaylanınca TTO Otomasyonu’na iş kaydı olarak
+          aktarılır.
+        </div>
+        <BelgeSecici
+          tur="proforma_tto"
+          zorunlu
+          deger={belge.proforma_tto}
+          onDegis={belgeAyarla('proforma_tto')}
+          aciklama="Hazırladığınız, imzalayıp kaşelediğiniz proforma. Akademisyen firmaya onaylatıp geri gönderecek."
+        />
+      </>
     );
     eylemler = (
       <>
@@ -1103,7 +1200,13 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
           onay: 'Onay geri alınıp talep yeniden incelemeye alınacak. Emin misiniz?',
           belgeGerek: false,
         })}
-        {dg({ yeni: 'proforma_gonderildi', etiketi: 'Proformayı akademisyene gönder' })}
+        {dg({
+          yeni: 'proforma_gonderildi',
+          etiketi: 'Proformayı akademisyene gönder',
+          alanlar: { firma: alan.firma, proformaTutari: alan.proformaTutari },
+          kosul: !!metin(alan.firma.ad) && !!metin(alan.proformaTutari),
+          kosulMetni: 'Önce firma adını ve proforma tutarını girin.',
+        })}
       </>
     );
   } else if (d === 'proforma_gonderildi') {
@@ -1116,14 +1219,6 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
         {bilgi(
           'Firma onaylı proforma ve ödeme bilgileri geldi. Uygunsa yönetim kararı için Genel Sekreterliğe gönderin; eksikse gerekçeyle akademisyene geri gönderin.'
         )}
-        <div style={{ marginTop: 12 }}>
-          <BelgeSecici
-            tur="ust_yazi"
-            deger={belge.ust_yazi}
-            onDegis={belgeAyarla('ust_yazi')}
-            aciklama="İsteğe bağlı: Genel Sekreterliğe gönderilen üst yazı."
-          />
-        </div>
         {not('Akademisyene not (proformayı geri gönderirken zorunlu)')}
       </>
     );
@@ -1148,27 +1243,47 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
     govde = (
       <>
         {bilgi(
-          'Yönetim kararı çıktığında kararı ve görevlendirme yazısını yükleyin; akademisyene iletilir.'
+          'Yönetim kurulu kararı çıktığında karar tarihini girip onaylayın; akademisyene bildirilir ve fatura aşamasına geçilir. Belge yüklenmez.'
         )}
         <div
           style={{
             ...izgara,
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gridTemplateColumns: 'minmax(180px, 240px) minmax(0, 1fr)',
+            alignItems: 'center',
             marginTop: 12,
           }}
         >
-          <BelgeSecici
-            tur="yonetim_karari"
-            zorunlu
-            deger={belge.yonetim_karari}
-            onDegis={belgeAyarla('yonetim_karari')}
-          />
-          <BelgeSecici
-            tur="gorevlendirme"
-            zorunlu
-            deger={belge.gorevlendirme}
-            onDegis={belgeAyarla('gorevlendirme')}
-          />
+          <label>
+            <span style={etiket}>Karar tarihi *</span>
+            <input
+              type="date"
+              data-alan="yonetimKarariTarihi"
+              style={giris}
+              max={bugunIso()}
+              value={alan.yonetimKarariTarihi}
+              onChange={(e) => yazAlan('yonetimKarariTarihi', e.target.value)}
+            />
+          </label>
+          <label
+            style={{
+              display: 'flex',
+              gap: 8,
+              alignItems: 'center',
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: T.metin,
+              cursor: 'pointer',
+              marginTop: 18,
+            }}
+          >
+            <input
+              type="checkbox"
+              data-alan="yonetimKarariOnay"
+              checked={kararTiki}
+              onChange={(e) => setKararTiki(e.target.checked)}
+            />
+            Yönetim kurulu kararı olumlu çıktı
+          </label>
         </div>
         {not('Akademisyene not (olumsuz kararda zorunlu)')}
       </>
@@ -1186,8 +1301,15 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
         {dg({
           yeni: 'gorevlendirildi',
           tur: 'basari',
-          etiketi: 'Görevlendirmeyi ilet',
-          alanlar: { yoneticiNotu: alan.yoneticiNotu },
+          etiketi: 'Kararı onayla ve bildir',
+          onay: 'Yönetim kurulu kararı onaylanıp akademisyene bildirilecek. Devam edilsin mi?',
+          alanlar: {
+            yoneticiNotu: alan.yoneticiNotu,
+            yonetimKarariTarihi: alan.yonetimKarariTarihi,
+          },
+          kosul: kararTiki && !!alan.yonetimKarariTarihi,
+          kosulMetni:
+            'Önce karar tarihini girip “Yönetim kurulu kararı olumlu çıktı” kutusunu işaretleyin.',
         })}
       </>
     );
@@ -1238,6 +1360,9 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
   const meta = [
     t.talepNo && 'Talep No: ' + t.talepNo,
     t.kararVeren && 'Karar: ' + t.kararVeren + ' · ' + tarihTr(t.kararTarihi),
+    t.firma && metin(t.firma.ad) && 'Firma: ' + t.firma.ad,
+    Number(t.proformaKurus) > 0 && 'Proforma: ₺' + kurusTl(t.proformaKurus),
+    t.yonetimKarariTarihi && 'Yönetim kurulu kararı: ' + tarihTr(t.yonetimKarariTarihi),
   ]
     .filter(Boolean)
     .join('  ·  ');

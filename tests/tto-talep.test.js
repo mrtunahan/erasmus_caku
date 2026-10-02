@@ -550,13 +550,52 @@ describe('TTO süreci uçtan uca (kural katmanı)', () => {
         durum: 'onaylandi',
         talepNo: '2026/30',
         alanKisi: 'Ayşe Yılmaz',
+        yonetimKarariTarihi: '2026-09-01',
+        firma: { ad: 'Erken' },
         ...belge('onayli_basvuru'),
       }).izin
     ).toBe(true);
-    expect(yaz(AYSE, { durum: 'proforma_gonderildi' }).hata).toMatch(
-      /Proforma \(TTO imzalı ve kaşeli\)/
+    // Aşamasından önce gelen karar tarihi ve firma yok sayılır.
+    expect(kayit.yonetimKarariTarihi).toBeUndefined();
+    expect(kayit.firma).toBeUndefined();
+    // Proformanın kesildiği firma ve tutar zorunlu (otomasyona aktarılır).
+    expect(yaz(AYSE, { durum: 'proforma_gonderildi', ...belge('proforma_tto') }).hata).toMatch(
+      /firmanın adını/
     );
-    expect(yaz(AYSE, { durum: 'proforma_gonderildi', ...belge('proforma_tto') }).izin).toBe(true);
+    const FIRMA = { ad: 'Örnek Makine A.Ş.', vergiNo: '1234567890', eposta: 'x' };
+    expect(
+      yaz(AYSE, { durum: 'proforma_gonderildi', firma: FIRMA, proformaTutari: '25.000,00' }).hata
+    ).toMatch(/E-posta/);
+    FIRMA.eposta = 'muhasebe@ornek.com.tr';
+    expect(
+      yaz(AYSE, { durum: 'proforma_gonderildi', firma: FIRMA, proformaTutari: 'abc' }).hata
+    ).toMatch(/Proforma tutarı/);
+    expect(yaz(AYSE, { durum: 'proforma_gonderildi', firma: FIRMA }).hata).toMatch(
+      /Proforma tutarını/
+    );
+    expect(
+      yaz(AYSE, { durum: 'proforma_gonderildi', firma: FIRMA, proformaTutari: '25.000,00' }).hata
+    ).toMatch(/Proforma \(TTO imzalı ve kaşeli\)/);
+    expect(
+      yaz(AYSE, {
+        durum: 'proforma_gonderildi',
+        firma: { ...FIRMA, fazla: 'x' },
+        proformaTutari: '25.000,00',
+        proformaKurus: 1,
+        ...belge('proforma_tto'),
+      }).izin
+    ).toBe(true);
+    expect(kayit.proformaKurus).toBe(2500000);
+    expect(kayit.firma).toEqual({
+      ad: 'Örnek Makine A.Ş.',
+      vergiDairesi: '',
+      vergiNo: '1234567890',
+      eposta: 'muhasebe@ornek.com.tr',
+    });
+    // Akademisyen firma/tutar yazamaz.
+    expect(yaz(ALI, { proformaKurus: 1, firma: { ad: 'Sahte' } }).izin).toBe(true);
+    expect(kayit.proformaKurus).toBe(2500000);
+    expect(kayit.firma.ad).toBe('Örnek Makine A.Ş.');
 
     // Ödeme bilgileri (adres, TC, IBAN) proformayla birlikte zorunlu.
     expect(yaz(ALI, { durum: 'proforma_dondu', ...belge('proforma_firma') }).hata).toMatch(
@@ -588,18 +627,25 @@ describe('TTO süreci uçtan uca (kural katmanı)', () => {
       yaz(ALI, { durum: 'proforma_dondu', odemeBilgileri: ODEME, ...belge('proforma_firma') }).izin
     ).toBe(true);
 
-    expect(yaz(AYSE, { durum: 'genel_sekreterlikte', ...belge('ust_yazi') }).izin).toBe(true);
-    const gorev = yaz(AYSE, { durum: 'gorevlendirildi', ...belge('yonetim_karari') });
-    expect(gorev.hata).toMatch(/Görevlendirme yazısı/);
+    // Üst yazı, karar ve görevlendirme belgeleri artık yüklenmez.
+    expect(yaz(AYSE, { durum: 'genel_sekreterlikte', ...belge('ust_yazi') }).hata).toMatch(
+      /artık yüklenmiyor/
+    );
+    expect(yaz(AYSE, { durum: 'genel_sekreterlikte' }).izin).toBe(true);
+    // Yönetim kurulu kararı: belge yok, karar tarihi zorunlu, ileri tarih olmaz.
+    expect(yaz(AYSE, { durum: 'gorevlendirildi' }).hata).toMatch(/karar tarihini/);
+    expect(yaz(AYSE, { durum: 'gorevlendirildi', yonetimKarariTarihi: '2026-10-05' }).hata).toMatch(
+      /ileri/
+    );
     expect(
       yaz(AYSE, {
         durum: 'gorevlendirildi',
-        ekBelgeler: [
-          { tur: 'yonetim_karari', url: PDF('karar.pdf') },
-          { tur: 'gorevlendirme', url: PDF('gorev.pdf') },
-        ],
+        yonetimKarariTarihi: '2026-10-01',
+        yonetimKarariOnaylayan: 'sahte',
       }).izin
     ).toBe(true);
+    expect(kayit.yonetimKarariTarihi).toBe('2026-10-01');
+    expect(kayit.yonetimKarariOnaylayan).toBe(AYSE);
     expect(yaz(AYSE, { durum: 'tamamlandi' }).hata).toMatch(/Fatura/);
     expect(yaz(AYSE, { durum: 'tamamlandi', faturaNo: 'F-12', ...belge('fatura') }).izin).toBe(
       true
@@ -612,9 +658,6 @@ describe('TTO süreci uçtan uca (kural katmanı)', () => {
       'proforma_tto',
       'proforma_firma',
       'proforma_firma',
-      'ust_yazi',
-      'yonetim_karari',
-      'gorevlendirme',
       'fatura',
     ]);
     expect(kayit.belgeler.find((b) => b.tur === 'fatura')).toMatchObject({

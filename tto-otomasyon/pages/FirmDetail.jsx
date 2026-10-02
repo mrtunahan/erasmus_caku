@@ -32,11 +32,14 @@ import { useParams, Link, useNavigate } from '../router.jsx';
 import { apiFetch, ApiError, disaAktar } from '../api.js';
 import { xlsxDosyaAdi } from '../../lib/xlsx-yaz.js';
 import AppShell from '../components/AppShell';
+import OdemeAkisi from '../components/OdemeAkisi';
 import QuickAddFirmModal from '../components/QuickAddFirmModal';
+import KayitSilModal from '../components/KayitSilModal';
 import {
   ChevronRightIcon,
   ReceiptIcon,
   EditIcon,
+  TrashIcon,
   PlusCircleIcon,
   ApartmentIcon,
   BankIcon,
@@ -108,6 +111,7 @@ export default function FirmDetail({ showToast }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editOpen, setEditOpen] = useState(false);
+  const [silOpen, setSilOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [detailRecord, setDetailRecord] = useState(null);
   const [page, setPage] = useState(1);
@@ -231,6 +235,15 @@ export default function FirmDetail({ showToast }) {
           >
             <EditIcon className="w-[18px] h-[18px]" />
             <span>Firma Bilgilerini Düzenle</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSilOpen(true)}
+            data-sil-dugmesi
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface text-xs font-semibold text-error ${RAISED} transition-all`}
+          >
+            <TrashIcon className="w-[18px] h-[18px]" />
+            <span>Sil</span>
           </button>
           <button
             type="button"
@@ -609,7 +622,7 @@ export default function FirmDetail({ showToast }) {
           onClick={() => setDetailRecord(null)}
         >
           <div
-            className="w-full max-w-lg rounded-2xl bg-surface shadow-[10px_10px_30px_rgba(0,0,0,0.12),-10px_-10px_30px_rgba(255,255,255,0.8)] p-6 flex flex-col gap-4"
+            className="w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-2xl bg-surface shadow-[10px_10px_30px_rgba(0,0,0,0.12),-10px_-10px_30px_rgba(255,255,255,0.8)] p-6 flex flex-col gap-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -635,13 +648,15 @@ export default function FirmDetail({ showToast }) {
                 value={formatTL(detailRecord.amount_after_withholding)}
               />
               <DetailField label="Diğer Fon & Harçlar" value={formatTL(detailRecord.other_funds)} />
-              <DetailField
-                label="Firma Tahsilat Durumu"
-                value={detailRecord.firm_collection_status ?? '—'}
-              />
-              <DetailField label="Ödeme Durumu" value={detailRecord.payment_status} />
-              <DetailField label="Ödeme Tarihi" value={detailRecord.paid_date ?? '—'} />
             </div>
+            <OdemeAkisi
+              kayit={detailRecord}
+              showToast={showToast}
+              onGuncellendi={(guncel) => {
+                setDetailRecord(guncel);
+                load();
+              }}
+            />
             <div className="flex justify-end pt-2">
               <Link
                 to={`/records/${detailRecord.id}/edit`}
@@ -659,6 +674,13 @@ export default function FirmDetail({ showToast }) {
         firm={detail}
         onClose={() => setEditOpen(false)}
         onSave={handleSaveEdit}
+      />
+      <KayitSilModal
+        kaynak="firms"
+        hedef={silOpen ? { id, ad: name } : null}
+        onClose={() => setSilOpen(false)}
+        onDeleted={() => navigate('/firms')}
+        showToast={showToast}
       />
     </div>
   );

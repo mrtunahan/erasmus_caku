@@ -21,6 +21,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link } from '../router.jsx';
 import { apiFetch, ApiError, disaAktar } from '../api.js';
 import AppShell from '../components/AppShell';
+import OdemeAkisi, { trTarih } from '../components/OdemeAkisi';
 import {
   PlusCircleIcon,
   DownloadIcon,
@@ -500,7 +501,13 @@ export default function RecordsList({ showToast }) {
                   return (
                     <tr
                       key={r.id}
-                      className="hover:bg-surface-bright/50 transition-colors border-b border-surface-variant/30"
+                      data-kayit-satiri={r.id}
+                      title="Ödeme akışı ve ayrıntılar için tıklayın"
+                      onClick={(e) => {
+                        if (e.target.closest('a,button')) return;
+                        setDetailRecord(r);
+                      }}
+                      className="hover:bg-surface-bright/50 transition-colors border-b border-surface-variant/30 cursor-pointer"
                     >
                       <td className="py-4 px-4">
                         <div className="flex flex-col">
@@ -556,14 +563,23 @@ export default function RecordsList({ showToast }) {
                         <span className="block text-[10px] text-primary">Tevkifat</span>
                       </td>
                       <td className="py-4 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-surface ${INSET_SM} ${paid ? 'text-tertiary' : 'text-primary'}`}
-                        >
+                        <div className="flex flex-col items-center gap-1">
                           <span
-                            className={`w-1.5 h-1.5 rounded-full ${paid ? 'bg-tertiary' : 'bg-primary animate-pulse'}`}
-                          />
-                          {r.payment_status}
-                        </span>
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-surface ${INSET_SM} ${paid ? 'text-tertiary' : 'text-primary'}`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${paid ? 'bg-tertiary' : 'bg-primary animate-pulse'}`}
+                            />
+                            {r.payment_status}
+                            {paid && r.paid_date ? ' · ' + trTarih(r.paid_date) : ''}
+                          </span>
+                          <span className="text-[10px] text-on-surface-variant">
+                            {r.firm_collection_status || 'Tahsil Edilmedi'}
+                            {r.firm_collection_status === 'Tahsil Edildi' && r.collected_date
+                              ? ' · ' + trTarih(r.collected_date)
+                              : ''}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-4 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
@@ -656,7 +672,7 @@ export default function RecordsList({ showToast }) {
           onClick={() => setDetailRecord(null)}
         >
           <div
-            className="w-full max-w-lg rounded-2xl bg-surface shadow-[10px_10px_30px_rgba(0,0,0,0.12),-10px_-10px_30px_rgba(255,255,255,0.8)] p-6 flex flex-col gap-4"
+            className="w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-2xl bg-surface shadow-[10px_10px_30px_rgba(0,0,0,0.12),-10px_-10px_30px_rgba(255,255,255,0.8)] p-6 flex flex-col gap-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -693,15 +709,17 @@ export default function RecordsList({ showToast }) {
                 label="Nihai Net Ödeme"
                 value={formatTL(detailRecord.final_net_payable)}
               />
-              <DetailField
-                label="Firma Tahsilat Durumu"
-                value={detailRecord.firm_collection_status ?? '—'}
-              />
-              <DetailField label="Ödeme Durumu" value={detailRecord.payment_status} />
-              <DetailField label="Talep Tarihi" value={detailRecord.request_date ?? '—'} />
-              <DetailField label="Ödeme Tarihi" value={detailRecord.paid_date ?? '—'} />
+              <DetailField label="Talep Tarihi" value={trTarih(detailRecord.request_date) || '—'} />
               <DetailField label="Notlar" value={detailRecord.notes || '—'} span2 />
             </div>
+            <OdemeAkisi
+              kayit={detailRecord}
+              showToast={showToast}
+              onGuncellendi={(guncel) => {
+                setDetailRecord(guncel);
+                fetchRecords();
+              }}
+            />
             <div className="flex justify-end pt-2">
               <Link
                 to={`/records/${detailRecord.id}/edit`}

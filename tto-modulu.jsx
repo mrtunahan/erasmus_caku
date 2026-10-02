@@ -1044,7 +1044,7 @@ function YolHaritasi() {
     [
       '5',
       'TTO proformayı hazırlar, imzalar ve kaşeler',
-      'İmzalı ve kaşeli proforma PDF olarak sisteme yüklenip akademisyene gönderilir.',
+      'Proformanın kesildiği firma ve tutar (KDV hariç) girilir; imzalı ve kaşeli proforma PDF olarak sisteme yüklenip akademisyene gönderilir.',
       'TTO yöneticisi',
     ],
     [
@@ -1056,16 +1056,22 @@ function YolHaritasi() {
     [
       '7',
       'TTO Genel Sekreterliğe gönderir',
-      'Üst yazı isteğe bağlı olarak yüklenir.',
+      'TTO talebi yönetim kararı için Genel Sekreterliğe gönderildi olarak işaretler.',
       'TTO yöneticisi',
     ],
     [
       '8',
-      'Yönetim kararı çıkar, görevlendirme yazısı iletilir',
-      'TTO yönetim kurulu kararını ve görevlendirme yazısını yükler; akademisyene iletilir.',
+      'Yönetim kurulu kararı onaylanır',
+      'Karar çıktığında TTO karar tarihini girip “olumlu çıktı” kutusunu işaretleyerek onaylar (belge yüklenmez); akademisyene bildirilir ve fatura aşamasına geçilir.',
       'TTO yöneticisi',
     ],
     ['9', 'Fatura kesilir', 'TTO faturayı yükler; süreç tamamlanır.', 'TTO yöneticisi'],
+    [
+      '10',
+      'TTO Otomasyonu’na aktarılır',
+      'Akademisyen (bölüm, fakülte, IBAN) ve firma TTO onayından sonra, iş kaydı yönetim kurulu kararı onaylanınca TTO Otomasyonu’na otomatik eklenir. Tahsilat ve akademisyen ödemesi orada tarihleriyle izlenir.',
+      'TTO yöneticisi',
+    ],
   ];
   return (
     <div>
@@ -1117,10 +1123,9 @@ function YolHaritasi() {
         <div style={{ fontSize: 14, fontWeight: 800, color: T.navy, marginBottom: 6 }}>
           Belgeler
         </div>
-        Süreçteki bütün belgeler (imzalı başvuru formu, TTO onaylı form, proformalar, üst yazı,
-        yönetim kurulu kararı, görevlendirme yazısı, fatura ve ek belgeler) <b>yalnız PDF</b> olarak
-        yüklenir. Akademisyen ve TTO yöneticisi talebe yüklenen her belgeyi görüntüleyip
-        indirebilir. Her aşamada karşı tarafa bildirim gider.
+        Süreçteki bütün belgeler (imzalı başvuru formu, TTO onaylı form, proformalar, fatura ve ek
+        belgeler) <b>yalnız PDF</b> olarak yüklenir. Akademisyen ve TTO yöneticisi talebe yüklenen
+        her belgeyi görüntüleyip indirebilir. Her aşamada karşı tarafa bildirim gider.
       </div>
     </div>
   );
