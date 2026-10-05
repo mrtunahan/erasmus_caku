@@ -26,8 +26,18 @@
 
 // Belge kimlikleri: MongoDB ObjectId (24 hex), uygulamanın ürettiği 20
 // karakterlik kimlikler, `{öğrenciNo}__{dönem}` gibi bileşik anahtarlar ve
-// `yk-…` önekli kimlikler. Tümü şu kümeye sığar.
-const KIMLIK_DESENI = /^[A-Za-z0-9._:@-]{1,128}$/;
+// `yk-…` önekli kimlikler.
+//
+// ⚠ KİŞİ ADI İÇEREN KİMLİKLER DE VAR: performans verisi
+// `{akademisyen adı}_{yıl}_{gösterge}_{ay}` ile yazılır ("Dr. Öğr. Üyesi
+// Ali Veli_2026_g1_3"). Küme yalnız ASCII iken bu kayıtlar "kimlik metin
+// olmalı" ile reddediliyor, akademisyen veri giremiyordu; canlıdaki eski
+// kayıtlar da bu biçimde olduğundan kimlik değiştirilemez (aynı hücre iki
+// belgeye bölünür, toplamlar ikiye katlanırdı). Harf (Türkçe dahil), rakam,
+// boşluk ve birkaç noktalama serbest. Güvenlik için belirleyici olan METİN
+// olmasıdır (operatör enjeksiyonu nesneyle yapılır); `$`, `/`, `\` ve
+// denetim karakterleri yine reddedilir.
+const KIMLIK_DESENI = /^[\p{L}\p{M}\p{N}._:@-][\p{L}\p{M}\p{N} ._:@'(),-]{0,199}$/u;
 const ALT_KOLEKSIYON_DESENI = /^[a-z][a-z0-9_]{0,40}$/;
 
 /** Değer güvenli bir belge kimliği mi? (metin olmayan her şey reddedilir) */

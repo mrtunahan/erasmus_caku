@@ -1691,6 +1691,30 @@ async function enforceWritePolicies(db, op, user) {
     }
   }
 
+  // a2a-6) PERFORMANS VERİSİ: sade akademisyen yalnız KENDİ değerlerini yazar.
+  //
+  // Belge kimliği `{akademisyen adı}_{yıl}_{gösterge}_{ay}`, gövdede de
+  // `akademisyenId` (= ad) var. Bu denetim yokken bir akademisyen başka
+  // birinin hücresine yazıp bölüm/fakülte toplamını değiştirebilirdi.
+  // Bölüm/fakülte/üniversite yetkilisi ve admin sınırsız.
+  if (op.collection === 'performance_data' && user.role !== 'student') {
+    const flags = await getActorFlags(db, user);
+    if (!flags.admin && !flags.uniAdmin && !flags.facManager && !flags.deptManager) {
+      const ben = String(user.identifier || '').trim();
+      const docIdBenim = !op.docId || String(op.docId).startsWith(ben + '_');
+      const veri = op.data && typeof op.data === 'object' ? op.data : null;
+      const veriBenim = !veri || !('akademisyenId' in veri) || veri.akademisyenId === ben;
+      const eklemeSahipli = op.type !== 'add' || (veri && veri.akademisyenId === ben);
+      if (!ben || !docIdBenim || !veriBenim || !eklemeSahipli) {
+        return {
+          allow: false,
+          status: 403,
+          error: 'Yalnız kendi performans verilerinizi girebilirsiniz.',
+        };
+      }
+    }
+  }
+
   // b0) SADE AKADEMİSYEN YALNIZ KENDİ KAYDINA DOKUNUR.
   //
   // ⚠ `professors` "personel yazabilir" kapısından geçiyordu: herhangi bir

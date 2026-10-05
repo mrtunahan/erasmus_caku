@@ -17,6 +17,9 @@ describe('kimlik biçimi', () => {
     expect(gecerliKimlik('2021001__2026-guz')).toBe(true); // bileşik anahtar
     expect(gecerliKimlik('yk-1a2b3c4d5e6f7a8b9c')).toBe(true);
     expect(gecerliKimlik('bilgisayar')).toBe(true);
+    // Performans verisi: akademisyen adı + yıl + gösterge + ay
+    expect(gecerliKimlik('Dr. Öğr. Üyesi Ali VELİ_2026_g1_3')).toBe(true);
+    expect(gecerliKimlik('Prof. Dr. Şükrü Çağ_2026_cq_lx2k9a_12')).toBe(true);
   });
 
   it('metin olmayan hiçbir şey kimlik değildir', () => {
@@ -31,9 +34,13 @@ describe('kimlik biçimi', () => {
   it('boş dize ve tehlikeli karakterler reddedilir', () => {
     expect(gecerliKimlik('')).toBe(false);
     expect(gecerliKimlik('../../etc')).toBe(false);
-    expect(gecerliKimlik('a b')).toBe(false);
+    expect(gecerliKimlik('a/b')).toBe(false);
+    expect(gecerliKimlik('a\\b')).toBe(false);
     expect(gecerliKimlik('$where')).toBe(false);
-    expect(gecerliKimlik('x'.repeat(129))).toBe(false);
+    expect(gecerliKimlik('a$b')).toBe(false);
+    expect(gecerliKimlik(' baştaBoşluk')).toBe(false);
+    expect(gecerliKimlik('satır\nsonu')).toBe(false);
+    expect(gecerliKimlik('x'.repeat(201))).toBe(false);
   });
 });
 
