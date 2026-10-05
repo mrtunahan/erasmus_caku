@@ -459,12 +459,14 @@ export default function PerformansBilgileri({
   };
 
   // ── Kaydet: değişen değerleri backend'e yaz ──
-  const handleSave = async () => {
-    if (saving) return;
+  // Dönüş: true (yazıldı ya da yazılacak değişiklik yok), false (hata).
+  // "Gönder" bunu bekler: kayıt başarısızken "gönderildi" denmemeli.
+  const handleSave = async ({ sessiz = false } = {}) => {
+    if (saving) return false;
     const ops = collectChangedOps();
     if (ops.length === 0) {
-      flash('Kaydedilecek değişiklik yok');
-      return;
+      if (!sessiz) flash('Kaydedilecek değişiklik yok');
+      return true;
     }
     setSaving(true);
     try {
@@ -479,19 +481,21 @@ export default function PerformansBilgileri({
         [selectedAkademisyen]: { ...(akademisyenData[selectedAkademisyen] || {}) },
       }));
       window.apiInvalidate && window.apiInvalidate('performance_data');
-      flash(`${ops.length} değer kaydedildi`);
+      if (!sessiz) flash(`${ops.length} değer kaydedildi`);
+      return true;
     } catch (e) {
       console.error('Kaydetme hatası:', e);
-      flash('Kaydetme sırasında hata oluştu');
+      flash('Kaydedilemedi: ' + ((e && e.message) || 'bilinmeyen hata'));
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
   const handleSubmit = async () => {
-    await handleSave();
+    if (!(await handleSave({ sessiz: true }))) return;
     setSubmitted(true);
-    flash('Gösterge verileri gönderildi');
+    flash('Gösterge verileri kaydedildi ve bölüm yetkilisine iletildi');
   };
 
   /**
@@ -511,7 +515,7 @@ export default function PerformansBilgileri({
     }
     setGonderiliyor(true);
     try {
-      await handleSave();
+      if (!(await handleSave({ sessiz: true }))) return;
       const kayit = {
         id: gonderimAnahtari(deptForSummary, selectedYil),
         bolumId: String(deptForSummary),
