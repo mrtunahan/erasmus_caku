@@ -26,6 +26,8 @@ import {
   bosTalep,
   profildenGenelBilgi,
   TTO_PROFIL_ALANLARI,
+  genelAlanHatasi,
+  yoneticiAdSoyad,
   projeBilgisiGerekliMi,
   talepHatalari,
   ttoAyarlari,
@@ -115,17 +117,6 @@ function EvetHayir({ ad, deger, onChange, kilitli }) {
   );
 }
 
-// Akademisyenin bölüm adı (profil kaydındaki kimlik; bölüm birden çok
-// kimlikle anılabildiği için `kimlikler` de denenir).
-function bolumAdiBul(profil) {
-  const id = metin(profil && profil.departmentId);
-  if (!id) return '';
-  const d = (window.DEPARTMENTS || []).find(
-    (x) => metin(x.id) === id || (Array.isArray(x.kimlikler) && x.kimlikler.indexOf(id) >= 0)
-  );
-  return d ? metin(d.name) : '';
-}
-
 function TalepFormu({
   talep,
   ayarKaydi,
@@ -167,7 +158,7 @@ function TalepFormu({
   // taslaklarda adın içinde unvan kalmış olabilir; bu düğme onu da düzeltir).
   // Profilde boş olan alan formdaki değeri silmez.
   const benimSayfamdanAl = () => {
-    const pg = profildenGenelBilgi(profil, bolumAdiBul(profil));
+    const pg = profildenGenelBilgi(profil);
     setForm((f) => {
       const g = { ...f.genel };
       TTO_PROFIL_ALANLARI.forEach((a) => {
@@ -261,7 +252,11 @@ function TalepFormu({
     setMesgul('pdf');
     setMesaj(null);
     try {
-      const r = await formIndir(form, ayarKaydi);
+      // Yönetici formu imzalamak için indiriyorsa "Başvuruyu Alan Kişi"
+      // onun adıdır (onayda sunucu da aynı adı yazar).
+      const incelemede = saltOkunur && ['gonderildi', 'incelemede'].indexOf(form.durum) >= 0;
+      const cikti = incelemede ? { ...form, alanKisi: yoneticiAdSoyad(kimlik) } : form;
+      const r = await formIndir(cikti, ayarKaydi);
       if (!r.ok) setMesaj({ tur: 'hata', metin: r.hata });
       else if (r.uyari) setMesaj({ tur: 'bilgi', metin: r.uyari });
     } finally {
@@ -417,16 +412,37 @@ function TalepFormu({
                       type={f.tip || 'text'}
                       value={form.genel[f.id] || ''}
                       disabled={kilitli}
-                      onChange={(e) => genelAyarla(f.id, e.target.value)}
-                      style={giris}
+                      placeholder={f.ipucu || undefined}
+                      inputMode={f.tip === 'tel' ? 'numeric' : undefined}
+                      onChange={(e) =>
+                        genelAyarla(
+                          f.id,
+                          f.tip === 'tel' ? e.target.value.replace(/\D/g, '') : e.target.value
+                        )
+                      }
+                      aria-invalid={!!genelAlanHatasi(f.id, form.genel[f.id]) || undefined}
+                      style={{
+                        ...giris,
+                        ...(!kilitli && genelAlanHatasi(f.id, form.genel[f.id])
+                          ? { borderColor: T.tehlike }
+                          : null),
+                      }}
                     />
+                  )}
+                  {!kilitli && genelAlanHatasi(f.id, form.genel[f.id]) && (
+                    <div
+                      data-alan-hatasi={f.id}
+                      style={{ fontSize: 11.5, color: T.tehlike, marginTop: 4 }}
+                    >
+                      {genelAlanHatasi(f.id, form.genel[f.id])}
+                    </div>
                   )}
                 </div>
               ))}
             </div>
             <div style={{ fontSize: 12, color: T.soluk, marginTop: 10 }}>
-              GSM ya da iş telefonundan en az biri gereklidir. Vergi bilgileri yalnız firma adına
-              yapılan taleplerde doldurulur.
+              GSM ya da iş telefonundan en az biri gereklidir; telefonlar başında 0 olmadan 10 hane
+              yazılır. Vergi bilgileri yalnız firma adına yapılan taleplerde doldurulur.
             </div>
           </Bolum>
 
@@ -1020,7 +1036,7 @@ function YolHaritasi() {
     [
       '1',
       'Akademisyen formu doldurur',
-      'Bilgiler Benim Sayfam’dan gelir. Taslak olarak saklanabilir.',
+      'Ad, unvan, e-posta ve iş telefonu Benim Sayfam’dan gelir; Kurum/Firma boş gelir. Telefonlar başında 0 olmadan 10 hane, e-posta geçerli biçimde yazılır. Taslak olarak saklanabilir.',
       'Akademisyen',
     ],
     [
@@ -1038,7 +1054,7 @@ function YolHaritasi() {
     [
       '4',
       'TTO inceler ve karar verir',
-      'Talep no ve başvuruyu alan kişiyi girer. Onay için TTO onaylı (imzalı) başvuru formu PDF olarak yüklenmesi zorunludur. Düzeltme gerekiyorsa gerekçeyle iade eder ya da reddeder.',
+      'Talep no girer; formdaki “Başvuruyu Alan Kişi” onaylayan yöneticinin adıdır. Onay için TTO onaylı (imzalı) başvuru formu PDF olarak yüklenmesi zorunludur. Düzeltme gerekiyorsa gerekçeyle iade eder ya da reddeder.',
       'TTO yöneticisi',
     ],
     [
@@ -1061,8 +1077,8 @@ function YolHaritasi() {
     ],
     [
       '8',
-      'Yönetim kurulu kararı onaylanır',
-      'Karar çıktığında TTO karar tarihini girip “olumlu çıktı” kutusunu işaretleyerek onaylar (belge yüklenmez); akademisyene bildirilir ve fatura aşamasına geçilir.',
+      'Yönetim kurulu kararı akademisyene gönderilir',
+      'Karar çıktığında TTO karar tarihini girer ve yönetim kurulu kararını PDF olarak yükleyip akademisyene gönderir; fatura aşamasına geçilir.',
       'TTO yöneticisi',
     ],
     ['9', 'Fatura kesilir', 'TTO faturayı yükler; süreç tamamlanır.', 'TTO yöneticisi'],
@@ -1123,9 +1139,10 @@ function YolHaritasi() {
         <div style={{ fontSize: 14, fontWeight: 800, color: T.navy, marginBottom: 6 }}>
           Belgeler
         </div>
-        Süreçteki bütün belgeler (imzalı başvuru formu, TTO onaylı form, proformalar, fatura ve ek
-        belgeler) <b>yalnız PDF</b> olarak yüklenir. Akademisyen ve TTO yöneticisi talebe yüklenen
-        her belgeyi görüntüleyip indirebilir. Her aşamada karşı tarafa bildirim gider.
+        Süreçteki bütün belgeler (imzalı başvuru formu, TTO onaylı form, proformalar, yönetim kurulu
+        kararı, fatura ve ek belgeler) <b>yalnız PDF</b> olarak yüklenir. Akademisyen ve TTO
+        yöneticisi talebe yüklenen her belgeyi görüntüleyip indirebilir. Her aşamada karşı tarafa
+        bildirim gider.
       </div>
     </div>
   );
@@ -1241,10 +1258,8 @@ function TtoApp({ currentUser }) {
   }, [yukle, kimlik]);
 
   const yeniTalep = () => {
-    const bos = bosTalep(
-      profil || { name: (currentUser && currentUser.name) || kimlik },
-      bolumAdiBul(profil)
-    );
+    // Kurum/Firma boş gelir: başvurunun kimin adına yapıldığını akademisyen yazar.
+    const bos = bosTalep(profil || { name: (currentUser && currentUser.name) || kimlik });
     setAcik(bos);
     setSekme('form');
   };

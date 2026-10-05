@@ -11,6 +11,7 @@ import {
   ttoWordGovdesi,
   ttoDosyaAdi,
   profildenGenelBilgi,
+  genelAlanHatasi,
   TTO_AYAR_VARSAYILAN,
   TTO_SABLON_DEGISKENLERI,
   ttoBirimAdiMi,
@@ -30,7 +31,8 @@ const PDF = (ad) => '/api/files/download/tto_belgeler/1700000000_' + ad;
 
 function tamTalep(ek) {
   const t = bosTalep({ name: 'Dr. Ayşe Yılmaz', title: 'Dr. Öğr. Üyesi', email: 'ayse@x.edu.tr' });
-  t.genel.gsm = '05550000000';
+  t.genel.gsm = '5550000000';
+  t.genel.kurum = 'Örnek Makine A.Ş.';
   t.nitelik = ['danismanlik'];
   t.ozet = 'Danışmanlık talebi.';
   t.beyan = true;
@@ -82,8 +84,34 @@ describe('TTO talep denetimi', () => {
     t.genel.email = 'bozuk';
     t.genel.gsm = '';
     const h = talepHatalari(t);
-    expect(h).toContain('E-posta adresi geçerli değil.');
+    expect(h.some((x) => x.includes('e-posta'))).toBe(true);
     expect(h.some((x) => x.includes('telefon'))).toBe(true);
+  });
+
+  it('telefon başında 0 olmadan 10 hane; e-posta ve vergi no biçimi', () => {
+    expect(genelAlanHatasi('gsm', '5321234567')).toBe('');
+    expect(genelAlanHatasi('gsm', '532 123 45 67')).toBe('');
+    expect(genelAlanHatasi('gsm', '05321234567')).toMatch(/başında 0 olmadan/);
+    expect(genelAlanHatasi('gsm', '3762189532')).toMatch(/5 ile başlayan/);
+    expect(genelAlanHatasi('gsm', '532123456')).toMatch(/10 hane/);
+    expect(genelAlanHatasi('isTelefonu', '3762189532')).toBe('');
+    expect(genelAlanHatasi('isTelefonu', '03762189532')).toMatch(/başında 0 olmadan/);
+    expect(genelAlanHatasi('isTelefonu', 'Dahili: 8383')).toMatch(/10 hane/);
+    expect(genelAlanHatasi('email', 'ali@karatekin.edu.tr')).toBe('');
+    expect(genelAlanHatasi('email', 'ali@karatekin')).toMatch(/e-posta/);
+    expect(genelAlanHatasi('email', 'ali veli@x.com')).toMatch(/e-posta/);
+    expect(genelAlanHatasi('vergiNo', '1234567890')).toBe('');
+    expect(genelAlanHatasi('vergiNo', '12345')).toMatch(/Vergi/);
+    expect(genelAlanHatasi('gsm', '')).toBe('');
+    const t = tamTalep();
+    t.genel.gsm = '05321234567';
+    expect(talepHatalari(t).join(' ')).toMatch(/başında 0 olmadan/);
+  });
+
+  it('Kurum/Firma boş gelir ve zorunludur', () => {
+    const t = bosTalep({ name: 'Dr. Ali Veli', email: 'a@karatekin.edu.tr' });
+    expect(t.genel.kurum).toBe('');
+    expect(talepHatalari(t)).toContain('Kurum/Firma zorunludur.');
   });
 });
 
@@ -260,16 +288,20 @@ describe('TTO şablon verisi ve Word çıktısı', () => {
 });
 
 describe('Benim Sayfam → TTO formu', () => {
-  it('unvan addan ayrılır, bölüm ve dahili aktarılır', () => {
-    const g = profildenGenelBilgi(
-      { name: 'Arş. Gör. A. Tunahan KORKMAZ', email: 't@karatekin.edu.tr', dahili: '8383' },
-      'Bilgisayar Mühendisliği'
-    );
+  it('unvan addan ayrılır; kurum aktarılmaz, telefon yalnız geçerliyse gelir', () => {
+    const g = profildenGenelBilgi({
+      name: 'Arş. Gör. A. Tunahan KORKMAZ',
+      email: 't@karatekin.edu.tr',
+      dahili: '8383',
+    });
     expect(g.adSoyad).toBe('A. Tunahan KORKMAZ');
     expect(g.unvan).toBe('Arş. Gör.');
-    expect(g.kurum).toBe('Çankırı Karatekin Üniversitesi – Bilgisayar Mühendisliği');
+    expect(g.kurum).toBeUndefined();
     expect(g.email).toBe('t@karatekin.edu.tr');
-    expect(g.isTelefonu).toBe('Dahili: 8383');
+    expect(g.isTelefonu).toBe('');
+    expect(profildenGenelBilgi({ name: 'X', isTelefonu: '376 218 95 32' }).isTelefonu).toBe(
+      '3762189532'
+    );
   });
 
   it('kayıttaki unvan alanı önceliklidir; tanınmayan önek ada dokunmaz', () => {
@@ -391,8 +423,8 @@ describe('yoneticiYazmaKarari', () => {
     expect(r.veri.gecmis.at(-1)).toMatchObject({ kim: 'Dr. Ayşe Yılmaz', olay: 'incelemede' });
   });
 
-  it('onay talep no ve alan kişi ister; karar sunucuda damgalanır', () => {
-    expect(k(gelen(), { durum: 'onaylandi' }).hata).toMatch(/Talep No.*Alan Kişi/);
+  it('onay talep no ister; alan kişi onaylayan yöneticidir, karar sunucuda damgalanır', () => {
+    expect(k(gelen(), { durum: 'onaylandi' }).hata).toMatch(/Talep No/);
     expect(
       k(gelen(), { durum: 'onaylandi', talepNo: '2026/014', alanKisi: 'Ayşe Yılmaz' }).hata
     ).toMatch(/TTO onaylı başvuru formu/);
@@ -411,7 +443,16 @@ describe('yoneticiYazmaKarari', () => {
       kararTarihi: SIMDI.toISOString(),
       talepTarihi: '2026-10-01',
       onayliBelgeUrl: '/api/files/download/tto/x.pdf',
+      // İstemcinin yazdığı ad yok sayılır: onaylayan yöneticinin unvansız adı.
+      alanKisi: 'Ayşe Yılmaz',
     });
+    const baska = k(gelen(), {
+      durum: 'onaylandi',
+      talepNo: '2026/015',
+      alanKisi: 'Sahte Kişi',
+      ekBelgeler: [{ tur: 'onayli_basvuru', url: PDF('onayli.pdf') }],
+    });
+    expect(baska.veri.alanKisi).toBe('Ayşe Yılmaz');
   });
 
   it('iade ve ret gerekçe ister', () => {
@@ -627,21 +668,26 @@ describe('TTO süreci uçtan uca (kural katmanı)', () => {
       yaz(ALI, { durum: 'proforma_dondu', odemeBilgileri: ODEME, ...belge('proforma_firma') }).izin
     ).toBe(true);
 
-    // Üst yazı, karar ve görevlendirme belgeleri artık yüklenmez.
+    // Üst yazı ve görevlendirme belgeleri artık yüklenmez.
     expect(yaz(AYSE, { durum: 'genel_sekreterlikte', ...belge('ust_yazi') }).hata).toMatch(
       /artık yüklenmiyor/
     );
     expect(yaz(AYSE, { durum: 'genel_sekreterlikte' }).izin).toBe(true);
-    // Yönetim kurulu kararı: belge yok, karar tarihi zorunlu, ileri tarih olmaz.
+    // Yönetim kurulu kararı: karar tarihi ve karar belgesi (PDF) zorunlu.
     expect(yaz(AYSE, { durum: 'gorevlendirildi' }).hata).toMatch(/karar tarihini/);
     expect(yaz(AYSE, { durum: 'gorevlendirildi', yonetimKarariTarihi: '2026-10-05' }).hata).toMatch(
       /ileri/
     );
+    expect(yaz(AYSE, { durum: 'gorevlendirildi', yonetimKarariTarihi: '2026-10-01' }).hata).toMatch(
+      /Yönetim kurulu kararı/
+    );
+    expect(yaz(ALI, { ...belge('yonetim_karari') }).hata).toMatch(/yalnız TTO/);
     expect(
       yaz(AYSE, {
         durum: 'gorevlendirildi',
         yonetimKarariTarihi: '2026-10-01',
         yonetimKarariOnaylayan: 'sahte',
+        ...belge('yonetim_karari'),
       }).izin
     ).toBe(true);
     expect(kayit.yonetimKarariTarihi).toBe('2026-10-01');
@@ -658,6 +704,7 @@ describe('TTO süreci uçtan uca (kural katmanı)', () => {
       'proforma_tto',
       'proforma_firma',
       'proforma_firma',
+      'yonetim_karari',
       'fatura',
     ]);
     expect(kayit.belgeler.find((b) => b.tur === 'fatura')).toMatchObject({

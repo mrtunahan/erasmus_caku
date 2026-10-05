@@ -11,8 +11,8 @@
 //   4. Akademisyen proformayı firmaya onaylatır, imzalatıp kaşeletir ve TTO'ya
 //      geri gönderir.
 //   5. TTO Genel Sekreterliğe gönderir.
-//   6. Yönetim kurulu kararı çıkınca TTO karar tarihini girip onaylar (belge
-//      yüklenmez) → akademisyene bildirilir.
+//   6. Yönetim kurulu kararı çıkınca TTO karar tarihini girer, karar belgesini
+//      yükler → akademisyene gönderilir.
 //   7. TTO faturayı keser ve yükler → süreç tamamlanır.
 //
 // Her belge PDF'tir ve iki taraf da hepsini görür, açar, indirir.
@@ -34,6 +34,7 @@ import {
   ibanNormalle,
   odemeBilgisiHatalari,
   TTO_FIRMA_ALANLARI,
+  yoneticiAdSoyad,
 } from './lib/tto-talep.js';
 import { kurusTl } from './lib/tto-odeme.js';
 import {
@@ -636,8 +637,12 @@ function OdemeBilgileriFormu({ deger, onDegis }) {
   const hata = (alan) => {
     const v = metin(d[alan]);
     if (!v) return '';
-    if (alan === 'tcKimlikNo' && !tcKimlikGecerliMi(v)) return 'Geçerli bir T.C. kimlik no değil.';
-    if (alan === 'iban' && !ibanGecerliMi(v)) return 'Geçerli bir TR IBAN değil.';
+    if (alan === 'tcKimlikNo' && !tcKimlikGecerliMi(v)) {
+      return 'Geçerli bir T.C. kimlik no değil (11 hane, 0 ile başlamaz).';
+    }
+    if (alan === 'iban' && !ibanGecerliMi(v)) {
+      return 'Geçerli bir TR IBAN değil (TR + 24 rakam).';
+    }
     return '';
   };
   const alan = (id, label, props, zorunlu = true) => (
@@ -672,6 +677,7 @@ function OdemeBilgileriFormu({ deger, onDegis }) {
           inputMode: 'numeric',
           maxLength: 11,
           placeholder: '11 hane',
+          onChange: (e) => yaz_('tcKimlikNo', e.target.value.replace(/\D/g, '')),
         })}
         {alan('iban', 'IBAN', {
           placeholder: 'TR00 0000 0000 0000 0000 0000 00',
@@ -735,7 +741,7 @@ const AKADEMISYEN_METNI = {
   gorevlendirildi: (t) =>
     'Yönetim kurulu kararı olumlu çıktı' +
     (t.yonetimKarariTarihi ? ' (' + tarihTr(t.yonetimKarariTarihi) + ')' : '') +
-    '. Fatura kesildiğinde süreç tamamlanır.',
+    '. Karar belgesi aşağıdaki belgelerde; fatura kesildiğinde süreç tamamlanır.',
   tamamlandi: (t) =>
     'Fatura kesildi' + (t.faturaNo ? ' (No: ' + t.faturaNo + ')' : '') + '. Süreç tamamlandı.',
   reddedildi: () => 'Talebiniz reddedildi.',
@@ -922,14 +928,12 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
   const [alan, setAlan] = useState(() => ({
     talepNo: metin(t.talepNo),
     talepTarihi: metin(t.talepTarihi).slice(0, 10) || new Date().toISOString().slice(0, 10),
-    alanKisi: metin(t.alanKisi) || kimlik,
     yoneticiNotu: metin(t.yoneticiNotu),
     faturaNo: metin(t.faturaNo),
     yonetimKarariTarihi: metin(t.yonetimKarariTarihi) || bugunIso(),
     firma: { ad: '', vergiDairesi: '', vergiNo: '', eposta: '', ...(t.firma || {}) },
     proformaTutari: Number(t.proformaKurus) > 0 ? kurusTl(t.proformaKurus) : '',
   }));
-  const [kararTiki, setKararTiki] = useState(false);
   // Proforma adımında firma adı önerileri (TTO Otomasyonu'ndaki firmalar).
   const [firmalar, setFirmalar] = useState([]);
   useEffect(() => {
@@ -1001,7 +1005,6 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
   const ttoAlanlari = {
     talepNo: alan.talepNo,
     talepTarihi: alan.talepTarihi,
-    alanKisi: alan.alanKisi,
     yoneticiNotu: alan.yoneticiNotu,
   };
   // Geçiş düğmesi (bileşen değil, düz işlev: her çizimde yeniden kurulmasın).
@@ -1072,15 +1075,13 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
               onChange={(e) => yazAlan('talepTarihi', e.target.value)}
             />
           </label>
-          <label>
-            <span style={etiket}>Başvuruyu Alan Kişi *</span>
-            <input
-              data-alan="alanKisi"
-              style={giris}
-              value={alan.alanKisi}
-              onChange={(e) => yazAlan('alanKisi', e.target.value)}
-            />
-          </label>
+          <div>
+            <span style={etiket}>Başvuruyu Alan Kişi</span>
+            {/* Onaylayan yöneticinin adı; sunucu onayda aynı adı yazar. */}
+            <div data-alan="alanKisi" style={{ ...giris, background: '#F8FAFC', color: T.metin }}>
+              {metin(t.alanKisi) || yoneticiAdSoyad(kimlik)}
+            </div>
+          </div>
         </div>
         <div style={{ marginTop: 12 }}>
           <BelgeSecici
@@ -1243,13 +1244,13 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
     govde = (
       <>
         {bilgi(
-          'Yönetim kurulu kararı çıktığında karar tarihini girip onaylayın; akademisyene bildirilir ve fatura aşamasına geçilir. Belge yüklenmez.'
+          'Yönetim kurulu kararı çıktığında karar tarihini girin ve karar belgesini (PDF) yükleyip akademisyene gönderin; fatura aşamasına geçilir.'
         )}
         <div
           style={{
             ...izgara,
             gridTemplateColumns: 'minmax(180px, 240px) minmax(0, 1fr)',
-            alignItems: 'center',
+            alignItems: 'end',
             marginTop: 12,
           }}
         >
@@ -1264,26 +1265,12 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
               onChange={(e) => yazAlan('yonetimKarariTarihi', e.target.value)}
             />
           </label>
-          <label
-            style={{
-              display: 'flex',
-              gap: 8,
-              alignItems: 'center',
-              fontSize: 13.5,
-              fontWeight: 600,
-              color: T.metin,
-              cursor: 'pointer',
-              marginTop: 18,
-            }}
-          >
-            <input
-              type="checkbox"
-              data-alan="yonetimKarariOnay"
-              checked={kararTiki}
-              onChange={(e) => setKararTiki(e.target.checked)}
-            />
-            Yönetim kurulu kararı olumlu çıktı
-          </label>
+          <BelgeSecici
+            tur="yonetim_karari"
+            zorunlu
+            deger={belge.yonetim_karari}
+            onDegis={belgeAyarla('yonetim_karari')}
+          />
         </div>
         {not('Akademisyene not (olumsuz kararda zorunlu)')}
       </>
@@ -1301,15 +1288,14 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
         {dg({
           yeni: 'gorevlendirildi',
           tur: 'basari',
-          etiketi: 'Kararı onayla ve bildir',
-          onay: 'Yönetim kurulu kararı onaylanıp akademisyene bildirilecek. Devam edilsin mi?',
+          etiketi: 'Kararı akademisyene gönder',
+          onay: 'Yönetim kurulu kararı akademisyene gönderilecek. Devam edilsin mi?',
           alanlar: {
             yoneticiNotu: alan.yoneticiNotu,
             yonetimKarariTarihi: alan.yonetimKarariTarihi,
           },
-          kosul: kararTiki && !!alan.yonetimKarariTarihi,
-          kosulMetni:
-            'Önce karar tarihini girip “Yönetim kurulu kararı olumlu çıktı” kutusunu işaretleyin.',
+          kosul: !!alan.yonetimKarariTarihi,
+          kosulMetni: 'Önce karar tarihini girin.',
         })}
       </>
     );
