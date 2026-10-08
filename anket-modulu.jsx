@@ -1407,7 +1407,24 @@ function AnketlerPaneli({
       ) : (
         <div className="ank-grid">
           {surveys.map((s) => {
-            const ac = assignments.filter((a) => a.surveyId === s.id).length;
+            const anketAtamalari = assignments.filter((a) => a.surveyId === s.id);
+            const ac = anketAtamalari.length;
+            // Anketin KİME paylaşıldığı (atamaların hedefi). Kapsam rozeti ise
+            // anketin KİMİN olduğunu söyler; ikisi farklı sorular.
+            const hedefler = [
+              ...new Set(
+                anketAtamalari.map(
+                  (a) =>
+                    a.kapsamEtiketi ||
+                    a.departmentName ||
+                    (a.kapsamTuru === 'universite'
+                      ? 'Tüm üniversite'
+                      : a.kapsamTuru === 'fakulte'
+                        ? 'Fakülte geneli'
+                        : 'Bölüm')
+                )
+              ),
+            ];
             return (
               <div
                 key={s.id}
@@ -1462,12 +1479,18 @@ function AnketlerPaneli({
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, minHeight: 22 }}>
-                  {/* Kapsam rozeti: anket kimin? Fakülte yetkilisi listede
-                      hem kendi fakülte anketlerini hem bölümlerinkini görür;
-                      hangisinin hangisi olduğu yazmazsa liste okunmaz. */}
+                  {/* Kapsam rozeti: anket KİMİN (hangi seviyede oluşturuldu,
+                      kim yönetir)? Kime gittiği değil — o, yanındaki
+                      "Paylaşıldı" rozetinde yazar. */}
                   {s._etiket && (
                     <span
-                      title={s._kilitSebebi || 'Bu anketi düzenleyebilirsiniz'}
+                      data-anket-sahiplik
+                      title={
+                        'Anketin sahibi: ' +
+                        s._etiket.etiket +
+                        '. ' +
+                        (s._kilitSebebi || 'Bu anketi düzenleyebilirsiniz.')
+                      }
                       style={{
                         padding: '2px 9px',
                         borderRadius: 10,
@@ -1477,11 +1500,18 @@ function AnketlerPaneli({
                         fontWeight: 700,
                       }}
                     >
-                      {s._etiket.etiket}
+                      {s._etiket.ton === 'eski'
+                        ? 'Eski kayıt'
+                        : 'Oluşturan: ' +
+                          s._etiket.etiket
+                            .replace(/ geneli$/, '')
+                            .replace(/^Bölüm anketi$/, 'Bölüm')}
                     </span>
                   )}
                   {ac > 0 && (
                     <span
+                      data-anket-paylasim
+                      title={ac + ' atama · ' + hedefler.join(', ')}
                       style={{
                         padding: '2px 9px',
                         borderRadius: 10,
@@ -1491,7 +1521,8 @@ function AnketlerPaneli({
                         fontWeight: 600,
                       }}
                     >
-                      {ac} atama
+                      Paylaşıldı: {hedefler.slice(0, 2).join(', ')}
+                      {hedefler.length > 2 ? ' +' + (hedefler.length - 2) : ''}
                     </span>
                   )}
                   {(s.linkedCourses || []).slice(0, 3).map((c) => (
