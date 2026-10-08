@@ -38,6 +38,64 @@ async function anketAktorKapsami(db, user, flags) {
   }
   return k;
 }
+
+// Personelin anket yanıtı okuması: kapsam + anonimlik
+// (server/lib/anket-yanit-okuma.js). Dönen işlev bir belgeyi görünen hâline
+// çevirir ya da null döndürür (gizli).
+async function personelYanitSuzgeci(db, user, docs) {
+  const flags = await getActorFlags(db, user);
+  const kapsam = await anketAktorKapsami(db, user, flags);
+  const ben = String(user.identifier || '').trim();
+  const benimAnketlerim = new Set();
+  if (kapsam.kapsamTuru === 'akademisyen') {
+    const [anketler, atamalar] = await Promise.all([
+      db
+        .collection('surveys')
+        .find({ $or: [{ createdBy: ben }, { sahipAd: ben }] }, { projection: { _docId: 1 } })
+        .toArray(),
+      db
+        .collection('survey_assignments')
+        .find({ assignedBy: ben }, { projection: { surveyId: 1 } })
+        .toArray(),
+    ]);
+    anketler.forEach((a) => benimAnketlerim.add(String(a._docId || (a._id && a._id.toString()))));
+    atamalar.forEach((a) => benimAnketlerim.add(String(a.surveyId || '')));
+  }
+  // Bölüm damgası olmayan eski yanıtlar: yanıtlayanın kaydından çözülür.
+  let coz = (d) => d;
+  const eskiVar =
+    kapsam.kapsamTuru !== 'universite' &&
+    (docs || []).some(
+      (d) => d && !(Array.isArray(d.yanitlayanBolumleri) && d.yanitlayanBolumleri.length)
+    );
+  if (eskiVar) {
+    const [ogrenciler, personel] = await Promise.all([
+      db
+        .collection('students')
+        .find(
+          {},
+          {
+            projection: {
+              studentNumber: 1,
+              firstName: 1,
+              lastName: 1,
+              name: 1,
+              departmentId: 1,
+              additionalDepartments: 1,
+            },
+          }
+        )
+        .toArray(),
+      db
+        .collection('professors')
+        .find({}, { projection: { name: 1, departmentId: 1 } })
+        .toArray(),
+    ]);
+    coz = eskiYanitBolumCozucu(ogrenciler, personel);
+  }
+  const suz = yanitSuzgeci({ kapsam, ben, benimAnketlerim });
+  return (d) => suz(coz(d));
+}
 const { aramaKapsami, desenKacir, aramaAdlari } = require('../lib/ogrenci-arama');
 const { mukerrerAtlanabilirMi, mukerrerHataMi } = require('../lib/yazma-mukerrer');
 const {
@@ -70,6 +128,7 @@ const {
   ogrenciOkumasiSuz,
   basvuruGerekli,
 } = require('../lib/ogrenci-okuma');
+const { yanitSuzgeci, eskiYanitBolumCozucu } = require('../lib/anket-yanit-okuma');
 
 // Muafiyet yeniden gönderim kuralı ESM'dir ve İSTEMCİYLE AYNI DOSYADIR:
 // hangi satırın düzeltilebileceğine iki taraf da oradan karar verir. İkinci
@@ -1293,6 +1352,32 @@ async function enforceWritePolicies(db, op, user) {
         };
       }
     }
+  }
+
+  // a2a-0) ANKET YANITI: yanıtlayanın BÖLÜMÜ sunucuda damgalanır.
+  // Sonuçlar bölüme göre süzülebilsin diye (server/lib/anket-yanit-okuma.js);
+  // istemcinin yazdığı bölüme güvenilmez.
+  if (op.collection === 'survey_responses' && op.type === 'add' && op.data && user) {
+    let bolumler = [];
+    try {
+      if (user.role === 'student') {
+        const ogr = await db
+          .collection('students')
+          .findOne({ studentNumber: String(user.studentNumber || user.identifier || '') });
+        bolumler = [ogr && ogr.departmentId, user.departmentId]
+          .concat((ogr && ogr.additionalDepartments) || [])
+          .filter(Boolean)
+          .map(String);
+      } else if (user.role === 'professor') {
+        const prof = await profilBul(db, user.identifier);
+        bolumler = [prof && prof.departmentId, user.departmentId].filter(Boolean).map(String);
+      } else {
+        bolumler = [user.departmentId].filter(Boolean).map(String);
+      }
+    } catch (_) {
+      bolumler = [user.departmentId].filter(Boolean).map(String);
+    }
+    op.data.yanitlayanBolumleri = [...new Set(bolumler)];
   }
 
   // a2a-1) ANKET ATAMASI (survey_assignments): kim, hangi anketi, nereye?
@@ -3187,6 +3272,14 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
+    // ── PERSONELİN ANKET YANITI OKUMASI: kapsam + anonimlik ──
+    // Yetkili yalnız kendi alanındaki bölümlerin yanıtlarını, kimliksiz görür
+    // (server/lib/anket-yanit-okuma.js).
+    if (DB_AUTH_ENFORCED && collection === 'survey_responses' && user && user.role !== 'student') {
+      const suz = await personelYanitSuzgeci(db, user, docs);
+      docs = docs.map(suz).filter(Boolean);
+    }
+
     // Memur kapsamı: belge memura GÖNDERİLMİŞ ve memur o bölümde ilgili
     // modüle ATANMIŞ olmalı. İstemcideki süzgecin sunucu tarafı karşılığı.
     if (DB_AUTH_ENFORCED && collection === 'memur_outputs' && user) {
@@ -3322,6 +3415,13 @@ router.get('/:collection/:docId', async (req, res) => {
     }
     // Gizli alanlar hiçbir rol için bu kapıdan çıkmaz (bkz. lib/gizli-alanlar.js).
     gizliAlanlariCikar(doc, collection);
+
+    // Anket yanıtı tek belge olarak da liste kuralıyla okunur (kapsam + anonim).
+    if (DB_AUTH_ENFORCED && user && user.role !== 'student' && collection === 'survey_responses') {
+      const gorunen = (await personelYanitSuzgeci(db, user, [doc]))(doc);
+      if (!gorunen) return res.status(403).json({ error: 'Bu yanıta erişim yetkiniz yok.' });
+      doc = gorunen;
+    }
 
     // TTO talebi: başkasının talebi tek belge olarak da okunamaz.
     if (DB_AUTH_ENFORCED && user && collection === 'tto_talepleri') {

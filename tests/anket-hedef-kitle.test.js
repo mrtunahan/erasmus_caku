@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   akademisyenKitlesi,
+  akademisyenGrubaUyarMi,
   kitleOzetMetni,
   mezunMu,
   ogrenciBolumleri,
@@ -177,8 +178,25 @@ describe('akademisyenKitlesi', () => {
     expect(r.kapsamdaki).toBe(2);
   });
 
-  it('grubun süzmediğini açıkça söyler', () => {
-    expect(akademisyenKitlesi(liste, {}).grupSuzulmuyor).toBe(true);
+  it('unvana göre grup süzer; unvanı bilinmeyen dışarıda bırakılmaz', () => {
+    const kisiler = [
+      { name: 'Prof. Dr. A', departmentId: 'b' },
+      { name: 'Arş. Gör. B', departmentId: 'b' },
+      { name: 'Öğr. Gör. Dr. C', departmentId: 'b' },
+      { name: 'Dr. D', departmentId: 'b' },
+      { name: 'E', title: 'Doç. Dr.', departmentId: 'b' },
+    ];
+    const r = akademisyenKitlesi(kisiler, { bolumler: ['b'], gruplar: ['Öğretim üyeleri'] });
+    expect(r.ulasilan).toBe(3); // A, E + unvanı bilinmeyen D
+    expect(r.unvaniBilinmeyen).toBe(1);
+    expect(
+      akademisyenKitlesi(kisiler, { bolumler: ['b'], gruplar: ['Araştırma görevlileri'] }).ulasilan
+    ).toBe(2); // B + D
+    expect(
+      akademisyenKitlesi(kisiler, { bolumler: ['b'], gruplar: ['Tüm akademik personel'] }).ulasilan
+    ).toBe(5);
+    expect(akademisyenGrubaUyarMi({ name: 'Arş. Gör. Dr. X' }, 'Öğretim üyeleri').uyar).toBe(false);
+    expect(akademisyenGrubaUyarMi({ name: 'Dr. Öğr. Üyesi X' }, 'Öğretim üyeleri').uyar).toBe(true);
   });
 
   it('kapsamsızda hepsi sayılır (memur hariç)', () => {
