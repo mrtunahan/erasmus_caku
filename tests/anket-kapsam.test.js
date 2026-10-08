@@ -5,6 +5,8 @@ import {
   anketKapsamYamasi,
   anketKilitSebebi,
   anketYonetilebilirMi,
+  anketAtanabilirMi,
+  atamaKapsamiKarari,
   anketleriSuz,
   kapsamOzetMetni,
   kapsamliMi,
@@ -109,21 +111,61 @@ describe('anketGorunurMu', () => {
     expect(anketGorunurMu(muhFakAnketi, MUH_FAK)).toBe(true);
   });
 
-  it('üniversite geneli anket herkese görünür', () => {
-    expect(anketGorunurMu(uniAnketi, MUH_FAK)).toBe(true);
-    expect(anketGorunurMu(uniAnketi, BIL_BOLUM)).toBe(true);
+  // Üst seviyenin anketi alt yetkiliye yalnız ONUN alanına atandığında görünür.
+  it('üniversite geneli anket alt yetkiliye yalnız atamayla görünür', () => {
+    expect(anketGorunurMu(uniAnketi, MUH_FAK)).toBe(false);
+    expect(anketGorunurMu(uniAnketi, BIL_BOLUM)).toBe(false);
+    const atamalar = [{ surveyId: 'a1', kapsamTuru: 'bolum', kapsamDepartmentIds: ['b-bil'] }];
+    expect(anketGorunurMu(uniAnketi, BIL_BOLUM, { atamalar })).toBe(true);
+    expect(anketGorunurMu(uniAnketi, MUH_FAK, { atamalar })).toBe(true);
+    const geneli = [{ surveyId: 'a1', kapsamTuru: 'universite', kapsamDepartmentIds: [] }];
+    expect(anketGorunurMu(uniAnketi, BIL_BOLUM, { atamalar: geneli })).toBe(true);
   });
 
-  it('bölüm yetkilisi yalnız kendi bölümünü ve üstünü görür', () => {
+  it('bölüm yetkilisi kendi bölümünün anketini görür; fakülte anketini atamayla', () => {
     expect(anketGorunurMu(bilAnketi, BIL_BOLUM)).toBe(true);
-    expect(anketGorunurMu(muhFakAnketi, BIL_BOLUM)).toBe(true); // kendi bölümünü kapsıyor
+    expect(anketGorunurMu(muhFakAnketi, BIL_BOLUM)).toBe(false);
+    const atamalar = [{ surveyId: 'a2', kapsamTuru: 'bolum', kapsamDepartmentIds: ['b-bil'] }];
+    expect(anketGorunurMu(muhFakAnketi, BIL_BOLUM, { atamalar })).toBe(true);
     expect(anketGorunurMu(ormAnketi, BIL_BOLUM)).toBe(false);
   });
 
-  // Liste bugünkü işi durdurmasın: eski kayıtlar görünür kalır.
-  it('kapsamsız eski anket görünür', () => {
-    expect(anketGorunurMu(eskiAnket, MUH_FAK)).toBe(true);
-    expect(anketGorunurMu(eskiAnket, BIL_BOLUM)).toBe(true);
+  // ŞİKÂYETİN KENDİSİ: yalnız Bilgisayar öğrencilerine paylaşılan anket.
+  it('Bilgisayar’a atanan anket Kimya bölüm yetkilisine görünmez', () => {
+    const KIM_BOLUM = { kapsamTuru: 'bolum', facultyId: 'f-muh', departmentIds: ['b-kim'] };
+    const atamalar = [{ surveyId: 'a1', kapsamTuru: 'bolum', kapsamDepartmentIds: ['b-bil'] }];
+    const fakAtama = [{ surveyId: 'a2', kapsamTuru: 'bolum', kapsamDepartmentIds: ['b-bil'] }];
+    expect(anketGorunurMu(uniAnketi, KIM_BOLUM, { atamalar })).toBe(false);
+    expect(anketGorunurMu(muhFakAnketi, KIM_BOLUM, { atamalar: fakAtama })).toBe(false);
+    expect(anketGorunurMu(bilAnketi, KIM_BOLUM)).toBe(false);
+    // Eski (kapsamsız) atama yalnız yazıldığı bölüme ulaşır.
+    const eskiAtama = [{ surveyId: 'a1', departmentId: 'b-bil' }];
+    expect(anketGorunurMu(uniAnketi, KIM_BOLUM, { atamalar: eskiAtama })).toBe(false);
+    expect(anketGorunurMu(uniAnketi, BIL_BOLUM, { atamalar: eskiAtama })).toBe(true);
+  });
+
+  it('kapsamsız eski anket yalnız sahibine ya da atandığı alana görünür', () => {
+    expect(anketGorunurMu(eskiAnket, MUH_FAK)).toBe(false);
+    expect(anketGorunurMu(eskiAnket, BIL_BOLUM)).toBe(false);
+    expect(anketGorunurMu(eskiAnket, BIL_BOLUM, { user: { name: 'Dr. Ayşe KAYA' } })).toBe(true);
+  });
+
+  it('akademisyen yalnız kendi açtığı ve kendi dersine bağlı anketleri görür', () => {
+    const AKAD = { kapsamTuru: 'akademisyen', facultyId: 'f-muh', departmentIds: ['b-bil'] };
+    const derslerim = [{ code: 'BLM445', name: 'Yapay Zekâ' }];
+    const dersli = { ...bilAnketi, id: 'a7', linkedCourses: [{ code: 'blm445', name: 'X' }] };
+    const baskaDers = { ...bilAnketi, id: 'a8', linkedCourses: [{ code: 'BLM101' }] };
+    expect(anketGorunurMu(dersli, AKAD, { derslerim })).toBe(true);
+    expect(anketGorunurMu(baskaDers, AKAD, { derslerim })).toBe(false);
+    expect(anketGorunurMu(bilAnketi, AKAD, { derslerim })).toBe(false);
+    expect(anketGorunurMu(eskiAnket, AKAD, { user: { name: 'Dr. Ayşe Kaya' } })).toBe(true);
+    // Paylaşma: yalnız dersine bağlı olan; düzenleme: yalnız kendi açtığı.
+    expect(anketAtanabilirMi(dersli, AKAD, { derslerim })).toBe(true);
+    expect(anketAtanabilirMi(eskiAnket, AKAD, { user: { name: 'Dr. Ayşe Kaya' } })).toBe(false);
+    expect(anketYonetilebilirMi(dersli, AKAD, { name: 'Dr. Başka' })).toBe(false);
+    expect(
+      anketYonetilebilirMi({ ...dersli, createdBy: 'Dr. Ali Veli' }, AKAD, { name: 'Dr. Ali Veli' })
+    ).toBe(true);
   });
 
   it('bölüm listesi boşalmış kayıt fakülte kimliğiyle çözülür', () => {
@@ -256,8 +298,8 @@ describe('anketleriSuz', () => {
 
   it('fakülte yetkilisi: başka fakülte gizlenir, bölüm anketi kilitli görünür', () => {
     const o = anketleriSuz(hepsi, MUH_FAK, { user: DEKAN });
-    expect(o.liste.map((a) => a.id)).toEqual(['a1', 'a2', 'a4', 'a6']);
-    expect(o.gizlenen).toBe(2);
+    expect(o.liste.map((a) => a.id)).toEqual(['a2', 'a4']);
+    expect(o.gizlenen).toBe(4);
     expect(o.yonetilebilir).toBe(1);
     const bil = o.liste.find((a) => a.id === 'a4');
     expect(bil._yonetilebilir).toBe(false);
@@ -272,13 +314,13 @@ describe('anketleriSuz', () => {
 
   it('fakülte yetkilisi BAŞKASININ açtığı fakülte anketini yönetemez', () => {
     const o = anketleriSuz(hepsi, MUH_FAK, { user: DEKAN_YRD });
-    expect(o.liste.map((a) => a.id)).toEqual(['a1', 'a2', 'a4', 'a6']);
+    expect(o.liste.map((a) => a.id)).toEqual(['a2', 'a4']);
     expect(o.yonetilebilir).toBe(0);
   });
 
   it('bölüm yetkilisi yalnız kendi anketini yönetir', () => {
     const o = anketleriSuz(hepsi, BIL_BOLUM, { user: { name: 'Bölüm Bşk.' } });
-    expect(o.liste.map((a) => a.id)).toEqual(['a1', 'a2', 'a4', 'a6']);
+    expect(o.liste.map((a) => a.id)).toEqual(['a4']);
     expect(o.yonetilebilir).toBe(1);
   });
 
@@ -301,7 +343,8 @@ describe('kapsamOzetMetni', () => {
   });
 
   it('bölüm yetkilisine kaç anketin kendisine ait olduğu yazılır', () => {
-    const o = anketleriSuz([muhFakAnketi, bilAnketi], BIL_BOLUM, {});
+    const atamalar = [{ surveyId: 'a2', kapsamTuru: 'bolum', kapsamDepartmentIds: ['b-bil'] }];
+    const o = anketleriSuz([muhFakAnketi, bilAnketi], BIL_BOLUM, { atamalar });
     expect(kapsamOzetMetni(BIL_BOLUM, o)).toMatch(/1 tanesi bölümünüze ait/);
   });
 });
@@ -326,5 +369,48 @@ describe('sahibiMi', () => {
 
   it('sahipAd alanı da tanınır (kapsam damgasıyla yazılan)', () => {
     expect(sahibiMi({ sahipAd: 'Dekan X' }, { identifier: 'Dekan X' })).toBe(true);
+  });
+});
+
+describe('atamaKapsamiKarari (paylaşım kapsamı)', () => {
+  const MUH = { kapsamTuru: 'fakulte', facultyId: 'f-muh', departmentIds: ['b-bil', 'b-kim'] };
+  const BIL = { kapsamTuru: 'bolum', facultyId: 'f-muh', departmentIds: ['b-bil'] };
+  it('üniversite yetkilisi her yere paylaşır', () => {
+    expect(atamaKapsamiKarari(UNI, { kapsamTuru: 'universite' })).toEqual({
+      kapsamTuru: 'universite',
+      kapsamFacultyId: '',
+      kapsamDepartmentIds: [],
+    });
+    expect(
+      atamaKapsamiKarari(UNI, { kapsamTuru: 'bolum', kapsamDepartmentIds: ['b-orm'] })
+        .kapsamDepartmentIds
+    ).toEqual(['b-orm']);
+  });
+  it('fakülte yetkilisi yalnız kendi fakültesine; başka fakülte reddedilir', () => {
+    expect(atamaKapsamiKarari(MUH, { kapsamTuru: 'universite' })).toEqual({
+      kapsamTuru: 'fakulte',
+      kapsamFacultyId: 'f-muh',
+      kapsamDepartmentIds: ['b-bil', 'b-kim'],
+    });
+    expect(
+      atamaKapsamiKarari(MUH, { kapsamTuru: 'bolum', kapsamDepartmentIds: ['b-kim'] })
+    ).toMatchObject({ kapsamTuru: 'bolum', kapsamDepartmentIds: ['b-kim'] });
+    expect(atamaKapsamiKarari(MUH, { kapsamTuru: 'bolum', kapsamDepartmentIds: ['b-orm'] })).toBe(
+      null
+    );
+    expect(
+      atamaKapsamiKarari(MUH, { kapsamTuru: 'bolum', kapsamDepartmentIds: ['b-kim', 'b-orm'] })
+        .kapsamDepartmentIds
+    ).toEqual(['b-kim']);
+  });
+  it('bölüm yetkilisi ve akademisyen yalnız kendi bölümüne', () => {
+    expect(atamaKapsamiKarari(BIL, { kapsamTuru: 'universite' }).kapsamDepartmentIds).toEqual([
+      'b-bil',
+    ]);
+    expect(atamaKapsamiKarari(BIL, { kapsamTuru: 'bolum', kapsamDepartmentIds: ['b-kim'] })).toBe(
+      null
+    );
+    const AKAD = { ...BIL, kapsamTuru: 'akademisyen' };
+    expect(atamaKapsamiKarari(AKAD, {}).kapsamDepartmentIds).toEqual(['b-bil']);
   });
 });

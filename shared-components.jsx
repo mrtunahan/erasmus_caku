@@ -366,6 +366,8 @@ import {
   anketKilitSebebi,
   anketYonetilebilirMi,
   anketleriSuz,
+  anketAtanabilirMi,
+  akademisyenDersleri,
   kapsamOzetMetni as anketKapsamOzetMetni,
   kapsamliMi as anketKapsamliMi,
 } from './lib/anket-kapsam.js';
@@ -15229,6 +15231,8 @@ window.anketYonetilebilirMi = anketYonetilebilirMi;
 window.anketKilitSebebi = anketKilitSebebi;
 window.anketKapsamEtiketi = anketKapsamEtiketi;
 window.anketleriSuz = anketleriSuz;
+window.anketAtanabilirMi = anketAtanabilirMi;
+window.akademisyenDersleri = akademisyenDersleri;
 window.anketKapsamOzetMetni = anketKapsamOzetMetni;
 window.anketKapsamliMi = anketKapsamliMi;
 // Aktif bölüm kapsamı — app-shell kullanır (yanlış fakültenin verisi açılmasın).

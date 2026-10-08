@@ -247,6 +247,61 @@ function AnketModulu({ currentUser, activeDepartment, departmentInfo }) {
   const role = currentUser?.role;
   const isManager = role === 'admin' || role === 'bolum_yetkilisi';
   const responsive = window.useResponsive ? window.useResponsive() : { val: (_a, _b, c) => c };
+  // Yönetici bayrağı olmayan akademisyen: kendine gelen anketleri doldurur;
+  // ayrıca verdiği derslere bağlı anketleri bölümünün öğrencilerine paylaşır.
+  const [akademisyenSekme, setAkademisyenSekme] = useState('doldur');
+
+  if (!isManager && role === 'professor') {
+    return (
+      <div>
+        <div
+          role="tablist"
+          style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}
+          data-akademisyen-anket-sekme
+        >
+          {[
+            ['doldur', 'Bana gelen anketler'],
+            ['ders', 'Ders anketlerim'],
+          ].map(([id, ad]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={akademisyenSekme === id}
+              onClick={() => setAkademisyenSekme(id)}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 999,
+                border: '1px solid ' + (akademisyenSekme === id ? ANK.accent : ANK.border),
+                background: akademisyenSekme === id ? ANK.accentPale : 'white',
+                color: akademisyenSekme === id ? ANK.accent : ANK.textMuted,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: "'Inter', sans-serif",
+              }}
+            >
+              {ad}
+            </button>
+          ))}
+        </div>
+        {akademisyenSekme === 'ders' ? (
+          <YoneticiGorunumu
+            currentUser={currentUser}
+            activeDepartment={activeDepartment}
+            departmentInfo={departmentInfo}
+            responsive={responsive}
+            akademisyenModu
+          />
+        ) : (
+          <KatilimciGorunumu
+            currentUser={currentUser}
+            activeDepartment={activeDepartment}
+            responsive={responsive}
+          />
+        )}
+      </div>
+    );
+  }
 
   return isManager ? (
     <YoneticiGorunumu
@@ -299,7 +354,13 @@ function useToast() {
 // ══════════════════════════════════════════════════════════════
 // YÖNETİCİ
 // ══════════════════════════════════════════════════════════════
-function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, responsive }) {
+function YoneticiGorunumu({
+  currentUser,
+  activeDepartment,
+  departmentInfo,
+  responsive,
+  akademisyenModu,
+}) {
   const [tab, setTab] = useState('anketler');
   const [surveys, setSurveys] = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -338,13 +399,43 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
         : FACULTY_DEPARTMENTS,
     [dbBolumler, FACULTY_DEPARTMENTS]
   );
-  const yayinKapsami = useMemo(
+  const yayinKapsami = useMemo(() => {
+    const k = window.yayinKapsamCoz
+      ? window.yayinKapsamCoz(currentUser, kapsamBolumleriTum)
+      : { kapsamTuru: 'bolum', facultyId: '', departmentIds: [] };
+    // Akademisyen: kendi bölümü; ama yetki 'akademisyen' düzeyinde
+    // (lib/anket-kapsam.js) — yalnız kendi anketi ve kendi dersleri.
+    return akademisyenModu ? { ...k, kapsamTuru: 'akademisyen' } : k;
+  }, [currentUser, kapsamBolumleriTum, akademisyenModu]);
+  // Atama kaydına yazılacak kapsam: akademisyenin paylaşımı bölüm kapsamıdır.
+  const yazmaKapsami = useMemo(
     () =>
-      window.yayinKapsamCoz
-        ? window.yayinKapsamCoz(currentUser, kapsamBolumleriTum)
-        : { kapsamTuru: 'bolum', facultyId: '', departmentIds: [] },
-    [currentUser, kapsamBolumleriTum]
+      yayinKapsami.kapsamTuru === 'akademisyen'
+        ? { ...yayinKapsami, kapsamTuru: 'bolum' }
+        : yayinKapsami,
+    [yayinKapsami]
   );
+  // Akademisyenin verdiği dersler (anket paylaşımı yalnız bunlara bağlı
+  // anketler için açık).
+  const [derslerim, setDerslerim] = useState([]);
+  useEffect(() => {
+    if (!akademisyenModu) return undefined;
+    let alive = true;
+    window
+      .apiRead('sinav_dersler')
+      .catch(() => [])
+      .then((d) => {
+        if (!alive) return;
+        setDerslerim(
+          window.akademisyenDersleri
+            ? window.akademisyenDersleri(d || [], currentUser?.name || currentUser?.identifier)
+            : []
+        );
+      });
+    return () => {
+      alive = false;
+    };
+  }, [akademisyenModu, currentUser]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -376,8 +467,13 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
       console.warn('Yayın kapsamı kuralı yüklenemedi — atama listesi gösterilmiyor.');
       return [];
     }
+    if (yayinKapsami.kapsamTuru === 'akademisyen') {
+      // Akademisyen yalnız KENDİ yaptığı paylaşımları görür ve kaldırır.
+      const ben = String(currentUser?.name || currentUser?.identifier || '').trim();
+      return (assignments || []).filter((a) => String(a.assignedBy || '').trim() === ben);
+    }
     return (assignments || []).filter((a) => window.yayinYonetilebilirMi(a, yayinKapsami));
-  }, [assignments, yayinKapsami]);
+  }, [assignments, yayinKapsami, currentUser]);
 
   useEffect(() => {
     load();
@@ -422,17 +518,20 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
       console.warn('Anket kapsam kuralı yüklenemedi — liste gösterilmiyor.');
       return { liste: [], gizlenen: 0, yonetilebilir: 0 };
     }
+    // Görünürlük anketin KİME PAYLAŞILDIĞINA da bakar: atamalar verilir.
     return window.anketleriSuz(surveys, yayinKapsami, {
       user: currentUser,
       bolumler: bolumAdListesi,
+      atamalar: assignments,
+      derslerim,
     });
-  }, [surveys, yayinKapsami, currentUser, bolumAdListesi]);
+  }, [surveys, yayinKapsami, currentUser, bolumAdListesi, assignments, derslerim]);
   const gorunenAnketler = anketOzeti.liste;
 
   const addSurvey = async (survey) => {
     // Kapsam yayımcının KENDİ yetki alanıdır; ekrandan genişletilemez.
     const kapsamYamasi = window.anketKapsamYamasi
-      ? window.anketKapsamYamasi(yayinKapsami, currentUser)
+      ? window.anketKapsamYamasi(yazmaKapsami, currentUser)
       : {};
     await window.DBWrite.add('surveys', {
       ...survey,
@@ -457,7 +556,7 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
       window.anketKapsamliMi &&
       !window.anketKapsamliMi(mevcut) &&
       window.anketKapsamYamasi
-        ? window.anketKapsamYamasi(yayinKapsami, currentUser)
+        ? window.anketKapsamYamasi(yazmaKapsami, currentUser)
         : {};
     await window.DBWrite.set(
       'surveys',
@@ -496,7 +595,7 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
       ...(s.presetKey ? { presetKey: s.presetKey } : {}),
       // Kopya KOPYALAYANIN kapsamına yazılır: başka bir bölümün anketini
       // çoğaltan fakülte yetkilisi, kopyanın sahibi olur.
-      ...(window.anketKapsamYamasi ? window.anketKapsamYamasi(yayinKapsami, currentUser) : {}),
+      ...(window.anketKapsamYamasi ? window.anketKapsamYamasi(yazmaKapsami, currentUser) : {}),
       createdBy: currentUser?.name || '',
     };
     await window.DBWrite.add('surveys', copy);
@@ -513,7 +612,7 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
     // Kapsam, bileşen genelinde çözülmüş olanla AYNI olmalı: burada yeniden
     // gömülü listeyle çözmek, yönetim listesinin gördüğüyle kayda yazılanı
     // ayrıştırırdı.
-    const kapsam = yayinKapsami;
+    const kapsam = yazmaKapsami;
     // Seçim yalnız DARALTIR: kapsamı aşan bir seçim (ör. başka fakülte)
     // yok sayılır ve kayıt yayımcının tam kapsamıyla yazılır.
     const kapsamYamasi =
@@ -570,14 +669,16 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
       <PageHeader
         title="Anketler"
         subtitle={
-          (yayinKapsami.kapsamTuru === 'universite'
-            ? 'Üniversite'
-            : yayinKapsami.kapsamTuru === 'fakulte'
-              ? window.useFakulteAdlari
-                ? (window.useFakulteAdlari() || {})[yayinKapsami.facultyId] || 'Fakülte'
-                : 'Fakülte'
-              : departmentInfo?.name || 'Bölüm') +
-          ' yönetici paneli — anket oluştur, ata ve sonuçları izle'
+          yayinKapsami.kapsamTuru === 'akademisyen'
+            ? 'Ders anketlerim — derslerinize bağlı anketleri bölümünüzün öğrencilerine paylaşın'
+            : (yayinKapsami.kapsamTuru === 'universite'
+                ? 'Üniversite'
+                : yayinKapsami.kapsamTuru === 'fakulte'
+                  ? window.useFakulteAdlari
+                    ? (window.useFakulteAdlari() || {})[yayinKapsami.facultyId] || 'Fakülte'
+                    : 'Fakülte'
+                  : departmentInfo?.name || 'Bölüm') +
+              ' yönetici paneli — anket oluştur, ata ve sonuçları izle'
         }
         responsive={responsive}
       />
@@ -599,11 +700,13 @@ function YoneticiGorunumu({ currentUser, activeDepartment, departmentInfo, respo
               onDuplicate={duplicateSurvey}
               activeDepartment={activeDepartment}
               isAdmin={isAdmin}
+              derslerim={akademisyenModu ? derslerim : null}
             />
           )}
           {tab === 'atama' && (
             <AtamaPaneli
-              surveys={gorunenAnketler}
+              // Paylaşılabilen anketler: akademisyende yalnız kendi dersine bağlı olanlar.
+              surveys={gorunenAnketler.filter((a) => a._atanabilir !== false)}
               // Yetkili yalnız KENDİ kapsamındaki atamaları görür ve kaldırır —
               // bir bölüm yetkilisinin başka bölümün atamasını silmesi olmaz.
               assignments={yonetilebilirAtamalar}
@@ -1015,6 +1118,7 @@ function AnketlerPaneli({
   isAdmin,
   kapsam,
   kapsamOzeti,
+  derslerim,
 }) {
   // Doğrudan yükle — aynı şablon birden çok kez eklenebilir (kopya sayısı gösterilir)
   const addPreset = async (key) => {
@@ -1516,6 +1620,7 @@ function AnketlerPaneli({
           onCancel={() => setEditing(null)}
           activeDepartment={activeDepartment}
           isAdmin={isAdmin}
+          derslerim={derslerim}
         />
       )}
     </div>
@@ -1776,7 +1881,15 @@ function SecenekDuzenleyici({ soru, onChange }) {
   );
 }
 
-function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment, isAdmin }) {
+function SurveyEditorModal({
+  initial,
+  isNew,
+  onSave,
+  onCancel,
+  activeDepartment,
+  isAdmin,
+  derslerim,
+}) {
   // Yetkisi olmayan kullanıcı anketi GÖRÜNTÜLER: içeriğe bakmak yasak değil,
   // değiştirmek yasak (bkz. lib/anket-kapsam.js).
   const saltOkunur = !!initial._saltOkunur;
@@ -1821,15 +1934,19 @@ function SurveyEditorModal({ initial, isNew, onSave, onCancel, activeDepartment,
 
   const visibleCourses = useMemo(() => {
     const q = courseSearch.trim().toLocaleLowerCase('tr');
-    return allCourses
-      .filter((c) => !courseDeptId || (c.departmentId || '') === courseDeptId)
+    // Akademisyen anketini yalnız KENDİ verdiği derslere bağlayabilir.
+    const kaynak = Array.isArray(derslerim) ? derslerim : allCourses;
+    return kaynak
+      .filter(
+        (c) => Array.isArray(derslerim) || !courseDeptId || (c.departmentId || '') === courseDeptId
+      )
       .filter(
         (c) =>
           !q ||
           (c.name || '').toLocaleLowerCase('tr').includes(q) ||
           (c.code || '').toLocaleLowerCase('tr').includes(q)
       );
-  }, [allCourses, courseDeptId, courseSearch]);
+  }, [allCourses, courseDeptId, courseSearch, derslerim]);
 
   const courseKey = (c) => (c.code || '') + '::' + (c.name || '');
   const isLinked = (c) => linkedCourses.some((l) => courseKey(l) === courseKey(c));
@@ -2592,7 +2709,10 @@ function AtamaPaneli({
   // Anket, atayanın yetki alanının dışına çıkamaz: bölüm yetkilisi kendi
   // bölümüne, fakülte yetkilisi fakültesinin tüm bölümlerine, üniversite
   // yetkilisi tüm fakültelere atar. Seçim yalnız DARALTMAK içindir.
-  const kapsamTuru = (kapsam && kapsam.kapsamTuru) || 'bolum';
+  // Akademisyen kendi bölümüne paylaşır (bölüm yetkilisi gibi tek bölüm) ve
+  // yalnız öğrencilere.
+  const akademisyen = kapsam && kapsam.kapsamTuru === 'akademisyen';
+  const kapsamTuru = akademisyen ? 'bolum' : (kapsam && kapsam.kapsamTuru) || 'bolum';
   const kapsamBolumleri = useMemo(
     () =>
       (departments || []).filter(
@@ -2845,7 +2965,7 @@ function AtamaPaneli({
             <div>
               <label style={labelStyle}>Hedef rol</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                {TARGET_ROLES.map((r) => {
+                {TARGET_ROLES.filter((r) => !akademisyen || r.id === 'student').map((r) => {
                   const active = targetRole === r.id;
                   return (
                     <button
