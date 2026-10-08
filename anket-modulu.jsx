@@ -2597,7 +2597,7 @@ function HedefKitleKutusu({ rol, bolumler, gruplar, kapsamEtiketi }) {
     try {
       if (rol === 'professor') {
         const liste = await window.apiRead('professors');
-        setOzet(window.anketAkademisyenKitlesi(liste || [], { bolumler }));
+        setOzet(window.anketAkademisyenKitlesi(liste || [], { bolumler, gruplar }));
       } else {
         const liste = await window.apiRead('students');
         setOzet(window.anketOgrenciKitlesi(liste || [], { bolumler, gruplar }));
@@ -2710,10 +2710,10 @@ function HedefKitleKutusu({ rol, bolumler, gruplar, kapsamEtiketi }) {
         </p>
       )}
 
-      {!ogrenci && ozet.grupSuzulmuyor && (
+      {!ogrenci && ozet.unvaniBilinmeyen > 0 && (
         <p style={{ fontSize: 11.5, color: '#92400E', margin: '8px 0 0', lineHeight: 1.5 }}>
-          ⚠ Akademisyen grupları (öğretim üyesi / araştırma görevlisi) <b>süzmüyor</b>: kayıtlarda
-          unvan verisi yok, anket kapsamdaki tüm akademisyenlere gider.
+          ⚠ {ozet.unvaniBilinmeyen} kişinin unvanı çözülemedi (kayıtta yalnız “Dr.” ya da unvan
+          yok); anket onlara da <b>gidecek</b>.
         </p>
       )}
     </div>
@@ -4188,6 +4188,22 @@ function SonuclarPaneli({ surveys }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Sunucu yanıtları yetki alanına göre süzer ve kimliksiz verir
+          (server/lib/anket-yanit-okuma.js); ekran bunu söylesin. */}
+      <div
+        data-sonuc-kapsam-notu
+        style={{
+          fontSize: 12,
+          color: ANK.textMuted,
+          background: ANK.surfaceAlt,
+          border: '1px solid ' + ANK.border,
+          borderRadius: 10,
+          padding: '8px 12px',
+        }}
+      >
+        Yanıtlar <b>anonimdir</b>: kimin ne cevap verdiği gösterilmez. Yalnız yetki alanınızdaki
+        bölümlerin yanıtları listelenir.
+      </div>
       <div style={{ ...cardStyle, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ flex: 2, minWidth: 220 }}>
           <label style={labelStyle}>Anket seç</label>
@@ -4415,7 +4431,12 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
   );
   const matchesGroup = useCallback(
     (role, group) => {
-      if (role !== 'student') return true; // akademisyen grupları unvan bazlı — unvan verisi yok, tümü görür
+      // Akademisyen grupları unvandan çözülür (lib/anket-hedef-kitle.js).
+      if (role !== 'student') {
+        return window.akademisyenGrubaUyarMi
+          ? window.akademisyenGrubaUyarMi(currentUser, group).uyar
+          : true;
+      }
       const g = (group || '').trim();
       if (!g || g === 'Tüm öğrenciler') return true; // grupsuz eski kayıtlar herkese görünür
       if (g === 'Mezun') return isAlumni;
@@ -5397,7 +5418,11 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
   }, [load]);
 
   const matchesGroup = (role, group) => {
-    if (role !== 'student') return true;
+    if (role !== 'student') {
+      return window.akademisyenGrubaUyarMi
+        ? window.akademisyenGrubaUyarMi(currentUser, group).uyar
+        : true;
+    }
     const g = (group || '').trim();
     if (!g || g === 'Tüm öğrenciler') return true;
     if (g === 'Mezun') return isAlumni;

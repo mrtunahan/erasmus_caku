@@ -496,7 +496,12 @@ import {
   sinifSayisi,
   sinifTaramasi,
 } from './lib/ogrenci-sinif.js';
-import { akademisyenKitlesi, kitleOzetMetni, ogrenciKitlesi } from './lib/anket-hedef-kitle.js';
+import {
+  akademisyenGrubaUyarMi,
+  akademisyenKitlesi,
+  kitleOzetMetni,
+  ogrenciKitlesi,
+} from './lib/anket-hedef-kitle.js';
 import { girisListesi } from './lib/akademik-unvan.js';
 import {
   acikEtaplar,
@@ -15302,6 +15307,7 @@ window.stajNumaralariCoz = numaralariCoz;
 // Anket atamadan ÖNCE "kaç kişiye gidecek" — ekran karanlıkta çalışmasın.
 window.anketOgrenciKitlesi = ogrenciKitlesi;
 window.anketAkademisyenKitlesi = akademisyenKitlesi;
+window.akademisyenGrubaUyarMi = akademisyenGrubaUyarMi;
 window.anketKitleOzetMetni = kitleOzetMetni;
 // Anket sonuç istatistiği — ortalama tek başına yanıltıcı, dağılım şart.
 window.anketDagilim = anketDagilim;
