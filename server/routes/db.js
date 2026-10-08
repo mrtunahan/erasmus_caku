@@ -15,6 +15,29 @@ function anketKurali() {
   if (!anketKuraliSozu) anketKuraliSozu = import('../../lib/anket-kapsam.js');
   return anketKuraliSozu;
 }
+
+// Anket işlemlerinde yetkilinin kapsamı. Yönetici bayrağı olmayan
+// akademisyen 'akademisyen' kapsamındadır: yalnız kendi anketini yönetir,
+// yalnız kendi dersine bağlı anketi kendi bölümüne paylaşır (bölüm
+// kimlikleri yine aktorKapsami ile çözülür).
+async function anketAktorKapsami(db, user, flags) {
+  if (flags.admin || flags.uniAdmin) {
+    return { kapsamTuru: 'universite', facultyId: '', departmentIds: [] };
+  }
+  let profil = null;
+  try {
+    if (user.role === 'professor') profil = await profilBul(db, user.identifier);
+    else if (user.role === 'bolum_yetkilisi') profil = { departmentId: user.departmentId || '' };
+  } catch (_) {
+    profil = null;
+  }
+  const bolumler = await db.collection('departments').find({}).toArray();
+  const k = aktorKapsami(profil, bolumler);
+  if (k.kapsamTuru === 'bolum' && !flags.deptManager && user.role !== 'bolum_yetkilisi') {
+    return { ...k, kapsamTuru: 'akademisyen' };
+  }
+  return k;
+}
 const { aramaKapsami, desenKacir, aramaAdlari } = require('../lib/ogrenci-arama');
 const { mukerrerAtlanabilirMi, mukerrerHataMi } = require('../lib/yazma-mukerrer');
 const {
@@ -1272,6 +1295,95 @@ async function enforceWritePolicies(db, op, user) {
     }
   }
 
+  // a2a-1) ANKET ATAMASI (survey_assignments): kim, hangi anketi, nereye?
+  //
+  // ⚠ Atama EKLEME sunucuda hiç denetlenmiyordu: kapsam istemcide
+  // daraltılıyordu ama /api/db/write doğrudan çağrılınca herhangi bir
+  // akademisyen anketi istediği bölüme, hatta tüm üniversiteye atayabilirdi.
+  //   Üniversite yetkilisi → her anketi her yere.
+  //   Fakülte yetkilisi    → görebildiği anketi kendi fakültesinin bölümlerine.
+  //   Bölüm yetkilisi      → görebildiği anketi kendi bölümüne.
+  //   Akademisyen          → KENDİ verdiği derse bağlı anketi, kendi bölümünün
+  //                          ÖĞRENCİLERİNE; yalnız kendi atamasını kaldırır.
+  // Kapsam alanları burada yetkilinin alanıyla kesiştirilip yeniden yazılır.
+  if (op.collection === 'survey_assignments' && user && user.role !== 'student') {
+    const flags = await getActorFlags(db, user);
+    const kapsam = await anketAktorKapsami(db, user, flags);
+    const K = await anketKurali();
+    const ben = String(user.identifier || '').trim();
+    const reddet = (error) => ({ allow: false, status: 403, error });
+    let mevcut = null;
+    if (op.docId) {
+      try {
+        mevcut = await findDocByAnyId(db, 'survey_assignments', op.docId);
+      } catch (_) {
+        mevcut = null;
+      }
+    }
+    if (kapsam.kapsamTuru !== 'universite' && mevcut) {
+      const sahibi = String(mevcut.assignedBy || '').trim() === ben;
+      const izin = kapsam.kapsamTuru === 'akademisyen' ? sahibi : yonetilebilirMi(mevcut, kapsam);
+      if (!izin) {
+        return reddet(
+          kapsam.kapsamTuru === 'akademisyen'
+            ? 'Yalnız kendi yaptığınız paylaşımı değiştirebilir ya da kaldırabilirsiniz.'
+            : 'Bu paylaşım yetki alanınızın dışında.'
+        );
+      }
+    }
+    if (op.type !== 'delete' && op.data && typeof op.data === 'object') {
+      const veri = op.data;
+      const surveyId = String(veri.surveyId || (mevcut && mevcut.surveyId) || '');
+      if (kapsam.kapsamTuru !== 'universite') {
+        let anket = null;
+        try {
+          anket = surveyId ? await findDocByAnyId(db, 'surveys', surveyId) : null;
+        } catch (_) {
+          anket = null;
+        }
+        if (!anket) return reddet('Anket bulunamadı.');
+        const anketKaydi = { ...anket, id: surveyId };
+        const atamalar = await db
+          .collection('survey_assignments')
+          .find(
+            { surveyId },
+            { projection: { surveyId: 1, kapsamTuru: 1, kapsamDepartmentIds: 1, departmentId: 1 } }
+          )
+          .toArray();
+        let derslerim = [];
+        if (kapsam.kapsamTuru === 'akademisyen') {
+          const dersler = await db
+            .collection('sinav_dersler')
+            .find({}, { projection: { code: 1, name: 1, professor: 1, professors: 1 } })
+            .toArray();
+          derslerim = K.akademisyenDersleri(dersler, ben);
+          const rol = String(veri.targetRole || (mevcut && mevcut.targetRole) || '');
+          if (rol !== 'student') {
+            return reddet('Akademisyen anketi yalnız öğrencilere paylaşabilir.');
+          }
+        }
+        const secenek = { atamalar, derslerim, user: { name: ben } };
+        if (!K.anketAtanabilirMi(anketKaydi, kapsam, secenek)) {
+          return reddet(
+            kapsam.kapsamTuru === 'akademisyen'
+              ? 'Yalnız verdiğiniz bir derse bağlı anketi paylaşabilirsiniz.'
+              : 'Bu anket yetki alanınızda değil.'
+          );
+        }
+      }
+      if (op.type === 'add' || 'kapsamTuru' in veri || 'kapsamDepartmentIds' in veri) {
+        const karar = K.atamaKapsamiKarari(kapsam, veri);
+        if (!karar) return reddet('Seçilen bölüm(ler) yetki alanınızın dışında.');
+        Object.assign(veri, karar);
+      }
+      if (op.type === 'add' || !mevcut) {
+        veri.assignedBy = ben;
+      } else {
+        delete veri.assignedBy;
+      }
+    }
+  }
+
   // a2a-2) ANKET KAYDININ KENDİSİ (surveys): kapsam damgası ve yetki.
   //
   // ⚠ Anket kaydı kapsam taşımıyordu; "Anketler" sekmesi koleksiyonun
@@ -1286,24 +1398,12 @@ async function enforceWritePolicies(db, op, user) {
   //   • delete → aynı yetki denetimi.
   if (op.collection === 'surveys' && user && user.role !== 'student') {
     const flags = await getActorFlags(db, user);
-    let profil = null;
-    try {
-      if (user.role === 'professor') {
-        profil = await profilBul(db, user.identifier);
-      } else if (user.role === 'bolum_yetkilisi') {
-        // Bölüm yetkilisi girişinin professors kaydı olmayabilir; bölümü
-        // JWT'de imzalı geliyor (bkz. routes/auth.js). Profil yoksa kapsam
-        // boş çıkar ve yetkili KENDİ anketini bile düzenleyemezdi.
-        profil = { departmentId: user.departmentId || '' };
-      }
-    } catch (_) {
-      profil = null;
-    }
-    const bolumler = await db.collection('departments').find({}).toArray();
-    const kapsam =
-      flags.admin || flags.uniAdmin
-        ? { kapsamTuru: 'universite', facultyId: '', departmentIds: [] }
-        : aktorKapsami(profil, bolumler);
+    // Bölüm yetkilisi girişinin professors kaydı olmayabilir; bölümü JWT'de
+    // imzalı geliyor (anketAktorKapsami). Akademisyenin anketi kendi
+    // bölümüne damgalanır, yönetimi yalnız kendisindedir.
+    const aktor = await anketAktorKapsami(db, user, flags);
+    const kapsam = aktor.kapsamTuru === 'akademisyen' ? { ...aktor, kapsamTuru: 'bolum' } : aktor;
+    const yetkiKapsami = aktor;
 
     if (op.type === 'add' && op.data && typeof op.data === 'object') {
       op.data.kapsamTuru = kapsam.kapsamTuru;
@@ -1338,14 +1438,14 @@ async function enforceWritePolicies(db, op, user) {
         }
       } else {
         const { anketYonetilebilirMi, kapsamliMi } = await anketKurali();
-        const izin = anketYonetilebilirMi(mevcut, kapsam, { name: user.identifier || '' });
+        const izin = anketYonetilebilirMi(mevcut, yetkiKapsami, { name: user.identifier || '' });
         if (!izin) {
           const { anketKilitSebebi } = await anketKurali();
           return {
             allow: false,
             status: 403,
             error:
-              anketKilitSebebi(mevcut, kapsam, { name: user.identifier || '' }) ||
+              anketKilitSebebi(mevcut, yetkiKapsami, { name: user.identifier || '' }) ||
               'Bu anket üzerinde işlem yapma yetkiniz yok.',
           };
         }
