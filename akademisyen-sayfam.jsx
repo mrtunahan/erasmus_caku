@@ -237,7 +237,16 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
           { 'Content-Type': 'application/json' },
           window.yoklamaBasliklari ? window.yoklamaBasliklari() : {}
         ),
-        body: JSON.stringify({ oturumId: oturum.id, elleDurumlar }),
+        body: JSON.stringify({
+          oturumId: oturum.id,
+          elleDurumlar,
+          // Birlikte yoklamada öğrencinin hangi kayda ait olduğu.
+          elleDersler: Object.fromEntries(
+            (ogrenciler || [])
+              .filter((o) => o && o.dersId)
+              .map((o) => [metin(o.studentNumber), metin(o.dersId)])
+          ),
+        }),
       });
     } catch (e) {
       alert('Yoklama kapatılamadı: ' + (e.message || 'bilinmeyen hata'));
@@ -284,6 +293,12 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
             {oturum.dersKodu ? oturum.dersKodu + ' — ' : ''}
             {oturum.dersAdi || 'Yoklama'}
           </div>
+          {Array.isArray(oturum.grup) && oturum.grup.length > 1 && (
+            <div data-birlikte-yoklama style={{ fontSize: 12.5, color: '#A7F3D0', marginTop: 2 }}>
+              Birlikte yoklama: {oturum.grup.map((g) => g.dersKodu || g.dersAdi).join(' + ')} — tek
+              kod, her kaydın listesi ayrı tutulur
+            </div>
+          )}
           {/* ⚠ SÜRÜM BURADA, BAŞLIKTA DURUYOR. Alttaki damga ekranın dibinde
               kaldığı için "hangi paketi çalıştırıyorum" sorusu günlerce
               cevaplanamadı: karekod alanı boş görünüyordu ve sebebinin eski
@@ -1080,8 +1095,12 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   );
 
   // ── Yoklama başlat ──
-  const yoklamaBaslat = async (ders, parca, hafta) => {
+  const yoklamaBaslat = async (ders, parca, hafta, ekDersler) => {
     const dersId = metin(ders.id || ders._docId);
+    // Birlikte yoklama: aynı dersin öteki şube/müfredat kayıtları.
+    const ekIdler = (Array.isArray(ekDersler) ? ekDersler : [])
+      .map((d) => metin(d && (d.id || d._docId)))
+      .filter((x) => x && x !== dersId);
     const P = window.DersParcasi || {};
     const p = P.parcaCoz ? P.parcaCoz(parca) : 'teori';
     const ayarAnahtari = P.parcaAnahtari ? P.parcaAnahtari(dersId, p) : dersId;
@@ -1105,6 +1124,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           departmentId: metin(ders.departmentId || activeDepartment),
           // Dönemin kaçıncı haftası (panelde seçilir; önerilen hafta dolu gelir).
           hafta: Number(hafta) > 0 ? Number(hafta) : null,
+          ekDersler: ekIdler,
         }),
       });
       const d = await r.json();
@@ -1115,7 +1135,21 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         // ⚠ Sunucu saatiyle aramızdaki fark. Hocanın makinesi ileri/geriyse
         // kod yine de sunucunun kabul edeceği pencerede üretilir.
         saatFarki: Number(d.sunucuZamani) - Date.now(),
-        ogrenciler: dersinOgrencileri(dersId),
+        // Birlikte yoklamada liste bütün kayıtların öğrencileridir; her satır
+        // kendi kaydını (dersId) taşır ki elle işaret doğru listeye yazılsın.
+        ogrenciler: (() => {
+          const gorulen = new Set();
+          const liste = [];
+          [dersId].concat(ekIdler).forEach((id) =>
+            dersinOgrencileri(id).forEach((o) => {
+              const no = metin(o.studentNumber);
+              if (!no || gorulen.has(no)) return;
+              gorulen.add(no);
+              liste.push({ ...o, dersId: id });
+            })
+          );
+          return liste;
+        })(),
       });
     } catch (e) {
       alert(e.message || 'Yoklama açılamadı.');
@@ -3182,6 +3216,22 @@ function ASYoklamaPaneli({
   const onerilen =
     YL.onerilenHafta && dersBaglami ? YL.onerilenHafta(oturumListesi, haftaAyari) : 1;
   const [acilisHaftasi, setAcilisHaftasi] = useState('');
+  // ── BİRLİKTE YOKLAMA ──
+  // Aynı dersin öteki şube/müfredat kayıtları aynı sınıfta işleniyorsa tek
+  // karekodla yoklama alınır (lib/ders-ayirt.js); listeler kayıt başına ayrı.
+  const DA = window.DersAyirt || {};
+  const etiketler = useMemo(
+    () => (DA.ayirtEdiciEtiketler ? DA.ayirtEdiciEtiketler(dersler) : new Map()),
+    [DA, dersler]
+  );
+  const birlikteAdaylari =
+    ders && DA.birlikteAlinabilecekler
+      ? DA.birlikteAlinabilecekler(ders, dersler).filter(
+          (d) => !P.dersinParcalari || P.dersinParcalari(d).includes(parca)
+        )
+      : [];
+  const [birlikte, setBirlikte] = useState([]);
+  useEffect(() => setBirlikte([]), [secili]);
   // Kapanmış yoklamayı düzeltme: açık olan satırın oturum kimliği.
   const [duzeltilen, setDuzeltilen] = useState('');
   const duzeltAc = (o) => setDuzeltilen((d) => (d === o.id ? '' : o.id));
@@ -3349,7 +3399,14 @@ function ASYoklamaPaneli({
                   </select>
                 </label>
                 <button
-                  onClick={() => onBaslat(ders, parca, Number(acilisHaftasi || onerilen))}
+                  onClick={() =>
+                    onBaslat(
+                      ders,
+                      parca,
+                      Number(acilisHaftasi || onerilen),
+                      birlikteAdaylari.filter((d) => birlikte.includes(metin(d.id || d._docId)))
+                    )
+                  }
                   style={{
                     padding: '11px 20px',
                     borderRadius: 11,
@@ -3383,6 +3440,59 @@ function ASYoklamaPaneli({
                   Tam ekran karekodu aç
                 </button>
               </div>
+
+              {/* Birlikte yoklama: aynı dersin öteki şube/müfredat kayıtları */}
+              {birlikteAdaylari.length > 0 && (
+                <div style={AS_KART} data-birlikte-adaylari>
+                  <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>
+                    Birlikte yoklama (aynı sınıfta işleniyorsa)
+                  </h4>
+                  <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 10px' }}>
+                    Bu dersin öteki şube ya da müfredat kaydı aynı saatte aynı sınıfta işleniyorsa
+                    işaretleyin: tek karekod ve tek kod iki kaydın öğrencilerine de geçer, her
+                    kaydın devam listesi ayrı tutulur. Ayrı sınıfta işlenen şubeyi işaretlemeyin.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {birlikteAdaylari.map((d) => {
+                      const id = metin(d.id || d._docId);
+                      const sec = birlikte.includes(id);
+                      return (
+                        <label
+                          key={id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 7,
+                            padding: '7px 11px',
+                            borderRadius: 9,
+                            border: '1px solid ' + (sec ? AS_GREEN : '#E5E7EB'),
+                            background: sec ? '#ECFDF5' : '#fff',
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            color: AS_NAVY,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            data-birlikte={id}
+                            checked={sec}
+                            onChange={(e) =>
+                              setBirlikte((l) =>
+                                e.target.checked ? l.concat(id) : l.filter((x) => x !== id)
+                              )
+                            }
+                          />
+                          {etiketler.get(id) || metin(d.code || d.name)}
+                          <span style={{ fontWeight: 400, color: '#6B7280' }}>
+                            {metin(d.name || d.ad)}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Alınan yoklamalar — haftası sonradan düzeltilebilir */}
               {alinanlar.length > 0 && (

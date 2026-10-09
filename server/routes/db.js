@@ -129,6 +129,7 @@ const {
   basvuruGerekli,
 } = require('../lib/ogrenci-okuma');
 const { yanitSuzgeci, eskiYanitBolumCozucu } = require('../lib/anket-yanit-okuma');
+const { KOPRU_KOLEKSIYONLARI, kopruPlani } = require('../lib/bildirim-kopru');
 
 // Muafiyet yeniden gönderim kuralı ESM'dir ve İSTEMCİYLE AYNI DOSYADIR:
 // hangi satırın düzeltilebileceğine iki taraf da oradan karar verir. İkinci
@@ -2817,6 +2818,69 @@ async function ttoBildirimleriGonder(db, op, sonuc, user, touched) {
   }
 }
 
+// ── MODÜL BİLDİRİMLERİ → ZİL (server/lib/bildirim-kopru.js) ──
+// Staj, öğrenci ve portal bildirimleri kendi koleksiyonlarına yazılıyor; zil
+// yalnız `notifications`ı okuyor. Eklenen her kaydın zil karşılığı burada
+// üretilir. Hata ana yazmayı bozmaz.
+const trKucuk = (v) =>
+  String(v == null ? '' : v)
+    .toLocaleLowerCase('tr-TR')
+    .trim();
+async function kopruBildirimleriGonder(db, op, sonuc, touched, user) {
+  try {
+    if (!op || !KOPRU_KOLEKSIYONLARI[op.collection] || op.type !== 'add') return;
+    let plan = kopruPlani(op.collection, op.data, {
+      id: (sonuc && sonuc.id) || op.docId || '',
+      parentDocId: op.parentDocId || '',
+    });
+    // Öğrencinin yazdığı staj/öğrenci bildirimi BAŞKA bir öğrenciye ya da
+    // bütün bölüme zil bildirimi üretemez (sahte bildirim). Öğrenci yalnız
+    // komisyona haber verebilir; portal bahsetmesi portalın kendi işleyişidir.
+    if (user && user.role === 'student' && op.collection !== 'portal_notifications') {
+      plan = plan.filter(
+        (b) => b.recipientType === 'staj-komisyonu' || b.recipientType === 'department-staff'
+      );
+    }
+    if (plan.length === 0) return;
+    const kayitlar = [];
+    for (const b of plan) {
+      if (b.recipientType !== 'staj-komisyonu') {
+        kayitlar.push(b);
+        continue;
+      }
+      // Staj komisyonu üyeleri (adı "staj" geçen, o bölümün komisyonu).
+      const komisyonlar = await db
+        .collection('commissions')
+        .find({}, { projection: { name: 1, departmentId: 1, members: 1 } })
+        .toArray();
+      const uyeler = new Set();
+      komisyonlar
+        .filter(
+          (c) =>
+            trKucuk(c.name).includes('staj') &&
+            String(c.departmentId || '') === String(b.recipientId)
+        )
+        .forEach((c) =>
+          (c.members || []).forEach((m) => {
+            const ad = String((m && (m.name || m)) || '').trim();
+            if (ad) uyeler.add(ad);
+          })
+        );
+      if (uyeler.size === 0) {
+        // Komisyon tanımlı değil: bölümün personeline (öğrenciler hariç).
+        kayitlar.push({ ...b, recipientType: 'department-staff' });
+      } else {
+        uyeler.forEach((ad) => kayitlar.push({ ...b, recipientType: 'user', recipientId: ad }));
+      }
+    }
+    if (kayitlar.length === 0) return;
+    await db.collection('notifications').insertMany(kayitlar);
+    if (touched) touched.add('notifications');
+  } catch (e) {
+    console.warn('[bildirim-kopru] zil bildirimi yazılamadı:', e && e.message);
+  }
+}
+
 async function executeSingleOp(db, op) {
   const colName = getCollectionName(op);
   const col = db.collection(colName);
@@ -2988,6 +3052,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       const result = await executeSingleOp(db, operations[0]);
       addTouched(operations[0]);
       await ttoBildirimleriGonder(db, operations[0], result, req.user, touched);
+      await kopruBildirimleriGonder(db, operations[0], result, touched, req.user);
       emitDbWrite(req, touched);
       return res.json(result);
     }
@@ -2997,6 +3062,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       const result = await executeSingleOp(db, op);
       addTouched(op);
       await ttoBildirimleriGonder(db, op, result, req.user, touched);
+      await kopruBildirimleriGonder(db, op, result, touched, req.user);
       if (result.id) addedIds.push(result.id);
     }
     emitDbWrite(req, touched);

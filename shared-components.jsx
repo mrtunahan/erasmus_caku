@@ -389,6 +389,7 @@ import {
 import * as YoklamaKurali from './lib/yoklama.js';
 import * as YoklamaListesi from './lib/yoklama-listesi.js';
 import * as DersParcasi from './lib/ders-parcasi.js';
+import * as DersAyirt from './lib/ders-ayirt.js';
 import * as MuafiyetYeniden from './lib/muafiyet-yeniden.js';
 import * as MuafiyetSatirYaz from './lib/muafiyet-satir-yaz.js';
 import * as StajAdimYaz from './lib/staj-adim-yaz.js';
@@ -502,7 +503,7 @@ import {
   kitleOzetMetni,
   ogrenciKitlesi,
 } from './lib/anket-hedef-kitle.js';
-import { girisListesi } from './lib/akademik-unvan.js';
+import { girisListesi, unvansizAd } from './lib/akademik-unvan.js';
 import {
   acikEtaplar,
   acilisHatalari,
@@ -7191,13 +7192,37 @@ const Notify = {
   async listFor(currentUser, activeDepartment) {
     if (!currentUser) return [];
     const userKey = currentUser.studentNumber || currentUser.identifier || currentUser.name || '';
+    // Kişi eşleşmesi unvan ve Türkçe büyük/küçük harften bağımsız: komisyon
+    // listesinde "Dr. Ali VELİ" yazılmış olabilir (lib/akademik-unvan.js).
+    const kisiAnahtari = (v) =>
+      (window.unvansizAd ? window.unvansizAd(v) : String(v || ''))
+        .toLocaleLowerCase('tr-TR')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const benimAnahtarlarim = new Set(
+      [currentUser.studentNumber, currentUser.identifier, currentUser.name]
+        .filter(Boolean)
+        .map((v) => kisiAnahtari(v))
+    );
+    const benimBolumlerim = new Set(
+      [activeDepartment, currentUser.departmentId]
+        .concat(currentUser.additionalDepartments || [])
+        .filter(Boolean)
+        .map(String)
+    );
     try {
       const all = await window.apiRead('notifications');
       const role = currentUser.role || '';
       return (all || [])
         .filter((n) => {
-          if (n.recipientType === 'user') return n.recipientId === userKey;
+          if (n.recipientType === 'user') {
+            return n.recipientId === userKey || benimAnahtarlarim.has(kisiAnahtari(n.recipientId));
+          }
           if (n.recipientType === 'department') return n.recipientId === activeDepartment;
+          // Bölüm personeli (öğrenciler hariç) — ör. staj komisyonu tanımsızsa.
+          if (n.recipientType === 'department-staff') {
+            return role !== 'student' && benimBolumlerim.has(String(n.recipientId));
+          }
           if (n.recipientType === 'role') return n.recipientId === role;
           return false;
         })
@@ -7251,6 +7276,7 @@ const Notify = {
   },
 };
 window.Notify = Notify;
+window.unvansizAd = unvansizAd;
 
 // ── Paylaşılan Bildirim Zili (her modül/app-shell tarafından kullanılır)
 const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
@@ -12522,23 +12548,8 @@ const StudentNotifier = {
     } catch (e) {
       console.warn('StudentNotifier: bildirim eklenemedi', studentNumber, e);
     }
-    // Merkezi sisteme de yansıt (öğrencinin çan menüsünde görünsün)
-    try {
-      if (window.Notify && window.Notify.send) {
-        await window.Notify.send({
-          recipientType: 'user',
-          recipientId: String(studentNumber),
-          module: payload.module || 'sistem',
-          type: payload.type || 'bilgi',
-          title: payload.title || '',
-          body: payload.body || '',
-          link: payload.link || '',
-          meta: payload.meta || {},
-        });
-      }
-    } catch {
-      /* merkezi yazım opsiyonel — sessiz geç */
-    }
+    // Çan menüsüne (merkezi notifications) kopyayı SUNUCU üretir
+    // (server/lib/bildirim-kopru.js); burada ayrıca yazmak çift bildirim olurdu.
   },
   async fetchForStudent(studentNumber, limitN) {
     try {
@@ -15128,6 +15139,8 @@ window.YoklamaListesi = YoklamaListesi;
 // Teori/uygulama ayrımı: dersin parçaları, ayar belgesi kimliği ve eski
 // (parçasız) kayıtların hangi parçaya sayılacağı tek dosyada.
 window.DersParcasi = DersParcasi;
+// Aynı dersin şube/müfredat kayıtları: ayırt edici etiket + birlikte yoklama.
+window.DersAyirt = DersAyirt;
 // Reddedilen dersin öğrenci eliyle düzeltilip yeniden gönderilmesi. Kural
 // SUNUCUDA DA aynı dosyadan okunur (server/routes/db.js dinamik import).
 window.MuafiyetYeniden = MuafiyetYeniden;

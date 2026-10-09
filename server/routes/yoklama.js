@@ -154,6 +154,47 @@ function sahibiMi(oturum, user) {
   return adAnahtari(oturum.akademisyen) === adAnahtari(user.identifier);
 }
 
+// ── BİRLİKTE YOKLAMA (aynı dersin şube / müfredat kayıtları) ──
+// Aynı sınıfta birlikte işlenen kayıtlar için her kayda AYRI oturum açılır
+// (devam listesi kayıt başına kalır) ama hepsi AYNI gizli anahtarı ve
+// `grupId`yi taşır. Kod, grubun ana oturumunun kimliğiyle üretilir; böylece
+// tahtadaki tek karekod ve tek kısa kod bütün kayıtların öğrencilerinde
+// geçerlidir (bkz. lib/ders-ayirt.js).
+const kodKimligi = (o) => metin(o && (o.grupId || o.id));
+const grupOzeti = (grup) =>
+  (grup || []).map((o) => ({
+    id: metin(o.id),
+    dersId: metin(o.dersId),
+    dersKodu: metin(o.dersKodu),
+    dersAdi: metin(o.dersAdi),
+  }));
+
+async function grupOturumlari(db, oturum) {
+  if (!oturum) return [];
+  if (!metin(oturum.grupId)) return [oturum];
+  return db
+    .collection(OTURUMLAR)
+    .find({ grupId: metin(oturum.grupId) })
+    .toArray();
+}
+
+async function dersVeYetki(db, dersId, user) {
+  const ders = await db
+    .collection('sinav_dersler')
+    .findOne({ $or: [{ id: dersId }, { _docId: dersId }] });
+  if (ders && user.role !== 'admin') {
+    const E = await egitmenKurali();
+    const egitmenler = E.dersEgitmenleri(ders).concat(
+      E.egitmenleriCoz(
+        [].concat(ders.instructor || [], ders.instructors || [], ders.egitmenler || [])
+      )
+    );
+    const benim = egitmenler.some((e) => E.ayniEgitmen(e, user.identifier));
+    if (egitmenler.length > 0 && !benim) return { ders, yetki: false };
+  }
+  return { ders, yetki: true };
+}
+
 // ══════════════════════════════════════════════════════════════
 // POST /api/yoklama/oturum — yoklamayı aç (akademisyen)
 // ══════════════════════════════════════════════════════════════
@@ -177,20 +218,25 @@ router.post('/oturum', requireAuth, async (req, res) => {
     // `instructor` alanına bakılıyordu; gerçek kayıtlarda bu alan olmadığı
     // için kontrol hiç işlemiyor, herhangi bir hoca herhangi bir dersin
     // yoklamasını açabiliyordu.
-    const ders = await db
-      .collection('sinav_dersler')
-      .findOne({ $or: [{ id: dersId }, { _docId: dersId }] });
-    if (ders && user.role !== 'admin') {
-      const E = await egitmenKurali();
-      const egitmenler = E.dersEgitmenleri(ders).concat(
-        E.egitmenleriCoz(
-          [].concat(ders.instructor || [], ders.instructors || [], ders.egitmenler || [])
-        )
-      );
-      const benim = egitmenler.some((e) => E.ayniEgitmen(e, user.identifier));
-      if (egitmenler.length > 0 && !benim) {
-        return res.status(403).json({ error: 'Bu ders size tanımlı değil.' });
+    const { ders, yetki } = await dersVeYetki(db, dersId, user);
+    if (!yetki) return res.status(403).json({ error: 'Bu ders size tanımlı değil.' });
+
+    // Birlikte yoklaması alınacak öteki kayıtlar (aynı dersin başka şube ya
+    // da müfredatı). Her biri de hocanın KENDİ dersi olmalı.
+    const ekIdler = [
+      ...new Set((Array.isArray(g.ekDersler) ? g.ekDersler : []).map(metin).filter(Boolean)),
+    ]
+      .filter((x) => x !== dersId)
+      .slice(0, 6);
+    const ekDersler = [];
+    for (const ekId of ekIdler) {
+      const ek = await dersVeYetki(db, ekId, user);
+      if (!ek.yetki || !ek.ders) {
+        return res
+          .status(403)
+          .json({ error: 'Birlikte seçilen derslerden biri size tanımlı değil.' });
       }
+      ekDersler.push({ id: ekId, ders: ek.ders });
     }
 
     // ── TEORİ Mİ, UYGULAMA MI? ──
@@ -212,18 +258,40 @@ router.post('/oturum', requireAuth, async (req, res) => {
     const hafta = haftaOku(g.hafta);
     const mevcut = await db.collection(OTURUMLAR).findOne({ dersId, acik: true, ...parcaSuzgeci });
     if (mevcut) {
+      const grup = await grupOturumlari(db, mevcut);
       if (hafta && Number(mevcut.hafta) !== hafta) {
-        await db.collection(OTURUMLAR).updateOne({ id: mevcut.id }, { $set: { hafta } });
+        await db
+          .collection(OTURUMLAR)
+          .updateMany({ id: { $in: grup.map((x) => x.id) } }, { $set: { hafta } });
         mevcut.hafta = hafta;
       }
-      return res.json({ oturum: oturumuTemizle(mevcut, true), sunucuZamani: Date.now() });
+      return res.json({
+        oturum: { ...oturumuTemizle(mevcut, true), grup: grupOzeti(grup) },
+        sunucuZamani: Date.now(),
+      });
+    }
+    // Birlikte seçilen kaydın kendi açık oturumu varsa grup kurulmaz: iki
+    // ayrı kod tahtada yarışırdı.
+    for (const ek of ekDersler) {
+      const acik = await db
+        .collection(OTURUMLAR)
+        .findOne({ dersId: ek.id, acik: true, ...parcaSuzgeci });
+      if (acik) {
+        return res.status(409).json({
+          error:
+            metin(ek.ders.code || ek.ders.name) +
+            ' için açık bir yoklama var; önce onu bitirin ya da birlikte seçmeyin.',
+        });
+      }
     }
 
     const oturumId = 'yk-' + crypto.randomBytes(9).toString('hex');
+    const sirr = crypto.randomBytes(32).toString('hex');
     const oturum = {
       id: oturumId,
       // 32 baytlık gizli anahtar — oturuma özel, her açılışta yeniden üretilir.
-      sirr: crypto.randomBytes(32).toString('hex'),
+      sirr,
+      ...(ekDersler.length > 0 ? { grupId: oturumId } : {}),
       dersId,
       parca,
       dersKodu: metin(g.dersKodu || (ders && (ders.code || ders.kod))),
@@ -240,7 +308,25 @@ router.post('/oturum', requireAuth, async (req, res) => {
     // `_docId`: genel okuma ucu kimliği `_docId || _id`'den kurar; kayıtlar
     // oturuma `id` ile bağlı olduğundan ikisi aynı olmalı.
     await db.collection(OTURUMLAR).insertOne({ ...oturum, _docId: oturumId });
-    return res.json({ oturum: oturumuTemizle(oturum, true), sunucuZamani: Date.now() });
+    const grup = [oturum];
+    for (const ek of ekDersler) {
+      const ekId = 'yk-' + crypto.randomBytes(9).toString('hex');
+      const ekOturum = {
+        ...oturum,
+        id: ekId,
+        grupId: oturumId,
+        dersId: ek.id,
+        dersKodu: metin(ek.ders.code || ek.ders.kod),
+        dersAdi: metin(ek.ders.name || ek.ders.ad),
+        departmentId: metin(ek.ders.departmentId || oturum.departmentId),
+      };
+      await db.collection(OTURUMLAR).insertOne({ ...ekOturum, _docId: ekId });
+      grup.push(ekOturum);
+    }
+    return res.json({
+      oturum: { ...oturumuTemizle(oturum, true), grup: grupOzeti(grup) },
+      sunucuZamani: Date.now(),
+    });
   } catch (e) {
     console.error('[yoklama]', e && e.message);
     return res.status(500).json({ error: 'Yoklama açılamadı.' });
@@ -358,7 +444,7 @@ router.post('/imzala', requireAuth, async (req, res) => {
           .json({ ok: false, sebep: 'kapali', error: dogrulamaMesaji('kapali') });
       }
       // ⚠ KARAR SUNUCU SAATİYLE VERİLİR.
-      sonuc = kodDogrula(ham, { sirr: oturum.sirr, oturumId: oturum.id, simdi });
+      sonuc = kodDogrula(ham, { sirr: oturum.sirr, oturumId: kodKimligi(oturum), simdi });
     } else {
       if (dersleri.length === 0) {
         return res
@@ -371,7 +457,7 @@ router.post('/imzala', requireAuth, async (req, res) => {
         .limit(30)
         .toArray();
       for (const o of acikOturumlar) {
-        const d = kisaKodDogrula(ham, { sirr: o.sirr, oturumId: o.id, simdi });
+        const d = kisaKodDogrula(ham, { sirr: o.sirr, oturumId: kodKimligi(o), simdi });
         if (d.gecerli) {
           oturum = o;
           sonuc = d;
@@ -390,6 +476,16 @@ router.post('/imzala', requireAuth, async (req, res) => {
       return res
         .status(400)
         .json({ ok: false, sebep: sonuc.sebep, error: dogrulamaMesaji(sonuc.sebep) });
+    }
+
+    // Birlikte yoklama: karekod grubun ana oturumunu gösterir; öğrenci
+    // grubun BAŞKA bir kaydına (öteki şube/müfredat) kayıtlıysa yoklama o
+    // kaydın oturumuna yazılır.
+    if (metin(oturum.grupId) && !dersleri.includes(metin(oturum.dersId))) {
+      const kardes = (await grupOturumlari(db, oturum)).find(
+        (o) => o.acik && dersleri.includes(metin(o.dersId))
+      );
+      if (kardes) oturum = kardes;
     }
 
     // Öğrenci bu dersi alıyor mu? (küme yukarıda çözüldü)
@@ -432,9 +528,12 @@ router.post('/imzala', requireAuth, async (req, res) => {
     const donem = donemAnahtari();
 
     // 1) OTURUM İÇİ TEKİLLİK — bir cihaz (tarayıcı kimliği), bir öğrenci.
+    // Birlikte yoklamada tekillik bütün grup içindir: aynı telefon iki
+    // kaydın öğrencisi adına okutamaz.
+    const grupIdleri = (await grupOturumlari(db, oturum)).map((o) => o.id);
     const oturumKayitlari = await db
       .collection(KAYITLAR)
-      .find({ oturumId: oturum.id })
+      .find({ oturumId: { $in: grupIdleri.length ? grupIdleri : [oturum.id] } })
       .project({ studentNumber: 1, cihazId: 1, cihazIz: 1, _id: 0 })
       .toArray();
     const cakisma = oturumdaBaskasiKullandiMi(oturumKayitlari, cihaz, ogrNo);
@@ -540,10 +639,12 @@ router.get('/oturum/:id', requireAuth, oturumListeLimiter, async (req, res) => {
     if (!sahibiMi(oturum, req.user)) {
       return res.status(403).json({ error: 'Bu yoklama size ait değil.' });
     }
+    const grup = await grupOturumlari(db, oturum);
     const katilimlar = await db
       .collection(KAYITLAR)
-      .find({ oturumId: oturum.id })
+      .find({ oturumId: { $in: grup.map((o) => o.id) } })
       .project({
+        dersId: 1,
         studentNumber: 1,
         adSoyad: 1,
         durum: 1,
@@ -555,7 +656,7 @@ router.get('/oturum/:id', requireAuth, oturumListeLimiter, async (req, res) => {
       })
       .toArray();
     return res.json({
-      oturum: oturumuTemizle(oturum, sahibiMi(oturum, req.user)),
+      oturum: { ...oturumuTemizle(oturum, sahibiMi(oturum, req.user)), grup: grupOzeti(grup) },
       katilimlar,
       sunucuZamani: Date.now(),
     });
@@ -628,11 +729,27 @@ router.post('/kapat', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Bu yoklama size ait değil.' });
     }
 
-    await elleYaz(db, oturum, g.elleDurumlar);
+    // Birlikte yoklama: elle işaret, öğrencinin KAYITLI olduğu oturuma yazılır
+    // (istemci `elleDersler`de öğrenci → ders verir); grup birlikte kapanır.
+    const grup = await grupOturumlari(db, oturum);
+    if (grup.length > 1) {
+      const dersler = g.elleDersler && typeof g.elleDersler === 'object' ? g.elleDersler : {};
+      const dagit = new Map(grup.map((o) => [o.id, {}]));
+      Object.entries(g.elleDurumlar || {}).forEach(([no, durum]) => {
+        const hedef = grup.find((o) => metin(o.dersId) === metin(dersler[no])) || oturum;
+        dagit.get(hedef.id)[no] = durum;
+      });
+      for (const o of grup) await elleYaz(db, o, dagit.get(o.id));
+    } else {
+      await elleYaz(db, oturum, g.elleDurumlar);
+    }
 
     await db
       .collection(OTURUMLAR)
-      .updateOne({ id: oturum.id }, { $set: { acik: false, bitis: new Date().toISOString() } });
+      .updateMany(
+        { id: { $in: grup.map((o) => o.id) } },
+        { $set: { acik: false, bitis: new Date().toISOString() } }
+      );
     return res.json({ ok: true });
   } catch (e) {
     console.error('[yoklama]', e && e.message);

@@ -746,16 +746,28 @@ router.post('/change-password', async (req, res) => {
               null,
             userAgent: req.headers['user-agent'] || null,
           });
-          await dbIz.collection('student_notifications').insertOne({
-            studentNumber: String(identifier),
+          const sifreBildirimi = {
             module: 'sistem',
             type: 'uyari',
             title: 'Hesabınıza şifre belirlendi',
             body:
               'Hesabınız için ilk kez şifre oluşturuldu. Bunu siz yapmadıysanız ' +
               'hemen bölüm sekreterliğine ya da öğrenci işlerine bildirin.',
-            read: false,
             createdAt: new Date().toISOString(),
+          };
+          await dbIz.collection('student_notifications').insertOne({
+            studentNumber: String(identifier),
+            ...sifreBildirimi,
+            read: false,
+          });
+          // Navbar ziline de (merkezi bildirimler).
+          await dbIz.collection('notifications').insertOne({
+            recipientType: 'user',
+            recipientId: String(identifier),
+            ...sifreBildirimi,
+            link: '',
+            meta: { kaynak: 'student_notifications' },
+            readBy: [],
           });
         } catch (izHata) {
           // İz yazılamadıysa şifre kurulumu geri alınmaz; yalnız günlüğe düşer.
