@@ -253,6 +253,10 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   // Sütunların dışındaki açılır paneller: '' | 'dersler' | 'mezuniyet'.
   // Aynı anda yalnız biri açık — iki pencere üst üste gelmesin.
   const [acikPanel, setAcikPanel] = useState('');
+  // Zildeki yoklama bildirimine tıklanınca Dijital Yoklama paneli açılır.
+  (window.useBildirimHedefi || (() => {}))('benim', (h) => {
+    if (h.module === 'yoklama') setAcikPanel('yoklama');
+  });
   // Aylık takvim görünümü: gösterilen ay (ayın ilk günü, 00:00 yerel)
   const [displayMonth, setDisplayMonth] = useState(() => {
     var d = new Date();
