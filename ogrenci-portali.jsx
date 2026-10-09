@@ -7834,6 +7834,11 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
     var pid = params.get('post');
     if (pid) setHighlightedPostId(pid);
   }, []);
+  // Zildeki bahsetme bildirimi: ilgili gönderi vurgulanır.
+  (window.useBildirimHedefi || function () {})('portal', function (h) {
+    var pid = h.meta && h.meta.postId;
+    if (pid) setHighlightedPostId(String(pid));
+  });
 
   // Kullanıcı listesini yükle (mention autocomplete için)
   useEffect(

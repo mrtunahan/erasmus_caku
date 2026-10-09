@@ -1257,6 +1257,29 @@ function TtoApp({ currentUser }) {
     return () => window.removeEventListener('realtime:tto_talepleri', tazele);
   }, [yukle, kimlik]);
 
+  // Zilden gelindiyse bildirimin talebini aç: kendi talebiyse formu, TTO
+  // yöneticisine gelen talepse inceleme panelini. Liste yüklenince çözülür.
+  const [bildirimTalebi, setBildirimTalebi] = useState('');
+  (window.useBildirimHedefi || (() => {}))('tto', (h) => {
+    const id = metin(h.meta && h.meta.talepId);
+    if (id) setBildirimTalebi(id);
+  });
+  useEffect(() => {
+    if (!bildirimTalebi || yukleniyor) return;
+    const benim = talepler.find((t) => metin(t.id) === bildirimTalebi);
+    const gelen = gelenler.find((t) => metin(t.id) === bildirimTalebi);
+    if (benim) {
+      setOtomasyonAcik(false);
+      setAcik(formaHazirla(benim));
+      setSekme('form');
+    } else if (gelen && yonetici) {
+      setOtomasyonAcik(false);
+      setIncelenen(gelen);
+      setSekme('incele');
+    }
+    setBildirimTalebi('');
+  }, [bildirimTalebi, yukleniyor, talepler, gelenler, yonetici]);
+
   const yeniTalep = () => {
     // Kurum/Firma boş gelir: başvurunun kimin adına yapıldığını akademisyen yazar.
     const bos = bosTalep(profil || { name: (currentUser && currentUser.name) || kimlik });

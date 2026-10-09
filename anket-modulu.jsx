@@ -250,6 +250,14 @@ function AnketModulu({ currentUser, activeDepartment, departmentInfo }) {
   // Yönetici bayrağı olmayan akademisyen: kendine gelen anketleri doldurur;
   // ayrıca verdiği derslere bağlı anketleri bölümünün öğrencilerine paylaşır.
   const [akademisyenSekme, setAkademisyenSekme] = useState('doldur');
+  // Zildeki "anket atandı" bildirimi: doldurma görünümünde o anket açılır.
+  const [acilacakAnket, setAcilacakAnket] = useState(null);
+  (window.useBildirimHedefi || (() => {}))('anket', (h) => {
+    const id = String((h.meta && h.meta.surveyId) || '');
+    if (!id) return;
+    setAkademisyenSekme('doldur');
+    setAcilacakAnket({ id, zaman: Date.now() });
+  });
 
   if (!isManager && role === 'professor') {
     return (
@@ -297,6 +305,7 @@ function AnketModulu({ currentUser, activeDepartment, departmentInfo }) {
             currentUser={currentUser}
             activeDepartment={activeDepartment}
             responsive={responsive}
+            acilacakAnket={acilacakAnket}
           />
         )}
       </div>
@@ -315,6 +324,7 @@ function AnketModulu({ currentUser, activeDepartment, departmentInfo }) {
       currentUser={currentUser}
       activeDepartment={activeDepartment}
       responsive={responsive}
+      acilacakAnket={acilacakAnket}
     />
   );
 }
@@ -4373,7 +4383,7 @@ const sinifUyumu = (kullanici, grup) =>
     ? window.ogrenciSinifGrubunaUyarMi(kullanici, grup)
     : { uyar: true, sebep: 'kural-yok', sinif: null, kaynak: '' };
 
-function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
+function KatilimciGorunumu({ currentUser, activeDepartment, responsive, acilacakAnket }) {
   const [assignments, setAssignments] = useState([]);
   const [surveys, setSurveys] = useState([]);
   const [myResponses, setMyResponses] = useState([]);
@@ -4488,6 +4498,12 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive }) {
 
   // İki sütunlu görünümde ana alan boş kalmasın: aktif anket yoksa ilk
   // tamamlanmamış anketi otomatik seç (gönderim sonrası bir sonrakine geçer).
+  // Bildirimden gelinen anket (atama listesine düştüyse) açılır.
+  useEffect(() => {
+    if (!acilacakAnket) return;
+    if (myAssignments.some((a) => a.surveyId === acilacakAnket.id)) setActiveId(acilacakAnket.id);
+  }, [acilacakAnket, myAssignments]);
+
   useEffect(() => {
     if (activeId) return;
     const firstPending = myAssignments.find((a) => !completed(a.surveyId));

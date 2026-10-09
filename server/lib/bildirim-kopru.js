@@ -150,6 +150,8 @@ function kopruPlani(koleksiyon, veri, baglam) {
         title: metin(d.title) || 'Öğrenci Portalı',
         body: metin(d.message || d.body || d.text),
         link: 'portal',
+        // Tıklanınca bahsedilen gönderi vurgulanır.
+        meta: metin(d.postId) ? { postId: metin(d.postId) } : {},
       }),
     ];
   }

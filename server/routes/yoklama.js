@@ -719,6 +719,92 @@ async function elleYaz(db, oturum, durumlar) {
 // ══════════════════════════════════════════════════════════════
 // POST /api/yoklama/kapat — yoklamayı bitir ve listeyi yaz (akademisyen)
 // ══════════════════════════════════════════════════════════════
+// ── YOKLAMA BİLDİRİMLERİ ──
+// Yoklama alınınca öğrenciye hiçbir şey gitmiyordu: "yok" yazılan öğrenci
+// bunu ancak devamsızlık sınırına dayandığında fark ediyordu. Kapanışta
+// "yok" / "izinli" sayılan ve hocanın elle "var" yazdığı öğrenciye (kendisi
+// okutmadığı için ekranda onay görmemiştir) zil bildirimi gider; sonradan
+// yapılan düzeltme de bildirilir. Karekodla "var" olan öğrenci onayı zaten
+// telefonunda gördü — her derste bildirim yağdırmak zili anlamsızlaştırırdı.
+const DURUM_ADI = { var: 'Var', yok: 'Yok', izinli: 'İzinli' };
+
+function yoklamaBildirimi(oturum, no, durum, duzeltme) {
+  const ders = [metin(oturum.dersKodu), metin(oturum.dersAdi)].filter(Boolean).join(' ');
+  const tarih = metin(oturum.tarih).split('-').reverse().join('.');
+  return {
+    recipientType: 'user',
+    recipientId: no,
+    module: 'yoklama',
+    type: 'yoklama_' + durum,
+    title: duzeltme ? 'Yoklama kaydınız düzeltildi' : 'Yoklama · ' + (ders || 'ders'),
+    body:
+      (ders ? ders + ' — ' : '') +
+      (tarih ? tarih + ' tarihli yoklamada' : 'Yoklamada') +
+      ' durumunuz: ' +
+      (DURUM_ADI[durum] || durum) +
+      (durum === 'var' && !duzeltme ? ' (akademisyen işaretledi)' : '') +
+      '.',
+    link: 'benim',
+    meta: { kaynak: 'yoklama', oturumId: metin(oturum.id), dersId: metin(oturum.dersId) },
+    readBy: [],
+    createdAt: new Date().toISOString(),
+  };
+}
+
+// Dersin kayıtlı öğrencileri (dönem ders kaydı + öğrencinin ders listesi).
+async function dersListesi(db, dersId) {
+  const id = metin(dersId);
+  if (!id) return [];
+  const nolar = new Set();
+  const donem = await db
+    .collection('student_courses')
+    .find({ courseIds: id }, { projection: { studentNumber: 1, _docId: 1 } })
+    .toArray()
+    .catch(() => []);
+  donem.forEach((d) => {
+    const no = metin(d.studentNumber) || metin(d._docId).split('__')[0];
+    if (no) nolar.add(no);
+  });
+  const ogr = await db
+    .collection('students')
+    .find({ myCourseIds: id }, { projection: { studentNumber: 1 } })
+    .toArray()
+    .catch(() => []);
+  ogr.forEach((o) => metin(o.studentNumber) && nolar.add(metin(o.studentNumber)));
+  return [...nolar];
+}
+
+async function bildirimleriYaz(req, db, liste) {
+  if (!liste.length) return;
+  try {
+    await db.collection('notifications').insertMany(liste);
+    const io = req.app && req.app.get && req.app.get('io');
+    if (io) io.emit('db:write', { collections: ['notifications'], at: new Date().toISOString() });
+  } catch (e) {
+    console.warn('[yoklama] bildirim yazılamadı:', e && e.message);
+  }
+}
+
+async function kapanisBildirimleri(req, db, grup) {
+  const liste = [];
+  for (const o of grup) {
+    const kayitlar = await db
+      .collection(KAYITLAR)
+      .find({ oturumId: o.id }, { projection: { studentNumber: 1, durum: 1, elle: 1 } })
+      .toArray();
+    const durumu = new Map(kayitlar.map((k) => [metin(k.studentNumber), k]));
+    const nolar = new Set(await dersListesi(db, o.dersId));
+    kayitlar.forEach((k) => metin(k.studentNumber) && nolar.add(metin(k.studentNumber)));
+    nolar.forEach((no) => {
+      const k = durumu.get(no);
+      const durum = (k && metin(k.durum)) || 'yok';
+      if (durum === 'var' && !(k && k.elle)) return;
+      liste.push(yoklamaBildirimi(o, no, durum, false));
+    });
+  }
+  await bildirimleriYaz(req, db, liste);
+}
+
 router.post('/kapat', requireAuth, async (req, res) => {
   try {
     const db = await getDbSafe();
@@ -750,6 +836,8 @@ router.post('/kapat', requireAuth, async (req, res) => {
         { id: { $in: grup.map((o) => o.id) } },
         { $set: { acik: false, bitis: new Date().toISOString() } }
       );
+    // Zaten kapanmış bir yoklamayı yeniden kapatmak bildirimleri çoğaltmasın.
+    if (grup.some((o) => o.acik !== false)) await kapanisBildirimleri(req, db, grup);
     return res.json({ ok: true });
   } catch (e) {
     console.error('[yoklama]', e && e.message);
@@ -802,7 +890,25 @@ router.post('/duzelt', requireAuth, async (req, res) => {
     if (!sahibiMi(oturum, req.user)) {
       return res.status(403).json({ error: 'Bu yoklama size ait değil.' });
     }
+    // Yalnız GERÇEKTEN değişen durum bildirilir.
+    const onceki = new Map(
+      (
+        await db
+          .collection(KAYITLAR)
+          .find({ oturumId: oturum.id }, { projection: { studentNumber: 1, durum: 1 } })
+          .toArray()
+      ).map((k) => [metin(k.studentNumber), metin(k.durum)])
+    );
     const sayi = await elleYaz(db, oturum, g.durumlar);
+    const gecerli = new Set(['var', 'yok', 'izinli']);
+    const degisen = Object.entries(g.durumlar && typeof g.durumlar === 'object' ? g.durumlar : {})
+      .map(([no, d]) => [metin(no), metin(d)])
+      .filter(([no, d]) => no && gecerli.has(d) && (onceki.get(no) || 'yok') !== d);
+    await bildirimleriYaz(
+      req,
+      db,
+      degisen.map(([no, d]) => yoklamaBildirimi(oturum, no, d, true))
+    );
     return res.json({ ok: true, yazilan: sayi });
   } catch (e) {
     console.error('[yoklama]', e && e.message);

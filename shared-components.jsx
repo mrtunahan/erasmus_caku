@@ -7186,94 +7186,130 @@ const Notify = {
       console.warn('Toplu bildirim gönderilemedi:', e);
     }
   },
-  // Kullanıcı için uygulanabilir bildirimleri getir.
-  // (recipientId === userKey) VEYA (recipientType === "department" && id === aktifBölüm)
-  // VEYA (recipientType === "role" && id === kullanıcı rolü).
+  // ── ZİL: SUNUCU UÇLARI (server/routes/bildirim.js) ──
+  // Süzme, okundu ve silme sunucuda: eskiden bütün koleksiyon istemciye
+  // çekiliyor, bölüme giden yayını bir kişi silince herkesten siliniyor,
+  // öğrenci de `notifications`a yazamadığı için okundu/sil çalışmıyordu.
+  async _istek(yol, govde) {
+    const r = await fetch('/api/bildirim' + yol, {
+      method: govde ? 'POST' : 'GET',
+      credentials: 'include',
+      headers: Object.assign(
+        govde ? { 'Content-Type': 'application/json' } : {},
+        window.yoklamaBasliklari ? window.yoklamaBasliklari() : {}
+      ),
+      body: govde ? JSON.stringify(govde) : undefined,
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      throw new Error(e.error || 'HTTP ' + r.status);
+    }
+    return r.json();
+  },
+  // Hedef kitleli bildirim (anket ataması) kişinin grubuna uyuyor mu?
+  // Rol ve kapsamı sunucu süzer; sınıf / unvan grubu kişinin profilindedir.
+  hedefGrubaUyar(n, user) {
+    if (!n || n.recipientType !== 'hedef') return true;
+    const g = String((n.meta && n.meta.hedef && n.meta.hedef.targetGroup) || '').trim();
+    if (!user) return false;
+    if (user.role !== 'student') {
+      return window.akademisyenGrubaUyarMi ? window.akademisyenGrubaUyarMi(user, g).uyar : true;
+    }
+    const mezun = !!(user.isAlumni || user.mezun || user.status === 'mezun');
+    if (!g || g === 'Tüm öğrenciler') return true;
+    if (g === 'Mezun') return mezun;
+    if (mezun) return false;
+    return window.ogrenciSinifGrubunaUyarMi ? window.ogrenciSinifGrubunaUyarMi(user, g).uyar : true;
+  },
   async listFor(currentUser, activeDepartment) {
     if (!currentUser) return [];
-    const userKey = currentUser.studentNumber || currentUser.identifier || currentUser.name || '';
-    // Kişi eşleşmesi unvan ve Türkçe büyük/küçük harften bağımsız: komisyon
-    // listesinde "Dr. Ali VELİ" yazılmış olabilir (lib/akademik-unvan.js).
-    const kisiAnahtari = (v) =>
-      (window.unvansizAd ? window.unvansizAd(v) : String(v || ''))
-        .toLocaleLowerCase('tr-TR')
-        .replace(/\s+/g, ' ')
-        .trim();
-    const benimAnahtarlarim = new Set(
-      [currentUser.studentNumber, currentUser.identifier, currentUser.name]
-        .filter(Boolean)
-        .map((v) => kisiAnahtari(v))
-    );
-    const benimBolumlerim = new Set(
-      [activeDepartment, currentUser.departmentId]
-        .concat(currentUser.additionalDepartments || [])
-        .filter(Boolean)
-        .map(String)
-    );
     try {
-      const all = await window.apiRead('notifications');
-      const role = currentUser.role || '';
-      return (all || [])
-        .filter((n) => {
-          if (n.recipientType === 'user') {
-            return n.recipientId === userKey || benimAnahtarlarim.has(kisiAnahtari(n.recipientId));
-          }
-          if (n.recipientType === 'department') return n.recipientId === activeDepartment;
-          // Bölüm personeli (öğrenciler hariç) — ör. staj komisyonu tanımsızsa.
-          if (n.recipientType === 'department-staff') {
-            return role !== 'student' && benimBolumlerim.has(String(n.recipientId));
-          }
-          if (n.recipientType === 'role') return n.recipientId === role;
-          return false;
-        })
-        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      const q = activeDepartment ? '?bolum=' + encodeURIComponent(activeDepartment) : '';
+      const r = await Notify._istek(q);
+      return (r.bildirimler || []).filter((n) => Notify.hedefGrubaUyar(n, currentUser));
     } catch (e) {
       console.warn('Bildirimler yüklenemedi:', e);
       return [];
     }
   },
-  async markRead(notifId, userKey) {
+  async markRead(notifId) {
+    return Notify.markManyRead([notifId]);
+  },
+  async markManyRead(ids) {
+    if (!ids || ids.length === 0) return;
     try {
-      const r = await window.apiReadDoc('notifications', notifId);
-      if (!r.exists) return;
-      const readBy = Array.from(new Set([...(r.data.readBy || []), userKey]));
-      await window.DBWrite.set('notifications', notifId, { readBy }, true);
+      await Notify._istek('/okundu', { ids });
     } catch (e) {
       console.warn('Okundu işaretlenemedi:', e);
     }
   },
-  async markAllRead(notifs, userKey) {
-    const unread = (notifs || []).filter((n) => !(n.readBy || []).includes(userKey));
-    if (unread.length === 0) return;
-    const ops = unread.map((n) => ({
-      collection: 'notifications',
-      type: 'set',
-      docId: n.id,
-      merge: true,
-      data: { readBy: Array.from(new Set([...(n.readBy || []), userKey])) },
-    }));
-    try {
-      await window.DBWrite.batch(ops);
-    } catch (e) {
-      console.warn('Tümünü okundu hatası:', e);
-    }
+  async markAllRead(notifs) {
+    const ids = (notifs || []).filter((n) => !n.okundu).map((n) => n.id);
+    return Notify.markManyRead(ids);
   },
   async remove(notifId) {
+    return Notify.removeMany([notifId]);
+  },
+  // Kişiye giden bildirim silinir; bölüme/role giden yayın yalnız bu kişinin
+  // zilinden kalkar (sunucu karar verir).
+  async removeMany(ids) {
+    if (!ids || ids.length === 0) return;
     try {
-      await window.DBWrite.remove('notifications', notifId);
+      await Notify._istek('/sil', { ids });
     } catch (e) {
       console.warn('Bildirim silinemedi:', e);
     }
   },
-  async removeMany(ids) {
-    if (!ids || ids.length === 0) return;
-    const ops = ids.map((id) => ({ collection: 'notifications', type: 'delete', docId: id }));
-    try {
-      await window.DBWrite.batch(ops);
-    } catch (e) {
-      console.warn('Toplu silme hatası:', e);
-    }
+  // Bildirime tıklanınca: modülü aç, modül de ilgili işi (başvuru, sekme,
+  // anket) açabilsin diye hedefi bırak. Modül sonradan yüklenebildiği için
+  // hem olay yayınlanır hem de `bildirimHedefiAl` ile okunabilir kalır.
+  hedefeGit(n, onNavigate) {
+    if (!n || !n.link) return false;
+    const hedef = {
+      link: n.link,
+      module: n.module || '',
+      type: n.type || '',
+      meta: n.meta || {},
+      zaman: Date.now(),
+    };
+    window.__bildirimHedefi = hedef;
+    if (onNavigate) onNavigate(n.link);
+    else window.location.hash = '#' + n.link;
+    setTimeout(() => {
+      try {
+        window.dispatchEvent(new CustomEvent('bildirim:ac', { detail: hedef }));
+      } catch (_) {
+        /* eski tarayıcı */
+      }
+    }, 0);
+    return true;
   },
+};
+// Modülün kendi bildirim hedefini (varsa) bir kez alması. Bir dakikadan eski
+// hedef yok sayılır: sonradan açılan modül eski bir tıklamaya göre davranmasın.
+window.bildirimHedefiAl = function bildirimHedefiAl(rota) {
+  const h = window.__bildirimHedefi;
+  if (!h || h.link !== rota || Date.now() - h.zaman > 60000) return null;
+  window.__bildirimHedefi = null;
+  return h;
+};
+// Modül bileşeni için: bildirimden gelindiyse hedefi işle. Modül tıklamadan
+// SONRA yüklenirse bekleyen hedefi alır; zaten açıksa olayı dinler.
+window.useBildirimHedefi = function useBildirimHedefi(rota, isle) {
+  const ref = window.React.useRef(isle);
+  ref.current = isle;
+  window.React.useEffect(() => {
+    const bekleyen = window.bildirimHedefiAl(rota);
+    if (bekleyen) ref.current(bekleyen);
+    const dinle = (e) => {
+      const h = e && e.detail;
+      if (!h || h.link !== rota) return;
+      window.__bildirimHedefi = null;
+      ref.current(h);
+    };
+    window.addEventListener('bildirim:ac', dinle);
+    return () => window.removeEventListener('bildirim:ac', dinle);
+  }, [rota]);
 };
 window.Notify = Notify;
 window.unvansizAd = unvansizAd;
@@ -7283,12 +7319,28 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
   const [open, setOpen] = window.React.useState(false);
   const [list, setList] = window.React.useState([]);
   const [selected, setSelected] = window.React.useState(() => new Set());
-  const userKey =
-    currentUser && (currentUser.studentNumber || currentUser.identifier || currentUser.name || '');
+  const [mesgul, setMesgul] = window.React.useState(false);
 
   const reload = window.React.useCallback(async () => {
-    setList(await Notify.listFor(currentUser, activeDepartment));
+    const yeni = await Notify.listFor(currentUser, activeDepartment);
+    setList(yeni);
+    // Silinmiş / artık görünmeyen kayıtlar seçimde kalmasın.
+    setSelected((prev) => {
+      const ids = new Set(yeni.map((n) => n.id));
+      const next = new Set([...prev].filter((id) => ids.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
   }, [currentUser, activeDepartment]);
+  // Tek yerden: işlem sürerken düğmeler kilitli, bitince liste tazelenir.
+  const islem = async (fn) => {
+    setMesgul(true);
+    try {
+      await fn();
+    } finally {
+      await reload();
+      setMesgul(false);
+    }
+  };
 
   window.React.useEffect(() => {
     reload();
@@ -7304,7 +7356,7 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
     return () => window.removeEventListener('realtime:notifications', handler);
   }, [reload]);
 
-  const unread = list.filter((n) => !(n.readBy || []).includes(userKey)).length;
+  const unread = list.filter((n) => !n.okundu).length;
 
   const toggleSel = (id) => {
     setSelected((prev) => {
@@ -7317,23 +7369,31 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
   const toggleAll = () => {
     setSelected((prev) => (prev.size === list.length ? new Set() : new Set(list.map((n) => n.id))));
   };
-  const doMarkAll = async () => {
-    await Notify.markAllRead(list, userKey);
-    reload();
-  };
+  const doMarkAll = () => islem(() => Notify.markAllRead(list));
+  const doMarkSelected = () =>
+    islem(async () => {
+      await Notify.markManyRead(Array.from(selected));
+      setSelected(new Set());
+    });
   const doDelete = async () => {
     if (selected.size === 0) return;
     if (!window.confirm(`${selected.size} bildirim silinsin mi?`)) return;
-    await Notify.removeMany(Array.from(selected));
-    setSelected(new Set());
-    reload();
+    await islem(async () => {
+      await Notify.removeMany(Array.from(selected));
+      setSelected(new Set());
+    });
   };
   const doDeleteAll = async () => {
     if (list.length === 0) return;
     if (!window.confirm(`Tüm bildirimler (${list.length}) silinsin mi?`)) return;
-    await Notify.removeMany(list.map((n) => n.id));
-    setSelected(new Set());
-    reload();
+    await islem(async () => {
+      await Notify.removeMany(list.map((n) => n.id));
+      setSelected(new Set());
+    });
+  };
+  const ac = (n) => {
+    if (!n.okundu) Notify.markRead(n.id).then(reload);
+    if (Notify.hedefeGit(n, onNavigate)) setOpen(false);
   };
 
   const PRIMARY = '#0891B2',
@@ -7453,6 +7513,8 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
             {unread > 0 && (
               <button
                 onClick={doMarkAll}
+                disabled={mesgul}
+                data-zil="hepsi-okundu"
                 style={{
                   fontSize: 12,
                   color: PRIMARY,
@@ -7490,6 +7552,7 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
               >
                 <input
                   type="checkbox"
+                  data-zil="hepsini-sec"
                   checked={selected.size === list.length && list.length > 0}
                   onChange={toggleAll}
                   style={{ accentColor: PRIMARY }}
@@ -7499,7 +7562,28 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
               <div style={{ display: 'flex', gap: 6 }}>
                 {selected.size > 0 && (
                   <button
+                    onClick={doMarkSelected}
+                    disabled={mesgul}
+                    data-zil="secilen-okundu"
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: '5px 10px',
+                      borderRadius: 6,
+                      border: `1px solid ${PRIMARY}40`,
+                      background: '#ECFEFF',
+                      color: PRIMARY,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Okundu yap
+                  </button>
+                )}
+                {selected.size > 0 && (
+                  <button
                     onClick={doDelete}
+                    disabled={mesgul}
+                    data-zil="secilen-sil"
                     style={{
                       fontSize: 11,
                       fontWeight: 600,
@@ -7516,6 +7600,8 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                 )}
                 <button
                   onClick={doDeleteAll}
+                  disabled={mesgul}
+                  data-zil="hepsini-sil"
                   style={{
                     fontSize: 11,
                     fontWeight: 600,
@@ -7542,7 +7628,7 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
               </div>
             ) : (
               list.map((n) => {
-                const isRead = (n.readBy || []).includes(userKey);
+                const isRead = !!n.okundu;
                 const isSel = selected.has(n.id);
                 const tagColor =
                   n.type === 'approved'
@@ -7555,6 +7641,8 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                 return (
                   <div
                     key={n.id}
+                    data-zil-bildirim={n.id}
+                    data-okundu={isRead ? '1' : '0'}
                     style={{
                       display: 'flex',
                       gap: 12,
@@ -7575,6 +7663,7 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                     >
                       <input
                         type="checkbox"
+                        data-zil="sec"
                         checked={isSel}
                         onChange={() => toggleSel(n.id)}
                         style={{ accentColor: PRIMARY, cursor: 'pointer' }}
@@ -7589,14 +7678,9 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                       />
                     </div>
                     <div
+                      data-zil="ac"
                       style={{ flex: 1, minWidth: 0, cursor: n.link ? 'pointer' : 'default' }}
-                      onClick={() => {
-                        if (!isRead) Notify.markRead(n.id, userKey).then(reload);
-                        if (n.link && onNavigate) {
-                          onNavigate(n.link);
-                          setOpen(false);
-                        }
-                      }}
+                      onClick={() => ac(n)}
                     >
                       <div
                         style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}
@@ -7640,7 +7724,8 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                     >
                       {!isRead && (
                         <button
-                          onClick={() => Notify.markRead(n.id, userKey).then(reload)}
+                          data-zil="okundu"
+                          onClick={() => islem(() => Notify.markRead(n.id))}
                           style={{
                             padding: '4px 10px',
                             borderRadius: 6,
@@ -7657,10 +7742,8 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                         </button>
                       )}
                       <button
-                        onClick={async () => {
-                          await Notify.remove(n.id);
-                          reload();
-                        }}
+                        data-zil="sil"
+                        onClick={() => islem(() => Notify.remove(n.id))}
                         title="Sil"
                         style={{
                           padding: '4px 8px',

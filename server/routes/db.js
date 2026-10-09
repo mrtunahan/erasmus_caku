@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
+const { idSorgusu: bildirimIdSorgusu } = require('./bildirim');
 const { ttoBirimUyesi, ttoYoneticileri } = require('../lib/tto-birim');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
 // ── ANKET KAPSAMI: istemciyle AYNI kural dosyası ──
@@ -2305,6 +2306,26 @@ async function enforceWritePolicies(db, op, user) {
       return { allow: true };
     }
 
+    // ── KENDİSİNE GELEN STAJ BİLDİRİMİ ──
+    // Komisyonun öğrenciye yazdığı bildirimde öğrencinin numarası
+    // `targetStudentNo`'dadır (sahiplik alanı değildir); bu yüzden öğrenci
+    // staj panelinde kendi bildirimini ne okundu yapabiliyor ne silebiliyordu
+    // (403). Yalnız iki şeye izin var: silmek ve `readBy` yazmak — metni,
+    // alıcıyı ya da türü değiştirmek yine kapalı.
+    if (op.collection === 'internship_notifications' && existing.targetStudentNo) {
+      const benim = await ogrenciKapsami(db, ident);
+      if (benim.includes(String(existing.targetStudentNo))) {
+        if (op.type === 'delete') return { allow: true };
+        const alanlar = Object.keys(op.data || {});
+        const yalnizOkuma =
+          (op.type === 'update' || (op.type === 'set' && op.merge === true)) &&
+          alanlar.length > 0 &&
+          alanlar.every((a) => a === 'readBy') &&
+          Array.isArray(op.data.readBy);
+        if (yalnizOkuma) return { allow: true };
+      }
+    }
+
     // Mevcut dokümanda sahiplik ara
     let ownerSeen = false;
     let owned = false;
@@ -2881,6 +2902,98 @@ async function kopruBildirimleriGonder(db, op, sonuc, touched, user) {
   }
 }
 
+// ── ZİL ↔ MODÜL EŞİTLEMESİ ──
+// Staj paneli, öğrenci bildirimleri ve portal kendi listelerini tutuyor; zil
+// ise bunların `notifications` kopyasını gösteriyor. Modülde okunan bildirim
+// zilde de okunmuş, modülde silinen zilden de silinmiş olmalı — yoksa kişi
+// aynı bildirimi iki yerde ayrı ayrı kapatmak zorunda kalıyordu. Tersini
+// (zilde okunan modülde) routes/bildirim.js yapar.
+const ZIL_KAYNAKLARI = new Set([
+  'internship_notifications',
+  'student_notifications',
+  'portal_notifications',
+  'survey_assignments',
+]);
+
+async function anketAtamaBildirimi(db, op, sonuc, touched) {
+  const d = op.data || {};
+  const atamaId = String((sonuc && sonuc.id) || op.docId || '');
+  if (!atamaId) return;
+  const rol = d.targetRole === 'alumni' ? 'student' : String(d.targetRole || '');
+  if (rol !== 'student' && rol !== 'professor') return;
+  let anket = null;
+  try {
+    anket = await db.collection('surveys').findOne(bildirimIdSorgusu(String(d.surveyId || '')));
+  } catch (_e) {
+    anket = null;
+  }
+  const ad = String((anket && anket.title) || d.surveyTitle || 'Yeni anket').trim();
+  const tarih = String(d.dueDate || d.deadline || (anket && anket.endDate) || '').slice(0, 10);
+  const sonTarih = /^\d{4}-\d{2}-\d{2}$/.test(tarih) ? tarih : '';
+  const zorunlu = !!(d.mandatory || d.zorunlu || (anket && anket.mandatory));
+  await db.collection('notifications').insertOne({
+    recipientType: 'hedef',
+    recipientId: rol,
+    module: 'anket',
+    type: zorunlu ? 'zorunlu_anket' : 'anket_atama',
+    title: zorunlu ? 'Zorunlu anket atandı' : 'Yeni anket atandı',
+    body:
+      '“' +
+      ad +
+      '” anketi size atandı' +
+      (sonTarih ? ' — son tarih ' + sonTarih.split('-').reverse().join('.') : '') +
+      '.',
+    link: 'anket',
+    meta: {
+      kaynak: 'survey_assignments',
+      kaynakId: atamaId,
+      surveyId: String(d.surveyId || ''),
+      hedef: {
+        targetRole: String(d.targetRole || ''),
+        targetGroup: d.targetRole === 'alumni' ? 'Mezun' : String(d.targetGroup || ''),
+        kapsamTuru: String(d.kapsamTuru || ''),
+        kapsamDepartmentIds: Array.isArray(d.kapsamDepartmentIds) ? d.kapsamDepartmentIds : [],
+        departmentId: String(d.departmentId || ''),
+      },
+    },
+    readBy: [],
+    createdAt: new Date().toISOString(),
+  });
+  if (touched) touched.add('notifications');
+}
+
+async function zilEsitle(db, op, sonuc, touched, user) {
+  try {
+    if (!op || !ZIL_KAYNAKLARI.has(op.collection)) return;
+    const kaynakId = String(op.docId || '');
+    if (op.collection === 'survey_assignments' && op.type === 'add') {
+      await anketAtamaBildirimi(db, op, sonuc, touched);
+      return;
+    }
+    if (!kaynakId) return;
+    const filtre = { 'meta.kaynak': op.collection, 'meta.kaynakId': kaynakId };
+    const zil = db.collection('notifications');
+    if (op.type === 'delete') {
+      const r = await zil.deleteMany(filtre);
+      if (r && r.deletedCount && touched) touched.add('notifications');
+      return;
+    }
+    if (op.type !== 'update' && op.type !== 'set') return;
+    const d = op.data || {};
+    let okuyanlar = [];
+    if (op.collection === 'internship_notifications' && Array.isArray(d.readBy)) {
+      okuyanlar = d.readBy.map((x) => String(x || '').trim()).filter(Boolean);
+    } else if (d.read === true && user && user.identifier) {
+      okuyanlar = [String(user.identifier)];
+    }
+    if (okuyanlar.length === 0) return;
+    await zil.updateMany(filtre, { $addToSet: { readBy: { $each: okuyanlar } } });
+    if (touched) touched.add('notifications');
+  } catch (e) {
+    console.warn('[zil-esitle]', e && e.message);
+  }
+}
+
 async function executeSingleOp(db, op) {
   const colName = getCollectionName(op);
   const col = db.collection(colName);
@@ -3053,6 +3166,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       addTouched(operations[0]);
       await ttoBildirimleriGonder(db, operations[0], result, req.user, touched);
       await kopruBildirimleriGonder(db, operations[0], result, touched, req.user);
+      await zilEsitle(db, operations[0], result, touched, req.user);
       emitDbWrite(req, touched);
       return res.json(result);
     }
@@ -3063,6 +3177,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       addTouched(op);
       await ttoBildirimleriGonder(db, op, result, req.user, touched);
       await kopruBildirimleriGonder(db, op, result, touched, req.user);
+      await zilEsitle(db, op, result, touched, req.user);
       if (result.id) addedIds.push(result.id);
     }
     emitDbWrite(req, touched);

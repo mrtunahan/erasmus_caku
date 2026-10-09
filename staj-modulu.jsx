@@ -4620,6 +4620,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   const [studentNotifs, setStudentNotifs] = useState([]);
   const [showStudentNotifs, setShowStudentNotifs] = useState(false);
 
+  // Zilde okunan/silinen bildirim bu listede de güncellensin.
+  const [bildirimSurumu, setBildirimSurumu] = useState(0);
+  useEffect(() => {
+    const h = () => setBildirimSurumu((v) => v + 1);
+    window.addEventListener('realtime:internship_notifications', h);
+    return () => window.removeEventListener('realtime:internship_notifications', h);
+  }, []);
+
   useEffect(() => {
     if (!isStudent || !studentId) return;
     const loadNotifs = async () => {
@@ -4634,7 +4642,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       }
     };
     loadNotifs();
-  }, [isStudent, studentId]);
+  }, [isStudent, studentId, bildirimSurumu]);
 
   const studentUnread = studentNotifs.filter((n) => !n.readBy?.includes(studentId)).length;
 
@@ -4749,6 +4757,30 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     if (isStudent) setActiveTab('basvuru');
     else setActiveTab('kayitlar');
   }, [isStudent, isCommissionMember]);
+
+  // ── Zilden gelindiyse ilgili işi aç ──
+  // Öğrenci: adım bildirimi → yol haritası, diğerleri → başvuru. Yetkili:
+  // kayıtlar sekmesi ve bildirimin başvurusu (liste yüklenince açılır).
+  // Bu kanca varsayılan sekme etkisinden SONRA durmalı; önce dursaydı
+  // varsayılan sekme seçimi onu ezerdi.
+  const [bildirimBasvurusu, setBildirimBasvurusu] = useState('');
+  (window.useBildirimHedefi || (() => {}))('staj', (h) => {
+    const tur = String(h.type || '');
+    if (isStudent) {
+      setActiveTab(tur.indexOf('step_') === 0 ? 'roadmap' : 'basvuru');
+      return;
+    }
+    setActiveTab('kayitlar');
+    const appId = String((h.meta && h.meta.appId) || '');
+    if (appId) setBildirimBasvurusu(appId);
+  });
+  useEffect(() => {
+    if (!bildirimBasvurusu) return;
+    const app = allApplications.find((a) => a.id === bildirimBasvurusu);
+    if (!app) return;
+    setSelectedApp(app);
+    setBildirimBasvurusu('');
+  }, [bildirimBasvurusu, allApplications]);
 
   // Kilit ekranındaki "Başvuru Yap" butonu için sekme değiştirici
   useEffect(() => {
@@ -5927,7 +5959,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
   useEffect(() => {
     loadNotifications();
-  }, [loadNotifications]);
+  }, [loadNotifications, bildirimSurumu]);
 
   const userId = currentUser?.name || currentUser?.identifier || '';
 
