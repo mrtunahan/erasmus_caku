@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
+const { jetonKullanicisi, adayOkuyabilirMi, adayYazmaKarari } = require('../lib/aday-yetki');
 const { idSorgusu: bildirimIdSorgusu } = require('./bildirim');
 const { ttoBirimUyesi, ttoYoneticileri } = require('../lib/tto-birim');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
@@ -185,7 +186,8 @@ function decodeUser(req) {
   }
   if (!token) return null;
   try {
-    return jwt.verify(token, JWT_SECRET);
+    // Aday jetonu öğrenci + aday bayrağı olur (server/lib/aday-yetki.js).
+    return jetonKullanicisi(jwt.verify(token, JWT_SECRET));
   } catch (_e) {
     return null;
   }
@@ -3114,6 +3116,11 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
     if (!decision.allow) {
       return res.status(decision.status || 403).json({ error: decision.error });
     }
+    // Aday: yalnız kendi başvuru türlerinin kaydı (server/lib/aday-yetki.js).
+    if (DB_AUTH_ENFORCED) {
+      const aday = adayYazmaKarari(op, req.user);
+      if (!aday.izin) return res.status(403).json({ error: aday.hata });
+    }
   }
 
   // TTO iş kaydında sıra no işlem ÖNCESİ damgalanır; aynı istekte iki yeni
@@ -3276,6 +3283,8 @@ router.get('/student-search', async (req, res) => {
     }
     const q = String(req.query.q || '').trim();
     if (q.length < 2) return res.json({ students: [] });
+    // Aday öğrenci listesinde arama yapamaz.
+    if (user && user.aday) return res.json({ students: [] });
 
     const db = await getDbSafe();
     // Aranacak bölüm(ler). Personel istediği bölümü sorabilir; öğrencinin
@@ -3334,6 +3343,10 @@ router.get('/:collection', async (req, res) => {
     // RBAC: kimliksiz istekler yalnız public koleksiyonları okuyabilir.
     // Karar DB bağlantısından ÖNCE verilir (yetkisiz istek DB'ye dokunmaz).
     const user = decodeUser(req);
+    // Aday yalnız başvurusunun ihtiyaç duyduğu koleksiyonları okur.
+    if (DB_AUTH_ENFORCED && !adayOkuyabilirMi(collection, user)) {
+      return res.status(403).json({ error: `Aday hesabı bu veriyi okuyamaz: ${collection}` });
+    }
     const decision = await readDecision(collection, user, getDbSafe);
     if (!decision.allow) {
       return res.status(decision.status || 403).json({ error: decision.error });
@@ -3558,6 +3571,10 @@ router.get('/:collection/:docId', async (req, res) => {
   try {
     // RBAC: tek doküman okuması da aynı politikaya tabi
     const user = decodeUser(req);
+    // Aday yalnız başvurusunun ihtiyaç duyduğu koleksiyonları okur.
+    if (DB_AUTH_ENFORCED && !adayOkuyabilirMi(collection, user)) {
+      return res.status(403).json({ error: `Aday hesabı bu veriyi okuyamaz: ${collection}` });
+    }
     const decision = await readDecision(collection, user, getDbSafe);
     if (!decision.allow) {
       return res.status(decision.status || 403).json({ error: decision.error });

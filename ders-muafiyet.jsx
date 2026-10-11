@@ -10798,7 +10798,13 @@ const BASVURU_TURLERI = [
 // ama muafiyet altyapısının (eşleştirme, skorlama, dilekçe) aynısını çalıştırır.
 function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitTur }) {
   const isStudent = currentUser?.role === 'student';
-  const tabs = isStudent ? STUDENT_TABS : STAFF_TABS;
+  // Dikey geçişte personel, kendi hesabını açan adayları da yönetir
+  // (şifre sıfırlama, kesin kayıtta öğrenci numarasına aktarma).
+  const tabs = isStudent
+    ? STUDENT_TABS
+    : sabitTur === 'dikey' && window.AdayHesaplariPaneli
+      ? STAFF_TABS.concat([{ id: 'adayhesap', label: 'Aday Hesapları', icon: 'history' }])
+      : STAFF_TABS;
   const [activeTab, setActiveTab] = useState(isStudent ? 'yeni' : 'onay');
   const [basvuruTuru, setBasvuruTuru] = useState(sabitTur || 'muafiyet');
   const [courseContents, setCourseContents] = useState([]);
@@ -11694,6 +11700,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
               setActiveTab('onay');
             }}
           />
+        )}
+        {activeTab === 'adayhesap' && !isStudent && window.AdayHesaplariPaneli && (
+          <window.AdayHesaplariPaneli activeDepartment={activeDepartment} turler={['dikey']} />
         )}
         {activeTab === 'yeni' && isStudent && (
           <ManualExemptionForm
@@ -12745,7 +12754,7 @@ const ManualExemptionForm = ({
       // önekli olduğu için hiçbir öğrencinin numarasına eşit olamaz — kayıt
       // yanlış kişinin ekranında görünmez.
       const kimlikNo = vekaleten
-        ? studentNo.trim() || window.adayNoUret(mevcutKayitlar || [])
+        ? studentNo.trim() || (await window.adayNoAyir(mevcutKayitlar || []))
         : studentNo;
       const record = await MuafiyetDB.saveRecord({
         studentName,
@@ -13422,7 +13431,13 @@ const ManualExemptionForm = ({
           />
         </div>
         <div style={{ flex: 1 }}>
-          <label style={labelStyle}>{vekaleten ? 'Öğrenci No (varsa)' : 'Öğrenci No *'}</label>
+          <label style={labelStyle}>
+            {vekaleten
+              ? 'Öğrenci No (varsa)'
+              : currentUser?.aday
+                ? 'Geçici Aday No'
+                : 'Öğrenci No *'}
+          </label>
           <input
             value={studentNo}
             onChange={(e) => setStudentNo(e.target.value.replace(/\D/g, ''))}
@@ -13497,7 +13512,8 @@ const ManualExemptionForm = ({
           />
         </div>
         <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 8 }}>
-          Bu bilgiler dilekçenize yazılır. "Benim Sayfam"da kayıtlıysa otomatik gelir.
+          Bu bilgiler dilekçenize yazılır.
+          {currentUser?.aday ? '' : ' "Benim Sayfam"da kayıtlıysa otomatik gelir.'}
         </div>
       </div>
 

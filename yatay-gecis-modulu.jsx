@@ -1033,7 +1033,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
       // numarası. Geçici numara harf önekli olduğu için hiçbir öğrencinin
       // numarasına eşit olamaz — kayıt yanlış kişiye görünmez.
       const kimlikNo = vekaleten
-        ? form.adayOgrNo.trim() || window.adayNoUret(mevcutKayitlar || [])
+        ? form.adayOgrNo.trim() || (await window.adayNoAyir(mevcutKayitlar || []))
         : String(sysOgrNo);
       const kayit = {
         turu: tur.id,
@@ -2934,8 +2934,16 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       })
     : window.TENANT?.facultyName || 'Mühendislik Fakültesi';
 
-  const [turId, setTurId] = useState('kurumici');
-  const tur = YG_TURLER.find((t) => t.id === turId) || YG_TURLER[0];
+  // Numarasız aday yalnız hesabını açarken seçtiği türleri görür
+  // (kurumlararası / merkezi); kurum içi geçiş öğrenci numarası ister.
+  const adayMi = !!currentUser?.aday;
+  const gorunurTurler = useMemo(() => {
+    if (!adayMi) return YG_TURLER;
+    const izinli = window.adayYatayTurleri ? window.adayYatayTurleri(currentUser.turler) : [];
+    return YG_TURLER.filter((t) => izinli.includes(t.id));
+  }, [adayMi, currentUser]);
+  const [turId, setTurId] = useState(() => (gorunurTurler[0] || YG_TURLER[0]).id);
+  const tur = gorunurTurler.find((t) => t.id === turId) || gorunurTurler[0] || YG_TURLER[0];
   const [sekme, setSekme] = useState(isStudent ? 'yeni' : 'basvurular');
 
   const [kayitlar, setKayitlar] = useState([]);
@@ -3700,6 +3708,9 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
         // numarası olmuyor; sisteme giremediği için başvurusunu da açamıyor.
         // Bu sekmede akademisyen aday adına tüm işlemi yürütür.
         { id: 'aday', label: 'Aday Adına Başvuru' },
+        // Kendi hesabını açan adaylar: şifre sıfırlama, kesin kayıtta
+        // öğrenci numarasına aktarma (aday-hesap-ekrani.jsx).
+        ...(window.AdayHesaplariPaneli ? [{ id: 'adayhesap', label: 'Aday Hesapları' }] : []),
       ];
 
   if (loading) {
@@ -3736,7 +3747,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           margin: '18px 0 18px',
         }}
       >
-        {YG_TURLER.map((t) => {
+        {gorunurTurler.map((t) => {
           const sel = turId === t.id;
           // Rozet KAPSAM içinden sayılır: ham `kayitlar` üniversite geneliydi.
           const cnt = kapsamdaki.filter((r) => (r.turu || 'kurumici') === t.id).length;
@@ -3906,6 +3917,13 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
             yukle();
             setTimeout(() => setMsg(''), 3000);
           }}
+        />
+      )}
+
+      {isStaff && sekme === 'adayhesap' && window.AdayHesaplariPaneli && (
+        <window.AdayHesaplariPaneli
+          activeDepartment={activeDepartment}
+          turler={['kurumlararasi', 'merkezi']}
         />
       )}
 
