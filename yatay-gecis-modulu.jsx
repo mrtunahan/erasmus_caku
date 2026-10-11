@@ -3886,6 +3886,11 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
         </div>
       )}
 
+      {/* Aday: başvuru dönemi dışındaysa uyarı (alan açık kalır). */}
+      {adayMi && window.AdayDonemUyarisi && (
+        <window.AdayDonemUyarisi currentUser={currentUser} turler={[turId]} />
+      )}
+
       {/* Öğrenci: yeni başvuru */}
       {isStudent && sekme === 'yeni' && (
         <YgBasvuruFormu

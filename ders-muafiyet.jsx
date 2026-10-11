@@ -11701,6 +11701,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
             }}
           />
         )}
+        {sabitTur === 'dikey' && currentUser?.aday && window.AdayDonemUyarisi && (
+          <window.AdayDonemUyarisi currentUser={currentUser} turler={['dikey']} />
+        )}
         {activeTab === 'adayhesap' && !isStudent && window.AdayHesaplariPaneli && (
           <window.AdayHesaplariPaneli activeDepartment={activeDepartment} turler={['dikey']} />
         )}

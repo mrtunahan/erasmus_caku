@@ -184,6 +184,17 @@ async function start() {
     console.log(`API sunucusu çalışıyor: http://localhost:${PORT}`);
     console.log(`Health check: http://localhost:${PORT}/api/health`);
   });
+
+  // ── Aday verisi saklama süresi ──
+  // Kazanamayan / kayıt yaptırmayan adayın verisi dönem bitişinden (ya da
+  // hesabın kapatılmasından) 30 gün sonra silinir (lib/aday-hesap.js).
+  // Açılıştan bir dakika sonra ve her 6 saatte bir bakılır.
+  const adayTemizle = () =>
+    adayRoutes
+      .adayTemizligi()
+      .catch((e) => console.warn('[aday] temizlik çalışmadı:', e && e.message));
+  setTimeout(adayTemizle, 60 * 1000).unref();
+  setInterval(adayTemizle, 6 * 60 * 60 * 1000).unref();
 }
 
 // Graceful shutdown

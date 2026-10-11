@@ -63,9 +63,10 @@ const ADAY_OKUMA = new Set([
   'sinav_dersler',
   'karsi_not_olcekleri',
   'mezuniyet_kurallari',
-  // Bildirimler (zil kendi ucundan okur; modül listeleri buradan)
+  // Kendi bildirimleri. Merkezî `notifications` burada YOK: o koleksiyonun
+  // öğrenci kuralı bölüme/öğrencilere giden yayınları da açar; aday zili
+  // kendi ucundan (/api/bildirim) yalnız kişisel bildirimleri alır.
   'student_notifications',
-  'notifications',
 ]);
 
 /** Aday bu koleksiyonu okuyabilir mi? (personel/öğrenci için hep true) */
@@ -114,6 +115,13 @@ function adayYazmaKarari(op, kullanici) {
       };
     }
   }
+  // Sahiplik alanları yalnız adayın KENDİ numarası olabilir: güncellemeyle
+  // başvurusunu başka birinin numarasına devredemesin.
+  const sahiplik = ['ogrenciNo', 'studentNo', '_owner'];
+  const yabanci = sahiplik.find(
+    (a) => veri[a] !== undefined && metin(veri[a]) !== metin(kullanici.identifier)
+  );
+  if (yabanci) return { izin: false, hata: 'Başvuru yalnız kendi aday numaranıza ait olabilir.' };
   // Değerlendirme alanları adaya kapalı (karar, sıra, sonuç). Yeni kayıtta
   // BOŞ gelmeleri serbesttir (form onları '' ile açıyor); dolu gelirse aday
   // kendi başvurusunu değerlendirmiş olurdu. Muafiyetin aşama (stage)

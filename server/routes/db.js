@@ -3122,6 +3122,15 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       if (!aday.izin) return res.status(403).json({ error: aday.hata });
     }
   }
+  // Aday hesabı kapatıldı / numaraya aktarıldı / silindiyse eski oturumla
+  // yazamaz (jeton 24 saat geçerli kalıyor).
+  if (DB_AUTH_ENFORCED && req.user && req.user.aday) {
+    const { adayAktifMi } = require('./aday');
+    const aktif = await adayAktifMi(req.user.identifier).catch(() => false);
+    if (!aktif) {
+      return res.status(403).json({ error: 'Aday hesabınız artık etkin değil.' });
+    }
+  }
 
   // TTO iş kaydında sıra no işlem ÖNCESİ damgalanır; aynı istekte iki yeni
   // kayıt aynı numarayı alır ve ikincisi yarıda 409'a düşerdi.

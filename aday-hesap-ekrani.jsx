@@ -16,6 +16,9 @@ import {
   adayAydinlatmaMetni,
   adayKayitHatalari,
   adayKaydiSadele,
+  donemUyarilari,
+  donemHatalari,
+  ADAY_SAKLAMA_GUN,
 } from './lib/aday-hesap.js';
 
 const { useEffect, useMemo, useState } = React;
@@ -35,6 +38,68 @@ async function adayIstek(yol, govde) {
   const j = await r.json().catch(() => ({}));
   if (!r.ok && !j.error) j.error = 'Sunucu hatası (' + r.status + ').';
   return { ok: r.ok, status: r.status, ...j };
+}
+
+// Bölümün fakültesindeki başvuru dönemleri (kimliksiz okunur).
+function useBolumDonemi(bolumId) {
+  const [donemler, setDonemler] = useState({});
+  useEffect(() => {
+    let canli = true;
+    if (!bolumId) {
+      setDonemler({});
+      return undefined;
+    }
+    fetch('/api/aday/donem?bolum=' + encodeURIComponent(bolumId))
+      .then((r) => r.json())
+      .then((j) => canli && setDonemler((j && j.donemler) || {}))
+      .catch(() => canli && setDonemler({}));
+    return () => {
+      canli = false;
+    };
+  }, [bolumId]);
+  return donemler;
+}
+
+function UyariKutusu({ uyarilar }) {
+  if (!uyarilar || uyarilar.length === 0) return null;
+  return (
+    <div
+      role="alert"
+      data-aday-donem-uyari
+      style={{
+        background: '#FFFBEB',
+        border: '1px solid #FCD34D',
+        color: '#92400E',
+        borderRadius: 10,
+        padding: '10px 12px',
+        fontSize: 13,
+        lineHeight: 1.5,
+      }}
+    >
+      {uyarilar.map((u) => (
+        <div key={u.tur}>⚠ {u.mesaj}</div>
+      ))}
+      <div style={{ fontSize: 12, marginTop: 4, color: '#A16207' }}>
+        Başvuru alanı açık kalır; dönem dışı başvurunun değerlendirilip değerlendirilmeyeceğine
+        bölümünüz karar verir.
+      </div>
+    </div>
+  );
+}
+
+/** Giriş yapmış adayın modül ekranlarındaki dönem uyarısı. */
+export function AdayDonemUyarisi({ currentUser, turler }) {
+  const donemler = useBolumDonemi(currentUser && currentUser.aday ? currentUser.departmentId : '');
+  if (!currentUser || !currentUser.aday) return null;
+  const secili = (Array.isArray(turler) ? turler : currentUser.turler || []).filter((t) =>
+    (currentUser.turler || []).includes(t)
+  );
+  const uyarilar = donemUyarilari(secili, donemler);
+  return uyarilar.length ? (
+    <div style={{ marginBottom: 14 }}>
+      <UyariKutusu uyarilar={uyarilar} />
+    </div>
+  ) : null;
 }
 
 /** Sunucunun döndürdüğü aday → uygulamanın oturum kullanıcısı. */
@@ -116,6 +181,8 @@ export function AdayGirisPaneli({ onLogin }) {
   }, [mod, bolumler.length]);
 
   const hatalar = useMemo(() => adayKayitHatalari(f), [f]);
+  const donemler = useBolumDonemi(mod === 'kayit' ? f.departmentId : '');
+  const kayitUyarilari = donemUyarilari(f.turler, donemler);
 
   const tamamla = (j) => {
     if (window.oturumBilgisiniYaz && j.token) window.oturumBilgisiniYaz(j.token);
@@ -345,6 +412,7 @@ export function AdayGirisPaneli({ onLogin }) {
           ))}
         </select>
       </Alan>
+      <UyariKutusu uyarilar={kayitUyarilari} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Alan etiket="Şifre" hata={h('sifre')}>
           <input
@@ -651,7 +719,9 @@ export function AdayHesaplariPaneli({ activeDepartment, turler }) {
           <div style={{ fontWeight: 700, color: '#0F172A' }}>Aday hesapları</div>
           <div style={{ fontSize: 12.5, color: '#64748B' }}>
             Öğrenci numarası olmadan kendi hesabını açan adaylar. Kesin kayıttan sonra numarasını
-            girip aktarın; başvuruları öğrenci hesabına geçer.
+            girip aktarın; başvuruları öğrenci hesabına geçer. Aktarılmayan adayın verisi dönem
+            bitişinden (ya da hesabın kapatılmasından) {ADAY_SAKLAMA_GUN} gün sonra otomatik
+            silinir. Şifreyi bölüm yetkilisi sıfırlar.
           </div>
         </div>
         <input
@@ -681,6 +751,7 @@ export function AdayHesaplariPaneli({ activeDepartment, turler }) {
                 <th style={th}>İletişim</th>
                 <th style={th}>Türler</th>
                 <th style={th}>Durum</th>
+                <th style={th}>Otomatik silinme</th>
                 <th style={th}>İşlem</th>
               </tr>
             </thead>
@@ -720,6 +791,18 @@ export function AdayHesaplariPaneli({ activeDepartment, turler }) {
                         {a.durum === 'aktarildi' ? ' · ' + a.ogrenciNo : ''}
                       </span>
                     </td>
+                    <td style={td} data-aday-silinme>
+                      {a.silinme && a.silinme.tarih ? (
+                        <b style={{ color: '#B91C1C' }}>
+                          {a.silinme.tarih.split('-').reverse().join('.')}
+                        </b>
+                      ) : (
+                        '—'
+                      )}
+                      <div style={{ color: '#64748B', fontSize: 11.5 }}>
+                        {(a.silinme && a.silinme.sebep) || ''}
+                      </div>
+                    </td>
                     <td style={td}>
                       {a.durum === 'aktif' && (
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -739,9 +822,11 @@ export function AdayHesaplariPaneli({ activeDepartment, turler }) {
                           <button style={dugme('#1D4ED8')} onClick={() => aktar(a)} data-aday-aktar>
                             Numaraya aktar
                           </button>
-                          <button style={dugme('#0D9B8E', false)} onClick={() => sifirla(a)}>
-                            Şifre sıfırla
-                          </button>
+                          {a.yetki && a.yetki.sifirlama && (
+                            <button style={dugme('#0D9B8E', false)} onClick={() => sifirla(a)}>
+                              Şifre sıfırla
+                            </button>
+                          )}
                           <button style={dugme('#B91C1C', false)} onClick={() => kapat(a)}>
                             Kapat
                           </button>
@@ -758,6 +843,115 @@ export function AdayHesaplariPaneli({ activeDepartment, turler }) {
     </div>
   );
 }
+// ── Fakülte yetkilisi: aday başvuru tarihleri ──
+export function AdayDonemPaneli({ facultyId }) {
+  const [donemler, setDonemler] = useState({});
+  const [yukleniyor, setYukleniyor] = useState(true);
+  const [mesaj, setMesaj] = useState({ text: '', tur: '' });
+  useEffect(() => {
+    let canli = true;
+    if (!facultyId) return undefined;
+    // Fakültenin herhangi bir bölümü üzerinden değil, doğrudan fakülte
+    // kimliğiyle okunur: bölümsüz yeni fakültede de çalışsın.
+    fetch('/api/aday/donem-fakulte?facultyId=' + encodeURIComponent(facultyId), {
+      credentials: 'include',
+      headers: window.yoklamaBasliklari ? window.yoklamaBasliklari() : {},
+    })
+      .then((r) => r.json())
+      .then((j) => canli && setDonemler((j && j.donemler) || {}))
+      .catch(() => {})
+      .finally(() => canli && setYukleniyor(false));
+    return () => {
+      canli = false;
+    };
+  }, [facultyId]);
+  const set = (tur, alan, v) =>
+    setDonemler((d) => ({ ...d, [tur]: { ...(d[tur] || {}), [alan]: v } }));
+  const hatalar = donemHatalari(donemler);
+  const kaydet = async () => {
+    if (Object.keys(hatalar).length) {
+      setMesaj({ text: Object.values(hatalar)[0], tur: 'hata' });
+      return;
+    }
+    const j = await adayIstek('/donemler', { facultyId, donemler }).catch(() => ({}));
+    if (j.success) {
+      setDonemler(j.donemler || {});
+      setMesaj({ text: 'Başvuru tarihleri kaydedildi.', tur: 'ok' });
+    } else setMesaj({ text: j.error || 'Kaydedilemedi.', tur: 'hata' });
+  };
+  if (!facultyId) return null;
+  return (
+    <div
+      style={{
+        background: 'white',
+        borderRadius: 12,
+        border: '1px solid #E5E7EB',
+        padding: 16,
+        marginBottom: 16,
+      }}
+      data-aday-donem-paneli
+    >
+      <div style={{ fontWeight: 700, color: '#0F172A' }}>Aday başvuru tarihleri</div>
+      <div style={{ fontSize: 12.5, color: '#64748B', margin: '2px 0 12px' }}>
+        Öğrenci numarası olmayan adayların (dikey geçiş, kurumlararası ve merkezi yerleştirme
+        puanıyla yatay geçiş) fakültenize başvuru dönemi. Dönem dışında başvuru alanı açık kalır,
+        aday "başvuru tarihleri uygun değildir" uyarısı görür. Boş bırakılan türde uyarı çıkmaz.
+        Kazanamayan adayın verisi dönem bitişinden {ADAY_SAKLAMA_GUN} gün sonra silinir.
+      </div>
+      {yukleniyor ? (
+        <div style={{ color: '#64748B', fontSize: 13 }}>Yükleniyor…</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {ADAY_TURLERI.map((t) => (
+            <div
+              key={t.id}
+              style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}
+              data-donem-tur={t.id}
+            >
+              <div style={{ flex: '1 1 260px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
+                {t.ad}
+              </div>
+              <input
+                type="date"
+                value={(donemler[t.id] && donemler[t.id].baslangic) || ''}
+                onChange={(e) => set(t.id, 'baslangic', e.target.value)}
+                style={inp}
+                aria-label={t.ad + ' başlangıç'}
+                data-alan="baslangic"
+              />
+              <span style={{ color: '#94A3B8' }}>–</span>
+              <input
+                type="date"
+                value={(donemler[t.id] && donemler[t.id].bitis) || ''}
+                onChange={(e) => set(t.id, 'bitis', e.target.value)}
+                style={inp}
+                aria-label={t.ad + ' bitiş'}
+                data-alan="bitis"
+              />
+              {hatalar[t.id] && (
+                <span style={{ color: '#B91C1C', fontSize: 12 }}>{hatalar[t.id]}</span>
+              )}
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}>
+            <button style={dugme('#0D9B8E')} onClick={kaydet} data-donem-kaydet>
+              Kaydet
+            </button>
+            {mesaj.text && (
+              <span
+                style={{ fontSize: 13, color: mesaj.tur === 'ok' ? '#047857' : '#B91C1C' }}
+                data-donem-mesaj
+              >
+                {mesaj.text}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const th = { padding: '6px 8px', fontWeight: 600 };
 const td = { padding: '8px', verticalAlign: 'top' };
 
@@ -766,4 +960,6 @@ window.AdaySifreDegistir = AdaySifreDegistir;
 window.AdayHesaplariPaneli = AdayHesaplariPaneli;
 window.adayOturumKullanicisi = adayOturumKullanicisi;
 window.adayModulleri = adayModulleri;
+window.AdayDonemUyarisi = AdayDonemUyarisi;
+window.AdayDonemPaneli = AdayDonemPaneli;
 window.adayYatayTurleri = adayYatayTurleri;

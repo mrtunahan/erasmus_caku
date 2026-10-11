@@ -167,3 +167,108 @@ describe('aday yetkisi (sunucu)', () => {
     expect(k('intibak')).toBe(false);
   });
 });
+
+import {
+  donemDurumu,
+  donemUyarilari,
+  donemHatalari,
+  donemleriSadele,
+  adaySilmeTarihi,
+  adaySilinmeliMi,
+  ADAY_SAKLAMA_GUN,
+} from '../lib/aday-hesap.js';
+
+describe('başvuru dönemleri', () => {
+  const d = { baslangic: '2026-07-01', bitis: '2026-07-15' };
+  it('durum: önce / açık / bitti / tanımsız', () => {
+    expect(donemDurumu(d, '2026-06-30')).toBe('once');
+    expect(donemDurumu(d, '2026-07-01')).toBe('acik');
+    expect(donemDurumu(d, '2026-07-15')).toBe('acik');
+    expect(donemDurumu(d, '2026-07-16')).toBe('bitti');
+    expect(donemDurumu({}, '2026-07-16')).toBe('tanimsiz');
+  });
+  it('dönem dışında uyarı verir, tanımsız türde vermez', () => {
+    const u = donemUyarilari(['kurumlararasi', 'dikey'], { kurumlararasi: d }, '2026-08-01');
+    expect(u).toHaveLength(1);
+    expect(u[0].mesaj).toMatch(/başvuru tarihleri uygun değildir/);
+    expect(u[0].mesaj).toMatch(/15\.07\.2026/);
+    expect(donemUyarilari(['kurumlararasi'], { kurumlararasi: d }, '2026-07-05')).toEqual([]);
+  });
+  it('fakülte yetkilisinin girişi denetlenir', () => {
+    expect(
+      donemHatalari({ dikey: { baslangic: '2026-07-10', bitis: '2026-07-01' } }).dikey
+    ).toBeTruthy();
+    expect(donemHatalari({ dikey: { baslangic: '2026-07-10' } }).dikey).toBeTruthy();
+    expect(donemHatalari({ kurumici: d }).kurumici).toBeTruthy();
+    expect(donemHatalari({ dikey: { baslangic: '', bitis: '' } })).toEqual({});
+    expect(donemleriSadele({ dikey: d, merkezi: { baslangic: '' }, x: d })).toEqual({ dikey: d });
+  });
+});
+
+describe('otomatik silme takvimi', () => {
+  const donemler = [{ kurumlararasi: { baslangic: '2026-07-01', bitis: '2026-07-15' } }];
+  const aday = { durum: 'aktif', turler: ['kurumlararasi'] };
+  it(`dönem bitişinden ${ADAY_SAKLAMA_GUN} gün sonra (kazanamayan)`, () => {
+    const b = { donemler, yatay: [{ degerlendirme: 'uygun_degil' }] };
+    expect(adaySilmeTarihi(aday, b).tarih).toBe('2026-08-14');
+    expect(adaySilinmeliMi(aday, b, '2026-08-13')).toBe(false);
+    expect(adaySilinmeliMi(aday, b, '2026-08-14')).toBe(true);
+  });
+  it('başvurusu olmayan aday da dönem bitince silinir', () => {
+    expect(adaySilmeTarihi(aday, { donemler }).tarih).toBe('2026-08-14');
+  });
+  it('kazanan, değerlendirmesi süren, aktarılan ve dönemi tanımsız silinmez', () => {
+    expect(
+      adaySilmeTarihi(aday, { donemler, yatay: [{ degerlendirme: 'uygun_asil' }] }).tarih
+    ).toBeNull();
+    expect(
+      adaySilmeTarihi(aday, { donemler, yatay: [{ degerlendirme: 'uygun_yedek' }] }).tarih
+    ).toBeNull();
+    expect(adaySilmeTarihi(aday, { donemler, yatay: [{ degerlendirme: '' }] }).tarih).toBeNull();
+    expect(
+      adaySilmeTarihi(
+        { ...aday, turler: ['dikey'] },
+        { donemler, dikey: [{ pendingReviewCount: 2 }] }
+      ).tarih
+    ).toBeNull();
+    expect(adaySilmeTarihi({ ...aday, durum: 'aktarildi' }, { donemler }).tarih).toBeNull();
+    const dk = [{ dikey: { baslangic: '2026-07-01', bitis: '2026-07-15' } }];
+    expect(
+      adaySilmeTarihi(
+        { ...aday, turler: ['dikey'] },
+        { donemler: dk, dikey: [{ approvedCount: 3 }] }
+      ).tarih
+    ).toBeNull();
+    expect(
+      adaySilmeTarihi(
+        { ...aday, turler: ['dikey'] },
+        { donemler: dk, dikey: [{ approvedCount: 0, rejectedCount: 2 }] }
+      ).tarih
+    ).toBe('2026-08-14');
+    expect(adaySilmeTarihi({ ...aday, turler: ['dikey'] }, { donemler }).tarih).toBeNull();
+  });
+  it('kapatılan hesap kapatmadan 30 gün sonra (kazanmış olsa bile)', () => {
+    const k = { durum: 'kapali', turler: ['dikey'], kapatmaZamani: '2026-09-01T10:00:00Z' };
+    expect(adaySilmeTarihi(k, { yatay: [{ degerlendirme: 'uygun_asil' }] }).tarih).toBe(
+      '2026-10-01'
+    );
+  });
+});
+
+describe('aday sahiplik alanı', () => {
+  const ad = jetonKullanicisi({
+    role: 'aday',
+    identifier: 'ADAY-2026-0009',
+    turler: ['kurumlararasi'],
+  });
+  it('başvurusunu başka numaraya devredemez', () => {
+    const k = (data) =>
+      adayYazmaKarari(
+        { collection: 'yatay_gecis_basvurular', type: 'update', docId: 'x', data },
+        ad
+      ).izin;
+    expect(k({ ogrenciNo: '240905054' })).toBe(false);
+    expect(k({ _owner: 'ADAY-2026-0001' })).toBe(false);
+    expect(k({ ogrenciNo: 'ADAY-2026-0009' })).toBe(true);
+  });
+});

@@ -496,6 +496,10 @@ function FakYonetimiApp({ currentUser }) {
         </div>
       )}
 
+      {/* Numarasız aday (dikey / kurumlararası / merkezi yerleştirme) başvuru
+          tarihleri — fakülte yetkilisi belirler (aday-hesap-ekrani.jsx). */}
+      {myFacultyId && window.AdayDonemPaneli && <window.AdayDonemPaneli facultyId={myFacultyId} />}
+
       {!myFacultyId && (
         <div
           style={{
