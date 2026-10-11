@@ -14,6 +14,7 @@ const semanticRoutes = require('./routes/semantic');
 const aiRoutes = require('./routes/ai');
 const yoklamaRoutes = require('./routes/yoklama');
 const bildirimRoutes = require('./routes/bildirim');
+const adayRoutes = require('./routes/aday');
 const {
   helmetMiddleware,
   authRateLimiter,
@@ -131,6 +132,11 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/yoklama', yoklamaRoutes);
 // Navbar bildirim zili: kişiye özel liste, okundu, sil (bkz. routes/bildirim.js).
 app.use('/api/bildirim', bildirimRoutes);
+// Numarasız aday (dikey / kurumlararası / merkezi yerleştirme) hesabı.
+// Hız sınırı yalnız kimliksiz uçlarda; personel listesi ve /ben bunu tüketmesin.
+app.use('/api/aday/kayit', authRateLimiter());
+app.use('/api/aday/giris', authRateLimiter());
+app.use('/api/aday', adayRoutes);
 
 // 404 + merkezi hata yakalayıcı (route'lardan sonra mount edilmeli)
 app.use(notFoundHandler);

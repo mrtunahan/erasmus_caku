@@ -1,4 +1,5 @@
 const express = require('express');
+const { adayNoMu } = require('../lib/aday-yetki');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const { getDbSafe } = require('../config/database');
@@ -216,6 +217,12 @@ router.post('/student', async (req, res) => {
   }
 
   const trimmedId = studentNumber.trim();
+  // Geçici aday numarasıyla ÖĞRENCİ girişi yapılamaz: aday kendi ucundan
+  // (/api/aday/giris) girer ve jetonu aday bayrağı taşır. Bu kapı açık
+  // kalsaydı aday bayraksız bir öğrenci jetonu alınabilirdi.
+  if (adayNoMu(trimmedId)) {
+    return res.status(400).json({ error: 'Aday hesapları "Aday" sekmesinden giriş yapar.' });
+  }
   const rateLimitKey = `student:${trimmedId}`;
 
   if (!checkRateLimit(rateLimitKey)) {
@@ -708,6 +715,10 @@ router.post('/change-password', async (req, res) => {
 
     if (role === 'student') {
       if (!identifier) return res.status(400).json({ error: 'Öğrenci numarası gerekli.' });
+      // Aday numarasına öğrenci şifresi kurulamaz (bkz. server/lib/aday-yetki.js).
+      if (adayNoMu(identifier) || (authUser && authUser.aday)) {
+        return res.status(400).json({ error: 'Aday hesabının şifresi aday ekranından değişir.' });
+      }
       const doc = await getPasswordDoc('student_passwords');
 
       // Şifre zaten belirlenmişse: admin reset hariç, mevcut şifre doğrulaması

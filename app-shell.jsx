@@ -477,7 +477,9 @@ const TopHeader = ({
                         ? 'Akademisyen'
                         : currentUser?.role === 'bolum_yetkilisi'
                           ? 'Bölüm Yetkilisi'
-                          : `Öğrenci`}
+                          : currentUser?.aday
+                            ? 'Aday · ' + (currentUser.adayNo || '')
+                            : `Öğrenci`}
             </div>
           </div>
         )}
@@ -560,7 +562,7 @@ const Sidebar = ({
     let alive = true;
     const hesapla = async () => {
       try {
-        if (!window.belgeGelenKutusu || !window.apiRead) return;
+        if (!window.belgeGelenKutusu || !window.apiRead || currentUser?.aday) return;
         const list = await window.apiRead('memur_outputs');
         if (!alive) return;
         const gelen =
@@ -624,6 +626,13 @@ const Sidebar = ({
     }
 
     if (isStajYetkilisi) return DEPARTMENT_MODULES.filter((m) => m.id === 'staj');
+
+    // Numarasız aday: YALNIZ başvurduğu türlerin modülleri (dikey geçiş,
+    // yatay geçiş). Öğrenci menüsü (portal, staj, Benim Sayfam…) açılmaz.
+    if (currentUser?.aday) {
+      const adayMods = window.adayModulleri ? window.adayModulleri(currentUser.turler) : [];
+      return DEPARTMENT_MODULES.filter((m) => adayMods.includes(m.id));
+    }
 
     // Çapraz-bölümde (ana bölümü değil ek bölüm) — yetkili/admin olsa bile
     // sadece DERSE BAĞLI 3 modül: kendi dersini ders programına ekler, sınav
@@ -819,67 +828,71 @@ const Sidebar = ({
       {/* Common Modules — çapraz bölümde tamamen gizli (sadece ders modülleri).
           İstisna: üniversite dışı akademisyen eklendiği bölümde yalnız Öğrenci
           Portalı'nı görür. */}
-      {!isStajYetkilisi && !isMemur && !studentLocked && (!isOnExtraDept || isExternalUser) && (
-        <div style={{ padding: '4px 12px' }}>
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#9CA3AF',
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              padding: '8px 4px 4px',
-            }}
-          >
-            Ortak
+      {!isStajYetkilisi &&
+        !isMemur &&
+        !studentLocked &&
+        !currentUser?.aday &&
+        (!isOnExtraDept || isExternalUser) && (
+          <div style={{ padding: '4px 12px' }}>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#9CA3AF',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                padding: '8px 4px 4px',
+              }}
+            >
+              Ortak
+            </div>
+            {(isOnExtraDept && isExternalUser
+              ? COMMON_MODULES.filter((m) => m.id === 'portal')
+              : COMMON_MODULES.filter((m) =>
+                  window.ortakModulGorunurMu ? window.ortakModulGorunurMu(m, currentUser) : true
+                )
+            ).map((mod) => {
+              const isActive = currentRoute === mod.id;
+              return (
+                <button
+                  key={mod.id}
+                  onClick={() => {
+                    onNavigate(mod.id);
+                    if (isMobile) onClose();
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px 12px',
+                    marginBottom: 2,
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: isActive ? '#3B82F615' : 'transparent',
+                    color: isActive ? '#3B82F6' : '#4B5563',
+                    fontSize: 13,
+                    fontWeight: isActive ? 600 : 400,
+                    fontFamily: "'Inter', sans-serif",
+                    transition: 'all 0.15s',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.currentTarget.style.background = '#F3F4F6';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive)
+                      e.currentTarget.style.background = isActive ? '#3B82F615' : 'transparent';
+                  }}
+                >
+                  <NavIcon path={mod.icon} size={18} />
+                  {mod.label}
+                </button>
+              );
+            })}
           </div>
-          {(isOnExtraDept && isExternalUser
-            ? COMMON_MODULES.filter((m) => m.id === 'portal')
-            : COMMON_MODULES.filter((m) =>
-                window.ortakModulGorunurMu ? window.ortakModulGorunurMu(m, currentUser) : true
-              )
-          ).map((mod) => {
-            const isActive = currentRoute === mod.id;
-            return (
-              <button
-                key={mod.id}
-                onClick={() => {
-                  onNavigate(mod.id);
-                  if (isMobile) onClose();
-                }}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '10px 12px',
-                  marginBottom: 2,
-                  borderRadius: 8,
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: isActive ? '#3B82F615' : 'transparent',
-                  color: isActive ? '#3B82F6' : '#4B5563',
-                  fontSize: 13,
-                  fontWeight: isActive ? 600 : 400,
-                  fontFamily: "'Inter', sans-serif",
-                  transition: 'all 0.15s',
-                  textAlign: 'left',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) e.currentTarget.style.background = '#F3F4F6';
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive)
-                    e.currentTarget.style.background = isActive ? '#3B82F615' : 'transparent';
-                }}
-              >
-                <NavIcon path={mod.icon} size={18} />
-                {mod.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+        )}
 
       {/* Admin + Bölüm Yetkilisi: Yönetim Modülleri (komisyonlar) */}
       {/* Admin + Bölüm/Fakülte/Üni Yetkilisi: Yönetim Modülleri.
@@ -2300,7 +2313,8 @@ function AppShell() {
     let cancelled = false;
     const loadCommissionAccess = async () => {
       const uname = (currentUser?.name || currentUser?.identifier || '').trim();
-      if (!currentUser || !uname) {
+      // Aday hiçbir komisyonun üyesi olamaz; komisyon listesi ona kapalı.
+      if (!currentUser || !uname || currentUser.aday) {
         setCommissionModules([]);
         return;
       }
@@ -2582,6 +2596,17 @@ function AppShell() {
         : [],
       external: user.external || false,
     };
+    // Numarasız aday: kimliği ve başvuru türleri yenilemeden sonra da kalmalı
+    // (menü ve modül türleri bunlardan kurulur).
+    if (user.aday) {
+      Object.assign(safeUser, {
+        aday: true,
+        identifier: user.identifier,
+        adayNo: user.adayNo,
+        turler: Array.isArray(user.turler) ? user.turler : [],
+        sifreDegistirmeli: !!user.sifreDegistirmeli,
+      });
+    }
     localStorage.setItem('caku_current_user', JSON.stringify(safeUser));
 
     // Bölüm yetkilisi ise kendi bölümünü aktif yap. Üniversite dışı akademisyenin
@@ -2606,7 +2631,10 @@ function AppShell() {
     // Belgeler": tüm modüllerden gelen belgeleri tek listede toplayan asıl
     // çalışma ekranı. Böylece erişemediği 'portal' rotasında takılı kalmaz.
     const memurMods = Array.isArray(user.memurModules) ? user.memurModules : [];
-    if (user.isMemur || user.role === 'memur') {
+    if (user.aday) {
+      const adayMods = window.adayModulleri ? window.adayModulleri(user.turler) : [];
+      navigate(adayMods[0] || 'yataygecis');
+    } else if (user.isMemur || user.role === 'memur') {
       navigate(memurMods.includes('staj') ? 'staj' : 'gelenbelgeler');
     } else if (isStajYetkilisiKisi) {
       navigate('staj');
@@ -2733,7 +2761,8 @@ function AppShell() {
 
   useEffect(() => {
     // Öğrenci dışı rollerde veya kullanıcı yoksa kontrol yok
-    if (!currentUser || currentUser.role !== 'student') {
+    // Aday ders seçmez; ders kapısı ona uygulanmaz.
+    if (!currentUser || currentUser.role !== 'student' || currentUser.aday) {
       setStudentCoursesChecked(true);
       setStudentHasCourses(true);
       return;
@@ -2780,7 +2809,7 @@ function AppShell() {
       cancelled = true;
       delete window.__onStudentCoursesSelected;
     };
-  }, [currentUser?.studentNumber, currentUser?.role]);
+  }, [currentUser?.studentNumber, currentUser?.role, currentUser?.aday]);
 
   // Yetkili tarafından değiştirilen öğrenci alanlarını, öğrencinin çıkış/giriş
   // yapmasına gerek kalmadan sayfa yenilenince sunucudan senkronla. currentUser
@@ -2790,6 +2819,7 @@ function AppShell() {
   //     öğrenci o bölümü hiç görmüyordu (bkz. lib/cap-ogrenci.js).
   useEffect(() => {
     if (!currentUser || currentUser.role !== 'student' || !currentUser.studentNumber) return;
+    if (currentUser.aday) return; // adayın öğrenci kaydı yok
     let cancelled = false;
     (async () => {
       try {
@@ -2833,6 +2863,13 @@ function AppShell() {
   // Routing Protection
   useEffect(() => {
     if (!currentUser) return;
+    // Aday: yalnız başvurduğu türlerin modülleri; adres satırından başka bir
+    // rotaya girilirse ilk modülüne döner.
+    if (currentUser.aday) {
+      const izin = window.adayModulleri ? window.adayModulleri(currentUser.turler) : [];
+      if (izin.length && !izin.includes(route)) navigate(izin[0]);
+      return;
+    }
     if (currentUser.role === 'student' && !studentCoursesChecked) return;
 
     // Öğrenci ders seçimi yapmadıysa sadece "benim" rotası açık
@@ -3072,6 +3109,13 @@ function AppShell() {
     : currentUser;
 
   const renderModule = () => {
+    // Aday izinli olmadığı bir rotadaysa (giriş anındaki varsayılan 'portal'
+    // gibi) yönlendirme gelene kadar modül ÇİZİLMEZ; çizilseydi o modül
+    // adaya kapalı verileri okumaya kalkardı.
+    if (currentUser?.aday) {
+      const izin = window.adayModulleri ? window.adayModulleri(currentUser.turler) : [];
+      if (!izin.includes(route)) return null;
+    }
     if (moduleLoading) {
       return (
         <div
@@ -3391,14 +3435,15 @@ function AppShell() {
         </div>
       )}
 
-      {(currentUser?.role === 'student' || currentUser?.role === 'professor') && (
-        <MandatorySurveyGate currentUser={currentUser} activeDepartment={activeDepartment} />
-      )}
+      {(currentUser?.role === 'student' || currentUser?.role === 'professor') &&
+        !currentUser?.aday && (
+          <MandatorySurveyGate currentUser={currentUser} activeDepartment={activeDepartment} />
+        )}
 
       {/* Bölüm duyuruları — hedeflenen herkese pop-up. Gösterilecek duyuru
           yoksa bileşen null döner. Zorunlu anket kapısının ALTINDA durur:
           anket zorunlu, duyuru bilgilendirme. */}
-      {window.DuyuruPopup && <window.DuyuruPopup currentUser={currentUser} />}
+      {window.DuyuruPopup && !currentUser?.aday && <window.DuyuruPopup currentUser={currentUser} />}
 
       <TopHeader
         currentUser={currentUser}
@@ -3469,12 +3514,34 @@ function AppShell() {
         )}
       </div>
 
-      {showChangePassword && currentUser && (
+      {showChangePassword && currentUser && !currentUser.aday && (
         <ChangePasswordModal
           currentUser={currentUser}
           onClose={() => setShowChangePassword(false)}
         />
       )}
+      {/* Aday şifresi kendi ucundan değişir. Geçici şifreyle giren aday
+          (yetkili sıfırladı) kendi şifresini belirlemeden devam edemez. */}
+      {currentUser?.aday &&
+        window.AdaySifreDegistir &&
+        (showChangePassword || currentUser.sifreDegistirmeli) && (
+          <window.AdaySifreDegistir
+            zorunlu={!!currentUser.sifreDegistirmeli}
+            onKapat={() => setShowChangePassword(false)}
+            onTamam={() => {
+              setShowChangePassword(false);
+              setCurrentUser((u) => {
+                const next = { ...u, sifreDegistirmeli: false };
+                try {
+                  localStorage.setItem('caku_current_user', JSON.stringify(next));
+                } catch (_) {
+                  /* depolama kapalı */
+                }
+                return next;
+              });
+            }}
+          />
+        )}
     </div>
   );
 }

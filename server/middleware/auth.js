@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { jetonKullanicisi } = require('../lib/aday-yetki');
 
 // Üretimde JWT_SECRET zorunlu — dev'de fallback (mevcut davranışla uyumlu).
 const DEV_FALLBACK_SECRET = 'caku-erasmus-dev-secret-key';
@@ -27,8 +28,10 @@ function generateToken(payload) {
 }
 
 // JWT token doğrula
+// Aday jetonu burada ÖĞRENCİ + aday bayrağına çözülür; aday hiçbir denetimde
+// personel sayılmasın (bkz. server/lib/aday-yetki.js).
 function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET);
+  return jetonKullanicisi(jwt.verify(token, JWT_SECRET));
 }
 
 // httpOnly cookie ayarları

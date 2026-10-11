@@ -29,6 +29,8 @@ try {
 
 // ── Phase 1: Shared components (tüm modüller buna bağımlı) ──
 import './shared-components.jsx';
+// Numarasız aday hesabı: giriş ekranının "Aday" sekmesi (eager — giriş öncesi gerekir).
+import './aday-hesap-ekrani.jsx';
 
 // ── Phase 1.5: Gerçek zamanlı (Socket.IO) — opsiyonel & dayanıklı ──
 // Sunucu yazma yapınca her açık istemci ilgili cache'i geçersiz kılar,

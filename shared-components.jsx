@@ -5668,6 +5668,27 @@ window.duzenlemeFormu = duzenlemeFormu;
 window.adayNoMu = adayNoMu;
 window.gercekOgrenciNoMu = gercekOgrenciNoMu;
 window.adayNoUret = adayNoUret;
+// Vekâleten başvuru için aday numarası SUNUCUDAN alınır: kendi hesabını açan
+// adaylarla aynı sayaçtan çıkar, iki kişi aynı numarayı alamaz. Sunucuya
+// ulaşılamazsa eski yerel üretime düşülür.
+window.adayNoAyir = async function adayNoAyir(mevcutKayitlar) {
+  try {
+    const r = await fetch('/api/aday/numara-ayir', {
+      method: 'POST',
+      credentials: 'include',
+      headers: Object.assign(
+        { 'Content-Type': 'application/json' },
+        window.yoklamaBasliklari ? window.yoklamaBasliklari() : {}
+      ),
+      body: '{}',
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.adayNo) return j.adayNo;
+  } catch (_e) {
+    /* yerel üretime düş */
+  }
+  return adayNoUret(mevcutKayitlar || []);
+};
 window.kimlikEtiketi = kimlikEtiketi;
 window.vekaletenMi = vekaletenMi;
 window.numaraTanimlanabilirMi = numaraTanimlanabilirMi;
@@ -10177,6 +10198,9 @@ const LoginModal = ({ onLogin }) => {
                   {[
                     { key: 'student', label: 'Öğrenci' },
                     { key: 'professor', label: 'Akademisyen' },
+                    // Numarası olmayan geçiş adayı (dikey / kurumlararası /
+                    // merkezi yerleştirme) — bkz. aday-hesap-ekrani.jsx.
+                    ...(window.AdayGirisPaneli ? [{ key: 'aday', label: 'Aday' }] : []),
                   ].map((tab) => {
                     const active = activeTab === tab.key;
                     return (
@@ -10238,7 +10262,9 @@ const LoginModal = ({ onLogin }) => {
               )}
 
             {/* Yeni Öğrenci Kayıt Ekranı */}
-            {registerMode ? (
+            {activeTab === 'aday' && window.AdayGirisPaneli ? (
+              <window.AdayGirisPaneli onLogin={onLogin} />
+            ) : registerMode ? (
               <form onSubmit={handleRegister}>
                 <div className="lg-setup-hero">
                   <div className="lg-setup-icon">
