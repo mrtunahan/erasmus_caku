@@ -35,6 +35,7 @@ const { getDbSafe } = require('../config/database');
 const { requireAuth, generateToken, setTokenCookie } = require('../middleware/auth');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const { adayNoMu } = require('../lib/aday-yetki');
+const { yetkiAlani, bolumAlanda, fakulteAlanda } = require('../lib/yetki-alani');
 
 let kuralSozu = null;
 const kural = () => (kuralSozu = kuralSozu || import('../../lib/aday-hesap.js'));
@@ -345,42 +346,31 @@ router.post(
 // Personelin aday işlerinde hangi bölümlere bakabileceği.
 // { hepsi: true } ya da { bolumler: Set }.
 async function personelKapsami(db, user) {
-  // { hepsi, bolumler: Set, yonetim: { hepsi, bolumler: Set }, fakulteler: Set }
-  // `yonetim`: bölüm yetkilisi ve üstünün kapsamı (şifre sıfırlama vb.).
+  // Okuma alanı (listeyi kim görür) ve yönetim alanı (şifre sıfırlama, dönem)
+  // TEK kuraldan gelir: server/lib/yetki-alani.js. Bölüm kimlikleri orada
+  // varyantlarıyla (slug / ObjectId / eski kimlik) karşılaştırılır.
   if (!user || user.role === 'student') return null;
-  if (user.role === 'admin') {
-    return { hepsi: true, yonetim: { hepsi: true }, fakulteler: new Set(), sistem: true };
+  if (!['admin', 'professor', 'bolum_yetkilisi'].includes(user.role)) return null;
+  let profil = null;
+  if (user.role === 'professor') {
+    profil = await profilBul(db, user.identifier);
+    if (!profil) return null;
   }
-  if (user.role === 'bolum_yetkilisi') {
-    const b = new Set([metin(user.departmentId)]);
-    return { bolumler: b, yonetim: { bolumler: b }, fakulteler: new Set() };
-  }
-  if (user.role !== 'professor') return null;
-  const p = await profilBul(db, user.identifier);
-  if (!p) return { bolumler: new Set(), yonetim: { bolumler: new Set() }, fakulteler: new Set() };
-  if (p.isUniversityAdmin) {
-    return { hepsi: true, yonetim: { hepsi: true }, fakulteler: new Set(), uniAdmin: true };
-  }
-  const bolumler = new Set(
-    [p.departmentId].concat(Array.isArray(p.additionalDepartments) ? p.additionalDepartments : [])
-  );
-  const yonetim = new Set();
-  const fakulteler = new Set();
-  if (p.isDeptManager && p.departmentId) yonetim.add(metin(p.departmentId));
-  if (p.isFacultyManager && p.facultyId) {
-    fakulteler.add(metin(p.facultyId));
-    const fak = await db
-      .collection('departments')
-      .find({ facultyId: p.facultyId }, { projection: { _docId: 1, id: 1 } })
-      .toArray();
-    fak.forEach((d) => {
-      bolumler.add(metin(d._docId || d.id));
-      yonetim.add(metin(d._docId || d.id));
-    });
-  }
-  bolumler.delete('');
-  yonetim.delete('');
-  return { bolumler, yonetim: { bolumler: yonetim }, fakulteler };
+  const flags = {
+    admin: user.role === 'admin',
+    uniAdmin: !!(profil && profil.isUniversityAdmin),
+    facManager: !!(profil && profil.isFacultyManager),
+    deptManager: !!(profil && profil.isDeptManager),
+  };
+  const bolumler = await db.collection('departments').find({}).toArray();
+  const okuma = yetkiAlani({ user, flags, profil, bolumler, okuma: true });
+  const yonetim = yetkiAlani({ user, flags, profil, bolumler });
+  return {
+    okuma,
+    yonetim,
+    sistem: flags.admin,
+    uniAdmin: flags.uniAdmin,
+  };
 }
 
 // Adayın ilgilendirdiği bölümler: hesaptaki bölüm + başvurularının bölümleri.
@@ -405,9 +395,10 @@ async function adayBolumleri(db, a) {
 }
 
 const kapsamdaMi = (kapsam, bolumler) =>
-  !!kapsam && (kapsam.hepsi || [...bolumler].some((b) => kapsam.bolumler.has(b)));
+  !!kapsam && [...bolumler].some((b) => bolumAlanda(kapsam.okuma, b));
 // Bölüm yetkilisi ve üstü mü (bu adayın bölümlerinden birinde)?
-const yonetimdeMi = (kapsam, bolumler) => !!kapsam && kapsamdaMi(kapsam.yonetim, bolumler);
+const yonetimdeMi = (kapsam, bolumler) =>
+  !!kapsam && [...bolumler].some((b) => bolumAlanda(kapsam.yonetim, b));
 
 async function personelAdayi(req, res) {
   const db = await getDbSafe();
@@ -499,8 +490,7 @@ router.get('/donem-fakulte', requireAuth, async (req, res) => {
 async function donemYetkisi(db, user, facultyId) {
   const k = await personelKapsami(db, user);
   if (!k) return false;
-  if (k.sistem || k.uniAdmin) return true;
-  return k.fakulteler.has(metin(facultyId));
+  return fakulteAlanda(k.yonetim, facultyId) && k.yonetim.tur !== 'bolum';
 }
 
 router.post('/donemler', requireAuth, async (req, res) => {

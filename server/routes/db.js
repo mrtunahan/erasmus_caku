@@ -5,6 +5,15 @@ const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const { jetonKullanicisi, adayOkuyabilirMi, adayYazmaKarari } = require('../lib/aday-yetki');
+const {
+  yetkiAlani,
+  bolumKaydiKarari,
+  yapisalKarar,
+  yayinKapsamKarari,
+  basvurulariSuz,
+  BOLUM_KAYITLARI,
+  BASVURU_BOLUMU,
+} = require('../lib/yetki-alani');
 const { idSorgusu: bildirimIdSorgusu } = require('./bildirim');
 const { ttoBirimUyesi, ttoYoneticileri } = require('../lib/tto-birim');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
@@ -857,6 +866,28 @@ async function getActorFlags(db, user) {
 }
 
 // Doküman bulma, executeSingleOp ile aynı sırada: _id (string) → ObjectId → _docId
+// Yetkilinin alanı (server/lib/yetki-alani.js). Bölüm listesi kısa süre
+// önbelleklenir: her yazmada bütün bölümleri okumak gereksiz.
+let bolumListesiOnbellek = null; // { liste, ts }
+async function bolumListesi(db) {
+  if (bolumListesiOnbellek && Date.now() - bolumListesiOnbellek.ts < 30 * 1000) {
+    return bolumListesiOnbellek.liste;
+  }
+  const liste = await db.collection('departments').find({}).toArray();
+  bolumListesiOnbellek = { liste, ts: Date.now() };
+  return liste;
+}
+async function kullaniciAlani(db, user, okuma) {
+  const flags = await getActorFlags(db, user);
+  let profil = null;
+  try {
+    if (user && user.role === 'professor') profil = await profilBul(db, user.identifier);
+  } catch (_) {
+    profil = null;
+  }
+  return yetkiAlani({ user, flags, profil, bolumler: await bolumListesi(db), okuma });
+}
+
 async function findDocByAnyId(db, collectionName, docId) {
   if (!docId) return null;
   const col = db.collection(collectionName);
@@ -1213,6 +1244,49 @@ async function enforceWritePolicies(db, op, user) {
         status: 403,
         error: `Bu koleksiyonu yalnız bölüm yetkilisi düzenleyebilir: ${op.collection}`,
       };
+    }
+  }
+
+  // a2-alan) YETKİ ALANI: rol kapısı "kim" sorusunu cevapladı; burada "NEREYE"
+  // sorulur (server/lib/yetki-alani.js). Yalnız yönetici düzeyindeki
+  // aktörler: bölüm yetkilisi (iki giriş biçimi) ve fakülte yetkilisi.
+  // Üniversite yetkilisi / sistem yöneticisi her yerde yazar.
+  if (user.role === 'professor' || user.role === 'bolum_yetkilisi') {
+    const yapisal = STRUCTURE_MANAGER_WRITE.has(op.collection);
+    const bolumKaydi = !!BOLUM_KAYITLARI[op.collection];
+    const yayin =
+      op.collection === 'duyurular' &&
+      op.type !== 'delete' &&
+      op.data &&
+      typeof op.data === 'object';
+    if (yapisal || bolumKaydi || yayin) {
+      const flags = await getActorFlags(db, user);
+      const yonetici = user.role === 'bolum_yetkilisi' || flags.facManager || flags.deptManager;
+      if (yonetici && !flags.admin && !flags.uniAdmin) {
+        const alan = await kullaniciAlani(db, user);
+        let mevcut = null;
+        if (op.type !== 'add' && op.docId) {
+          try {
+            mevcut = await findExistingDoc(db, op);
+          } catch (_) {
+            mevcut = null;
+          }
+        }
+        let karar = { izin: true };
+        if (yapisal) karar = yapisalKarar(op.collection, op, mevcut, alan);
+        else if (yayin) karar = yayinKapsamKarari(op.data, alan);
+        else if (op.collection === 'professors') {
+          // Gözetmen listesi kendi kuralıyla yönetiliyor (lib/gozetmen-yazma.js);
+          // başka bölümden gözetmen ekleyip çıkarmak orada çözülür.
+          const alanlar = Object.keys(op.data || {}).filter(
+            (k) => k !== 'gozetmenBolumleri' && k !== 'updatedAt'
+          );
+          if (op.type === 'delete' || op.type === 'add' || alanlar.length > 0) {
+            karar = bolumKaydiKarari(op.collection, op, mevcut, alan);
+          }
+        } else karar = bolumKaydiKarari(op.collection, op, mevcut, alan);
+        if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
+      }
     }
   }
 
@@ -3505,6 +3579,21 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
+    // Başvuru kayıtları (yatay geçiş, muafiyet) personelde YETKİ ALANINA
+    // daraltılır: kendi bölüm(ler)i, fakülte yetkilisinde fakülte, üniversite
+    // yetkilisinde hepsi (server/lib/yetki-alani.js). Memurun kendi kuralı
+    // yukarıda uygulandı; ona ikinci süzgeç uygulanmaz.
+    if (
+      DB_AUTH_ENFORCED &&
+      user &&
+      user.role !== 'student' &&
+      BASVURU_BOLUMU[collection] &&
+      !(await memurKimligi(db, user)) &&
+      !(collection === 'internship_applications' && (await getActorFlags(db, user)).stajYetkilisi)
+    ) {
+      docs = basvurulariSuz(collection, docs, await kullaniciAlani(db, user, true));
+    }
+
     // Yoklama oturumları ve kayıtları kendi `id`'leriyle ('yk-…') birbirine
     // bağlıdır (kayıt.oturumId === oturum.id). Bu kayıtlar /api/yoklama
     // tarafından `_docId` olmadan yazıldığından aşağıdaki `_docId || _id`
@@ -3659,6 +3748,20 @@ router.get('/:collection/:docId', async (req, res) => {
           await memurunMuafiyetKayitlari(db, memur, atamalar)
         );
         if (!gorur) return res.status(403).json({ error: 'Bu kayda erişim yetkiniz yok.' });
+      }
+    }
+    // Başvuru kaydı tek belge olarak da yetki alanına tabi (liste kuralıyla aynı).
+    if (
+      DB_AUTH_ENFORCED &&
+      user &&
+      user.role !== 'student' &&
+      BASVURU_BOLUMU[collection] &&
+      !(await memurKimligi(db, user)) &&
+      !(collection === 'internship_applications' && (await getActorFlags(db, user)).stajYetkilisi)
+    ) {
+      const alan = await kullaniciAlani(db, user, true);
+      if (basvurulariSuz(collection, [doc], alan).length === 0) {
+        return res.status(403).json({ error: 'Bu başvuru sizin yetki alanınızda değil.' });
       }
     }
 
