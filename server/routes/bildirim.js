@@ -59,6 +59,16 @@ const kayitIdsi = (d) => metin(d && (d._docId || (d._id && d._id.toString())));
 async function kimlikCoz(db, user, istenenBolum) {
   const { unvansizAd } = await unvanKurali();
   const sadele = (v) => metin(unvansizAd(v)).toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
+  // Aday yalnız KENDİSİNE giden bildirimi görür: bölüm duyurusu, öğrencilere
+  // anket ataması gibi yayınlar öğrenciler içindir (bkz. server/lib/aday-yetki.js).
+  if (user.aday) {
+    return zilKimligi({
+      user: { role: 'aday', identifier: user.identifier },
+      bolumler: [],
+      numaralar: [metin(user.identifier)],
+      sadele,
+    });
+  }
   const bolumler = new Set();
   let numaralar = [];
   if (user.departmentId) bolumler.add(metin(user.departmentId));

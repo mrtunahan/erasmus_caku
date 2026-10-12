@@ -28,6 +28,8 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const bcrypt = require('bcrypt');
 const { getDbSafe } = require('../config/database');
 const { requireAuth, generateToken, setTokenCookie } = require('../middleware/auth');
@@ -40,6 +42,8 @@ const kural = () => (kuralSozu = kuralSozu || import('../../lib/aday-hesap.js'))
 const router = express.Router();
 const metin = (v) => String(v == null ? '' : v).trim();
 const ADAYLAR = 'adaylar';
+const DONEMLER = 'aday_basvuru_donemleri';
+const UPLOAD_KOK = path.resolve(path.join(__dirname, '..', 'uploads'));
 const SAYAC = 'aday_sayac';
 const BCRYPT_TURU = 12;
 
@@ -170,8 +174,10 @@ async function bolumBul(db, id) {
 // Aday: kayıt
 // ══════════════════════════════════════════════
 router.post('/kayit', async (req, res) => {
+  // IP başına 15 dakikada 10 kayıt: okul/yurt ağlarında birden çok aday aynı
+  // IP'den çıkabilir; sınır toplu sahte hesap açmayı yavaşlatmak içindir.
   const ip = 'kayit:' + ipAnahtari(req);
-  if (sinirAsildiMi(ip, 5)) {
+  if (sinirAsildiMi(ip, 10)) {
     return res.status(429).json({ error: 'Çok fazla kayıt denemesi. 15 dakika sonra deneyin.' });
   }
   denemeYaz(ip);
@@ -273,45 +279,64 @@ router.post('/giris', async (req, res) => {
   }
 });
 
+// Express 4 async hatayı kendisi yakalamaz; yakalanmayan ret süreci
+// düşürebilir. try/catch'siz uçlar bununla sarılır.
+const sar = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch((e) => {
+    console.error('[aday]', e && e.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Sunucu hatası.' });
+  });
+
 function adayMi(req, res, next) {
   if (!req.user || !req.user.aday) return res.status(403).json({ error: 'Yalnız aday hesabı.' });
   return next();
 }
 
-router.get('/ben', requireAuth, adayMi, async (req, res) => {
-  const db = await getDbSafe();
-  const a = await db.collection(ADAYLAR).findOne({ adayNo: metin(req.user.identifier) });
-  if (!a || a.durum !== 'aktif') return res.status(404).json({ error: 'Aday hesabı bulunamadı.' });
-  return res.json({ aday: adayGorunumu(a) });
-});
+router.get(
+  '/ben',
+  requireAuth,
+  adayMi,
+  sar(async (req, res) => {
+    const db = await getDbSafe();
+    const a = await db.collection(ADAYLAR).findOne({ adayNo: metin(req.user.identifier) });
+    if (!a || a.durum !== 'aktif')
+      return res.status(404).json({ error: 'Aday hesabı bulunamadı.' });
+    return res.json({ aday: adayGorunumu(a) });
+  })
+);
 
-router.post('/sifre-degistir', requireAuth, adayMi, async (req, res) => {
-  const { eski, yeni } = req.body || {};
-  const anahtar = 'sifre:' + metin(req.user.identifier);
-  if (sinirAsildiMi(anahtar, 5)) {
-    return res.status(429).json({ error: 'Çok fazla deneme. 15 dakika sonra tekrar deneyin.' });
-  }
-  const K = await kural();
-  const h = K.adayKayitHatalari({ sifre: yeni });
-  if (h.sifre) return res.status(400).json({ error: h.sifre });
-  const db = await getDbSafe();
-  const a = await db.collection(ADAYLAR).findOne({ adayNo: metin(req.user.identifier) });
-  if (!a || typeof eski !== 'string' || !(await bcrypt.compare(eski, a.sifreHash || ''))) {
-    denemeYaz(anahtar);
-    return res.json({ success: false, error: 'Mevcut şifre hatalı.' });
-  }
-  await db.collection(ADAYLAR).updateOne(
-    { _id: a._id },
-    {
-      $set: {
-        sifreHash: await bcrypt.hash(String(yeni), BCRYPT_TURU),
-        sifreDegistirmeli: false,
-        updatedAt: new Date(),
-      },
+router.post(
+  '/sifre-degistir',
+  requireAuth,
+  adayMi,
+  sar(async (req, res) => {
+    const { eski, yeni } = req.body || {};
+    const anahtar = 'sifre:' + metin(req.user.identifier);
+    if (sinirAsildiMi(anahtar, 5)) {
+      return res.status(429).json({ error: 'Çok fazla deneme. 15 dakika sonra tekrar deneyin.' });
     }
-  );
-  return res.json({ success: true });
-});
+    const K = await kural();
+    const h = K.adayKayitHatalari({ sifre: yeni });
+    if (h.sifre) return res.status(400).json({ error: h.sifre });
+    const db = await getDbSafe();
+    const a = await db.collection(ADAYLAR).findOne({ adayNo: metin(req.user.identifier) });
+    if (!a || typeof eski !== 'string' || !(await bcrypt.compare(eski, a.sifreHash || ''))) {
+      denemeYaz(anahtar);
+      return res.json({ success: false, error: 'Mevcut şifre hatalı.' });
+    }
+    await db.collection(ADAYLAR).updateOne(
+      { _id: a._id },
+      {
+        $set: {
+          sifreHash: await bcrypt.hash(String(yeni), BCRYPT_TURU),
+          sifreDegistirmeli: false,
+          updatedAt: new Date(),
+        },
+      }
+    );
+    return res.json({ success: true });
+  })
+);
 
 // ══════════════════════════════════════════════
 // Personel uçları
@@ -320,25 +345,42 @@ router.post('/sifre-degistir', requireAuth, adayMi, async (req, res) => {
 // Personelin aday işlerinde hangi bölümlere bakabileceği.
 // { hepsi: true } ya da { bolumler: Set }.
 async function personelKapsami(db, user) {
+  // { hepsi, bolumler: Set, yonetim: { hepsi, bolumler: Set }, fakulteler: Set }
+  // `yonetim`: bölüm yetkilisi ve üstünün kapsamı (şifre sıfırlama vb.).
   if (!user || user.role === 'student') return null;
-  if (user.role === 'admin') return { hepsi: true };
-  if (user.role === 'bolum_yetkilisi') return { bolumler: new Set([metin(user.departmentId)]) };
+  if (user.role === 'admin') {
+    return { hepsi: true, yonetim: { hepsi: true }, fakulteler: new Set(), sistem: true };
+  }
+  if (user.role === 'bolum_yetkilisi') {
+    const b = new Set([metin(user.departmentId)]);
+    return { bolumler: b, yonetim: { bolumler: b }, fakulteler: new Set() };
+  }
   if (user.role !== 'professor') return null;
   const p = await profilBul(db, user.identifier);
-  if (!p) return { bolumler: new Set() };
-  if (p.isUniversityAdmin) return { hepsi: true };
+  if (!p) return { bolumler: new Set(), yonetim: { bolumler: new Set() }, fakulteler: new Set() };
+  if (p.isUniversityAdmin) {
+    return { hepsi: true, yonetim: { hepsi: true }, fakulteler: new Set(), uniAdmin: true };
+  }
   const bolumler = new Set(
     [p.departmentId].concat(Array.isArray(p.additionalDepartments) ? p.additionalDepartments : [])
   );
+  const yonetim = new Set();
+  const fakulteler = new Set();
+  if (p.isDeptManager && p.departmentId) yonetim.add(metin(p.departmentId));
   if (p.isFacultyManager && p.facultyId) {
+    fakulteler.add(metin(p.facultyId));
     const fak = await db
       .collection('departments')
       .find({ facultyId: p.facultyId }, { projection: { _docId: 1, id: 1 } })
       .toArray();
-    fak.forEach((d) => bolumler.add(metin(d._docId || d.id)));
+    fak.forEach((d) => {
+      bolumler.add(metin(d._docId || d.id));
+      yonetim.add(metin(d._docId || d.id));
+    });
   }
   bolumler.delete('');
-  return { bolumler };
+  yonetim.delete('');
+  return { bolumler, yonetim: { bolumler: yonetim }, fakulteler };
 }
 
 // Adayın ilgilendirdiği bölümler: hesaptaki bölüm + başvurularının bölümleri.
@@ -364,6 +406,8 @@ async function adayBolumleri(db, a) {
 
 const kapsamdaMi = (kapsam, bolumler) =>
   !!kapsam && (kapsam.hepsi || [...bolumler].some((b) => kapsam.bolumler.has(b)));
+// Bölüm yetkilisi ve üstü mü (bu adayın bölümlerinden birinde)?
+const yonetimdeMi = (kapsam, bolumler) => !!kapsam && kapsamdaMi(kapsam.yonetim, bolumler);
 
 async function personelAdayi(req, res) {
   const db = await getDbSafe();
@@ -378,11 +422,12 @@ async function personelAdayi(req, res) {
     res.status(404).json({ error: 'Aday bulunamadı.' });
     return null;
   }
-  if (!kapsamdaMi(kapsam, await adayBolumleri(db, a))) {
+  const bolumler = await adayBolumleri(db, a);
+  if (!kapsamdaMi(kapsam, bolumler)) {
     res.status(403).json({ error: 'Bu aday sizin bölümünüze başvurmamış.' });
     return null;
   }
-  return { db, a };
+  return { db, a, kapsam, bolumler };
 }
 
 router.get('/liste', requireAuth, async (req, res) => {
@@ -393,16 +438,208 @@ router.get('/liste', requireAuth, async (req, res) => {
     const istenen = metin(req.query.bolum);
     const tum = await db.collection(ADAYLAR).find({}).sort({ createdAt: -1 }).limit(2000).toArray();
     const liste = [];
+    const K = await kural();
     for (const a of tum) {
       const bolumler = await adayBolumleri(db, a);
       if (!kapsamdaMi(kapsam, bolumler)) continue;
       if (istenen && !bolumler.has(istenen)) continue;
-      liste.push({ ...adayGorunumu(a), bolumler: [...bolumler] });
+      liste.push({
+        ...adayGorunumu(a),
+        bolumler: [...bolumler],
+        silinme: K.adaySilmeTarihi(a, await silmeBaglami(db, a, bolumler)),
+        yetki: { sifirlama: yonetimdeMi(kapsam, bolumler) },
+      });
     }
     return res.json({ adaylar: liste });
   } catch (e) {
     console.error('[aday] liste:', e && e.message);
     return res.status(500).json({ error: 'Adaylar okunamadı.' });
+  }
+});
+
+// ══════════════════════════════════════════════
+// Başvuru dönemleri (fakülte başına, tür başına)
+// ══════════════════════════════════════════════
+async function bolumunFakultesi(db, bolumId) {
+  const b = await bolumBul(db, bolumId);
+  return b ? metin(b.facultyId) : '';
+}
+
+async function fakulteDonemi(db, facultyId) {
+  if (!facultyId) return {};
+  const d = await db.collection(DONEMLER).findOne({ _id: facultyId });
+  return (d && d.donemler) || {};
+}
+
+// Kimliksiz: kayıt formu ve aday ekranı "tarihler uygun mu" uyarısı için.
+router.get('/donem', async (req, res) => {
+  try {
+    const db = await getDbSafe();
+    const facultyId = await bolumunFakultesi(db, req.query.bolum);
+    return res.json({ facultyId, donemler: await fakulteDonemi(db, facultyId) });
+  } catch (e) {
+    console.error('[aday] dönem:', e && e.message);
+    return res.status(500).json({ error: 'Başvuru dönemi okunamadı.' });
+  }
+});
+
+// Fakülte kimliğiyle (Fakülte Yönetimi ekranı).
+router.get('/donem-fakulte', requireAuth, async (req, res) => {
+  try {
+    const db = await getDbSafe();
+    const facultyId = metin(req.query.facultyId);
+    return res.json({ facultyId, donemler: await fakulteDonemi(db, facultyId) });
+  } catch (e) {
+    console.error('[aday] dönem:', e && e.message);
+    return res.status(500).json({ error: 'Başvuru dönemi okunamadı.' });
+  }
+});
+
+// Fakülte yetkilisi (ve üniversite yetkilisi / sistem yöneticisi) yazar.
+async function donemYetkisi(db, user, facultyId) {
+  const k = await personelKapsami(db, user);
+  if (!k) return false;
+  if (k.sistem || k.uniAdmin) return true;
+  return k.fakulteler.has(metin(facultyId));
+}
+
+router.post('/donemler', requireAuth, async (req, res) => {
+  try {
+    const db = await getDbSafe();
+    const facultyId = metin(req.body && req.body.facultyId);
+    if (!facultyId) return res.status(400).json({ error: 'Fakülte gerekli.' });
+    if (!(await donemYetkisi(db, req.user, facultyId))) {
+      return res
+        .status(403)
+        .json({ error: 'Başvuru tarihlerini yalnız fakülte yetkilisi belirler.' });
+    }
+    const K = await kural();
+    const hatalar = K.donemHatalari(req.body.donemler);
+    if (Object.keys(hatalar).length) {
+      return res.status(400).json({ error: Object.values(hatalar)[0], hatalar });
+    }
+    const donemler = K.donemleriSadele(req.body.donemler);
+    await db.collection(DONEMLER).updateOne(
+      { _id: facultyId },
+      {
+        $set: {
+          facultyId,
+          donemler,
+          guncelleyen: metin(req.user.identifier || req.user.role),
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      { upsert: true }
+    );
+    return res.json({ success: true, donemler });
+  } catch (e) {
+    console.error('[aday] dönem yazma:', e && e.message);
+    return res.status(500).json({ error: 'Başvuru tarihleri kaydedilemedi.' });
+  }
+});
+
+// ══════════════════════════════════════════════
+// Otomatik silme (kural: lib/aday-hesap.js → adaySilmeTarihi)
+// ══════════════════════════════════════════════
+async function silmeBaglami(db, a, bolumler) {
+  const bolumSet = bolumler || (await adayBolumleri(db, a));
+  const fakulteler = new Set();
+  for (const b of bolumSet) {
+    const f = await bolumunFakultesi(db, b);
+    if (f) fakulteler.add(f);
+  }
+  const donemler = [];
+  for (const f of fakulteler) donemler.push(await fakulteDonemi(db, f));
+  const [yatay, dikey] = await Promise.all([
+    db.collection('yatay_gecis_basvurular').find({ ogrenciNo: a.adayNo }).toArray(),
+    db.collection('muafiyet_records').find({ studentNo: a.adayNo }).toArray(),
+  ]);
+  return { donemler, yatay, dikey };
+}
+
+function dosyaSil(goreli) {
+  const yol = path.resolve(path.join(UPLOAD_KOK, metin(goreli)));
+  if (!yol.startsWith(UPLOAD_KOK + path.sep)) return false;
+  try {
+    fs.unlinkSync(yol);
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
+// Adayın BÜTÜN verisi: hesap, başvurular, talepler, bildirimler, belgeler.
+// Geriye yalnız kimliksiz bir iz kalır (ne zaman, hangi gerekçeyle, kaç kayıt).
+async function adayVerisiniSil(db, a, sebep) {
+  const no = a.adayNo;
+  const dosyalar = await db.collection('dosya_yukleyenler').find({ yukleyen: no }).toArray();
+  let silinenDosya = 0;
+  dosyalar.forEach((d) => {
+    if (dosyaSil(d._id)) silinenDosya++;
+  });
+  const sil = async (kol, f) => {
+    const r = await db.collection(kol).deleteMany(f);
+    return (r && r.deletedCount) || 0;
+  };
+  const rapor = {
+    yatay: await sil('yatay_gecis_basvurular', { ogrenciNo: no }),
+    dikey: await sil('muafiyet_records', { studentNo: no }),
+    bildirim:
+      (await sil('notifications', { recipientType: 'user', recipientId: no })) +
+      (await sil('student_notifications', { studentNumber: no })),
+    dosya: silinenDosya,
+  };
+  await sil('dosya_yukleyenler', { yukleyen: no });
+  await db.collection(ADAYLAR).deleteOne({ _id: a._id });
+  aktifOnbellek.delete(no);
+  await db
+    .collection('audit_logs')
+    .insertOne({ kind: 'aday_veri_silme', at: new Date(), adayNo: no, sebep, rapor })
+    .catch(() => {});
+  return rapor;
+}
+
+/**
+ * Süresi dolan adayların verisini siler. Sunucu açılışında ve periyodik
+ * olarak çağrılır (server/index.js).
+ * @param {object} [secenek] { bugun: 'YYYY-AA-GG' } (deneme için)
+ */
+async function adayTemizligi(secenek) {
+  const db = await getDbSafe();
+  const K = await kural();
+  const bugun = (secenek && secenek.bugun) || K.bugunTr();
+  const adaylar = await db
+    .collection(ADAYLAR)
+    .find({ durum: { $in: ['aktif', 'kapali'] } })
+    .toArray();
+  const silinen = [];
+  for (const a of adaylar) {
+    const baglam = await silmeBaglami(db, a);
+    const karar = K.adaySilmeTarihi(a, baglam);
+    if (karar.tarih && bugun >= karar.tarih) {
+      silinen.push({ adayNo: a.adayNo, ...(await adayVerisiniSil(db, a, karar.sebep)) });
+    }
+  }
+  if (silinen.length) console.info('[aday] süresi dolan aday verisi silindi:', silinen.length);
+  return { bugun, silinen };
+}
+
+// Elle tetikleme (sistem yöneticisi / üniversite yetkilisi). `bugun` yalnız
+// üretim dışında kabul edilir — denemede ileri tarih verilebilsin diye.
+router.post('/temizlik', requireAuth, async (req, res) => {
+  try {
+    const db = await getDbSafe();
+    const k = await personelKapsami(db, req.user);
+    if (!k || !(k.sistem || k.uniAdmin)) return res.status(403).json({ error: 'Yetkiniz yok.' });
+    const bugun =
+      process.env.NODE_ENV !== 'production' &&
+      /^\d{4}-\d{2}-\d{2}$/.test(metin(req.body && req.body.bugun))
+        ? metin(req.body.bugun)
+        : undefined;
+    return res.json(await adayTemizligi({ bugun }));
+  } catch (e) {
+    console.error('[aday] temizlik:', e && e.message);
+    return res.status(500).json({ error: 'Temizlik çalıştırılamadı.' });
   }
 });
 
@@ -422,7 +659,14 @@ router.post('/sifre-sifirla', requireAuth, async (req, res) => {
   try {
     const bulunan = await personelAdayi(req, res);
     if (!bulunan) return;
-    const { db, a } = bulunan;
+    const { db, a, kapsam, bolumler } = bulunan;
+    // Şifreyi yalnız bölüm yetkilisi (ve üstü) sıfırlar: geçici şifreyi
+    // alan kişi adayın hesabına girebilir.
+    if (!yonetimdeMi(kapsam, bolumler)) {
+      return res
+        .status(403)
+        .json({ error: 'Aday şifresini yalnız bölüm yetkilisi sıfırlayabilir.' });
+    }
     // Karışmayan karakterlerle 10 haneli geçici şifre (harf + rakam).
     const harfler = 'abcdefghjkmnpqrstuvwxyz';
     const rakamlar = '23456789';
@@ -447,22 +691,29 @@ router.post('/sifre-sifirla', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/kapat', requireAuth, async (req, res) => {
-  const bulunan = await personelAdayi(req, res);
-  if (!bulunan) return;
-  const { db, a } = bulunan;
-  await db.collection(ADAYLAR).updateOne(
-    { _id: a._id },
-    {
-      $set: {
-        durum: 'kapali',
-        kapatan: metin(req.user.identifier || req.user.role),
-        updatedAt: new Date(),
-      },
-    }
-  );
-  return res.json({ success: true });
-});
+router.post(
+  '/kapat',
+  requireAuth,
+  sar(async (req, res) => {
+    const bulunan = await personelAdayi(req, res);
+    if (!bulunan) return;
+    const { db, a } = bulunan;
+    await db.collection(ADAYLAR).updateOne(
+      { _id: a._id },
+      {
+        $set: {
+          durum: 'kapali',
+          kapatan: metin(req.user.identifier || req.user.role),
+          // Otomatik silme takviminin referansı (lib/aday-hesap.js).
+          kapatmaZamani: new Date().toISOString(),
+          updatedAt: new Date(),
+        },
+      }
+    );
+    aktifOnbellek.delete(a.adayNo);
+    return res.json({ success: true });
+  })
+);
 
 // Kesin kayıt: adayın bütün kayıtları gerçek öğrenci numarasına taşınır ve
 // aday hesabı kapanır. Sahiplik alanları (_owner) da taşınır; taşınmasaydı
@@ -510,6 +761,7 @@ router.post('/numara-aktar', requireAuth, async (req, res) => {
         },
       }
     );
+    aktifOnbellek.delete(eski);
     try {
       const io = req.app && req.app.get && req.app.get('io');
       if (io) {
@@ -530,3 +782,22 @@ router.post('/numara-aktar', requireAuth, async (req, res) => {
 
 module.exports = router;
 module.exports.tcOzeti = tcOzeti;
+module.exports.adayTemizligi = adayTemizligi;
+
+// Oturumu süren adayın hesabı hâlâ açık mı? Hesap kapatıldıysa, numaraya
+// aktarıldıysa ya da süresi dolup silindiyse eski jetonla (24 saat geçerli)
+// yazma yapılamamalı. Kısa önbellek: her yazmada sorgu atılmasın.
+const aktifOnbellek = new Map();
+async function adayAktifMi(adayNo) {
+  const no = metin(adayNo);
+  const hit = aktifOnbellek.get(no);
+  if (hit && Date.now() - hit.ts < 30 * 1000) return hit.aktif;
+  const db = await getDbSafe();
+  const a = await db.collection(ADAYLAR).findOne({ adayNo: no }, { projection: { durum: 1 } });
+  const aktif = !!a && a.durum === 'aktif';
+  aktifOnbellek.set(no, { aktif, ts: Date.now() });
+  if (aktifOnbellek.size > 5000) aktifOnbellek.clear();
+  return aktif;
+}
+module.exports.adayAktifMi = adayAktifMi;
+module.exports.adayAktifOnbellekSil = (no) => aktifOnbellek.delete(metin(no));
