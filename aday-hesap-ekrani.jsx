@@ -60,16 +60,17 @@ function useBolumDonemi(bolumId) {
   return donemler;
 }
 
-function UyariKutusu({ uyarilar }) {
+function UyariKutusu({ uyarilar, koyu }) {
   if (!uyarilar || uyarilar.length === 0) return null;
+  // `koyu`: giriş ekranının koyu cam kartı; modül ekranları açık zeminlidir.
   return (
     <div
       role="alert"
       data-aday-donem-uyari
       style={{
-        background: '#FFFBEB',
-        border: '1px solid #FCD34D',
-        color: '#92400E',
+        background: koyu ? 'rgba(251, 191, 36, 0.12)' : '#FFFBEB',
+        border: '1px solid ' + (koyu ? 'rgba(251, 191, 36, 0.40)' : '#FCD34D'),
+        color: koyu ? '#FDE68A' : '#92400E',
         borderRadius: 10,
         padding: '10px 12px',
         fontSize: 13,
@@ -79,7 +80,13 @@ function UyariKutusu({ uyarilar }) {
       {uyarilar.map((u) => (
         <div key={u.tur}>⚠ {u.mesaj}</div>
       ))}
-      <div style={{ fontSize: 12, marginTop: 4, color: '#A16207' }}>
+      <div
+        style={{
+          fontSize: 12,
+          marginTop: 4,
+          color: koyu ? 'rgba(253, 230, 138, 0.75)' : '#A16207',
+        }}
+      >
         Başvuru alanı açık kalır; dönem dışı başvurunun değerlendirilip değerlendirilmeyeceğine
         bölümünüz karar verir.
       </div>
@@ -124,8 +131,159 @@ export function adayOturumKullanicisi(a) {
 const kutu = {
   display: 'flex',
   flexDirection: 'column',
-  gap: 14,
+  gap: 16,
 };
+
+// Giriş ekranındaki öğrenci/akademisyen formlarıyla aynı görünüm: lg-* sınıfları
+// (shared-components.jsx → LoginModal stilleri, koyu cam kart teması).
+const BAG = {
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  font: 'inherit',
+  color: '#7FE7DC',
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+const svg = (cocuk, kalinlik = 2) => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={kalinlik}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    {cocuk}
+  </svg>
+);
+
+const IKON = {
+  kimlik: svg(
+    <>
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <circle cx="8" cy="12" r="2.5" />
+      <line x1="13" y1="10" x2="18" y2="10" />
+      <line x1="13" y1="14" x2="18" y2="14" />
+    </>
+  ),
+  kisi: svg(<path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />),
+  kilit: svg(
+    <>
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0110 0v4" />
+    </>
+  ),
+  onay: svg(<path d="M20 6L9 17l-5-5" />),
+  posta: svg(
+    <>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <polyline points="22 6 12 13 2 6" />
+    </>
+  ),
+  telefon: svg(
+    <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z" />
+  ),
+  goz: svg(
+    <>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  gozKapali: svg(
+    <>
+      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </>
+  ),
+  ok: svg(
+    <>
+      <line x1="5" y1="12" x2="19" y2="12" />
+      <polyline points="12 5 19 12 12 19" />
+    </>,
+    2.5
+  ),
+};
+
+/** Solda ikon, şifre alanında sağda göster/gizle düğmesi olan giriş kutusu. */
+function IkonluGirdi({ ikon, sifre, type, ...girdi }) {
+  const [gorunur, setGorunur] = useState(false);
+  return (
+    <div className="lg-input-icon-wrap">
+      <div className="lg-input-icon-left">{ikon}</div>
+      <input
+        {...girdi}
+        type={sifre ? (gorunur ? 'text' : 'password') : type || 'text'}
+        className={'lg-input lg-input-icon' + (sifre ? ' lg-input-eye' : '')}
+      />
+      {sifre && (
+        <button
+          type="button"
+          className="lg-input-eye-btn"
+          onClick={() => setGorunur((v) => !v)}
+          aria-label={gorunur ? 'Şifreyi gizle' : 'Şifreyi göster'}
+          tabIndex={-1}
+        >
+          {gorunur ? IKON.gozKapali : IKON.goz}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function HataKutusu({ hata }) {
+  if (!hata) return null;
+  return (
+    <div className="lg-error" style={{ marginBottom: 0 }}>
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <line x1="15" y1="9" x2="9" y2="15" />
+        <line x1="9" y1="9" x2="15" y2="15" />
+      </svg>
+      {hata}
+    </div>
+  );
+}
+
+function GonderDugmesi({ mesgul, bekleme, children, ...rest }) {
+  return (
+    <button type="submit" disabled={mesgul} className="lg-btn lg-btn-primary" {...rest}>
+      {mesgul ? (
+        <>
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            style={{ animation: 'loginSpin 1s linear infinite' }}
+          >
+            <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+          </svg>
+          {bekleme}
+        </>
+      ) : (
+        <>
+          {children}
+          {IKON.ok}
+        </>
+      )}
+    </button>
+  );
+}
 
 function Alan({ etiket, hata, children }) {
   return (
@@ -133,7 +291,7 @@ function Alan({ etiket, hata, children }) {
       <label className="lg-label">{etiket}</label>
       {children}
       {hata && (
-        <div style={{ color: '#B91C1C', fontSize: 12.5, marginTop: 5 }} data-aday-hata>
+        <div style={{ color: '#FCA5A5', fontSize: 12.5, marginTop: 6 }} data-aday-hata>
           {hata}
         </div>
       )}
@@ -240,14 +398,13 @@ export function AdayGirisPaneli({ onLogin }) {
   const bilgi = (
     <div
       style={{
-        background: '#F0FDFA',
-        border: '1px solid #99F6E4',
+        background: 'rgba(46, 196, 182, 0.10)',
+        border: '1px solid rgba(46, 196, 182, 0.30)',
         borderRadius: 10,
         padding: '10px 12px',
         fontSize: 12.5,
-        color: '#115E59',
+        color: 'rgba(255, 255, 255, 0.78)',
         lineHeight: 1.5,
-        marginBottom: 14,
       }}
     >
       Henüz öğrenci numaranız yoksa (dikey geçiş, kurumlararası yatay geçiş ya da merkezi
@@ -260,10 +417,9 @@ export function AdayGirisPaneli({ onLogin }) {
     return (
       <form onSubmit={girisYap} style={kutu} data-aday-giris>
         {bilgi}
-        {hata && <div className="lg-error">{hata}</div>}
         <Alan etiket="T.C. Kimlik No">
-          <input
-            className="lg-input"
+          <IkonluGirdi
+            ikon={IKON.kimlik}
             value={tc}
             onChange={(e) => setTc(e.target.value.replace(/\D/g, '').slice(0, 11))}
             placeholder="11 haneli T.C. kimlik numaranız"
@@ -273,38 +429,33 @@ export function AdayGirisPaneli({ onLogin }) {
           />
         </Alan>
         <Alan etiket="Şifre">
-          <input
-            className="lg-input"
-            type="password"
+          <IkonluGirdi
+            ikon={IKON.kilit}
+            sifre
             value={sifre}
             onChange={(e) => setSifre(e.target.value)}
-            placeholder="Şifreniz"
+            placeholder="Şifrenizi girin"
             autoComplete="current-password"
             data-aday-sifre
           />
         </Alan>
-        <button type="submit" className="lg-btn-primary" disabled={mesgul} data-aday-giris-btn>
-          {mesgul ? 'Giriş yapılıyor…' : 'Aday Girişi'}
-        </button>
+        <HataKutusu hata={hata} />
+        <GonderDugmesi mesgul={mesgul} bekleme="Giriş yapılıyor..." data-aday-giris-btn>
+          Giriş Yap
+        </GonderDugmesi>
         <button
           type="button"
           onClick={() => {
             setMod('kayit');
             setHata('');
           }}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#0D9B8E',
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontSize: 13.5,
-          }}
+          className="lg-btn lg-btn-secondary"
+          style={{ padding: '10px 16px', fontSize: 13 }}
           data-aday-kayit-ac
         >
           Hesabım yok — aday hesabı oluştur
         </button>
-        <div style={{ fontSize: 12, color: '#64748B', textAlign: 'center' }}>
+        <div className="lg-hint" style={{ textAlign: 'center', marginTop: 0 }}>
           Şifrenizi unuttuysanız başvurduğunuz bölümün sekreterliğinden sıfırlatın.
         </div>
       </form>
@@ -314,87 +465,95 @@ export function AdayGirisPaneli({ onLogin }) {
   return (
     <form onSubmit={kayitOl} style={kutu} data-aday-kayit>
       {bilgi}
-      {hata && <div className="lg-error">{hata}</div>}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Alan etiket="Ad" hata={h('ad')}>
-          <input
-            className="lg-input"
+          <IkonluGirdi
+            ikon={IKON.kisi}
             value={f.ad}
             onChange={(e) => set('ad', e.target.value)}
+            placeholder="Adınız"
             data-k="ad"
           />
         </Alan>
         <Alan etiket="Soyad" hata={h('soyad')}>
-          <input
-            className="lg-input"
+          <IkonluGirdi
+            ikon={IKON.kisi}
             value={f.soyad}
             onChange={(e) => set('soyad', e.target.value)}
+            placeholder="Soyadınız"
             data-k="soyad"
           />
         </Alan>
       </div>
       <Alan etiket="T.C. Kimlik No" hata={h('tc')}>
-        <input
-          className="lg-input"
+        <IkonluGirdi
+          ikon={IKON.kimlik}
           value={f.tc}
           onChange={(e) => set('tc', e.target.value.replace(/\D/g, '').slice(0, 11))}
+          placeholder="11 haneli T.C. kimlik numaranız"
           inputMode="numeric"
           data-k="tc"
         />
       </Alan>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <Alan etiket="E-posta" hata={h('eposta')}>
-          <input
-            className="lg-input"
-            type="email"
-            value={f.eposta}
-            onChange={(e) => set('eposta', e.target.value)}
-            data-k="eposta"
-          />
-        </Alan>
-        <Alan etiket="Cep telefonu" hata={h('telefon')}>
-          <input
-            className="lg-input"
-            value={f.telefon}
-            onChange={(e) => set('telefon', e.target.value)}
-            placeholder="5XX XXX XX XX"
-            inputMode="tel"
-            data-k="telefon"
-          />
-        </Alan>
-      </div>
+      <Alan etiket="E-posta" hata={h('eposta')}>
+        <IkonluGirdi
+          ikon={IKON.posta}
+          type="email"
+          value={f.eposta}
+          onChange={(e) => set('eposta', e.target.value)}
+          placeholder="ornek@eposta.com"
+          data-k="eposta"
+        />
+      </Alan>
+      <Alan etiket="Cep telefonu" hata={h('telefon')}>
+        <IkonluGirdi
+          ikon={IKON.telefon}
+          value={f.telefon}
+          onChange={(e) => set('telefon', e.target.value)}
+          placeholder="5XX XXX XX XX"
+          inputMode="tel"
+          data-k="telefon"
+        />
+      </Alan>
       <Alan etiket="Başvuru türü" hata={h('turler')}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {ADAY_TURLERI.map((t) => (
-            <label
-              key={t.id}
-              style={{
-                display: 'flex',
-                gap: 8,
-                alignItems: 'flex-start',
-                fontSize: 13.5,
-                cursor: 'pointer',
-                padding: '8px 10px',
-                borderRadius: 8,
-                border: '1px solid ' + (f.turler.includes(t.id) ? '#0D9B8E' : '#E2E8F0'),
-                background: f.turler.includes(t.id) ? '#F0FDFA' : 'white',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={f.turler.includes(t.id)}
-                onChange={() => turSec(t.id)}
-                data-tur={t.id}
-                style={{ marginTop: 3 }}
-              />
-              <span>
-                <b>{t.ad}</b>
-                <span style={{ display: 'block', color: '#64748B', fontSize: 12 }}>
-                  {t.aciklama}
+          {ADAY_TURLERI.map((t) => {
+            const secili = f.turler.includes(t.id);
+            return (
+              <label
+                key={t.id}
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'flex-start',
+                  fontSize: 13.5,
+                  cursor: 'pointer',
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  color: '#F4F8F7',
+                  border: '1.5px solid ' + (secili ? '#2EC4B6' : 'rgba(255, 255, 255, 0.18)'),
+                  background: secili ? 'rgba(46, 196, 182, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                  transition: 'border-color 0.18s ease, background 0.18s ease',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={secili}
+                  onChange={() => turSec(t.id)}
+                  data-tur={t.id}
+                  style={{ marginTop: 3, accentColor: '#2EC4B6' }}
+                />
+                <span>
+                  <b style={{ fontWeight: 600 }}>{t.ad}</b>
+                  <span
+                    style={{ display: 'block', color: 'rgba(255, 255, 255, 0.55)', fontSize: 12 }}
+                  >
+                    {t.aciklama}
+                  </span>
                 </span>
-              </span>
-            </label>
-          ))}
+              </label>
+            );
+          })}
         </div>
       </Alan>
       <Alan etiket="Başvurduğunuz / yerleştiğiniz bölüm" hata={h('departmentId')}>
@@ -412,66 +571,60 @@ export function AdayGirisPaneli({ onLogin }) {
           ))}
         </select>
       </Alan>
-      <UyariKutusu uyarilar={kayitUyarilari} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <Alan etiket="Şifre" hata={h('sifre')}>
-          <input
-            className="lg-input"
-            type="password"
-            value={f.sifre}
-            onChange={(e) => set('sifre', e.target.value)}
-            autoComplete="new-password"
-            data-k="sifre"
-          />
-        </Alan>
-        <Alan etiket="Şifre (tekrar)" hata={h('sifre2')}>
-          <input
-            className="lg-input"
-            type="password"
-            value={f.sifre2}
-            onChange={(e) => set('sifre2', e.target.value)}
-            autoComplete="new-password"
-            data-k="sifre2"
-          />
-        </Alan>
-      </div>
-      <div style={{ fontSize: 12.5, color: '#475569' }}>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
+      <UyariKutusu uyarilar={kayitUyarilari} koyu />
+      <Alan etiket="Şifre" hata={h('sifre')}>
+        <IkonluGirdi
+          ikon={IKON.kilit}
+          sifre
+          value={f.sifre}
+          onChange={(e) => set('sifre', e.target.value)}
+          placeholder="Şifrenizi belirleyin"
+          autoComplete="new-password"
+          data-k="sifre"
+        />
+      </Alan>
+      <Alan etiket="Şifre tekrar" hata={h('sifre2')}>
+        <IkonluGirdi
+          ikon={IKON.onay}
+          sifre
+          value={f.sifre2}
+          onChange={(e) => set('sifre2', e.target.value)}
+          placeholder="Şifrenizi tekrar girin"
+          autoComplete="new-password"
+          data-k="sifre2"
+        />
+      </Alan>
+      <div style={{ fontSize: 12.5, color: 'rgba(255, 255, 255, 0.78)', lineHeight: 1.5 }}>
+        <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
           <input
             type="checkbox"
             checked={f.kvkk}
             onChange={(e) => set('kvkk', e.target.checked)}
             data-k="kvkk"
-            style={{ marginTop: 2 }}
+            style={{ marginTop: 2, width: 16, height: 16, flexShrink: 0, accentColor: '#2EC4B6' }}
           />
           <span>
             <button
               type="button"
               onClick={() => setMetinAcik((v) => !v)}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                color: '#0D9B8E',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
+              style={{ ...BAG, textDecoration: 'underline' }}
             >
               Aday aydınlatma metnini
             </button>{' '}
             okudum.
           </span>
         </label>
-        {h('kvkk') && <div style={{ color: '#B91C1C', marginTop: 4 }}>{h('kvkk')}</div>}
+        {h('kvkk') && <div style={{ color: '#FCA5A5', marginTop: 4 }}>{h('kvkk')}</div>}
         {metinAcik && (
           <div
             style={{
               marginTop: 8,
               padding: 10,
-              background: '#F8FAFC',
-              border: '1px solid #E2E8F0',
-              borderRadius: 8,
-              lineHeight: 1.5,
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.14)',
+              borderRadius: 10,
+              maxHeight: 220,
+              overflowY: 'auto',
             }}
           >
             {adayAydinlatmaMetni(window.TENANT && window.TENANT.universityName).map((p, i) => (
@@ -482,23 +635,18 @@ export function AdayGirisPaneli({ onLogin }) {
           </div>
         )}
       </div>
-      <button type="submit" className="lg-btn-primary" disabled={mesgul} data-aday-kayit-btn>
-        {mesgul ? 'Hesap açılıyor…' : 'Aday hesabı oluştur'}
-      </button>
+      <HataKutusu hata={hata} />
+      <GonderDugmesi mesgul={mesgul} bekleme="Hesap açılıyor..." data-aday-kayit-btn>
+        Hesap Oluştur ve Giriş Yap
+      </GonderDugmesi>
       <button
         type="button"
         onClick={() => {
           setMod('giris');
           setHata('');
         }}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: '#0D9B8E',
-          fontWeight: 600,
-          cursor: 'pointer',
-          fontSize: 13.5,
-        }}
+        className="lg-btn lg-btn-secondary"
+        style={{ padding: '10px 16px', fontSize: 13 }}
       >
         Hesabım var — giriş yap
       </button>
