@@ -542,6 +542,7 @@ const Sidebar = ({
   onRequestChangePassword,
   commissionModules = [],
   studentLocked = false,
+  ogrenciDikeyKaydi = false,
   adminScope,
 }) => {
   const isAdmin = currentUser?.role === 'admin';
@@ -675,7 +676,9 @@ const Sidebar = ({
       'muafiyet',
       'capyandal',
       'yataygecis',
-      'dikeygecis',
+      // Dikey geçiş aday hesabının işidir; numaralı öğrencide yalnız
+      // numarasına aktarılmış kaydı varsa (salt görüntüleme) görünür.
+      ...(ogrenciDikeyKaydi ? ['dikeygecis'] : []),
       'gelenbelgeler',
     ];
     const stdAllowed = stdBase.concat(commissionModules);
@@ -2811,6 +2814,35 @@ function AppShell() {
     };
   }, [currentUser?.studentNumber, currentUser?.role, currentUser?.aday]);
 
+  // Numaralı öğrencide Dikey Geçiş menüsü yalnız numarasına AKTARILMIŞ bir
+  // dikey geçiş kaydı varsa görünür (salt görüntüleme). Yeni dikey geçiş
+  // başvurusu yalnız aday hesabından yapılır (lib/aday-hesap.js).
+  const [ogrenciDikeyKaydi, setOgrenciDikeyKaydi] = useState(false);
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'student' || currentUser.aday) {
+      setOgrenciDikeyKaydi(false);
+      return;
+    }
+    let iptal = false;
+    const no = String(currentUser.studentNumber || currentUser.identifier || '');
+    Promise.resolve(
+      window.apiRead ? window.apiRead('muafiyet_records', { where: 'studentNo:eq:s:' + no }) : []
+    )
+      .catch(() => [])
+      .then((liste) => {
+        if (iptal) return;
+        const kendi = (Array.isArray(liste) ? liste : []).filter(
+          (r) => String(r.studentNo || '') === no
+        );
+        setOgrenciDikeyKaydi(
+          window.ogrenciDikeyKaydiVarMi ? window.ogrenciDikeyKaydiVarMi(kendi) : false
+        );
+      });
+    return () => {
+      iptal = true;
+    };
+  }, [currentUser?.studentNumber, currentUser?.role, currentUser?.aday]);
+
   // Yetkili tarafından değiştirilen öğrenci alanlarını, öğrencinin çıkış/giriş
   // yapmasına gerek kalmadan sayfa yenilenince sunucudan senkronla. currentUser
   // localStorage'dan geri yüklendiği için aksi halde eski (stale) değer kalıyor:
@@ -2937,7 +2969,7 @@ function AppShell() {
               'muafiyet',
               'capyandal',
               'yataygecis',
-              'dikeygecis',
+              ...(ogrenciDikeyKaydi ? ['dikeygecis'] : []),
               'gelenbelgeler',
             ]; // student
 
@@ -2991,6 +3023,7 @@ function AppShell() {
     navigate,
     studentCoursesChecked,
     studentHasCourses,
+    ogrenciDikeyKaydi,
     commissionModules,
   ]);
 
@@ -3470,6 +3503,7 @@ function AppShell() {
           onRequestChangePassword={() => setShowChangePassword(true)}
           commissionModules={commissionModules}
           studentLocked={currentUser?.role === 'student' && !studentHasCourses}
+          ogrenciDikeyKaydi={ogrenciDikeyKaydi}
           adminScope={adminScope}
         />
 

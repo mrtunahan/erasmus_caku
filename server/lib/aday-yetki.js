@@ -145,11 +145,37 @@ function adayYazmaKarari(op, kullanici) {
   return { izin: true };
 }
 
+/**
+ * Numaralı (aday OLMAYAN) öğrencinin aday türlerinde YENİ başvuru açmasını
+ * engeller: dikey geçiş, kurumlararası ve merkezi yerleştirme başvurusu yalnız
+ * aday hesabından yapılır (lib/aday-hesap.js → ogrenciYatayTurleri).
+ * Türü belirtmeyen güncelleme (numarasına aktarılmış eski başvuruya belge
+ * eklemek gibi) serbesttir; türü aday türüne ÇEVİRMEK yasaktır.
+ */
+function ogrenciAdayTuruKarari(op, kullanici) {
+  if (!kullanici || kullanici.aday || kullanici.role !== 'student') return { izin: true };
+  const kural = ADAY_YAZMA[metin(op && op.collection)];
+  if (!kural || !op || op.type === 'delete') return { izin: true };
+  const veri = op.data && typeof op.data === 'object' ? op.data : {};
+  const tur = metin(veri[kural.alan]);
+  if (tur && Object.values(kural.turler).includes(tur)) {
+    return {
+      izin: false,
+      hata:
+        'Bu başvuru türü (' +
+        tur +
+        ') öğrenci numarası olmayan adaylar içindir ve aday hesabından yapılır.',
+    };
+  }
+  return { izin: true };
+}
+
 module.exports = {
   adayNoMu,
   jetonKullanicisi,
   adayOkuyabilirMi,
   adayYazmaKarari,
+  ogrenciAdayTuruKarari,
   ADAY_OKUMA,
   ADAY_YAZMA,
   ADAY_TUR_IDLERI,

@@ -97,6 +97,20 @@ const upload = multer({
 });
 
 // ── Yardımcılar ──
+// Multer dosya adını latin1 diye çözer; Türkçe UTF-8 ad bozuk gelir
+// ("İŞ.docx" → "Ä°Å\x9e.docx"). Eski denetim yalnız 'Ã' ve C1 denetim
+// karakterlerine bakıyordu: 'İ' (Ä°) ve 'ı' (Ä±) içeren ad bozuk kalıyordu.
+// Geri çevrim geçerli UTF-8 üretiyor ve gidiş-dönüş kayıpsızsa ad gerçekten
+// latin1'e çözülmüş UTF-8'dir.
+function latin1CozulmusUtf8Mi(ham, yeniden) {
+  return (
+    typeof ham === 'string' &&
+    yeniden !== ham &&
+    !yeniden.includes('\uFFFD') &&
+    Buffer.from(yeniden, 'utf8').toString('latin1') === ham
+  );
+}
+
 function asPlainString(v) {
   if (v == null) return null;
   if (typeof v === 'string') return v;
@@ -356,7 +370,7 @@ router.post('/', writeLimiter, softAuthMiddleware, upload.single('file'), async 
     try {
       const reencoded = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
       // Ã / Å gibi mojibake işaretleri varsa düzeltilmiş sürümü kullan
-      if (/[Ã-]/.test(req.file.originalname)) safeOriginal = reencoded;
+      if (latin1CozulmusUtf8Mi(req.file.originalname, reencoded)) safeOriginal = reencoded;
     } catch (_) {
       /* orijinali koru */
     }
@@ -554,7 +568,7 @@ router.post(
       let safeOriginal = req.file.originalname;
       try {
         const reencoded = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-        if (/[Ã-]/.test(req.file.originalname)) safeOriginal = reencoded;
+        if (latin1CozulmusUtf8Mi(req.file.originalname, reencoded)) safeOriginal = reencoded;
       } catch (_) {
         /* orijinali koru */
       }
@@ -644,10 +658,16 @@ router.get('/:id/download', readLimiter, softAuthMiddleware, async (req, res) =>
       return res.status(404).json({ error: 'Dosya bulunamadı.' });
     }
     res.setHeader('Content-Type', tpl.file.mimeType || 'application/octet-stream');
+    // ⚠ `filename="…"` içine yüzde kodlu ad yazılınca tarayıcı dosyayı
+    // "%C5%9Eablon.docx" adıyla kaydediyordu. ASCII yedek ad + RFC 5987
+    // `filename*` (files.js ile aynı biçim) Türkçe adı korur.
+    const ozgunAd = String(tpl.file.originalName || 'sablon');
+    const asciiAd = ozgunAd.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename="' + encodeURIComponent(tpl.file.originalName) + '"'
+      `attachment; filename="${asciiAd}"; filename*=UTF-8''${encodeURIComponent(ozgunAd)}`
     );
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     fs.createReadStream(p).pipe(res);
   } catch (err) {
     console.error('templates route error:', err);
@@ -751,8 +771,19 @@ async function clearOtherDefaults(db, tpl, exceptId) {
     scope: tpl.scope,
     isDefault: true,
   };
-  if (tpl.scope === 'department') filter.departmentId = tpl.departmentId;
-  if (tpl.scope === 'faculty') filter.facultyId = tpl.facultyId;
+  // Aynı bölüm/fakülte birden çok kimlikle kaydedilmiş olabilir (slug,
+  // ObjectId, kod). Ham eşitlik öteki biçimdeki varsayılanı bırakır ve aynı
+  // bölümde İKİ varsayılan kalırdı; /resolve hangisini seçeceğini bilemezdi.
+  if (tpl.scope === 'department') {
+    const harita = await bolumHaritasi(db);
+    const v = bolumVaryantlari(harita, tpl.departmentId);
+    filter.departmentId = { $in: v.length ? v : [tpl.departmentId] };
+  }
+  if (tpl.scope === 'faculty') {
+    const harita = await fakulteHaritasi(db);
+    const v = bolumVaryantlari(harita, tpl.facultyId);
+    filter.facultyId = { $in: v.length ? v : [tpl.facultyId] };
+  }
   if (exceptId) filter._id = { $ne: exceptId };
   await db.collection('document_templates').updateMany(filter, { $set: { isDefault: false } });
 }

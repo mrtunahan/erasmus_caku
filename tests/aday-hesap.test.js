@@ -4,6 +4,9 @@ import {
   adayKaydiSadele,
   adayModulleri,
   adayYatayTurleri,
+  ogrenciYatayTurleri,
+  ogrenciYatayYeniBasvuruAcabilirMi,
+  ogrenciDikeyKaydiVarMi,
   tcMaskele,
   telefonSadele,
 } from '../lib/aday-hesap.js';
@@ -13,6 +16,7 @@ import {
   jetonKullanicisi,
   adayOkuyabilirMi,
   adayYazmaKarari,
+  ogrenciAdayTuruKarari,
 } from '../server/lib/aday-yetki.js';
 
 const GECERLI_TC = '10000000146';
@@ -270,5 +274,58 @@ describe('aday sahiplik alanı', () => {
     expect(k({ ogrenciNo: '240905054' })).toBe(false);
     expect(k({ _owner: 'ADAY-2026-0001' })).toBe(false);
     expect(k({ ogrenciNo: 'ADAY-2026-0009' })).toBe(true);
+  });
+});
+
+describe('numaralı öğrenci aday türlerini görmez', () => {
+  it('yatay geçişte yalnız kurum içi; aktarılmış kaydın türü salt görüntülenir', () => {
+    expect(ogrenciYatayTurleri([])).toEqual(['kurumici']);
+    expect(ogrenciYatayTurleri([{ turu: 'merkezi' }, { turu: 'kurumici' }])).toEqual([
+      'kurumici',
+      'merkezi',
+    ]);
+    expect(ogrenciYatayYeniBasvuruAcabilirMi('kurumici')).toBe(true);
+    expect(ogrenciYatayYeniBasvuruAcabilirMi('')).toBe(true);
+    expect(ogrenciYatayYeniBasvuruAcabilirMi('kurumlararasi')).toBe(false);
+    expect(ogrenciYatayYeniBasvuruAcabilirMi('merkezi')).toBe(false);
+  });
+  it('dikey geçiş menüsü yalnız aktarılmış dikey kaydı varsa', () => {
+    expect(ogrenciDikeyKaydiVarMi([{ basvuruTuru: 'muafiyet' }])).toBe(false);
+    expect(ogrenciDikeyKaydiVarMi([{ basvuruTuru: 'dikey' }])).toBe(true);
+    expect(ogrenciDikeyKaydiVarMi(null)).toBe(false);
+  });
+  it('sunucu: numaralı öğrenci aday türünde kayıt açamaz, aday ve personel etkilenmez', () => {
+    const ogr = { role: 'student', identifier: '240905111' };
+    const yatay = (turu, type = 'add') => ({
+      collection: 'yatay_gecis_basvurular',
+      type,
+      data: { turu, ogrenciNo: '240905111' },
+    });
+    expect(ogrenciAdayTuruKarari(yatay('kurumici'), ogr).izin).toBe(true);
+    expect(ogrenciAdayTuruKarari(yatay('kurumlararasi'), ogr).izin).toBe(false);
+    expect(ogrenciAdayTuruKarari(yatay('merkezi', 'update'), ogr).izin).toBe(false);
+    expect(
+      ogrenciAdayTuruKarari(
+        { collection: 'muafiyet_records', type: 'add', data: { basvuruTuru: 'dikey' } },
+        ogr
+      ).izin
+    ).toBe(false);
+    expect(
+      ogrenciAdayTuruKarari(
+        { collection: 'muafiyet_records', type: 'add', data: { basvuruTuru: 'muafiyet' } },
+        ogr
+      ).izin
+    ).toBe(true);
+    // Aktarılmış kayda türsüz güncelleme (belge ekleme) serbest.
+    expect(
+      ogrenciAdayTuruKarari(
+        { collection: 'yatay_gecis_basvurular', type: 'update', docId: 'x', data: { not: 'a' } },
+        ogr
+      ).izin
+    ).toBe(true);
+    expect(
+      ogrenciAdayTuruKarari(yatay('kurumlararasi'), { role: 'student', aday: true }).izin
+    ).toBe(true);
+    expect(ogrenciAdayTuruKarari(yatay('kurumlararasi'), { role: 'professor' }).izin).toBe(true);
   });
 });

@@ -2937,13 +2937,20 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
   // Numarasız aday yalnız hesabını açarken seçtiği türleri görür
   // (kurumlararası / merkezi); kurum içi geçiş öğrenci numarası ister.
   const adayMi = !!currentUser?.aday;
-  const gorunurTurler = useMemo(() => {
-    if (!adayMi) return YG_TURLER;
+  // Numaralı öğrenci: kurumlararası ve merkezi yerleştirme başvuruları aday
+  // hesabının işidir. Öğrenci yalnız kurum içi geçişi görür; numarasına
+  // aktarılmış eski bir başvurusu varsa o türü salt görüntüler.
+  const ogrenciMi = isStudent && !adayMi;
+  const [turId, setTurId] = useState(() => {
+    if (!adayMi) return YG_TURLER[0].id;
     const izinli = window.adayYatayTurleri ? window.adayYatayTurleri(currentUser.turler) : [];
-    return YG_TURLER.filter((t) => izinli.includes(t.id));
-  }, [adayMi, currentUser]);
-  const [turId, setTurId] = useState(() => (gorunurTurler[0] || YG_TURLER[0]).id);
-  const tur = gorunurTurler.find((t) => t.id === turId) || gorunurTurler[0] || YG_TURLER[0];
+    return izinli[0] || YG_TURLER[0].id;
+  });
+  const yeniAcabilir =
+    !ogrenciMi ||
+    (window.ogrenciYatayYeniBasvuruAcabilirMi
+      ? window.ogrenciYatayYeniBasvuruAcabilirMi(turId)
+      : turId === 'kurumici');
   const [sekme, setSekme] = useState(isStudent ? 'yeni' : 'basvurular');
 
   const [kayitlar, setKayitlar] = useState([]);
@@ -3016,6 +3023,31 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
         : r.departmentId === activeDepartment;
     });
   }, [kayitlar, isStudent, currentUser, activeDepartment, tumBolumler]);
+
+  const gorunurTurler = useMemo(() => {
+    if (adayMi) {
+      const izinli = window.adayYatayTurleri ? window.adayYatayTurleri(currentUser.turler) : [];
+      return YG_TURLER.filter((t) => izinli.includes(t.id));
+    }
+    if (ogrenciMi) {
+      const izinli = window.ogrenciYatayTurleri
+        ? window.ogrenciYatayTurleri(kapsamdaki)
+        : ['kurumici'];
+      return YG_TURLER.filter((t) => izinli.includes(t.id));
+    }
+    return YG_TURLER;
+  }, [adayMi, ogrenciMi, currentUser, kapsamdaki]);
+  const tur = gorunurTurler.find((t) => t.id === turId) || gorunurTurler[0] || YG_TURLER[0];
+  // Seçili tür görünür değilse (ör. öğrenci) ilk görünür türe dön; yeni
+  // başvuru açılamayan türde form sekmesi kapanır.
+  useEffect(() => {
+    if (gorunurTurler.length && !gorunurTurler.some((t) => t.id === turId)) {
+      setTurId(gorunurTurler[0].id);
+    }
+  }, [gorunurTurler, turId]);
+  useEffect(() => {
+    if (!yeniAcabilir && sekme === 'yeni') setSekme('basvurular');
+  }, [yeniAcabilir, sekme]);
 
   // Bölümü çözülemeyen başvurular: sessizce kaybolmasınlar diye sayılır ve
   // yetkiliye bildirilir. Eski davranışta bunlar HER bölümde görünüyordu;
@@ -3699,7 +3731,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
 
   const sekmeler = isStudent
     ? [
-        { id: 'yeni', label: 'Yeni Başvuru' },
+        ...(yeniAcabilir ? [{ id: 'yeni', label: 'Yeni Başvuru' }] : []),
         { id: 'basvurular', label: 'Başvurularım' },
       ]
     : [
@@ -3759,7 +3791,12 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
               aria-selected={sel}
               onClick={() => {
                 setTurId(t.id);
-                setSekme(isStudent ? 'yeni' : 'basvurular');
+                const yeniOlur =
+                  !ogrenciMi ||
+                  (window.ogrenciYatayYeniBasvuruAcabilirMi
+                    ? window.ogrenciYatayYeniBasvuruAcabilirMi(t.id)
+                    : t.id === 'kurumici');
+                setSekme(isStudent && yeniOlur ? 'yeni' : 'basvurular');
               }}
               style={{
                 display: 'flex',
@@ -3892,7 +3929,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       )}
 
       {/* Öğrenci: yeni başvuru */}
-      {isStudent && sekme === 'yeni' && (
+      {isStudent && yeniAcabilir && sekme === 'yeni' && (
         <YgBasvuruFormu
           key={turId}
           tur={tur}
@@ -4268,13 +4305,15 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                     'olmayan bir aday için “Aday Adına Başvuru” sekmesini kullanabilirsiniz.'
               }
               eylem={
-                <button
-                  type="button"
-                  onClick={() => setSekme(isStudent ? 'yeni' : 'aday')}
-                  style={ygBtn(true)}
-                >
-                  {isStudent ? 'Yeni başvuru oluştur' : 'Aday adına başvuru'}
-                </button>
+                isStudent && !yeniAcabilir ? null : (
+                  <button
+                    type="button"
+                    onClick={() => setSekme(isStudent ? 'yeni' : 'aday')}
+                    style={ygBtn(true)}
+                  >
+                    {isStudent ? 'Yeni başvuru oluştur' : 'Aday adına başvuru'}
+                  </button>
+                )
               }
             />
           ) : (

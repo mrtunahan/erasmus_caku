@@ -10800,12 +10800,19 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
   const isStudent = currentUser?.role === 'student';
   // Dikey geçişte personel, kendi hesabını açan adayları da yönetir
   // (şifre sıfırlama, kesin kayıtta öğrenci numarasına aktarma).
+  // Numaralı öğrenci Dikey Geçiş'te yalnız numarasına aktarılmış eski talebini
+  // görür; yeni dikey geçiş talebi aday hesabından açılır (lib/aday-hesap.js).
+  const dikeySaltGorunum = isStudent && !currentUser?.aday && sabitTur === 'dikey';
   const tabs = isStudent
-    ? STUDENT_TABS
+    ? dikeySaltGorunum
+      ? STUDENT_TABS.filter((t) => t.id !== 'yeni')
+      : STUDENT_TABS
     : sabitTur === 'dikey' && window.AdayHesaplariPaneli
       ? STAFF_TABS.concat([{ id: 'adayhesap', label: 'Aday Hesapları', icon: 'history' }])
       : STAFF_TABS;
-  const [activeTab, setActiveTab] = useState(isStudent ? 'yeni' : 'onay');
+  const [activeTab, setActiveTab] = useState(
+    isStudent ? (dikeySaltGorunum ? 'gecmis' : 'yeni') : 'onay'
+  );
   const [basvuruTuru, setBasvuruTuru] = useState(sabitTur || 'muafiyet');
   const [courseContents, setCourseContents] = useState([]);
   // Bölümün ders listesi — üniversite yetkilisinin düzeltme panelindeki ÇAKÜ
@@ -11707,7 +11714,7 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         {activeTab === 'adayhesap' && !isStudent && window.AdayHesaplariPaneli && (
           <window.AdayHesaplariPaneli activeDepartment={activeDepartment} turler={['dikey']} />
         )}
-        {activeTab === 'yeni' && isStudent && (
+        {activeTab === 'yeni' && isStudent && !dikeySaltGorunum && (
           <ManualExemptionForm
             // Bölüm değişince form SIFIRLANIR: bir muafiyet talebi tek bir
             // programa aittir; ÇAP öğrencisi bölüm değiştirdiğinde önceki

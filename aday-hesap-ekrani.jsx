@@ -19,6 +19,9 @@ import {
   donemUyarilari,
   donemHatalari,
   ADAY_SAKLAMA_GUN,
+  ogrenciYatayTurleri,
+  ogrenciYatayYeniBasvuruAcabilirMi,
+  ogrenciDikeyKaydiVarMi,
 } from './lib/aday-hesap.js';
 
 const { useEffect, useMemo, useState } = React;
@@ -1111,3 +1114,6 @@ window.adayModulleri = adayModulleri;
 window.AdayDonemUyarisi = AdayDonemUyarisi;
 window.AdayDonemPaneli = AdayDonemPaneli;
 window.adayYatayTurleri = adayYatayTurleri;
+window.ogrenciYatayTurleri = ogrenciYatayTurleri;
+window.ogrenciYatayYeniBasvuruAcabilirMi = ogrenciYatayYeniBasvuruAcabilirMi;
+window.ogrenciDikeyKaydiVarMi = ogrenciDikeyKaydiVarMi;
