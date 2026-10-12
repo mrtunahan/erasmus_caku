@@ -19,11 +19,11 @@ import {
 const { useState, useEffect } = React;
 
 const R = {
-  navy: '#1F2937',
-  muted: '#6B7280',
-  blue: '#2563EB',
-  bluePale: '#EFF6FF',
-  border: '#E5E7EB',
+  navy: '#1E293B',
+  muted: '#64748B',
+  blue: '#0F766E',
+  bluePale: '#F0FDFA',
+  border: '#E2E8F0',
   green: '#059669',
   red: '#DC2626',
 };
@@ -140,7 +140,7 @@ export function GozetmenKurallariPaneli({ departmentId, duzenlenebilir = true, o
                 />
                 <span>
                   <span
-                    style={{ fontSize: 13, fontWeight: 700, color: secili ? '#1D4ED8' : R.navy }}
+                    style={{ fontSize: 13, fontWeight: 700, color: secili ? '#115E59' : R.navy }}
                   >
                     {s.label}
                   </span>

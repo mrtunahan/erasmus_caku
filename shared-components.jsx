@@ -821,14 +821,14 @@ const _generateColorFromString = (str) => {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
   const colors = [
-    '#EF4444',
+    '#DC2626',
     '#F97316',
     '#EAB308',
     '#22C55E',
-    '#10B981',
+    '#059669',
     '#06B6D4',
     '#3B82F6',
-    '#6366F1',
+    '#0D9488',
     '#8B5CF6',
     '#A855F7',
     '#EC4899',
@@ -864,7 +864,7 @@ const DEPARTMENTS = [
     id: 'makine',
     name: 'Makine Mühendisliği',
     shortName: 'Makine',
-    color: '#EF4444',
+    color: '#DC2626',
     icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
   },
   {
@@ -1293,7 +1293,7 @@ function BelgeGonderButonu({ belge, resolveBelge, label, onSent }) {
   const sel = {
     padding: '7px 10px',
     borderRadius: 8,
-    border: '1px solid #E5E7EB',
+    border: '1px solid #E2E8F0',
     fontSize: 12.5,
     fontFamily: "'Inter', sans-serif",
   };
@@ -1662,9 +1662,9 @@ function BelgeOnizlemeModal({
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
-    border: '1px solid #E5E7EB',
+    border: '1px solid #E2E8F0',
     background: '#fff',
-    color: '#1F2937',
+    color: '#1E293B',
     fontFamily: 'inherit',
   };
 
@@ -1697,7 +1697,7 @@ function BelgeOnizlemeModal({
         <div
           style={{
             padding: '14px 18px',
-            borderBottom: '1px solid #E5E7EB',
+            borderBottom: '1px solid #E2E8F0',
             display: 'flex',
             alignItems: 'center',
             gap: 12,
@@ -1707,7 +1707,7 @@ function BelgeOnizlemeModal({
             <div style={{ fontSize: 15, fontWeight: 700, color: '#1B2A4A' }}>
               {baslik || 'Belge Önizleme'}
             </div>
-            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
               {filename || 'belge.docx'}
             </div>
             {sayfaTasti && (
@@ -1730,14 +1730,14 @@ function BelgeOnizlemeModal({
             // Ölçekleme yetmezse (çok geniş tablo) kırpmak yerine kaydırılsın:
             // görünmeyen bir sütun, yanlış görünen bir sütundan beterdir.
             overflowX: 'auto',
-            background: '#F3F4F6',
+            background: '#F1F5F9',
             padding: 16,
           }}
         >
           {hata ? (
             <div style={{ padding: 30, textAlign: 'center', color: '#B91C1C', fontSize: 13 }}>
               {hata}
-              <div style={{ color: '#6B7280', marginTop: 6, fontSize: 12.5 }}>
+              <div style={{ color: '#64748B', marginTop: 6, fontSize: 12.5 }}>
                 Belgeyi yine de indirebilirsiniz.
               </div>
             </div>
@@ -1749,7 +1749,7 @@ function BelgeOnizlemeModal({
         <div
           style={{
             padding: '12px 18px',
-            borderTop: '1px solid #E5E7EB',
+            borderTop: '1px solid #E2E8F0',
             display: 'flex',
             gap: 8,
             justifyContent: 'flex-end',
@@ -1774,7 +1774,7 @@ function BelgeOnizlemeModal({
               İndir
             </button>
           ) : (
-            <span style={{ fontSize: 12, color: '#6B7280', alignSelf: 'center' }}>
+            <span style={{ fontSize: 12, color: '#64748B', alignSelf: 'center' }}>
               Bu belge yalnızca görüntülenebilir.
             </span>
           )}
@@ -1807,7 +1807,7 @@ function BelgeOnizlemeModal({
               }}
               style={{
                 ...btn,
-                background: gonderiliyor || gonderildi ? '#9CA3AF' : '#1B2A4A',
+                background: gonderiliyor || gonderildi ? '#94A3B8' : '#1B2A4A',
                 color: '#fff',
                 borderColor: 'transparent',
                 cursor: gonderiliyor || gonderildi ? 'default' : 'pointer',
@@ -5731,7 +5731,7 @@ const AI_KIYAS_STILI = {
   ayni: { renk: '#047857', bg: '#ECFDF5', etiket: 'Uyuşuyor' },
   farkli: { renk: '#B91C1C', bg: '#FEF2F2', etiket: 'UYUŞMUYOR' },
   belgede_yok: { renk: '#B45309', bg: '#FFFBEB', etiket: 'Belgede yok' },
-  formda_bos: { renk: '#6B7280', bg: '#F3F4F6', etiket: 'Formda boş' },
+  formda_bos: { renk: '#64748B', bg: '#F1F5F9', etiket: 'Formda boş' },
 };
 
 /**
@@ -5880,7 +5880,7 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
 
   const secimSayisi = Object.values(secili).filter(Boolean).length;
   const ustSecimSayisi = Object.values(ustSecili).filter(Boolean).length;
-  const hucre = { padding: '7px 10px', borderBottom: '1px solid #F3F4F6', fontSize: 12.5 };
+  const hucre = { padding: '7px 10px', borderBottom: '1px solid #F1F5F9', fontSize: 12.5 };
 
   return React.createElement(
     'div',
@@ -5895,9 +5895,9 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
         style: {
           padding: '8px 14px',
           borderRadius: 8,
-          border: '1px solid #C7D2FE',
-          background: dosyaVar ? '#EEF2FF' : '#F3F4F6',
-          color: dosyaVar ? '#3730A3' : '#9CA3AF',
+          border: '1px solid #99F6E4',
+          background: dosyaVar ? '#F0FDFA' : '#F1F5F9',
+          color: dosyaVar ? '#134E4A' : '#94A3B8',
           fontSize: 12.5,
           fontWeight: 600,
           cursor: calisiyor || !dosyaVar ? 'not-allowed' : 'pointer',
@@ -5918,7 +5918,7 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
           {
             style: {
               marginTop: 12,
-              border: '1px solid #E5E7EB',
+              border: '1px solid #E2E8F0',
               borderRadius: 10,
               background: 'white',
               overflow: 'hidden',
@@ -5929,11 +5929,11 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
             {
               style: {
                 padding: '10px 14px',
-                background: '#F9FAFB',
-                borderBottom: '1px solid #E5E7EB',
+                background: '#F8FAFC',
+                borderBottom: '1px solid #E2E8F0',
                 fontSize: 12.5,
                 fontWeight: 700,
-                color: '#111827',
+                color: '#0F172A',
               },
             },
             satirlar.length === 0
@@ -5948,13 +5948,13 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
               {
                 style: {
                   padding: '10px 14px',
-                  borderBottom: '1px solid ' + '#E5E7EB',
-                  background: '#FCFCFD',
+                  borderBottom: '1px solid ' + '#E2E8F0',
+                  background: '#F8FAFC',
                 },
               },
               React.createElement(
                 'div',
-                { style: { fontSize: 11, color: '#6B7280', fontWeight: 700, marginBottom: 8 } },
+                { style: { fontSize: 11, color: '#64748B', fontWeight: 700, marginBottom: 8 } },
                 'BELGENİN BAŞLIK BİLGİSİ — tüm satırlara uygulanır'
               ),
               React.createElement(
@@ -5996,12 +5996,12 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
                         { style: { minWidth: 0 } },
                         React.createElement(
                           'div',
-                          { style: { fontSize: 11, color: '#6B7280' } },
+                          { style: { fontSize: 11, color: '#64748B' } },
                           a.label || a.id
                         ),
                         React.createElement(
                           'div',
-                          { style: { fontSize: 12.5, fontWeight: 600, color: '#111827' } },
+                          { style: { fontSize: 12.5, fontWeight: 600, color: '#0F172A' } },
                           c.deger
                         )
                       ),
@@ -6037,7 +6037,7 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
                   null,
                   React.createElement(
                     'tr',
-                    { style: { background: '#F9FAFB', textAlign: 'left' } },
+                    { style: { background: '#F8FAFC', textAlign: 'left' } },
                     React.createElement(
                       'th',
                       { style: { ...hucre, width: 34 } },
@@ -6058,7 +6058,7 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
                         'th',
                         {
                           key: c.id,
-                          style: { ...hucre, fontSize: 11, color: '#6B7280', fontWeight: 700 },
+                          style: { ...hucre, fontSize: 11, color: '#64748B', fontWeight: 700 },
                         },
                         c.label || c.id
                       )
@@ -6105,13 +6105,13 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
                 alignItems: 'center',
                 gap: 8,
                 padding: '10px 14px',
-                borderTop: '1px solid #E5E7EB',
-                background: '#F9FAFB',
+                borderTop: '1px solid #E2E8F0',
+                background: '#F8FAFC',
               },
             },
             React.createElement(
               'span',
-              { style: { fontSize: 11, color: '#6B7280' } },
+              { style: { fontSize: 11, color: '#64748B' } },
               'Otomatik okunmuştur; kaydetmeden önce kontrol edin.'
             ),
             React.createElement(
@@ -6128,7 +6128,7 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
                   style: {
                     padding: '7px 12px',
                     borderRadius: 8,
-                    border: '1px solid #E5E7EB',
+                    border: '1px solid #E2E8F0',
                     background: 'white',
                     fontSize: 12,
                     cursor: 'pointer',
@@ -6146,7 +6146,7 @@ window.AISatirDoldurButonu = function AISatirDoldurButonu({
                     padding: '7px 14px',
                     borderRadius: 8,
                     border: 'none',
-                    background: secimSayisi === 0 && ustSecimSayisi === 0 ? '#D1D5DB' : '#4338CA',
+                    background: secimSayisi === 0 && ustSecimSayisi === 0 ? '#CBD5E1' : '#115E59',
                     color: 'white',
                     fontSize: 12,
                     fontWeight: 600,
@@ -6235,8 +6235,8 @@ window.AIBelgeKontrol = function AIBelgeKontrol({
           padding: '8px 14px',
           borderRadius: 8,
           border: '1px solid #FDE68A',
-          background: dosyaVar ? '#FFFBEB' : '#F3F4F6',
-          color: dosyaVar ? '#92400E' : '#9CA3AF',
+          background: dosyaVar ? '#FFFBEB' : '#F1F5F9',
+          color: dosyaVar ? '#92400E' : '#94A3B8',
           fontSize: 12.5,
           fontWeight: 600,
           cursor: calisiyor || !dosyaVar ? 'not-allowed' : 'pointer',
@@ -6257,7 +6257,7 @@ window.AIBelgeKontrol = function AIBelgeKontrol({
           {
             style: {
               marginTop: 12,
-              border: '1px solid #E5E7EB',
+              border: '1px solid #E2E8F0',
               borderRadius: 10,
               background: 'white',
               overflow: 'hidden',
@@ -6268,7 +6268,7 @@ window.AIBelgeKontrol = function AIBelgeKontrol({
             {
               style: {
                 padding: '10px 14px',
-                borderBottom: '1px solid #E5E7EB',
+                borderBottom: '1px solid #E2E8F0',
                 background: sonuc.farkliSayisi > 0 ? '#FEF2F2' : '#ECFDF5',
                 fontSize: 12.5,
                 fontWeight: 700,
@@ -6290,7 +6290,7 @@ window.AIBelgeKontrol = function AIBelgeKontrol({
                 null,
                 React.createElement(
                   'tr',
-                  { style: { background: '#F9FAFB', textAlign: 'left' } },
+                  { style: { background: '#F8FAFC', textAlign: 'left' } },
                   ['Alan', 'Formdaki', 'Belgedeki', 'Durum'].map((h) =>
                     React.createElement(
                       'th',
@@ -6299,9 +6299,9 @@ window.AIBelgeKontrol = function AIBelgeKontrol({
                         style: {
                           padding: '8px 12px',
                           fontSize: 11,
-                          color: '#6B7280',
+                          color: '#64748B',
                           fontWeight: 700,
-                          borderBottom: '1px solid #E5E7EB',
+                          borderBottom: '1px solid #E2E8F0',
                           whiteSpace: 'nowrap',
                         },
                       },
@@ -6318,7 +6318,7 @@ window.AIBelgeKontrol = function AIBelgeKontrol({
                   const st = AI_KIYAS_STILI[c.durum] || AI_KIYAS_STILI.belgede_yok;
                   const hucre = {
                     padding: '8px 12px',
-                    borderBottom: '1px solid #F3F4F6',
+                    borderBottom: '1px solid #F1F5F9',
                     verticalAlign: 'top',
                   };
                   return React.createElement(
@@ -6329,24 +6329,24 @@ window.AIBelgeKontrol = function AIBelgeKontrol({
                     },
                     React.createElement(
                       'td',
-                      { style: { ...hucre, color: '#374151' } },
+                      { style: { ...hucre, color: '#334155' } },
                       a.label || a.id,
                       c.aciklama
                         ? React.createElement(
                             'div',
-                            { style: { fontSize: 11, color: '#9CA3AF', marginTop: 2 } },
+                            { style: { fontSize: 11, color: '#94A3B8', marginTop: 2 } },
                             c.aciklama
                           )
                         : null
                     ),
                     React.createElement(
                       'td',
-                      { style: { ...hucre, fontWeight: 600, color: '#111827' } },
+                      { style: { ...hucre, fontWeight: 600, color: '#0F172A' } },
                       c.formDeger || '—'
                     ),
                     React.createElement(
                       'td',
-                      { style: { ...hucre, fontWeight: 600, color: '#111827' } },
+                      { style: { ...hucre, fontWeight: 600, color: '#0F172A' } },
                       c.belgeDeger || '—'
                     ),
                     React.createElement(
@@ -6381,13 +6381,13 @@ window.AIBelgeKontrol = function AIBelgeKontrol({
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 padding: '9px 14px',
-                borderTop: '1px solid #E5E7EB',
-                background: '#F9FAFB',
+                borderTop: '1px solid #E2E8F0',
+                background: '#F8FAFC',
               },
             },
             React.createElement(
               'span',
-              { style: { fontSize: 11, color: '#6B7280' } },
+              { style: { fontSize: 11, color: '#64748B' } },
               'Bu bir ön denetimdir; nihai karar değerlendiricinindir.'
             ),
             React.createElement(
@@ -6398,7 +6398,7 @@ window.AIBelgeKontrol = function AIBelgeKontrol({
                 style: {
                   padding: '6px 12px',
                   borderRadius: 8,
-                  border: '1px solid #E5E7EB',
+                  border: '1px solid #E2E8F0',
                   background: 'white',
                   fontSize: 12,
                   cursor: 'pointer',
@@ -6508,9 +6508,9 @@ window.AIDoldurButonu = function AIDoldurButonu({
         style: {
           padding: '8px 14px',
           borderRadius: 8,
-          border: '1px solid #C7D2FE',
-          background: dosyaVar ? '#EEF2FF' : '#F3F4F6',
-          color: dosyaVar ? '#3730A3' : '#9CA3AF',
+          border: '1px solid #99F6E4',
+          background: dosyaVar ? '#F0FDFA' : '#F1F5F9',
+          color: dosyaVar ? '#134E4A' : '#94A3B8',
           fontSize: 12.5,
           fontWeight: 600,
           cursor: calisiyor || !dosyaVar ? 'not-allowed' : 'pointer',
@@ -6531,7 +6531,7 @@ window.AIDoldurButonu = function AIDoldurButonu({
           {
             style: {
               marginTop: 12,
-              border: '1px solid #E5E7EB',
+              border: '1px solid #E2E8F0',
               borderRadius: 10,
               background: 'white',
               overflow: 'hidden',
@@ -6542,11 +6542,11 @@ window.AIDoldurButonu = function AIDoldurButonu({
             {
               style: {
                 padding: '10px 14px',
-                background: '#F9FAFB',
-                borderBottom: '1px solid #E5E7EB',
+                background: '#F8FAFC',
+                borderBottom: '1px solid #E2E8F0',
                 fontSize: 12.5,
                 fontWeight: 700,
-                color: '#111827',
+                color: '#0F172A',
               },
             },
             'Belgeden okunan bilgiler — aktarmak istediklerinizi işaretleyin'
@@ -6554,7 +6554,7 @@ window.AIDoldurButonu = function AIDoldurButonu({
           dolu.length === 0
             ? React.createElement(
                 'div',
-                { style: { padding: 16, fontSize: 12.5, color: '#6B7280' } },
+                { style: { padding: 16, fontSize: 12.5, color: '#64748B' } },
                 'Belgede bu alanlara karşılık gelen bir bilgi bulunamadı.'
               )
             : React.createElement(
@@ -6589,18 +6589,18 @@ window.AIDoldurButonu = function AIDoldurButonu({
                       null,
                       React.createElement(
                         'div',
-                        { style: { fontSize: 11.5, color: '#6B7280' } },
+                        { style: { fontSize: 11.5, color: '#64748B' } },
                         a.label || a.id
                       ),
                       React.createElement(
                         'div',
-                        { style: { fontSize: 13, fontWeight: 600, color: '#111827' } },
+                        { style: { fontSize: 13, fontWeight: 600, color: '#0F172A' } },
                         c.deger
                       ),
                       c.kaynak
                         ? React.createElement(
                             'div',
-                            { style: { fontSize: 11, color: '#9CA3AF', marginTop: 2 } },
+                            { style: { fontSize: 11, color: '#94A3B8', marginTop: 2 } },
                             'Kaynak: ' + c.kaynak
                           )
                         : null
@@ -6632,13 +6632,13 @@ window.AIDoldurButonu = function AIDoldurButonu({
                 alignItems: 'center',
                 gap: 8,
                 padding: '10px 14px',
-                borderTop: '1px solid #E5E7EB',
-                background: '#F9FAFB',
+                borderTop: '1px solid #E2E8F0',
+                background: '#F8FAFC',
               },
             },
             React.createElement(
               'span',
-              { style: { fontSize: 11, color: '#6B7280' } },
+              { style: { fontSize: 11, color: '#64748B' } },
               'Bu bilgiler otomatik okunmuştur; kaydetmeden önce kontrol edin.'
             ),
             React.createElement(
@@ -6652,7 +6652,7 @@ window.AIDoldurButonu = function AIDoldurButonu({
                   style: {
                     padding: '7px 12px',
                     borderRadius: 8,
-                    border: '1px solid #E5E7EB',
+                    border: '1px solid #E2E8F0',
                     background: 'white',
                     fontSize: 12,
                     cursor: 'pointer',
@@ -6670,7 +6670,7 @@ window.AIDoldurButonu = function AIDoldurButonu({
                     padding: '7px 14px',
                     borderRadius: 8,
                     border: 'none',
-                    background: dolu.length === 0 ? '#D1D5DB' : '#4338CA',
+                    background: dolu.length === 0 ? '#CBD5E1' : '#115E59',
                     color: 'white',
                     fontSize: 12,
                     fontWeight: 600,
@@ -7000,7 +7000,7 @@ window.BasvuruSilButonu = function BasvuruSilButonu({
           style: {
             padding: '6px 12px',
             borderRadius: 8,
-            border: '1px solid #E5E7EB',
+            border: '1px solid #E2E8F0',
             background: 'white',
             fontSize: 12,
             cursor: 'pointer',
@@ -7019,7 +7019,7 @@ window.BasvuruSilButonu = function BasvuruSilButonu({
             padding: '6px 14px',
             borderRadius: 8,
             border: 'none',
-            background: siliniyor ? '#D1D5DB' : '#B91C1C',
+            background: siliniyor ? '#CBD5E1' : '#B91C1C',
             color: 'white',
             fontSize: 12,
             fontWeight: 600,
@@ -7417,7 +7417,7 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
     if (Notify.hedefeGit(n, onNavigate)) setOpen(false);
   };
 
-  const PRIMARY = '#0891B2',
+  const PRIMARY = '#0F766E',
     NAVY = '#1E293B',
     MUTED = '#64748B';
   const timeAgo = (iso) => {
@@ -7442,8 +7442,8 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
           width: 40,
           height: 40,
           borderRadius: 10,
-          border: `1.5px solid ${unread > 0 ? PRIMARY : '#E5E7EB'}`,
-          background: unread > 0 ? '#ECFEFF' : 'white',
+          border: `1.5px solid ${unread > 0 ? PRIMARY : '#E2E8F0'}`,
+          background: unread > 0 ? '#F0FDFA' : 'white',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
@@ -7498,7 +7498,7 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
             width: 380,
             background: 'white',
             borderRadius: 14,
-            border: '1px solid #E5E7EB',
+            border: '1px solid #E2E8F0',
             boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
             overflow: 'hidden',
           }}
@@ -7510,8 +7510,8 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '14px 16px',
-              borderBottom: '1px solid #F3F4F6',
-              background: '#FAFAFA',
+              borderBottom: '1px solid #F1F5F9',
+              background: '#F8FAFC',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -7523,7 +7523,7 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                     fontWeight: 600,
                     padding: '2px 7px',
                     borderRadius: 10,
-                    background: '#ECFEFF',
+                    background: '#F0FDFA',
                     color: PRIMARY,
                   }}
                 >
@@ -7558,7 +7558,7 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                 justifyContent: 'space-between',
                 gap: 8,
                 padding: '8px 16px',
-                borderBottom: '1px solid #F3F4F6',
+                borderBottom: '1px solid #F1F5F9',
               }}
             >
               <label
@@ -7592,7 +7592,7 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                       padding: '5px 10px',
                       borderRadius: 6,
                       border: `1px solid ${PRIMARY}40`,
-                      background: '#ECFEFF',
+                      background: '#F0FDFA',
                       color: PRIMARY,
                       cursor: 'pointer',
                     }}
@@ -7628,7 +7628,7 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                     fontWeight: 600,
                     padding: '5px 10px',
                     borderRadius: 6,
-                    border: '1px solid #E5E7EB',
+                    border: '1px solid #E2E8F0',
                     background: 'white',
                     color: MUTED,
                     cursor: 'pointer',
@@ -7668,8 +7668,8 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                       display: 'flex',
                       gap: 12,
                       padding: '12px 16px',
-                      borderBottom: '1px solid #F9FAFB',
-                      background: isSel ? '#FEF2F2' : isRead ? 'white' : '#F0F9FF',
+                      borderBottom: '1px solid #F8FAFC',
+                      background: isSel ? '#FEF2F2' : isRead ? 'white' : '#F0FDFA',
                     }}
                   >
                     <div
@@ -7694,7 +7694,7 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                           width: 8,
                           height: 8,
                           borderRadius: '50%',
-                          background: isRead ? '#D1D5DB' : tagColor,
+                          background: isRead ? '#CBD5E1' : tagColor,
                         }}
                       />
                     </div>
@@ -7726,11 +7726,11 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                         </span>
                       </div>
                       {n.body && (
-                        <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.4 }}>
+                        <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.4 }}>
                           {n.body}
                         </div>
                       )}
-                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>
+                      <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>
                         {timeAgo(n.createdAt)}
                       </div>
                     </div>
@@ -7751,7 +7751,7 @@ const BellMenu = ({ currentUser, activeDepartment, onNavigate }) => {
                             padding: '4px 10px',
                             borderRadius: 6,
                             border: `1px solid ${PRIMARY}30`,
-                            background: '#ECFEFF',
+                            background: '#F0FDFA',
                             color: PRIMARY,
                             fontSize: 11,
                             fontWeight: 600,
@@ -9610,7 +9610,7 @@ const LoginModal = ({ onLogin }) => {
     }
     .lg-brand-mini-dot.d1 { top: -4px; left: calc(50% - 4px); background: #22c55e; box-shadow: 0 2px 6px rgba(34,197,94,0.6); }
     .lg-brand-mini-dot.d2 { top: calc(50% - 4px); right: -4px; background: #eab308; box-shadow: 0 2px 6px rgba(234,179,8,0.6); }
-    .lg-brand-mini-dot.d3 { bottom: -4px; left: calc(50% - 4px); background: #111827; box-shadow: 0 2px 6px rgba(0,0,0,0.45); }
+    .lg-brand-mini-dot.d3 { bottom: -4px; left: calc(50% - 4px); background: #0F172A; box-shadow: 0 2px 6px rgba(0,0,0,0.45); }
     .lg-brand-name {
       font-size: 18px;
       font-weight: 700;
@@ -10488,7 +10488,7 @@ const LoginModal = ({ onLogin }) => {
                         border: 'none',
                         padding: 0,
                         font: 'inherit',
-                        color: '#1D4ED8',
+                        color: '#115E59',
                         textDecoration: 'underline',
                         cursor: 'pointer',
                       }}
@@ -11707,14 +11707,14 @@ const GradeConverter = () => {
       type: 'range',
       columns: ['Tanım (English)', 'Sayısal (Numeric)', 'Karsılık'],
       data: [
-        { text: 'very good', range: '90-100', min: 90, max: 100, eq: 'A', color: '#10B981' },
+        { text: 'very good', range: '90-100', min: 90, max: 100, eq: 'A', color: '#059669' },
         { text: 'good +', range: '85-89', min: 85, max: 89, eq: 'B1', color: '#3B82F6' },
-        { text: 'good', range: '80-84', min: 80, max: 84, eq: 'B2', color: '#60A5FA' },
-        { text: 'sufficient +', range: '75-79', min: 75, max: 79, eq: 'B3', color: '#93C5FD' },
-        { text: 'sufficient', range: '70-74', min: 70, max: 74, eq: 'C1', color: '#F59E0B' },
+        { text: 'good', range: '80-84', min: 80, max: 84, eq: 'B2', color: '#2DD4BF' },
+        { text: 'sufficient +', range: '75-79', min: 75, max: 79, eq: 'B3', color: '#5EEAD4' },
+        { text: 'sufficient', range: '70-74', min: 70, max: 74, eq: 'C1', color: '#D97706' },
         { text: 'allowing +', range: '65-69', min: 65, max: 69, eq: 'C2', color: '#FBBF24' },
         { text: 'allowing', range: '60-64', min: 60, max: 64, eq: 'C3', color: '#FCD34D' },
-        { text: 'insufficient', range: '50-59', min: 50, max: 59, eq: 'F1', color: '#EF4444' },
+        { text: 'insufficient', range: '50-59', min: 50, max: 59, eq: 'F1', color: '#DC2626' },
         { text: 'insufficient', range: '0-49', min: 0, max: 49, eq: 'F2', color: '#DC2626' },
       ],
     },
@@ -11725,14 +11725,14 @@ const GradeConverter = () => {
       type: 'range',
       columns: ['Sayısal Notlar', 'Katsayılar', 'Karsılık'],
       data: [
-        { range: '90-100', min: 90, max: 100, coef: '4,00', eq: 'A', color: '#10B981' },
+        { range: '90-100', min: 90, max: 100, coef: '4,00', eq: 'A', color: '#059669' },
         { range: '85-89', min: 85, max: 89, coef: '3,50', eq: 'B1', color: '#3B82F6' },
-        { range: '80-84', min: 80, max: 84, coef: '3,25', eq: 'B2', color: '#60A5FA' },
-        { range: '75-79', min: 75, max: 79, coef: '3,00', eq: 'B3', color: '#93C5FD' },
-        { range: '70-74', min: 70, max: 74, coef: '2,50', eq: 'C1', color: '#F59E0B' },
+        { range: '80-84', min: 80, max: 84, coef: '3,25', eq: 'B2', color: '#2DD4BF' },
+        { range: '75-79', min: 75, max: 79, coef: '3,00', eq: 'B3', color: '#5EEAD4' },
+        { range: '70-74', min: 70, max: 74, coef: '2,50', eq: 'C1', color: '#D97706' },
         { range: '65-69', min: 65, max: 69, coef: '2,25', eq: 'C2', color: '#FBBF24' },
         { range: '60-64', min: 60, max: 64, coef: '2,00', eq: 'C3', color: '#FCD34D' },
-        { range: '50-59', min: 50, max: 59, coef: '1,50', eq: 'F1', color: '#EF4444' },
+        { range: '50-59', min: 50, max: 59, coef: '1,50', eq: 'F1', color: '#DC2626' },
         { range: '0-49', min: 0, max: 49, coef: '0,00', eq: 'F2', color: '#DC2626' },
       ],
     },
@@ -11743,14 +11743,14 @@ const GradeConverter = () => {
       type: 'mixed',
       columns: ['Basarı Notu', 'Harf Notu', 'Karsılık'],
       data: [
-        { val: 4.0, letter: 'AA', eq: 'A', color: '#10B981' },
+        { val: 4.0, letter: 'AA', eq: 'A', color: '#059669' },
         { val: 3.5, letter: 'BA', eq: 'B1', color: '#3B82F6' },
-        { val: 3.0, letter: 'BB', eq: 'B2', color: '#60A5FA' },
-        { val: 2.5, letter: 'CB', eq: 'B3', color: '#93C5FD' },
-        { val: 2.0, letter: 'CC', eq: 'C1', color: '#F59E0B' },
+        { val: 3.0, letter: 'BB', eq: 'B2', color: '#2DD4BF' },
+        { val: 2.5, letter: 'CB', eq: 'B3', color: '#5EEAD4' },
+        { val: 2.0, letter: 'CC', eq: 'C1', color: '#D97706' },
         { val: 1.5, letter: 'DC', eq: 'C2', color: '#FBBF24' },
         { val: 1.0, letter: 'DD', eq: 'C3', color: '#FCD34D' },
-        { val: 0.0, letter: 'FF', eq: 'F1', color: '#EF4444' },
+        { val: 0.0, letter: 'FF', eq: 'F1', color: '#DC2626' },
         { val: 0.0, letter: 'FD', eq: 'F2', color: '#DC2626' },
         { text: '-', letter: 'Sınava girmedi', eq: 'FF1', color: '#991B1B' },
         { text: '-', letter: 'Devamsızlıktan kaldı', eq: 'FF2', color: '#7F1D1D' },
@@ -11763,12 +11763,12 @@ const GradeConverter = () => {
       type: 'match',
       columns: ['ECTS Notu', 'Acıklama', 'Karsılık'],
       data: [
-        { eq: 'A', def: 'excellent', u_eq: 'A', color: '#10B981' },
+        { eq: 'A', def: 'excellent', u_eq: 'A', color: '#059669' },
         { eq: 'B', def: 'very good', u_eq: 'B1', color: '#3B82F6' },
-        { eq: 'C', def: 'good', u_eq: 'B2', color: '#60A5FA' },
-        { eq: 'D', def: 'satisfactory', u_eq: 'C1', color: '#F59E0B' },
+        { eq: 'C', def: 'good', u_eq: 'B2', color: '#2DD4BF' },
+        { eq: 'D', def: 'satisfactory', u_eq: 'C1', color: '#D97706' },
         { eq: 'E', def: 'sufficient', u_eq: 'C3', color: '#FCD34D' },
-        { eq: 'FX', def: 'failed', u_eq: 'F1', color: '#EF4444' },
+        { eq: 'FX', def: 'failed', u_eq: 'F1', color: '#DC2626' },
         { eq: 'F', def: 'failed', u_eq: 'F2', color: '#DC2626' },
       ],
     },
@@ -11783,7 +11783,7 @@ const GradeConverter = () => {
           eq: 'A',
           pct: '10',
           def: 'EXCELLENT - outstanding performance with only minor errors',
-          color: '#10B981',
+          color: '#059669',
         },
         {
           eq: 'B',
@@ -11795,13 +11795,13 @@ const GradeConverter = () => {
           eq: 'C',
           pct: '30',
           def: 'GOOD - generally sound work with a number of notable errors',
-          color: '#60A5FA',
+          color: '#2DD4BF',
         },
         {
           eq: 'D',
           pct: '25',
           def: 'SATISFACTORY - fair but with significant shortcomings',
-          color: '#F59E0B',
+          color: '#D97706',
         },
         {
           eq: 'E',
@@ -11813,7 +11813,7 @@ const GradeConverter = () => {
           eq: 'FX',
           pct: '-',
           def: 'FAIL - some more work required before the credit can be awarded',
-          color: '#EF4444',
+          color: '#DC2626',
         },
         {
           eq: 'F',
@@ -11830,17 +11830,17 @@ const GradeConverter = () => {
       type: 'exact',
       columns: ['Not', 'Acıklama', 'Karsılık'],
       data: [
-        { val: 10, text: 'with distinctions', eq: 'A', color: '#10B981' },
+        { val: 10, text: 'with distinctions', eq: 'A', color: '#059669' },
         { val: 9, text: 'excellent', eq: 'B1', color: '#3B82F6' },
-        { val: 8, text: 'very good', eq: 'B2', color: '#60A5FA' },
-        { val: 7, text: 'good', eq: 'B3', color: '#93C5FD' },
-        { val: 6, text: 'almost good', eq: 'C1', color: '#F59E0B' },
+        { val: 8, text: 'very good', eq: 'B2', color: '#2DD4BF' },
+        { val: 7, text: 'good', eq: 'B3', color: '#5EEAD4' },
+        { val: 6, text: 'almost good', eq: 'C1', color: '#D97706' },
         { val: 5, text: 'satisfactory', eq: 'C2', color: '#FBBF24' },
         { val: 4, text: 'almost satisfactory', eq: 'C3', color: '#FCD34D' },
-        { val: 3, text: 'not passed or failed', eq: 'F2', color: '#EF4444' },
-        { val: 2, text: 'not passed or failed', eq: 'F2', color: '#EF4444' },
-        { val: 1, text: 'not passed or failed', eq: 'F2', color: '#EF4444' },
-        { val: 0, text: 'not passed or failed', eq: 'F2', color: '#EF4444' },
+        { val: 3, text: 'not passed or failed', eq: 'F2', color: '#DC2626' },
+        { val: 2, text: 'not passed or failed', eq: 'F2', color: '#DC2626' },
+        { val: 1, text: 'not passed or failed', eq: 'F2', color: '#DC2626' },
+        { val: 0, text: 'not passed or failed', eq: 'F2', color: '#DC2626' },
       ],
     },
     system5a: {
@@ -11850,17 +11850,17 @@ const GradeConverter = () => {
       type: 'exact',
       columns: ['Not', 'Acıklama', 'Karsılık'],
       data: [
-        { val: 5, text: 'very good', eq: 'A', color: '#10B981' },
+        { val: 5, text: 'very good', eq: 'A', color: '#059669' },
         { val: 4.5, text: 'good +', eq: 'B1', color: '#3B82F6' },
-        { val: 4, text: 'good', eq: 'B2', color: '#60A5FA' },
-        { val: 3.5, text: 'sufficient +', eq: 'B3', color: '#93C5FD' },
-        { val: 3, text: 'sufficient', eq: 'C1', color: '#F59E0B' },
+        { val: 4, text: 'good', eq: 'B2', color: '#2DD4BF' },
+        { val: 3.5, text: 'sufficient +', eq: 'B3', color: '#5EEAD4' },
+        { val: 3, text: 'sufficient', eq: 'C1', color: '#D97706' },
         { val: 2.5, text: 'allowing +', eq: 'C2', color: '#FBBF24' },
         { val: 2, text: 'allowing', eq: 'C3', color: '#FCD34D' },
-        { val: 1.5, text: 'insufficient', eq: 'F2', color: '#EF4444' },
-        { val: 1, text: 'insufficient', eq: 'F2', color: '#EF4444' },
-        { val: 0.5, text: 'insufficient', eq: 'F2', color: '#EF4444' },
-        { val: 0, text: 'insufficient', eq: 'F2', color: '#EF4444' },
+        { val: 1.5, text: 'insufficient', eq: 'F2', color: '#DC2626' },
+        { val: 1, text: 'insufficient', eq: 'F2', color: '#DC2626' },
+        { val: 0.5, text: 'insufficient', eq: 'F2', color: '#DC2626' },
+        { val: 0, text: 'insufficient', eq: 'F2', color: '#DC2626' },
       ],
     },
     system5b: {
@@ -11870,17 +11870,17 @@ const GradeConverter = () => {
       type: 'exact',
       columns: ['Not', 'Acıklama', 'Karsılık'],
       data: [
-        { val: 5, text: 'very good', eq: 'A', color: '#10B981' },
+        { val: 5, text: 'very good', eq: 'A', color: '#059669' },
         { val: 4.5, text: 'better than good', eq: 'B1', color: '#3B82F6' },
-        { val: 4, text: 'good', eq: 'B2', color: '#60A5FA' },
-        { val: 3.5, text: 'better than satisfactory', eq: 'C1', color: '#F59E0B' },
+        { val: 4, text: 'good', eq: 'B2', color: '#2DD4BF' },
+        { val: 3.5, text: 'better than satisfactory', eq: 'C1', color: '#D97706' },
         { val: 3, text: 'satisfactory', eq: 'C2', color: '#FBBF24' },
         { val: 2.5, text: 'satisfactory', eq: 'C3', color: '#FCD34D' },
-        { val: 2, text: 'failure', eq: 'F2', color: '#EF4444' },
-        { val: 1.5, text: 'failure', eq: 'F2', color: '#EF4444' },
-        { val: 1, text: 'failure', eq: 'F2', color: '#EF4444' },
-        { val: 0.5, text: 'failure', eq: 'F2', color: '#EF4444' },
-        { val: 0, text: 'failure', eq: 'F2', color: '#EF4444' },
+        { val: 2, text: 'failure', eq: 'F2', color: '#DC2626' },
+        { val: 1.5, text: 'failure', eq: 'F2', color: '#DC2626' },
+        { val: 1, text: 'failure', eq: 'F2', color: '#DC2626' },
+        { val: 0.5, text: 'failure', eq: 'F2', color: '#DC2626' },
+        { val: 0, text: 'failure', eq: 'F2', color: '#DC2626' },
       ],
     },
     system5c: {
@@ -11890,11 +11890,11 @@ const GradeConverter = () => {
       type: 'exact',
       columns: ['Not', 'Acıklama', 'Karsılık'],
       data: [
-        { val: 5, text: 'excellent', eq: 'A', color: '#10B981' },
-        { val: 4, text: 'good', eq: 'B2', color: '#60A5FA' },
-        { val: 3, text: 'satisfactory', eq: 'C1', color: '#F59E0B' },
+        { val: 5, text: 'excellent', eq: 'A', color: '#059669' },
+        { val: 4, text: 'good', eq: 'B2', color: '#2DD4BF' },
+        { val: 3, text: 'satisfactory', eq: 'C1', color: '#D97706' },
         { val: 2, text: 'passed', eq: 'C3', color: '#FCD34D' },
-        { val: 1, text: 'failed', eq: 'F1', color: '#EF4444' },
+        { val: 1, text: 'failed', eq: 'F1', color: '#DC2626' },
         { val: 0, text: 'failed', eq: 'F2', color: '#DC2626' },
       ],
     },
@@ -11944,7 +11944,7 @@ const GradeConverter = () => {
           gap: 6,
           overflowX: 'auto',
           paddingBottom: 12,
-          borderBottom: '1px solid #E5E7EB',
+          borderBottom: '1px solid #E2E8F0',
           marginBottom: 20,
         }}
       >
@@ -11963,9 +11963,9 @@ const GradeConverter = () => {
               fontWeight: 500,
               whiteSpace: 'nowrap',
               cursor: 'pointer',
-              background: activeTab === key ? '#EEF2FF' : 'transparent',
-              color: activeTab === key ? '#4F46E5' : '#6B7280',
-              border: activeTab === key ? '1px solid #C7D2FE' : '1px solid transparent',
+              background: activeTab === key ? '#F0FDFA' : 'transparent',
+              color: activeTab === key ? '#0F766E' : '#64748B',
+              border: activeTab === key ? '1px solid #99F6E4' : '1px solid transparent',
               transition: 'all 0.2s',
             }}
           >
@@ -11977,7 +11977,7 @@ const GradeConverter = () => {
       {/* Input Section */}
       <div
         style={{
-          background: '#F3F4F6',
+          background: '#F1F5F9',
           padding: 20,
           borderRadius: 12,
           marginBottom: 24,
@@ -11988,7 +11988,7 @@ const GradeConverter = () => {
           style={{
             fontSize: 13,
             fontWeight: 600,
-            color: '#6B7280',
+            color: '#64748B',
             marginBottom: 12,
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
@@ -12007,12 +12007,12 @@ const GradeConverter = () => {
 
         {result && (
           <div style={{ marginTop: 20, animation: 'fadeIn 0.3s ease' }}>
-            <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>Dönüştürülen Not</div>
+            <div style={{ fontSize: 13, color: '#64748B', marginBottom: 4 }}>Dönüştürülen Not</div>
             <div
               style={{
                 fontSize: 48,
                 fontWeight: 700,
-                color: result.color || '#374151',
+                color: result.color || '#334155',
                 fontFamily: "'Playfair Display', serif",
                 lineHeight: 1,
               }}
@@ -12020,12 +12020,12 @@ const GradeConverter = () => {
               {result.u_eq || result.eq || result.def}
             </div>
             {result.text && (
-              <div style={{ fontSize: 14, fontWeight: 500, color: '#374151', marginTop: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, color: '#334155', marginTop: 8 }}>
                 {result.text}
               </div>
             )}
             {activeTab === 'ects_conv' && (
-              <div style={{ fontSize: 14, fontWeight: 500, color: '#374151', marginTop: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, color: '#334155', marginTop: 8 }}>
                 {result.def}
               </div>
             )}
@@ -12033,7 +12033,7 @@ const GradeConverter = () => {
               <div
                 style={{
                   fontSize: 12,
-                  color: '#6B7280',
+                  color: '#64748B',
                   marginTop: 8,
                   maxWidth: 300,
                   margin: '8px auto',
@@ -12047,17 +12047,17 @@ const GradeConverter = () => {
       </div>
 
       {/* Reference Table */}
-      <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+            <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
               {activeData.columns.map((col, i) => (
                 <th
                   key={i}
                   style={{
                     padding: '12px 16px',
                     textAlign: i === 0 ? 'left' : 'center',
-                    color: '#6B7280',
+                    color: '#64748B',
                     fontWeight: 600,
                   }}
                 >
@@ -12081,14 +12081,14 @@ const GradeConverter = () => {
                   key={i}
                   style={{
                     background: isActive ? `${row.color}15` : 'white',
-                    borderBottom: i !== activeData.data.length - 1 ? '1px solid #F3F4F6' : 'none',
+                    borderBottom: i !== activeData.data.length - 1 ? '1px solid #F1F5F9' : 'none',
                     transition: 'background 0.2s',
                   }}
                 >
                   {/* Render columns based on table type */}
                   {activeTab === 'table1' && (
                     <>
-                      <td style={{ padding: '10px 16px', color: '#111827', fontWeight: 500 }}>
+                      <td style={{ padding: '10px 16px', color: '#0F172A', fontWeight: 500 }}>
                         {row.text}
                       </td>
                       <td
@@ -12103,7 +12103,7 @@ const GradeConverter = () => {
                       <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                         <Badge
                           color="white"
-                          bg={result && result.eq === row.eq ? row.color : '#9CA3AF'}
+                          bg={result && result.eq === row.eq ? row.color : '#94A3B8'}
                         >
                           {row.eq}
                         </Badge>
@@ -12112,7 +12112,7 @@ const GradeConverter = () => {
                   )}
                   {activeTab === 'table2' && (
                     <>
-                      <td style={{ padding: '10px 16px', color: '#111827', fontWeight: 500 }}>
+                      <td style={{ padding: '10px 16px', color: '#0F172A', fontWeight: 500 }}>
                         {row.range}
                       </td>
                       <td
@@ -12127,7 +12127,7 @@ const GradeConverter = () => {
                       <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                         <Badge
                           color="white"
-                          bg={result && result.eq === row.eq ? row.color : '#9CA3AF'}
+                          bg={result && result.eq === row.eq ? row.color : '#94A3B8'}
                         >
                           {row.eq}
                         </Badge>
@@ -12136,7 +12136,7 @@ const GradeConverter = () => {
                   )}
                   {activeTab === 'table3' && (
                     <>
-                      <td style={{ padding: '10px 16px', color: '#111827', fontWeight: 500 }}>
+                      <td style={{ padding: '10px 16px', color: '#0F172A', fontWeight: 500 }}>
                         {row.val !== undefined ? row.val.toFixed(2) : row.text}
                       </td>
                       <td
@@ -12151,7 +12151,7 @@ const GradeConverter = () => {
                       <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                         <Badge
                           color="white"
-                          bg={result && result.eq === row.eq ? row.color : '#9CA3AF'}
+                          bg={result && result.eq === row.eq ? row.color : '#94A3B8'}
                         >
                           {row.eq}
                         </Badge>
@@ -12163,7 +12163,7 @@ const GradeConverter = () => {
                       <td
                         style={{
                           padding: '10px 16px',
-                          color: '#111827',
+                          color: '#0F172A',
                           fontWeight: 500,
                           textAlign: 'center',
                         }}
@@ -12176,7 +12176,7 @@ const GradeConverter = () => {
                       <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                         <Badge
                           color="white"
-                          bg={result && result.u_eq === row.u_eq ? row.color : '#9CA3AF'}
+                          bg={result && result.u_eq === row.u_eq ? row.color : '#94A3B8'}
                         >
                           {row.u_eq}
                         </Badge>
@@ -12188,7 +12188,7 @@ const GradeConverter = () => {
                       <td
                         style={{
                           padding: '10px 16px',
-                          color: '#111827',
+                          color: '#0F172A',
                           fontWeight: 500,
                           textAlign: 'center',
                         }}
@@ -12198,21 +12198,21 @@ const GradeConverter = () => {
                         </Badge>
                       </td>
                       <td style={{ padding: '10px 16px', textAlign: 'center' }}>{row.pct}</td>
-                      <td style={{ padding: '10px 16px', fontSize: 12, color: '#4B5563' }}>
+                      <td style={{ padding: '10px 16px', fontSize: 12, color: '#475569' }}>
                         {row.def}
                       </td>
                     </>
                   )}
                   {(activeTab.startsWith('system10') || activeTab.startsWith('system5')) && (
                     <>
-                      <td style={{ padding: '10px 16px', color: '#111827', fontWeight: 500 }}>
+                      <td style={{ padding: '10px 16px', color: '#0F172A', fontWeight: 500 }}>
                         {row.val}
                       </td>
                       <td style={{ padding: '10px 16px', textAlign: 'center' }}>{row.text}</td>
                       <td style={{ padding: '10px 16px', textAlign: 'center' }}>
                         <Badge
                           color="white"
-                          bg={result && result.eq === row.eq ? row.color : '#9CA3AF'}
+                          bg={result && result.eq === row.eq ? row.color : '#94A3B8'}
                         >
                           {row.eq}
                         </Badge>
@@ -12335,7 +12335,7 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
     width: '100%',
     padding: '11px 42px 11px 14px',
     borderRadius: 8,
-    border: '1px solid #D1D5DB',
+    border: '1px solid #CBD5E1',
     fontSize: 14,
     outline: 'none',
     fontFamily: "'Inter', sans-serif",
@@ -12350,7 +12350,7 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    color: '#9CA3AF',
+    color: '#94A3B8',
     display: 'flex',
     alignItems: 'center',
     padding: 4,
@@ -12359,7 +12359,7 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
     display: 'block',
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: '0.08em',
     marginBottom: 6,
@@ -12397,7 +12397,7 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
           <div style={{ fontSize: 16, fontWeight: 700, color: '#059669', marginBottom: 8 }}>
             Şifre başarıyla değiştirildi!
           </div>
-          <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>
+          <div style={{ fontSize: 13, color: '#64748B', marginBottom: 24 }}>
             Bir sonraki girişinizde yeni şifrenizi kullanın.
           </div>
           <Btn onClick={onClose}>Kapat</Btn>
@@ -12409,15 +12409,15 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
               marginBottom: 8,
               padding: '10px 14px',
               borderRadius: 8,
-              background: '#F3F4F6',
+              background: '#F1F5F9',
               fontSize: 13,
-              color: '#374151',
+              color: '#334155',
             }}
           >
             <span style={{ fontWeight: 600 }}>
               {currentUser?.name || currentUser?.studentNumber}
             </span>
-            <span style={{ color: '#9CA3AF', marginLeft: 8, fontSize: 11 }}>
+            <span style={{ color: '#94A3B8', marginLeft: 8, fontSize: 11 }}>
               {currentUser?.role === 'admin'
                 ? 'Yönetici'
                 : currentUser?.role === 'professor'
@@ -12428,7 +12428,7 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
             </span>
           </div>
 
-          <div style={{ height: 1, background: '#E5E7EB', margin: '16px 0' }} />
+          <div style={{ height: 1, background: '#E2E8F0', margin: '16px 0' }} />
 
           {/* ── MEVCUT ŞİFRE HERKESE SORULUR ──
               Bu alan eskiden admin'e gösterilmiyordu; sunucu da hiçbir rol
@@ -12444,8 +12444,8 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="Mevcut şifreniz"
               style={inputStyle}
-              onFocus={(e) => (e.target.style.borderColor = '#6366F1')}
-              onBlur={(e) => (e.target.style.borderColor = '#D1D5DB')}
+              onFocus={(e) => (e.target.style.borderColor = '#0D9488')}
+              onBlur={(e) => (e.target.style.borderColor = '#CBD5E1')}
             />
             <button type="button" style={eyeBtn} onClick={() => setShowCurrent(!showCurrent)}>
               {eyeIcon(showCurrent)}
@@ -12460,8 +12460,8 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="En az 6 karakter"
               style={inputStyle}
-              onFocus={(e) => (e.target.style.borderColor = '#6366F1')}
-              onBlur={(e) => (e.target.style.borderColor = '#D1D5DB')}
+              onFocus={(e) => (e.target.style.borderColor = '#0D9488')}
+              onBlur={(e) => (e.target.style.borderColor = '#CBD5E1')}
             />
             <button type="button" style={eyeBtn} onClick={() => setShowNew(!showNew)}>
               {eyeIcon(showNew)}
@@ -12479,9 +12479,9 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
                     background:
                       newPassword.length >= i * 4
                         ? newPassword.length >= 10
-                          ? '#10B981'
-                          : '#F59E0B'
-                        : '#E5E7EB',
+                          ? '#059669'
+                          : '#D97706'
+                        : '#E2E8F0',
                     transition: 'background 0.3s',
                   }}
                 />
@@ -12489,7 +12489,7 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
               <span
                 style={{
                   fontSize: 10,
-                  color: newPassword.length >= 10 ? '#10B981' : '#F59E0B',
+                  color: newPassword.length >= 10 ? '#059669' : '#D97706',
                   marginLeft: 6,
                   alignSelf: 'center',
                 }}
@@ -12509,12 +12509,12 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
               style={{
                 ...inputStyle,
                 borderColor:
-                  confirmPassword && confirmPassword !== newPassword ? '#EF4444' : '#D1D5DB',
+                  confirmPassword && confirmPassword !== newPassword ? '#DC2626' : '#CBD5E1',
               }}
-              onFocus={(e) => (e.target.style.borderColor = '#6366F1')}
+              onFocus={(e) => (e.target.style.borderColor = '#0D9488')}
               onBlur={(e) =>
                 (e.target.style.borderColor =
-                  confirmPassword && confirmPassword !== newPassword ? '#EF4444' : '#D1D5DB')
+                  confirmPassword && confirmPassword !== newPassword ? '#DC2626' : '#CBD5E1')
               }
             />
             <button type="button" style={eyeBtn} onClick={() => setShowConfirm(!showConfirm)}>
@@ -12567,7 +12567,7 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
                 padding: '10px 16px',
                 borderRadius: 8,
                 border: 'none',
-                background: loading ? '#A5B4FC' : '#6366F1',
+                background: loading ? '#5EEAD4' : '#0D9488',
                 color: 'white',
                 fontSize: 14,
                 fontWeight: 600,
@@ -12984,7 +12984,7 @@ function ErasmusDonusNotPaneli({
                     borderRadius: 8,
                     fontSize: 13,
                     fontFamily: 'inherit',
-                    background: salt ? '#F3F4F6' : C.card,
+                    background: salt ? '#F1F5F9' : C.card,
                   }}
                 />
               </div>
@@ -13138,7 +13138,7 @@ function ErasmusDonusNotPaneli({
                 borderRadius: 8,
                 border: 'none',
                 background:
-                  harfler.length === 0 || harfler.some((h) => !h.sonuc.ok) ? '#D1D5DB' : C.navy,
+                  harfler.length === 0 || harfler.some((h) => !h.sonuc.ok) ? '#CBD5E1' : C.navy,
                 color: '#fff',
                 fontSize: 13,
                 fontWeight: 700,
@@ -13180,7 +13180,7 @@ function ErasmusDonusNotPaneli({
               padding: '8px 16px',
               borderRadius: 8,
               border: 'none',
-              background: harfler.some((h) => !h.sonuc.ok) ? '#D1D5DB' : C.green,
+              background: harfler.some((h) => !h.sonuc.ok) ? '#CBD5E1' : C.green,
               color: '#fff',
               fontSize: 13,
               fontWeight: 700,
@@ -13362,7 +13362,7 @@ const ZENGIN_STIL = {
     borderRadius: 4,
   },
   mark: { background: '#FEF08A', padding: '0 2px' },
-  a: { color: '#1D4ED8', textDecoration: 'underline' },
+  a: { color: '#115E59', textDecoration: 'underline' },
 };
 
 function zenginDugumler(dugumler, anahtarOnek) {
@@ -13410,7 +13410,7 @@ function zenginDugumler(dugumler, anahtarOnek) {
 const ZenginMetin = ({ html, stil }) => {
   const agac = React.useMemo(() => zenginAyristir(html), [html]);
   return (
-    <div style={{ fontSize: 14, lineHeight: 1.65, color: '#374151', ...(stil || {}) }}>
+    <div style={{ fontSize: 14, lineHeight: 1.65, color: '#334155', ...(stil || {}) }}>
       {zenginDugumler(agac, 'z')}
     </div>
   );
@@ -13566,17 +13566,17 @@ const QuillEditoru = ({ deger, onChange, yukseklik, yerTutucu }) => {
   return (
     <div style={{ position: 'relative' }}>
       <style>{`
-        .caku-quill .ql-toolbar { border-radius: 10px 10px 0 0; border-color: #D1D5DB; background: #F9FAFB; }
-        .caku-quill .ql-container { border-radius: 0 0 10px 10px; border-color: #D1D5DB; font-family: inherit; font-size: 14px; }
+        .caku-quill .ql-toolbar { border-radius: 10px 10px 0 0; border-color: #CBD5E1; background: #F8FAFC; }
+        .caku-quill .ql-container { border-radius: 0 0 10px 10px; border-color: #CBD5E1; font-family: inherit; font-size: 14px; }
         .caku-quill .ql-editor { min-height: ${Math.max(120, yukseklik || 200)}px; line-height: 1.65; }
-        .caku-quill .ql-editor.ql-blank::before { color: #9CA3AF; font-style: normal; }
+        .caku-quill .ql-editor.ql-blank::before { color: #94A3B8; font-style: normal; }
         .caku-quill .ql-snow .ql-picker { font-family: inherit; }
       `}</style>
       <div className="caku-quill">
         <div ref={kutuRef} />
       </div>
       {durum === 'yukleniyor' && (
-        <div style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>Editör yükleniyor…</div>
+        <div style={{ fontSize: 12, color: '#64748B', marginTop: 6 }}>Editör yükleniyor…</div>
       )}
     </div>
   );
@@ -13636,10 +13636,10 @@ const ZenginMetinEditoru = ({ deger, onChange, yukseklik, yerTutucu }) => {
         minWidth: 30,
         height: 28,
         padding: '0 8px',
-        border: '1px solid #D1D5DB',
+        border: '1px solid #CBD5E1',
         borderRadius: 6,
         background: 'white',
-        color: '#374151',
+        color: '#334155',
         fontSize: 13,
         cursor: 'pointer',
         fontFamily: 'inherit',
@@ -13651,11 +13651,11 @@ const ZenginMetinEditoru = ({ deger, onChange, yukseklik, yerTutucu }) => {
   );
 
   const ayrac = (k) => (
-    <span key={k} style={{ width: 1, height: 20, background: '#E5E7EB', margin: '0 2px' }} />
+    <span key={k} style={{ width: 1, height: 20, background: '#E2E8F0', margin: '0 2px' }} />
   );
 
   return (
-    <div style={{ border: '1px solid #D1D5DB', borderRadius: 8, overflow: 'hidden' }}>
+    <div style={{ border: '1px solid #CBD5E1', borderRadius: 8, overflow: 'hidden' }}>
       <div
         style={{
           display: 'flex',
@@ -13663,8 +13663,8 @@ const ZenginMetinEditoru = ({ deger, onChange, yukseklik, yerTutucu }) => {
           alignItems: 'center',
           gap: 4,
           padding: 6,
-          borderBottom: '1px solid #E5E7EB',
-          background: '#F9FAFB',
+          borderBottom: '1px solid #E2E8F0',
+          background: '#F8FAFC',
         }}
       >
         {ZENGIN_ARACLAR.map((a) => dugme(a.etiket, a.baslik, () => uygula(a.komut), a.stil))}
@@ -13794,7 +13794,7 @@ const DuyuruIcerik = ({ duyuru }) => {
             marginTop: 14,
             fontSize: 13,
             fontWeight: 600,
-            color: '#1D4ED8',
+            color: '#115E59',
           }}
         >
           {duyuru.baglantiMetni || 'Ayrıntılar için tıklayın'}
@@ -13912,7 +13912,7 @@ const DuyuruPopup = ({ currentUser }) => {
         <div
           style={{
             padding: '18px 22px 16px',
-            borderBottom: '1px solid #EEF0F4',
+            borderBottom: '1px solid #F1F5F9',
             display: 'flex',
             alignItems: 'flex-start',
             gap: 14,
@@ -13948,8 +13948,8 @@ const DuyuruPopup = ({ currentUser }) => {
                   letterSpacing: 0.2,
                   padding: '3px 10px',
                   borderRadius: 999,
-                  background: erisim.hedefli ? '#ECFDF5' : '#EEF2FF',
-                  color: erisim.hedefli ? '#047857' : '#4338CA',
+                  background: erisim.hedefli ? '#ECFDF5' : '#F0FDFA',
+                  color: erisim.hedefli ? '#047857' : '#115E59',
                 }}
               >
                 {kapsamEtiketi}
@@ -13983,7 +13983,7 @@ const DuyuruPopup = ({ currentUser }) => {
               {duyuru.baslik || 'Duyuru'}
             </div>
             {(yazan || tarih) && (
-              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
                 {yazan}
                 {yazan && tarih ? ' · ' : ''}
                 {tarih}
@@ -13996,13 +13996,13 @@ const DuyuruPopup = ({ currentUser }) => {
             title="Kapat (Esc)"
             style={{
               border: 'none',
-              background: '#F3F4F6',
+              background: '#F1F5F9',
               width: 32,
               height: 32,
               borderRadius: 9,
               fontSize: 18,
               lineHeight: 1,
-              color: '#4B5563',
+              color: '#475569',
               cursor: 'pointer',
               flexShrink: 0,
               padding: 0,
@@ -14022,12 +14022,12 @@ const DuyuruPopup = ({ currentUser }) => {
         <div
           style={{
             padding: '14px 22px 18px',
-            borderTop: '1px solid #EEF0F4',
+            borderTop: '1px solid #F1F5F9',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 12,
-            background: '#FCFCFD',
+            background: '#F8FAFC',
           }}
         >
           {/* Kaç duyuru kaldığı nokta olarak: sayı okumadan görülür. */}
@@ -14242,7 +14242,7 @@ const AkademisyenProgramModal = ({ open, onClose, ad, unvan = '', birim = '' }) 
         }}
       >
         <div
-          style={{ display: 'flex', gap: 4, background: '#F3F4F6', padding: 3, borderRadius: 10 }}
+          style={{ display: 'flex', gap: 4, background: '#F1F5F9', padding: 3, borderRadius: 10 }}
         >
           {donemButonu('guz', 'Güz')}
           {donemButonu('bahar', 'Bahar')}
@@ -14288,9 +14288,9 @@ const AkademisyenProgramModal = ({ open, onClose, ad, unvan = '', birim = '' }) 
           style={{
             padding: 40,
             textAlign: 'center',
-            color: '#9CA3AF',
+            color: '#94A3B8',
             fontSize: 13,
-            border: '1px dashed #D1D5DB',
+            border: '1px dashed #CBD5E1',
             borderRadius: 12,
           }}
         >
@@ -14318,7 +14318,7 @@ const AkademisyenProgramModal = ({ open, onClose, ad, unvan = '', birim = '' }) 
                     style={{
                       width: 90,
                       padding: '8px 6px',
-                      border: '1px solid #D1D5DB',
+                      border: '1px solid #CBD5E1',
                       background: T.color.navy,
                       color: '#fff',
                       fontSize: 11.5,
@@ -14331,7 +14331,7 @@ const AkademisyenProgramModal = ({ open, onClose, ad, unvan = '', birim = '' }) 
                       key={g}
                       style={{
                         padding: '8px 6px',
-                        border: '1px solid #D1D5DB',
+                        border: '1px solid #CBD5E1',
                         background: T.color.navy,
                         color: '#fff',
                         fontSize: 11.5,
@@ -14348,8 +14348,8 @@ const AkademisyenProgramModal = ({ open, onClose, ad, unvan = '', birim = '' }) 
                     <td
                       style={{
                         padding: '6px 8px',
-                        border: '1px solid #D1D5DB',
-                        background: '#F9FAFB',
+                        border: '1px solid #CBD5E1',
+                        background: '#F8FAFC',
                         fontWeight: 600,
                         textAlign: 'center',
                         whiteSpace: 'nowrap',
@@ -14365,7 +14365,7 @@ const AkademisyenProgramModal = ({ open, onClose, ad, unvan = '', birim = '' }) 
                           key={gun}
                           style={{
                             padding: 3,
-                            border: '1px solid #E5E7EB',
+                            border: '1px solid #E2E8F0',
                             verticalAlign: 'top',
                             background: cakisiyor ? '#FEF2F2' : 'transparent',
                             outline: cakisiyor ? '2px solid #DC2626' : 'none',
@@ -14899,7 +14899,7 @@ function SayfaSekmeSeridi({ sekmeler, aktif, onSec, baslik, altBaslik }) {
   const liste = Array.isArray(sekmeler) ? sekmeler : [];
   if (liste.length === 0) return null;
   const LACIVERT = '#1B2A4A';
-  const YESIL = '#059669';
+  const YESIL = '#0F766E';
 
   return (
     <div
@@ -14915,7 +14915,7 @@ function SayfaSekmeSeridi({ sekmeler, aktif, onSec, baslik, altBaslik }) {
         <div style={{ minWidth: 0 }}>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: LACIVERT }}>{baslik}</h2>
           {altBaslik && (
-            <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#6B7280' }}>{altBaslik}</p>
+            <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#64748B' }}>{altBaslik}</p>
           )}
         </div>
       )}
@@ -14951,7 +14951,7 @@ function SayfaSekmeSeridi({ sekmeler, aktif, onSec, baslik, altBaslik }) {
                 textAlign: 'left',
                 padding: '12px 16px',
                 borderRadius: 14,
-                border: '1px solid ' + (on ? LACIVERT : '#E5E7EB'),
+                border: '1px solid ' + (on ? LACIVERT : '#E2E8F0'),
                 background: on ? LACIVERT : '#FFFFFF',
                 color: on ? '#FFFFFF' : LACIVERT,
                 boxShadow: on ? 'none' : '0 1px 3px rgba(16,24,40,0.06)',
@@ -14970,7 +14970,7 @@ function SayfaSekmeSeridi({ sekmeler, aktif, onSec, baslik, altBaslik }) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: on ? 'rgba(255,255,255,0.16)' : '#F3F4F6',
+                  background: on ? 'rgba(255,255,255,0.16)' : '#F1F5F9',
                 }}
               >
                 <SekmeIkonu ad={s.ikon} renk={on ? '#FFFFFF' : YESIL} />
@@ -14997,7 +14997,7 @@ function SayfaSekmeSeridi({ sekmeler, aktif, onSec, baslik, altBaslik }) {
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      color: on ? 'rgba(255,255,255,0.78)' : '#6B7280',
+                      color: on ? 'rgba(255,255,255,0.78)' : '#64748B',
                     }}
                   >
                     {s.ozet}
@@ -15096,7 +15096,7 @@ function SayfaPenceresi({ baslik, altBaslik, enCokGenislik, onKapat, children })
           maxHeight: '94vh',
           display: 'flex',
           flexDirection: 'column',
-          background: '#F7F8FA',
+          background: '#F8FAFC',
           borderRadius: 18,
           overflow: 'hidden',
           boxShadow: '0 28px 70px rgba(15,23,42,0.32)',
@@ -15176,8 +15176,8 @@ function SayfaAltSerit({ isler, aktif, onSec }) {
         gap: 4,
         padding: 4,
         borderRadius: 11,
-        background: '#F3F4F6',
-        border: '1px solid #E5E7EB',
+        background: '#F1F5F9',
+        border: '1px solid #E2E8F0',
         flexWrap: 'wrap',
       }}
     >
@@ -15195,7 +15195,7 @@ function SayfaAltSerit({ isler, aktif, onSec }) {
               border: 'none',
               background: sec ? '#fff' : 'transparent',
               boxShadow: sec ? '0 1px 3px rgba(0,0,0,.12)' : 'none',
-              color: sec ? '#1B2A4A' : '#6B7280',
+              color: sec ? '#1B2A4A' : '#64748B',
               fontSize: 12.5,
               fontWeight: 700,
               cursor: 'pointer',
@@ -15224,12 +15224,12 @@ function SayfaRozet({ sayi, etiket, renk }) {
         flex: '1 1 110px',
         padding: '10px 12px',
         borderRadius: 10,
-        background: '#FAFAFA',
-        border: '1px solid #EEF0F3',
+        background: '#F8FAFC',
+        border: '1px solid #F1F5F9',
       }}
     >
       <div style={{ fontSize: 18, fontWeight: 800, color: renk || '#1B2A4A' }}>{sayi}</div>
-      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{etiket}</div>
+      <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{etiket}</div>
     </div>
   );
 }
@@ -15918,7 +15918,7 @@ const TabanPuanPaneli = ({
                       borderRadius: 20,
                       border: '1px solid ' + (on ? C.navy : C.border),
                       background: on ? C.navy : 'white',
-                      color: on ? '#fff' : uyumsuz ? '#9CA3AF' : C.textMuted,
+                      color: on ? '#fff' : uyumsuz ? '#94A3B8' : C.textMuted,
                       fontSize: 11.5,
                       fontWeight: 700,
                       cursor: 'pointer',
@@ -16029,7 +16029,7 @@ const TabanPuanPaneli = ({
                                     borderRadius: 12,
                                     border: '1px solid ' + (on ? C.navy : C.border),
                                     background: on ? C.navy : 'white',
-                                    color: on ? '#fff' : e.puansiz ? '#9CA3AF' : C.textMuted,
+                                    color: on ? '#fff' : e.puansiz ? '#94A3B8' : C.textMuted,
                                     fontSize: 11,
                                     fontWeight: 700,
                                     cursor: e.puansiz ? 'not-allowed' : 'pointer',

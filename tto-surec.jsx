@@ -308,7 +308,7 @@ export function sonBelge(t, tur) {
 }
 
 const ROL_CIP = {
-  tto: { metin: 'TTO', renk: '#1D4ED8', zemin: '#EFF6FF' },
+  tto: { metin: 'TTO', renk: '#115E59', zemin: '#F0FDFA' },
   akademisyen: { metin: 'Akademisyen', renk: '#7C3AED', zemin: '#F5F3FF' },
 };
 
@@ -565,7 +565,7 @@ export function GonderimKarti({ talep, ayarKaydi, imzali, onImzali, onMesaj, bey
     if (r.ok && r.uyari) setUyari(r.uyari);
   };
   return (
-    <div style={{ ...kart, borderColor: '#BFDBFE', background: '#F8FAFF' }} data-gonderim>
+    <div style={{ ...kart, borderColor: '#99F6E4', background: '#F0FDFA' }} data-gonderim>
       <KartBaslik
         baslik="TTO’ya gönderim"
         aciklama="Formu indirip imzalayın ve kaşeleyin; imzalı hâlini PDF olarak yükleyin. Formda değişiklik yaparsanız formu yeniden indirip imzalı hâlini yeniden yükleyin."
@@ -773,7 +773,7 @@ export function AkademisyenSurecKarti({ talep, onDegisti, kayitliOdeme }) {
         ? ['#F5F3FF', '#DDD6FE', '#5B21B6']
         : d === 'tamamlandi' || d === 'gorevlendirildi' || d === 'onaylandi'
           ? ['#ECFDF5', '#A7F3D0', '#065F46']
-          : ['#EFF6FF', '#BFDBFE', '#1E40AF'];
+          : ['#F0FDFA', '#99F6E4', '#115E59'];
   const proforma = sonBelge(t, 'proforma_tto');
   const odemeHatalari = odemeBilgisiHatalari(odeme);
   const hazir = !!firma && odemeHatalari.length === 0;
@@ -1355,7 +1355,7 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
 
   return (
     <>
-      <div style={{ ...kart, borderColor: '#C7D2FE' }} data-yonetici-surec>
+      <div style={{ ...kart, borderColor: '#99F6E4' }} data-yonetici-surec>
         <KartBaslik baslik="TTO süreci" aciklama={meta || null} sag={<DurumCipi durum={d} />} />
         <SurecCizgisi durum={d} />
         {govde}

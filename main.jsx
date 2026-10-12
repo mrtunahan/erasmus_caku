@@ -208,14 +208,14 @@ class AppErrorBoundary extends React.Component {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: '#F7F5F0',
+            background: '#F5F7FA',
             fontFamily: 'Inter, sans-serif',
             padding: 20,
           }}
         >
           <div style={{ textAlign: 'center', maxWidth: 500 }}>
             <h2 style={{ fontSize: 24, color: '#1B2A4A', marginBottom: 12 }}>Bir hata oluştu</h2>
-            <p style={{ fontSize: 14, color: '#6B7280', marginBottom: 8 }}>
+            <p style={{ fontSize: 14, color: '#64748B', marginBottom: 8 }}>
               {this.state.error?.message || 'Beklenmeyen bir hata meydana geldi.'}
             </p>
             <button
@@ -224,7 +224,7 @@ class AppErrorBoundary extends React.Component {
                 marginTop: 16,
                 padding: '10px 24px',
                 fontSize: 14,
-                border: '1px solid #E5E1D8',
+                border: '1px solid #E2E8F0',
                 background: '#1B2A4A',
                 color: 'white',
                 borderRadius: 8,

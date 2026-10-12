@@ -15,10 +15,10 @@ const ANK = {
   accent: '#0D9488',
   accentDark: '#0F766E',
   accentPale: '#CCFBF1',
-  bg: '#F6F7F9',
+  bg: '#F8FAFC',
   surface: '#FFFFFF',
   surfaceAlt: '#F5FDFB',
-  text: '#1F2937',
+  text: '#1E293B',
   textMuted: '#64748B',
   textDim: '#94A3B8',
   border: '#EAECF0',
@@ -31,8 +31,8 @@ const ANK = {
   amberLight: '#FEF3C7',
   teal: '#0F766E',
   tealLight: '#CCFBF1',
-  blue: '#2563EB',
-  blueLight: '#DBEAFE',
+  blue: '#0F766E',
+  blueLight: '#CCFBF1',
   // tasarım token'ları
   radius: 14,
   shadowSm: '0 1px 2px rgba(16,24,40,0.05), 0 1px 3px rgba(16,24,40,0.04)',
@@ -667,8 +667,8 @@ function YoneticiGorunumu({
       key: 'sonuclar',
       label: 'Sonuçlar',
       variant: 'outline',
-      color: '#2563EB',
-      pale: '#DBEAFE',
+      color: '#0F766E',
+      pale: '#CCFBF1',
       icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     },
   ];
@@ -741,9 +741,9 @@ function YoneticiGorunumu({
 // renk buraya aittir.
 const KAPSAM_RENK = {
   universite: { zemin: '#EDE9FE', renk: '#5B21B6' },
-  fakulte: { zemin: '#DBEAFE', renk: '#1D4ED8' },
+  fakulte: { zemin: '#CCFBF1', renk: '#115E59' },
   bolum: { zemin: '#CCFBF1', renk: '#0F766E' },
-  eski: { zemin: '#F3F4F6', renk: '#6B7280' },
+  eski: { zemin: '#F1F5F9', renk: '#64748B' },
 };
 
 const cardStyle = {
@@ -1060,7 +1060,7 @@ const TQ = {
   primary: '#0D9488',
   primaryDark: '#0F766E',
   grad: 'linear-gradient(135deg, #2DD4BF 0%, #0D9488 100%)',
-  paper: '#ECFEFF',
+  paper: '#F0FDFA',
   line: '#E2E8F0',
   name: '#134E4A',
   sub: '#5B8C86',
@@ -1380,7 +1380,7 @@ function AnketlerPaneli({
           alignItems: 'center',
           gap: 10,
           flexWrap: 'wrap',
-          background: ANK.bluePale || '#F8FAFF',
+          background: ANK.bluePale || '#F0FDFA',
         }}
       >
         <AIcon
@@ -1595,7 +1595,7 @@ function AnketlerPaneli({
                       padding: '8px 10px',
                       borderRadius: 8,
                       border: '1px solid ' + ANK.border,
-                      background: s._yonetilebilir ? ANK.accentPale : ANK.surfaceAlt || '#F3F4F6',
+                      background: s._yonetilebilir ? ANK.accentPale : ANK.surfaceAlt || '#F1F5F9',
                       color: s._yonetilebilir ? ANK.accent : ANK.textMuted,
                       fontSize: 12.5,
                       fontWeight: 600,
@@ -2135,7 +2135,7 @@ function SurveyEditorModal({
               border: '1px solid ' + ANK.border,
               borderRadius: 10,
               padding: 12,
-              background: '#FAFAFA',
+              background: '#F8FAFC',
             }}
           >
             <div
@@ -2417,7 +2417,7 @@ function SurveyEditorModal({
             justifyContent: 'flex-end',
             gap: 8,
             marginTop: 20,
-            borderTop: '1px solid #F3F4F6',
+            borderTop: '1px solid #F1F5F9',
             paddingTop: 16,
           }}
         >
@@ -2965,7 +2965,7 @@ function AtamaPaneli({
             <div>
               <label style={labelStyle}>{tekBolum ? 'Kapsam (otomatik)' : 'Kapsam'}</label>
               {tekBolum ? (
-                <input value={deptName} disabled style={{ ...inputStyle, background: '#F3F4F6' }} />
+                <input value={deptName} disabled style={{ ...inputStyle, background: '#F1F5F9' }} />
               ) : (
                 <select
                   value={secim}
@@ -3424,7 +3424,7 @@ function _countAnswers(responses, qid, options) {
 // ══════════════════════════════════════════════════════════════
 
 const GRAFIK = window.anketGrafikMurekkep || {
-  yazi: '#1F2937',
+  yazi: '#1E293B',
   ikincil: '#52514e',
   soluk: '#898781',
   izgara: '#e1e0d9',
@@ -3988,7 +3988,7 @@ function CommentList({ texts }) {
           key={i}
           style={{
             padding: '8px 12px',
-            background: '#F9FAFB',
+            background: '#F8FAFC',
             borderRadius: 8,
             borderLeft: '3px solid ' + ANK.accent,
             fontSize: 12.5,
@@ -4850,7 +4850,7 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
           <input
             value={otoBolum.name}
             disabled
-            style={{ ...inputStyle, background: '#F3F4F6', cursor: 'default' }}
+            style={{ ...inputStyle, background: '#F1F5F9', cursor: 'default' }}
           />
         );
       }
@@ -4890,7 +4890,7 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
             onChange(f.key, course?.name || '');
             if (f.codeKey) onChange(f.codeKey, course?.code || '');
           }}
-          style={{ ...selectStyle, background: deptId ? 'white' : '#F3F4F6' }}
+          style={{ ...selectStyle, background: deptId ? 'white' : '#F1F5F9' }}
         >
           <option value="">{deptId ? '— Ders seçin —' : 'Önce bölüm seçin'}</option>
           {deptCourses.map((c) => (
@@ -4908,7 +4908,7 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
           value={values[f.key] || ''}
           disabled
           placeholder="Ders seçilince otomatik dolar"
-          style={{ ...inputStyle, background: '#F3F4F6' }}
+          style={{ ...inputStyle, background: '#F1F5F9' }}
         />
       );
     }
@@ -5060,7 +5060,7 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced, e
       <div
         style={{
           height: 5,
-          background: '#F3F4F6',
+          background: '#F1F5F9',
           borderRadius: 4,
           overflow: 'hidden',
           marginBottom: 16,
@@ -5078,7 +5078,7 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced, e
       </div>
 
       <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div style={{ borderBottom: '1px solid #F3F4F6', paddingBottom: 16 }}>
+        <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: 16 }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: ANK.primary, margin: '0 0 4px' }}>
             {survey.title}
           </h2>
@@ -5115,7 +5115,7 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced, e
             alignItems: 'center',
             gap: 10,
             flexWrap: 'wrap',
-            borderTop: '1px solid #F3F4F6',
+            borderTop: '1px solid #F1F5F9',
             paddingTop: 16,
           }}
         >

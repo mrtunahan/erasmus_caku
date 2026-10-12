@@ -396,7 +396,7 @@ const TopHeader = ({
                 left: '50%',
                 transform: 'translateX(-50%)',
                 background: 'white',
-                border: '1px solid #E5E7EB',
+                border: '1px solid #E2E8F0',
                 borderRadius: 10,
                 boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
                 minWidth: 240,
@@ -424,7 +424,7 @@ const TopHeader = ({
                       padding: '9px 12px',
                       border: 'none',
                       background: active ? `${d.color}18` : 'transparent',
-                      color: active ? d.color : '#1F2937',
+                      color: active ? d.color : '#1E293B',
                       fontSize: 13,
                       fontWeight: active ? 600 : 500,
                       borderRadius: 7,
@@ -530,6 +530,13 @@ const TopHeader = ({
 // ══════════════════════════════════════════════════════════════
 // Sidebar Navigation
 // ══════════════════════════════════════════════════════════════
+// Menüde etkin öğe: bütün bölümlerde (bölüm modülleri, ortak, yönetim) AYNI
+// vurgu. Eskiden her bölüm kendi rengini kullanıyordu (bölüm rengi, mavi,
+// bordo); aynı işi gören üç öğe üç ayrı renkte duruyordu.
+const MENU_AKTIF_ZEMIN = '#F0FDFA';
+const MENU_AKTIF_RENK = '#0F766E';
+const MENU_AKTIF_CIZGI = 'inset 3px 0 0 #0F766E';
+
 const Sidebar = ({
   activeDepartment,
   onDepartmentChange: _onDepartmentChange,
@@ -695,8 +702,8 @@ const Sidebar = ({
       style={{
         width: sidebarWidth,
         height: '100%',
-        background: '#F8F9FB',
-        borderRight: '1px solid #E5E7EB',
+        background: '#FFFFFF',
+        borderRight: '1px solid #E2E8F0',
         display: 'flex',
         flexDirection: 'column',
         overflowY: 'auto',
@@ -747,7 +754,7 @@ const Sidebar = ({
               >
                 {activeDept.shortName}
               </div>
-              <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 1 }}>Aktif Bölüm</div>
+              <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 1 }}>Aktif Bölüm</div>
             </div>
           </div>
         </div>
@@ -759,7 +766,7 @@ const Sidebar = ({
           style={{
             fontSize: 10,
             fontWeight: 700,
-            color: '#9CA3AF',
+            color: '#94A3B8',
             textTransform: 'uppercase',
             letterSpacing: '0.1em',
             padding: '8px 4px 4px',
@@ -786,8 +793,9 @@ const Sidebar = ({
                 borderRadius: 8,
                 border: 'none',
                 cursor: 'pointer',
-                background: isActive ? `${activeDept?.color || C.navy}15` : 'transparent',
-                color: isActive ? activeDept?.color || C.navy : '#4B5563',
+                background: isActive ? MENU_AKTIF_ZEMIN : 'transparent',
+                color: isActive ? MENU_AKTIF_RENK : '#475569',
+                boxShadow: isActive ? MENU_AKTIF_CIZGI : 'none',
                 fontSize: 13,
                 fontWeight: isActive ? 600 : 400,
                 fontFamily: "'Inter', sans-serif",
@@ -795,13 +803,11 @@ const Sidebar = ({
                 textAlign: 'left',
               }}
               onMouseEnter={(e) => {
-                if (!isActive) e.currentTarget.style.background = '#F3F4F6';
+                if (!isActive) e.currentTarget.style.background = '#F1F5F9';
               }}
               onMouseLeave={(e) => {
                 if (!isActive)
-                  e.currentTarget.style.background = isActive
-                    ? `${activeDept?.color || C.navy}15`
-                    : 'transparent';
+                  e.currentTarget.style.background = isActive ? MENU_AKTIF_ZEMIN : 'transparent';
               }}
             >
               <NavIcon path={mod.icon} size={18} />
@@ -826,7 +832,7 @@ const Sidebar = ({
       </div>
 
       {/* Divider */}
-      <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
+      <div style={{ margin: '4px 16px', borderTop: '1px solid #E2E8F0' }} />
 
       {/* Common Modules — çapraz bölümde tamamen gizli (sadece ders modülleri).
           İstisna: üniversite dışı akademisyen eklendiği bölümde yalnız Öğrenci
@@ -841,7 +847,7 @@ const Sidebar = ({
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: '#9CA3AF',
+                color: '#94A3B8',
                 textTransform: 'uppercase',
                 letterSpacing: '0.1em',
                 padding: '8px 4px 4px',
@@ -873,8 +879,9 @@ const Sidebar = ({
                     borderRadius: 8,
                     border: 'none',
                     cursor: 'pointer',
-                    background: isActive ? '#3B82F615' : 'transparent',
-                    color: isActive ? '#3B82F6' : '#4B5563',
+                    background: isActive ? MENU_AKTIF_ZEMIN : 'transparent',
+                    color: isActive ? MENU_AKTIF_RENK : '#475569',
+                    boxShadow: isActive ? MENU_AKTIF_CIZGI : 'none',
                     fontSize: 13,
                     fontWeight: isActive ? 600 : 400,
                     fontFamily: "'Inter', sans-serif",
@@ -882,11 +889,13 @@ const Sidebar = ({
                     textAlign: 'left',
                   }}
                   onMouseEnter={(e) => {
-                    if (!isActive) e.currentTarget.style.background = '#F3F4F6';
+                    if (!isActive) e.currentTarget.style.background = '#F1F5F9';
                   }}
                   onMouseLeave={(e) => {
                     if (!isActive)
-                      e.currentTarget.style.background = isActive ? '#3B82F615' : 'transparent';
+                      e.currentTarget.style.background = isActive
+                        ? MENU_AKTIF_ZEMIN
+                        : 'transparent';
                   }}
                 >
                   <NavIcon path={mod.icon} size={18} />
@@ -902,13 +911,13 @@ const Sidebar = ({
           Çapraz-bölüm aktifken (kullanıcının kendi yetki alanı değil) gizlenir. */}
       {!isStajYetkilisi && !isOnExtraDept && (isAdmin || isDeptManager || isHierarchyManager) && (
         <>
-          <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
+          <div style={{ margin: '4px 16px', borderTop: '1px solid #E2E8F0' }} />
           <div style={{ padding: '4px 12px 16px' }}>
             <div
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: '#9CA3AF',
+                color: '#94A3B8',
                 textTransform: 'uppercase',
                 letterSpacing: '0.1em',
                 padding: '8px 4px 4px',
@@ -945,8 +954,9 @@ const Sidebar = ({
                     borderRadius: 8,
                     border: 'none',
                     cursor: 'pointer',
-                    background: isActive ? '#8B263515' : 'transparent',
-                    color: isActive ? '#8B2635' : '#4B5563',
+                    background: isActive ? MENU_AKTIF_ZEMIN : 'transparent',
+                    color: isActive ? MENU_AKTIF_RENK : '#475569',
+                    boxShadow: isActive ? MENU_AKTIF_CIZGI : 'none',
                     fontSize: 13,
                     fontWeight: isActive ? 600 : 400,
                     fontFamily: "'Inter', sans-serif",
@@ -954,11 +964,13 @@ const Sidebar = ({
                     textAlign: 'left',
                   }}
                   onMouseEnter={(e) => {
-                    if (!isActive) e.currentTarget.style.background = '#F3F4F6';
+                    if (!isActive) e.currentTarget.style.background = '#F1F5F9';
                   }}
                   onMouseLeave={(e) => {
                     if (!isActive)
-                      e.currentTarget.style.background = isActive ? '#8B263515' : 'transparent';
+                      e.currentTarget.style.background = isActive
+                        ? MENU_AKTIF_ZEMIN
+                        : 'transparent';
                   }}
                 >
                   <NavIcon path={mod.icon} size={18} />
@@ -976,13 +988,13 @@ const Sidebar = ({
         !isOnExtraDept &&
         HIERARCHY_MODULES.some((m) => currentUser && currentUser[m.flag]) && (
           <>
-            <div style={{ margin: '4px 16px', borderTop: '1px solid #E5E7EB' }} />
+            <div style={{ margin: '4px 16px', borderTop: '1px solid #E2E8F0' }} />
             <div style={{ padding: '4px 12px 16px' }}>
               <div
                 style={{
                   fontSize: 10,
                   fontWeight: 700,
-                  color: '#9CA3AF',
+                  color: '#94A3B8',
                   textTransform: 'uppercase',
                   letterSpacing: '0.1em',
                   padding: '8px 4px 4px',
@@ -1009,8 +1021,9 @@ const Sidebar = ({
                       borderRadius: 8,
                       border: 'none',
                       cursor: 'pointer',
-                      background: isActive ? '#8B263515' : 'transparent',
-                      color: isActive ? '#8B2635' : '#4B5563',
+                      background: isActive ? MENU_AKTIF_ZEMIN : 'transparent',
+                      color: isActive ? MENU_AKTIF_RENK : '#475569',
+                      boxShadow: isActive ? MENU_AKTIF_CIZGI : 'none',
                       fontSize: 13,
                       fontWeight: isActive ? 600 : 400,
                       fontFamily: "'Inter', sans-serif",
@@ -1018,11 +1031,13 @@ const Sidebar = ({
                       textAlign: 'left',
                     }}
                     onMouseEnter={(e) => {
-                      if (!isActive) e.currentTarget.style.background = '#F3F4F6';
+                      if (!isActive) e.currentTarget.style.background = '#F1F5F9';
                     }}
                     onMouseLeave={(e) => {
                       if (!isActive)
-                        e.currentTarget.style.background = isActive ? '#8B263515' : 'transparent';
+                        e.currentTarget.style.background = isActive
+                          ? MENU_AKTIF_ZEMIN
+                          : 'transparent';
                     }}
                   >
                     <NavIcon path={mod.icon} size={18} />
@@ -1048,9 +1063,9 @@ const Sidebar = ({
             gap: 10,
             padding: '10px 12px',
             borderRadius: 8,
-            border: '1px solid #E5E7EB',
+            border: '1px solid #E2E8F0',
             background: 'white',
-            color: '#6366F1',
+            color: '#0D9488',
             fontSize: 13,
             fontWeight: 500,
             fontFamily: "'Inter', sans-serif",
@@ -1058,12 +1073,12 @@ const Sidebar = ({
             transition: 'all 0.15s',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#EEF2FF';
-            e.currentTarget.style.borderColor = '#C7D2FE';
+            e.currentTarget.style.background = '#F0FDFA';
+            e.currentTarget.style.borderColor = '#99F6E4';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'white';
-            e.currentTarget.style.borderColor = '#E5E7EB';
+            e.currentTarget.style.borderColor = '#E2E8F0';
           }}
         >
           <svg
@@ -1088,14 +1103,14 @@ const Sidebar = ({
         <div
           style={{
             padding: '12px 16px',
-            borderTop: '1px solid #E5E7EB',
-            background: '#F3F4F6',
+            borderTop: '1px solid #E2E8F0',
+            background: '#F1F5F9',
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#1F2937' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#1E293B' }}>
             {currentUser?.name || 'Kullanıcı'}
           </div>
-          <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+          <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
             {currentUser?.role === 'admin'
               ? 'Admin'
               : currentUser?.role === 'professor'
@@ -1252,8 +1267,8 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
         style={{
           width: sidebarWidth,
           height: '100%',
-          background: '#F8F9FB',
-          borderLeft: '1px solid #E5E7EB',
+          background: '#FFFFFF',
+          borderLeft: '1px solid #E2E8F0',
           display: 'flex',
           flexDirection: 'column',
           padding: '20px 14px',
@@ -1265,7 +1280,7 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
           style={{
             fontSize: 10,
             fontWeight: 700,
-            color: '#9CA3AF',
+            color: '#94A3B8',
             textTransform: 'uppercase',
             letterSpacing: '0.12em',
             marginBottom: 6,
@@ -1295,14 +1310,14 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
                   padding: '10px 12px',
                   borderRadius: 10,
                   border: hasActive ? '1.5px solid #6366F140' : '1.5px solid transparent',
-                  background: hasActive ? '#EEF2FF' : isOpen ? '#F0F1F3' : 'transparent',
+                  background: hasActive ? '#F0FDFA' : isOpen ? '#F1F5F9' : 'transparent',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                   textAlign: 'left',
                   fontFamily: "'Inter', sans-serif",
                 }}
                 onMouseEnter={(e) => {
-                  if (!hasActive && !isOpen) e.currentTarget.style.background = '#F0F1F3';
+                  if (!hasActive && !isOpen) e.currentTarget.style.background = '#F1F5F9';
                 }}
                 onMouseLeave={(e) => {
                   if (!hasActive && !isOpen) e.currentTarget.style.background = 'transparent';
@@ -1314,7 +1329,7 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
                     height="14"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke={hasActive ? '#4338CA' : '#6B7280'}
+                    stroke={hasActive ? '#115E59' : '#64748B'}
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -1326,7 +1341,7 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
                     style={{
                       fontSize: 12,
                       fontWeight: hasActive ? 700 : 600,
-                      color: hasActive ? '#4338CA' : '#1F2937',
+                      color: hasActive ? '#115E59' : '#1E293B',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -1348,11 +1363,11 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
                     style={{
                       fontSize: 10,
                       fontWeight: 700,
-                      color: '#9CA3AF',
+                      color: '#94A3B8',
                       background: '#FFFFFF',
                       padding: '1px 6px',
                       borderRadius: 999,
-                      border: '1px solid #E5E7EB',
+                      border: '1px solid #E2E8F0',
                     }}
                   >
                     {depts.length}
@@ -1362,7 +1377,7 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
                     height="12"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#6B7280"
+                    stroke="#64748B"
                     strokeWidth="2.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -1383,7 +1398,7 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
                     paddingLeft: 8,
                     marginTop: 4,
                     marginBottom: 4,
-                    borderLeft: '2px solid #E5E7EB',
+                    borderLeft: '2px solid #E2E8F0',
                     marginLeft: 12,
                     display: 'flex',
                     flexDirection: 'column',
@@ -1436,7 +1451,7 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
                             height: 22,
                             borderRadius: 6,
                             flexShrink: 0,
-                            background: isActive ? `${d.color}25` : '#F0F1F3',
+                            background: isActive ? `${d.color}25` : '#F1F5F9',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -1447,7 +1462,7 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
                             height="11"
                             viewBox="0 0 24 24"
                             fill="none"
-                            stroke={isActive ? d.color : '#9CA3AF'}
+                            stroke={isActive ? d.color : '#94A3B8'}
                             strokeWidth="2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -1459,7 +1474,7 @@ const RightSidebar = ({ activeDepartment, onDepartmentChange, currentUser, admin
                           style={{
                             fontSize: 12,
                             fontWeight: isActive ? 650 : 450,
-                            color: isActive ? d.color : '#4B5563',
+                            color: isActive ? d.color : '#475569',
                             fontFamily: "'Inter', sans-serif",
                             lineHeight: 1.3,
                             whiteSpace: 'nowrap',
@@ -1571,7 +1586,7 @@ const memurBtn = (renk, zemin, kenar) => ({
 // Rozet olarak gösterilir; işaretleme "Gelen / Giden Belgeler" ekranında.
 const MEMUR_DURUM = {
   bekliyor: { label: 'Bekliyor', renk: '#B45309', zemin: '#FEF3C7' },
-  goruldu: { label: 'Görüldü', renk: '#1D4ED8', zemin: '#DBEAFE' },
+  goruldu: { label: 'Görüldü', renk: '#115E59', zemin: '#CCFBF1' },
   islemde: { label: 'İşlemde', renk: '#7C3AED', zemin: '#EDE9FE' },
   tamamlandi: { label: 'Tamamlandı', renk: '#047857', zemin: '#D1FAE5' },
 };
@@ -1639,7 +1654,7 @@ function MemurIcerikBtn({ dosyalar, etiket, dosyaAdi }) {
           }
         }}
         style={{
-          ...memurBtn('#1B2A4A', '#EEF2FF', '#1B2A4A22'),
+          ...memurBtn('#1B2A4A', '#F0FDFA', '#1B2A4A22'),
           opacity: busy ? 0.6 : 1,
           cursor: busy ? 'wait' : 'pointer',
         }}
@@ -1935,7 +1950,7 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
         <div style={{ fontSize: 18, fontWeight: 700, color: '#1B2A4A' }}>
           {moduleLabel} — Gelen Çıktılar
         </div>
-        <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 4, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 4, lineHeight: 1.6 }}>
           Bu modülde akademisyenin ürettiği belgeler ve başvurunun tüm ekleri (transkript, ders
           içerikleri) burada toplanır — indirmek için başka ekrana gitmeniz gerekmez.
           <br />
@@ -1994,7 +2009,7 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
               minWidth: 200,
               padding: '9px 13px',
               borderRadius: 9,
-              border: '1px solid #E5E7EB',
+              border: '1px solid #E2E8F0',
               fontSize: 13,
               fontFamily: 'inherit',
               boxSizing: 'border-box',
@@ -2033,9 +2048,9 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
                 style={{
                   padding: '6px 13px',
                   borderRadius: 20,
-                  border: '1px solid ' + (on ? '#0F766E' : '#E5E7EB'),
+                  border: '1px solid ' + (on ? '#0F766E' : '#E2E8F0'),
                   background: on ? '#CCFBF1' : 'white',
-                  color: on ? '#0F766E' : '#6B7280',
+                  color: on ? '#0F766E' : '#64748B',
                   fontSize: 12,
                   fontWeight: 700,
                   cursor: 'pointer',
@@ -2051,16 +2066,16 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
       )}
 
       {items === null ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>Yükleniyor…</div>
+        <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>Yükleniyor…</div>
       ) : gorunen.length === 0 ? (
         <div
           style={{
             background: 'white',
-            border: '1px solid #E5E7EB',
+            border: '1px solid #E2E8F0',
             borderRadius: 12,
             padding: 32,
             textAlign: 'center',
-            color: '#6B7280',
+            color: '#64748B',
             fontSize: 13.5,
             lineHeight: 1.6,
           }}
@@ -2086,8 +2101,8 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
                 key={it.id}
                 style={{
                   background: 'white',
-                  border: '1px solid ' + (it.gizli ? '#FDE68A' : '#E5E7EB'),
-                  borderLeft: '3px solid ' + (it.gizli ? '#D97706' : st ? st.renk : '#E5E7EB'),
+                  border: '1px solid ' + (it.gizli ? '#FDE68A' : '#E2E8F0'),
+                  borderLeft: '3px solid ' + (it.gizli ? '#D97706' : st ? st.renk : '#E2E8F0'),
                   borderRadius: 12,
                   padding: '14px 16px',
                   display: 'flex',
@@ -2105,10 +2120,10 @@ function MemurModuleOutputs({ route, currentUser, activeDepartment, atamalar }) 
                       {it.title}
                     </div>
                     {it.sub && (
-                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{it.sub}</div>
+                      <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{it.sub}</div>
                     )}
                     {tarih && (
-                      <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: 4 }}>{tarih}</div>
+                      <div style={{ fontSize: 11.5, color: '#94A3B8', marginTop: 4 }}>{tarih}</div>
                     )}
                   </div>
                   {it.gizli && (
@@ -3164,14 +3179,14 @@ function AppShell() {
               style={{
                 width: 36,
                 height: 36,
-                border: '3px solid #E5E1D8',
+                border: '3px solid #E2E8F0',
                 borderTopColor: C.navy,
                 borderRadius: '50%',
                 animation: 'spin 0.8s linear infinite',
                 margin: '0 auto 16px',
               }}
             />
-            <p style={{ color: '#666', fontSize: 14 }}>Modül yükleniyor...</p>
+            <p style={{ color: '#64748B', fontSize: 14 }}>Modül yükleniyor...</p>
             <style
               dangerouslySetInnerHTML={{
                 __html: '@keyframes spin { to { transform: rotate(360deg) } }',
@@ -3201,7 +3216,7 @@ function AppShell() {
               style={{
                 width: 36,
                 height: 36,
-                border: '3px solid #E5E1D8',
+                border: '3px solid #E2E8F0',
                 borderTopColor: C.navy,
                 borderRadius: '50%',
                 animation: 'spin 0.8s linear infinite',
@@ -3209,7 +3224,7 @@ function AppShell() {
               }}
             />
           )}
-          <p style={{ color: '#666', fontSize: 14, margin: 0, lineHeight: 1.6 }}>
+          <p style={{ color: '#64748B', fontSize: 14, margin: 0, lineHeight: 1.6 }}>
             {bolumKarari.sebep === 'fakultede_bolum_yok'
               ? 'Fakültenize bağlı bölüm bulunamadı. Fakülte Yönetimi ekranından bölüm ekleyin.'
               : bolumKarari.sebep === 'bolum_bulunamadi'
@@ -3296,7 +3311,7 @@ function AppShell() {
           <div style={{ fontSize: 15, fontWeight: 700, color: '#B91C1C', marginBottom: 8 }}>
             Bu bölüm yüklenemedi
           </div>
-          <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6, marginBottom: 18 }}>
+          <div style={{ fontSize: 13, color: '#64748B', lineHeight: 1.6, marginBottom: 18 }}>
             {window.modulHataMetni
               ? window.modulHataMetni(moduleError)
               : 'Sayfayı yenilemeyi deneyin (Ctrl+Shift+R).'}
@@ -3331,7 +3346,7 @@ function AppShell() {
     <div
       style={{
         minHeight: '100vh',
-        background: '#F3F4F6',
+        background: '#F5F7FA',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -3344,8 +3359,8 @@ function AppShell() {
         /* Sidebar scrollbar */
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
       `,
         }}
       />

@@ -34,7 +34,7 @@ const DYAyrac = ({ children }) => (
       style={{
         fontSize: 10,
         fontWeight: 700,
-        color: '#4F46E5',
+        color: '#0F766E',
         textTransform: 'uppercase',
         letterSpacing: 0.8,
         whiteSpace: 'nowrap',
@@ -43,7 +43,7 @@ const DYAyrac = ({ children }) => (
       {children}
     </span>
     {/* ayraç çizgisi */}
-    <span style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+    <span style={{ flex: 1, height: 1, background: '#E2E8F0' }} />
   </div>
 );
 
@@ -247,13 +247,13 @@ function DersListesiIceAktarModal({
     padding: '5px 6px',
     fontSize: 12,
     borderRadius: 6,
-    border: '1px solid #D1D5DB',
+    border: '1px solid #CBD5E1',
   };
 
   return (
     <Modal open={true} title="Açılan Dersler Listesini İçe Aktar" onClose={onClose} width={1180}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <p style={{ fontSize: 12.5, color: '#6B7280', margin: 0, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 12.5, color: '#64748B', margin: 0, lineHeight: 1.6 }}>
           Bölümün <b>açılan dersler</b> tablosunu (.docx ya da .pdf) seçin. Belgeden{' '}
           <b>ders kodu, ders adı, Z/S, AKTS ve öğretim elemanı</b> okunur; sınıf, tablodaki
           “1.SINIF” başlıklarından çıkarılır. <b>Dönem, seviye ve Bologna linki</b> belgede
@@ -271,10 +271,10 @@ function DersListesiIceAktarModal({
             justifyContent: 'center',
             gap: 6,
             padding: '22px 18px',
-            border: '1.5px dashed ' + (dosyaAdi ? '#818CF8' : '#C7D2FE'),
+            border: '1.5px dashed ' + (dosyaAdi ? '#2DD4BF' : '#99F6E4'),
             borderRadius: 12,
             cursor: okunuyor ? 'wait' : 'pointer',
-            background: dosyaAdi ? '#EEF2FF' : '#F8FAFF',
+            background: dosyaAdi ? '#F0FDFA' : '#F0FDFA',
             textAlign: 'center',
             transition: 'background .15s, border-color .15s',
           }}
@@ -284,7 +284,7 @@ function DersListesiIceAktarModal({
             height="24"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#4F46E5"
+            stroke="#0F766E"
             strokeWidth="1.7"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -293,10 +293,10 @@ function DersListesiIceAktarModal({
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
             <polyline points="14 2 14 8 20 8" />
           </svg>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: '#4F46E5' }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0F766E' }}>
             {okunuyor ? 'Belge okunuyor…' : dosyaAdi ? dosyaAdi : 'Ders listesi belgesini seçin'}
           </span>
-          <span style={{ fontSize: 11.5, color: '#6B7280' }}>
+          <span style={{ fontSize: 11.5, color: '#64748B' }}>
             {dosyaAdi
               ? 'Başka bir belge seçmek için tıklayın'
               : 'Word (.docx) veya PDF · tıklayarak seçin'}
@@ -386,7 +386,7 @@ function DersListesiIceAktarModal({
               </FormField>
             </div>
 
-            <div style={{ fontSize: 12.5, color: '#374151' }}>
+            <div style={{ fontSize: 12.5, color: '#334155' }}>
               <b>{satirlar.length}</b> ders okundu · <b>{seciliSatirlar.length}</b> seçili ·{' '}
               <span style={{ color: '#047857' }}>{yeniSayisi} yeni</span> ·{' '}
               <span style={{ color: '#B45309' }}>{guncelSayisi} güncellenecek</span>
@@ -402,13 +402,13 @@ function DersListesiIceAktarModal({
               style={{
                 maxHeight: 420,
                 overflow: 'auto',
-                border: '1px solid #E5E7EB',
+                border: '1px solid #E2E8F0',
                 borderRadius: 10,
               }}
             >
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead style={{ position: 'sticky', top: 0, background: '#F9FAFB', zIndex: 1 }}>
-                  <tr style={{ textAlign: 'left', color: '#6B7280' }}>
+                <thead style={{ position: 'sticky', top: 0, background: '#F8FAFC', zIndex: 1 }}>
+                  <tr style={{ textAlign: 'left', color: '#64748B' }}>
                     <th style={{ ...hucre, width: 34 }} />
                     <th style={hucre}>Kod</th>
                     <th style={hucre}>Ders Adı</th>
@@ -430,8 +430,8 @@ function DersListesiIceAktarModal({
                       <tr
                         key={i}
                         style={{
-                          borderTop: '1px solid #F3F4F6',
-                          background: !r.secili ? '#FAFAFA' : sorunlu ? '#FEF2F2' : 'white',
+                          borderTop: '1px solid #F1F5F9',
+                          background: !r.secili ? '#F8FAFC' : sorunlu ? '#FEF2F2' : 'white',
                           opacity: r.secili ? 1 : 0.55,
                         }}
                       >
@@ -520,7 +520,7 @@ function DersListesiIceAktarModal({
                             </div>
                           )}
                           {r.ogretimElemanlari.length > 1 && (
-                            <div style={{ color: '#6B7280', fontSize: 10.5, marginTop: 3 }}>
+                            <div style={{ color: '#64748B', fontSize: 10.5, marginTop: 3 }}>
                               belgede {r.ogretimElemanlari.length} kişi yazılı — biri seçilir
                             </div>
                           )}
@@ -581,7 +581,7 @@ function DersListesiIceAktarModal({
             style={{
               padding: '10px 16px',
               background: 'white',
-              border: '1px solid #D1D5DB',
+              border: '1px solid #CBD5E1',
               borderRadius: 8,
               cursor: 'pointer',
             }}
@@ -640,16 +640,16 @@ function EgitmenSecici({ secilenler, akademisyenler, onDegis }) {
                 gap: 6,
                 padding: '4px 6px 4px 10px',
                 borderRadius: 999,
-                background: '#EEF2FF',
-                border: '1px solid #C7D2FE',
-                color: '#3730A3',
+                background: '#F0FDFA',
+                border: '1px solid #99F6E4',
+                color: '#134E4A',
                 fontSize: 12,
                 fontWeight: 600,
               }}
             >
               {/* Sıra numarası: birinci hoca eski `professor` alanına yazılan
                   kişidir (sınav otomasyonu onu okuyor) — görünür olsun. */}
-              <span style={{ color: '#6366F1', fontWeight: 700 }}>{i + 1}.</span>
+              <span style={{ color: '#0D9488', fontWeight: 700 }}>{i + 1}.</span>
               {ad}
               <button
                 type="button"
@@ -659,7 +659,7 @@ function EgitmenSecici({ secilenler, akademisyenler, onDegis }) {
                 style={{
                   border: 'none',
                   background: 'transparent',
-                  color: '#6366F1',
+                  color: '#0D9488',
                   cursor: 'pointer',
                   fontSize: 15,
                   lineHeight: 1,
@@ -700,9 +700,9 @@ function EgitmenSecici({ secilenler, akademisyenler, onDegis }) {
           style={{
             padding: '0 14px',
             borderRadius: 8,
-            border: '1px solid #6366F1',
-            background: girdi.trim() ? '#6366F1' : '#E5E7EB',
-            color: girdi.trim() ? 'white' : '#9CA3AF',
+            border: '1px solid #0D9488',
+            background: girdi.trim() ? '#0D9488' : '#E2E8F0',
+            color: girdi.trim() ? 'white' : '#94A3B8',
             fontWeight: 600,
             fontSize: 13,
             cursor: girdi.trim() ? 'pointer' : 'default',
@@ -712,7 +712,7 @@ function EgitmenSecici({ secilenler, akademisyenler, onDegis }) {
           Ekle
         </button>
       </div>
-      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 6, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 11, color: '#64748B', marginTop: 6, lineHeight: 1.5 }}>
         {liste.length > 1
           ? liste.length +
             ' hoca atandı. Ders programında bu ders bir saate konurken hangi hoca için ' +
@@ -948,7 +948,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
           <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1B2A4A', margin: 0 }}>
             Ders Yönetimi
           </h1>
-          <p style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
+          <p style={{ fontSize: 13, color: '#64748B', marginTop: 4 }}>
             Bölüme ait derslerin programı, hocası ve temel tanımlamaları
           </p>
         </div>
@@ -961,12 +961,12 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
             onClick={() => setIceAktarAcik(true)}
             title="Bölümün açılan dersler tablosunu (.docx / .pdf) okuyup toplu ekler"
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#EEF2FF';
-              e.currentTarget.style.borderColor = '#818CF8';
+              e.currentTarget.style.background = '#F0FDFA';
+              e.currentTarget.style.borderColor = '#2DD4BF';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'white';
-              e.currentTarget.style.borderColor = '#C7D2FE';
+              e.currentTarget.style.borderColor = '#99F6E4';
             }}
             style={{
               display: 'inline-flex',
@@ -974,8 +974,8 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
               gap: 8,
               padding: '10px 16px',
               background: 'white',
-              border: '1px solid #C7D2FE',
-              color: '#4F46E5',
+              border: '1px solid #99F6E4',
+              color: '#0F766E',
               borderRadius: 8,
               cursor: 'pointer',
               fontWeight: 600,
@@ -1037,7 +1037,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
           {
             etiket: 'Hocası atanmamış',
             deger: egitmensiz,
-            renk: egitmensiz > 0 ? '#B45309' : '#6B7280',
+            renk: egitmensiz > 0 ? '#B45309' : '#64748B',
             gizleSifir: false,
           },
         ].filter((k) => !(k.gizleSifir && k.deger === 0));
@@ -1057,7 +1057,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                   background: 'white',
                   padding: '11px 14px',
                   borderRadius: 10,
-                  border: '1px solid #E5E7EB',
+                  border: '1px solid #E2E8F0',
                   display: 'flex',
                   alignItems: 'baseline',
                   justifyContent: 'space-between',
@@ -1067,7 +1067,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                 <span
                   style={{
                     fontSize: 11.5,
-                    color: '#6B7280',
+                    color: '#64748B',
                     fontWeight: 600,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
@@ -1092,17 +1092,17 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
           style={{
             background: 'white',
             borderRadius: 12,
-            border: '1px solid #E5E7EB',
+            border: '1px solid #E2E8F0',
             overflow: 'hidden',
           }}
         >
           <div
             style={{
               padding: 16,
-              borderBottom: '1px solid #E5E7EB',
+              borderBottom: '1px solid #E2E8F0',
               display: 'flex',
               gap: 12,
-              background: '#F9FAFB',
+              background: '#F8FAFC',
               flexWrap: 'wrap',
             }}
           >
@@ -1162,7 +1162,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                       padding: '12px 16px',
                       textAlign: 'left',
                       borderBottom: `2px solid ${C.border}`,
-                      color: '#374151',
+                      color: '#334155',
                     }}
                   >
                     Kod
@@ -1172,7 +1172,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                       padding: '12px 16px',
                       textAlign: 'left',
                       borderBottom: `2px solid ${C.border}`,
-                      color: '#374151',
+                      color: '#334155',
                     }}
                   >
                     Ders Adı
@@ -1182,7 +1182,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                       padding: '12px 16px',
                       textAlign: 'center',
                       borderBottom: `2px solid ${C.border}`,
-                      color: '#374151',
+                      color: '#334155',
                     }}
                   >
                     Sınıf
@@ -1192,7 +1192,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                       padding: '12px 16px',
                       textAlign: 'center',
                       borderBottom: `2px solid ${C.border}`,
-                      color: '#374151',
+                      color: '#334155',
                     }}
                   >
                     Dönem
@@ -1202,7 +1202,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                       padding: '12px 16px',
                       textAlign: 'center',
                       borderBottom: `2px solid ${C.border}`,
-                      color: '#374151',
+                      color: '#334155',
                     }}
                   >
                     AKTS
@@ -1212,7 +1212,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                       padding: '12px 16px',
                       textAlign: 'center',
                       borderBottom: `2px solid ${C.border}`,
-                      color: '#374151',
+                      color: '#334155',
                     }}
                   >
                     Süre
@@ -1222,7 +1222,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                       padding: '12px 16px',
                       textAlign: 'left',
                       borderBottom: `2px solid ${C.border}`,
-                      color: '#374151',
+                      color: '#334155',
                     }}
                   >
                     Akademisyen
@@ -1232,7 +1232,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                       padding: '12px 16px',
                       textAlign: 'center',
                       borderBottom: `2px solid ${C.border}`,
-                      color: '#374151',
+                      color: '#334155',
                     }}
                   >
                     İşlem
@@ -1241,7 +1241,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
               </thead>
               <tbody>
                 {filteredCourses.map((c) => (
-                  <tr key={c.id} style={{ borderBottom: '1px solid #E5E7EB' }}>
+                  <tr key={c.id} style={{ borderBottom: '1px solid #E2E8F0' }}>
                     <td style={{ padding: '12px 16px' }}>
                       <Badge
                         style={{
@@ -1309,7 +1309,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                             borderRadius: 8,
                             fontSize: 10,
                             fontWeight: 700,
-                            background: c.statu === 'Z' ? '#DBEAFE' : '#E1BEE7',
+                            background: c.statu === 'Z' ? '#CCFBF1' : '#E1BEE7',
                             color: c.statu === 'Z' ? '#0D47A1' : '#4A148C',
                           }}
                         >
@@ -1323,12 +1323,12 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                       {c.duration ? (
                         c.duration + ' dk'
                       ) : (
-                        <span style={{ color: '#9CA3AF' }}>—</span>
+                        <span style={{ color: '#94A3B8' }}>—</span>
                       )}
                     </td>
                     <td style={{ padding: '12px 16px', fontSize: 12 }}>
                       {window.dersEgitmenMetni(c) || (
-                        <span style={{ color: '#9CA3AF' }}>Bilinmiyor</span>
+                        <span style={{ color: '#94A3B8' }}>Bilinmiyor</span>
                       )}
                     </td>
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
@@ -1338,7 +1338,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                           style={{
                             background: 'none',
                             border: 'none',
-                            color: '#6366F1',
+                            color: '#0D9488',
                             cursor: 'pointer',
                             fontSize: 13,
                             fontWeight: 600,
@@ -1365,7 +1365,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                 ))}
                 {filteredCourses.length === 0 && (
                   <tr>
-                    <td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#6B7280' }}>
+                    <td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#64748B' }}>
                       Aradığınız kritere uygun ders bulunamadı.
                     </td>
                   </tr>
@@ -1508,8 +1508,8 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                   cursor: 'pointer',
                   padding: '10px 12px',
                   borderRadius: 9,
-                  border: '1px solid ' + (form.uygulamaVar ? '#A5B4FC' : '#E5E7EB'),
-                  background: form.uygulamaVar ? '#EEF2FF' : '#FAFAFA',
+                  border: '1px solid ' + (form.uygulamaVar ? '#5EEAD4' : '#E2E8F0'),
+                  background: form.uygulamaVar ? '#F0FDFA' : '#F8FAFC',
                 }}
               >
                 <input
@@ -1519,14 +1519,14 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                   style={{ marginTop: 2, width: 16, height: 16, cursor: 'pointer' }}
                 />
                 <span>
-                  <b style={{ fontSize: 13.5, color: '#1F2937' }}>
+                  <b style={{ fontSize: 13.5, color: '#1E293B' }}>
                     Bu dersin ayrıca uygulaması var
                   </b>
                   <span
                     style={{
                       display: 'block',
                       fontSize: 11.5,
-                      color: '#6B7280',
+                      color: '#64748B',
                       marginTop: 3,
                       lineHeight: 1.6,
                     }}
@@ -1597,7 +1597,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
               justifyContent: 'flex-end',
               marginTop: 18,
               paddingTop: 14,
-              borderTop: '1px solid #E5E7EB',
+              borderTop: '1px solid #E2E8F0',
             }}
           >
             <button
@@ -1605,12 +1605,12 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
               style={{
                 padding: '10px 16px',
                 background: 'white',
-                border: '1px solid #D1D5DB',
+                border: '1px solid #CBD5E1',
                 borderRadius: 8,
                 cursor: 'pointer',
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#6B7280',
+                color: '#64748B',
                 fontFamily: 'inherit',
               }}
             >

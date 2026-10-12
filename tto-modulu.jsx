@@ -388,7 +388,7 @@ function TalepFormu({
                           fontSize: 10.5,
                           fontWeight: 600,
                           color: T.birincil,
-                          background: '#EFF6FF',
+                          background: '#F0FDFA',
                           borderRadius: 4,
                           padding: '1px 5px',
                         }}
@@ -459,8 +459,8 @@ function TalepFormu({
                       gap: 10,
                       padding: '10px 12px',
                       borderRadius: 8,
-                      border: `1px solid ${secili ? '#93C5FD' : T.kenar}`,
-                      background: secili ? '#EFF6FF' : T.yuzey,
+                      border: `1px solid ${secili ? '#5EEAD4' : T.kenar}`,
+                      background: secili ? '#F0FDFA' : T.yuzey,
                       cursor: kilitli ? 'default' : 'pointer',
                       fontSize: 13.5,
                     }}
@@ -1122,8 +1122,8 @@ function YolHaritasi() {
                       fontWeight: 700,
                       padding: '1px 7px',
                       borderRadius: 999,
-                      color: kim === 'Akademisyen' ? '#7C3AED' : '#1D4ED8',
-                      background: kim === 'Akademisyen' ? '#F5F3FF' : '#EFF6FF',
+                      color: kim === 'Akademisyen' ? '#7C3AED' : '#115E59',
+                      background: kim === 'Akademisyen' ? '#F5F3FF' : '#F0FDFA',
                     }}
                   >
                     {kim}

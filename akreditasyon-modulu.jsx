@@ -34,16 +34,16 @@ const AKR = {
   navy: '#1B2A4A',
   accent: '#0F766E',
   accentPale: '#CCFBF1',
-  text: '#1F2937',
-  textMuted: '#6B7280',
-  border: '#E5E7EB',
+  text: '#1E293B',
+  textMuted: '#64748B',
+  border: '#E2E8F0',
   green: '#059669',
   greenLight: '#D1FAE5',
   amber: '#B45309',
   amberLight: '#FEF3C7',
   red: '#DC2626',
   redLight: '#FEE2E2',
-  bg: '#F8F9FB',
+  bg: '#F8FAFC',
 };
 
 // Havuz kanıt türleri
@@ -1831,11 +1831,11 @@ function AkreditasyonHazirlik() {
       <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1B2A4A', margin: '0 0 10px' }}>
         Akreditasyon — Hazırlık Aşamasında
       </h1>
-      <p style={{ fontSize: 14, color: '#4B5563', lineHeight: 1.7, margin: 0 }}>
+      <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.7, margin: 0 }}>
         Bu modül üzerinde çalışılıyor ve henüz kullanıma açılmadı. Ölçüt çerçevesi kesinleşip kurum
         ölçütleriyle eşleştirildiğinde erişiminize açılacak.
       </p>
-      <p style={{ fontSize: 12.5, color: '#6B7280', lineHeight: 1.7, marginTop: 14 }}>
+      <p style={{ fontSize: 12.5, color: '#64748B', lineHeight: 1.7, marginTop: 14 }}>
         Bu süreçte kanıt toplamaya başlamanız gerekiyorsa üniversite yetkilisine iletebilirsiniz.
       </p>
     </div>
@@ -2807,7 +2807,7 @@ function AkreditasyonIcerik({ currentUser }) {
                     padding: '8px 12px',
                     borderRadius: 8,
                     border: '1px solid ' + (enabled ? '#7C3AED' : AKR.border),
-                    background: enabled ? '#F5F3FF' : '#F3F4F6',
+                    background: enabled ? '#F5F3FF' : '#F1F5F9',
                     color: enabled ? '#6D28D9' : AKR.textMuted,
                     fontSize: 12.5,
                     fontWeight: 700,

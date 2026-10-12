@@ -19,16 +19,16 @@ const CY = {
   navy: '#1B2A4A',
   accent: '#0F766E',
   accentPale: '#CCFBF1',
-  text: '#1F2937',
-  textMuted: '#6B7280',
-  border: '#E5E7EB',
+  text: '#1E293B',
+  textMuted: '#64748B',
+  border: '#E2E8F0',
   green: '#059669',
   greenLight: '#D1FAE5',
   amber: '#B45309',
   amberLight: '#FEF3C7',
   red: '#DC2626',
   redLight: '#FEE2E2',
-  bg: '#F8F9FB',
+  bg: '#F8FAFC',
 };
 
 // Başvuru türleri — modülü iki bağımsız alana böler (ayrı kayıt, ayrı ek, ayrı çıktı)
@@ -39,7 +39,7 @@ const CY_TURLER = [
     kisa: 'ÇAP',
     aciklama: 'Çift anadal programı başvuru dilekçesi ve ekleri',
     color: '#00236f',
-    bg: '#eef1ff',
+    bg: '#f0fdfa',
     ekler: [
       { id: 'transkript', title: 'Not Döküm Belgesi (Transkript) — Aslı', required: true },
       {

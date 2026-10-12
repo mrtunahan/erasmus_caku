@@ -28,8 +28,8 @@ const GhostBtn = ({ children, onClick, disabled, style: customStyle }) => {
       style={{
         padding: '10px 18px',
         borderRadius: 8,
-        border: '1px solid ' + (C ? C.border : '#E5E1D8'),
-        background: hover ? (C ? C.blueLight : '#DBEAFE') : 'transparent',
+        border: '1px solid ' + (C ? C.border : '#E2E8F0'),
+        background: hover ? (C ? C.blueLight : '#CCFBF1') : 'transparent',
         color: C ? C.blue : '#3B82F6',
         fontSize: 14,
         fontWeight: 600,
@@ -998,7 +998,7 @@ const AyniSaatPenceresi = ({
           </div>
         </div>
 
-        <div style={{ fontSize: 12.5, color: '#4B5563', lineHeight: 1.55 }}>
+        <div style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.55 }}>
           Birlikte yapılacaksa (aynı dersin şubeleri, farklı sınıf ya da müfredattaki karşılığı,
           ortak salonda yapılacak dersler) <b>ortak sınav</b> olarak birleştirin: salon toplam
           öğrenci sayısına göre bir kez seçilir, gözetmenler oturumun tamamına atanır ve dersler
@@ -1012,7 +1012,7 @@ const AyniSaatPenceresi = ({
               key={o.anahtar}
               data-secenek={o.anahtar}
               style={{
-                border: '1px solid ' + (o.iliski === 'farkli' ? '#E5E7EB' : '#99F6E4'),
+                border: '1px solid ' + (o.iliski === 'farkli' ? '#E2E8F0' : '#99F6E4'),
                 background: o.iliski === 'farkli' ? 'white' : '#F0FDFA',
                 borderRadius: 10,
                 padding: '10px 12px',
@@ -1026,28 +1026,28 @@ const AyniSaatPenceresi = ({
                   flexWrap: 'wrap',
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1F2937' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1E293B' }}>
                   {o.uyeler.length > 1 ? 'Ortak sınav: ' : ''}
                   {o.ozet.kodlar.join(' + ')}{' '}
-                  <span style={{ fontWeight: 500, color: '#6B7280' }}>({o.ozet.timeSlot})</span>
+                  <span style={{ fontWeight: 500, color: '#64748B' }}>({o.ozet.timeSlot})</span>
                 </div>
                 <span
                   style={{
                     fontSize: 11,
                     fontWeight: 700,
-                    color: o.iliski === 'farkli' ? '#6B7280' : '#0F766E',
+                    color: o.iliski === 'farkli' ? '#64748B' : '#0F766E',
                   }}
                 >
                   {iliski.etiket}
                 </span>
               </div>
               {o.uyeler.map((u) => (
-                <div key={u.id} style={{ fontSize: 12, color: '#4B5563', marginTop: 3 }}>
+                <div key={u.id} style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
                   {u.code} {u.name} · {u.sinif === 5 ? 'Seçmeli' : u.sinif + '. sınıf'} ·{' '}
                   {u.studentCount || 0} öğr.{u.professor ? ' · ' + u.professor : ''}
                 </div>
               ))}
-              <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 5 }}>
+              <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 5 }}>
                 {iliski.aciklama} Birleşince toplam{' '}
                 <b>{o.ozet.toplamOgrenci + (Number(ders.studentCount) || 0)} öğrenci</b>.
                 {o.ayniSinif ? ' Aynı sınıfın öğrencileri bu sınavda.' : ''}
@@ -1062,7 +1062,7 @@ const AyniSaatPenceresi = ({
                     Bununla ortak sınav yap
                   </Btn>
                 ) : (
-                  <span style={{ fontSize: 12, color: '#6B7280' }}>
+                  <span style={{ fontSize: 12, color: '#64748B' }}>
                     Birleştirmeyi bölüm yetkilisi yapar.
                   </span>
                 )}
@@ -1151,7 +1151,7 @@ const EditExamModal = ({
         <div
           style={{
             padding: 12,
-            background: SINIF_COLORS[exam.sinif]?.bg || '#f0f0f0',
+            background: SINIF_COLORS[exam.sinif]?.bg || '#f1f5f9',
             borderRadius: 8,
             fontSize: 14,
           }}
@@ -1207,7 +1207,7 @@ const EditExamModal = ({
             placeholder="Akademisyen ismi"
             list="prof-list"
             readOnly={readOnly}
-            style={readOnly ? { background: '#F3F4F6' } : {}}
+            style={readOnly ? { background: '#F1F5F9' } : {}}
           />
           {!readOnly && (
             <datalist id="prof-list">
@@ -1237,7 +1237,7 @@ const EditExamModal = ({
             value={duration}
             onChange={(e) => !readOnly && setDuration(e.target.value)}
             disabled={readOnly}
-            style={readOnly ? { background: '#F3F4F6' } : {}}
+            style={readOnly ? { background: '#F1F5F9' } : {}}
           >
             {[30, 45, 60, 75, 90, 105, 120, 150].map((d) => (
               <option key={d} value={d}>
@@ -1255,7 +1255,7 @@ const EditExamModal = ({
             readOnly={readOnly}
             style={
               readOnly
-                ? { background: '#F3F4F6' }
+                ? { background: '#F1F5F9' }
                 : !studentCount || parseInt(studentCount) <= 0
                   ? { borderColor: '#DC2626' }
                   : {}
@@ -1273,7 +1273,7 @@ const EditExamModal = ({
             onChange={(e) => !readOnly && setSupervisor(e.target.value)}
             placeholder="Gözetmen adı"
             readOnly={readOnly}
-            style={readOnly ? { background: '#F3F4F6' } : {}}
+            style={readOnly ? { background: '#F1F5F9' } : {}}
           />
         </FormField>
         <FormField label="Sınıf / Salon">
@@ -1282,7 +1282,7 @@ const EditExamModal = ({
             onChange={(e) => !readOnly && setRoom(e.target.value)}
             placeholder="Örn: D-201"
             readOnly={readOnly}
-            style={readOnly ? { background: '#F3F4F6' } : {}}
+            style={readOnly ? { background: '#F1F5F9' } : {}}
           />
         </FormField>
         <div
@@ -1623,12 +1623,12 @@ const DraggableCourseCard = ({ course, isPlaced: _isPlaced, placedCount = 0, can
       onDragEnd={handleDragEnd}
       style={{
         padding: '8px 10px',
-        background: canDrag ? color.bg : '#F3F4F6',
-        color: canDrag ? color.text : '#9CA3AF',
+        background: canDrag ? color.bg : '#F1F5F9',
+        color: canDrag ? color.text : '#94A3B8',
         borderRadius: 6,
         fontSize: 12,
         cursor: canDrag ? 'grab' : 'default',
-        border: `1px solid ${canDrag ? color.text + '30' : '#E5E7EB'}`,
+        border: `1px solid ${canDrag ? color.text + '30' : '#E2E8F0'}`,
         transition: 'all 0.2s',
         userSelect: 'none',
         position: 'relative',
@@ -1640,7 +1640,7 @@ const DraggableCourseCard = ({ course, isPlaced: _isPlaced, placedCount = 0, can
         {placedCount > 0 && (
           <span
             style={{
-              background: canDrag ? color.text : '#9CA3AF',
+              background: canDrag ? color.text : '#94A3B8',
               color: 'white',
               borderRadius: 10,
               padding: '1px 6px',
@@ -1752,13 +1752,13 @@ const CalendarCell = ({
       data-saat={timeSlot}
       data-blok={blok ? blok.sinavlar.length : 0}
       style={{
-        border: sinifCakismasi ? '2px solid #DC2626' : '1px solid #E5E7EB',
+        border: sinifCakismasi ? '2px solid #DC2626' : '1px solid #E2E8F0',
         padding: 0,
         height: cellHeight * span,
         minWidth: 100,
         maxWidth: 'none',
         verticalAlign: 'top',
-        background: dragOver ? '#DBEAFE' : blok ? (coklu ? '#F8FAFC' : tekRenk.bg) : 'white',
+        background: dragOver ? '#CCFBF1' : blok ? (coklu ? '#F8FAFC' : tekRenk.bg) : 'white',
         cursor: blok && !coklu ? 'pointer' : 'default',
         transition: 'background 0.15s',
         position: 'relative',
@@ -1940,7 +1940,7 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
         <tbody>
           {sorted.length === 0 && (
             <tr>
-              <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#999' }}>
+              <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>
                 Henüz takvime ders yerleştirilmedi. Sol panelden dersleri sürükleyip takvime
                 bırakın.
               </td>
@@ -1955,13 +1955,13 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
                 key={i}
                 onClick={() => onExamClick(exam)}
                 style={{
-                  background: i % 2 === 0 ? 'white' : '#F9FAFB',
+                  background: i % 2 === 0 ? 'white' : '#F8FAFC',
                   cursor: 'pointer',
                   borderBottom: `1px solid ${C.border}`,
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = color.bg + '60')}
                 onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = i % 2 === 0 ? 'white' : '#F9FAFB')
+                  (e.currentTarget.style.background = i % 2 === 0 ? 'white' : '#F8FAFC')
                 }
               >
                 <td style={{ padding: '10px 12px', textAlign: 'center' }}>
@@ -2078,7 +2078,7 @@ const _DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) 
                 <td style={{ padding: '8px 12px', fontWeight: 600 }}>{d.name}</td>
                 <td style={{ padding: '8px 12px' }}>
                   {d.managerNames?.join(', ') || d.managerName || (
-                    <span style={{ color: '#999' }}>Atanmadı</span>
+                    <span style={{ color: '#94A3B8' }}>Atanmadı</span>
                   )}
                 </td>
                 <td style={{ padding: '8px 12px', textAlign: 'center' }}>
@@ -2113,7 +2113,7 @@ const _DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) 
             ))}
             {departments.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ padding: 30, textAlign: 'center', color: '#999' }}>
+                <td colSpan={3} style={{ padding: 30, textAlign: 'center', color: '#94A3B8' }}>
                   Henüz bölüm eklenmedi
                 </td>
               </tr>
@@ -2153,7 +2153,7 @@ const _DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) 
               />
             </FormField>
           </div>
-          <div style={{ fontSize: 12, color: '#666', fontStyle: 'italic' }}>
+          <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic' }}>
             Yetkili kişi, "Bölüm Yetkilisi" olarak giriş yaparak bu bölümü yönetebilir. Varsayılan
             şifre akademisyen şifresiyle aynıdır.
           </div>
@@ -2279,7 +2279,7 @@ const _ClassroomManagementModal = ({ classrooms, onSave, onDelete, onClose }) =>
             ))}
             {classrooms.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ padding: 30, textAlign: 'center', color: '#999' }}>
+                <td colSpan={3} style={{ padding: 30, textAlign: 'center', color: '#94A3B8' }}>
                   Henüz sınıf eklenmedi
                 </td>
               </tr>
@@ -2411,7 +2411,7 @@ const _SupervisorManagementModal = ({ supervisors, onSave, onDelete, onClose }) 
           </div>
         ))}
         {supervisors.length === 0 && (
-          <div style={{ padding: 30, textAlign: 'center', color: '#999' }}>
+          <div style={{ padding: 30, textAlign: 'center', color: '#94A3B8' }}>
             Henüz gözetmen eklenmedi
           </div>
         )}
@@ -2627,12 +2627,12 @@ async function exportDeptPrintable(
     .map((e) => {
       const bg = SINIF_BG[e.sinif] || '#FFFFFF';
       return `<tr style="background:${bg}">
-      <td style="padding:8px 10px;border:1px solid #999;text-align:center;font-weight:500">${e.name}</td>
-      <td style="padding:8px 10px;border:1px solid #999;text-align:center;font-weight:600">${e.code}</td>
-      <td style="padding:8px 10px;border:1px solid #999;text-align:center">${e.startStr}</td>
-      <td style="padding:8px 10px;border:1px solid #999;text-align:center">${e.endStr}</td>
-      <td style="padding:8px 10px;border:1px solid #999;text-align:center">${e.durationStr}</td>
-      <td style="padding:8px 10px;border:1px solid #999;text-align:center;font-weight:600">${e.assignedRoom}</td>
+      <td style="padding:8px 10px;border:1px solid #94A3B8;text-align:center;font-weight:500">${e.name}</td>
+      <td style="padding:8px 10px;border:1px solid #94A3B8;text-align:center;font-weight:600">${e.code}</td>
+      <td style="padding:8px 10px;border:1px solid #94A3B8;text-align:center">${e.startStr}</td>
+      <td style="padding:8px 10px;border:1px solid #94A3B8;text-align:center">${e.endStr}</td>
+      <td style="padding:8px 10px;border:1px solid #94A3B8;text-align:center">${e.durationStr}</td>
+      <td style="padding:8px 10px;border:1px solid #94A3B8;text-align:center;font-weight:600">${e.assignedRoom}</td>
     </tr>`;
     })
     .join('');
@@ -2642,12 +2642,12 @@ async function exportDeptPrintable(
 <head><meta charset="utf-8"><title>Sınav Programı - ${deptName || ''}</title>
 <style>
   @media print { body { margin: 0; } @page { size: A4 landscape; margin: 1cm; } }
-  body { font-family: 'Times New Roman', serif; background: #e8e8e8; }
+  body { font-family: 'Times New Roman', serif; background: #e2e8f0; }
   .page { max-width: 1000px; margin: 20px auto; background: white; padding: 40px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
   h1 { text-align: center; font-size: 18px; color: #1B2A4A; margin-bottom: 20px; border-bottom: 3px solid #1B2A4A; padding-bottom: 10px; }
   h2 { text-align: center; font-size: 13px; color: #C00; margin-bottom: 16px; letter-spacing: 0.5px; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th { padding: 10px 8px; border: 1px solid #999; background: #f5f5f5; font-weight: 700; text-align: center; font-size: 12px; }
+  th { padding: 10px 8px; border: 1px solid #94A3B8; background: #f1f5f9; font-weight: 700; text-align: center; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -4218,7 +4218,7 @@ function SinavOtomasyonuApp({
   if (loading) {
     return (
       <Card>
-        <div style={{ padding: 60, textAlign: 'center', color: '#999' }}>
+        <div style={{ padding: 60, textAlign: 'center', color: '#94A3B8' }}>
           <div style={{ fontSize: 18, marginBottom: 8 }}>Yükleniyor...</div>
         </div>
       </Card>
@@ -4247,7 +4247,7 @@ function SinavOtomasyonuApp({
           }}
         >
           {embedded && (
-            <div style={{ fontSize: 13, color: '#666' }}>
+            <div style={{ fontSize: 13, color: '#64748B' }}>
               Dersleri sürükleyerek takvime yerleştirin
             </div>
           )}
@@ -4273,7 +4273,7 @@ function SinavOtomasyonuApp({
                 height="20"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#7C3AED"
+                stroke="#0F766E"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -4281,10 +4281,10 @@ function SinavOtomasyonuApp({
                 <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
               <div>
-                <span style={{ fontWeight: 600, color: '#7C3AED' }}>
+                <span style={{ fontWeight: 600, color: '#0F766E' }}>
                   {currentUser?.departmentName || 'Bölüm'}
                 </span>
-                <span style={{ color: '#6B7280', fontSize: 13, marginLeft: 8 }}>
+                <span style={{ color: '#64748B', fontSize: 13, marginLeft: 8 }}>
                   Bölüm Yetkilisi: {currentUser?.name}
                 </span>
               </div>
@@ -4294,14 +4294,14 @@ function SinavOtomasyonuApp({
 
         {/* Professor Info — gömülü modda gizli */}
         {!embedded && isProfessor && departments.length > 0 && selectedDeptId && (
-          <Card style={{ marginBottom: 16, background: '#DBEAFE', border: '1px solid #93C5FD' }}>
+          <Card style={{ marginBottom: 16, background: '#CCFBF1', border: '1px solid #5EEAD4' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <svg
                 width="20"
                 height="20"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#2563EB"
+                stroke="#0F766E"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -4310,8 +4310,8 @@ function SinavOtomasyonuApp({
                 <circle cx="12" cy="7" r="4" />
               </svg>
               <div>
-                <span style={{ fontWeight: 600, color: '#2563EB' }}>{currentUser?.name}</span>
-                <span style={{ color: '#6B7280', fontSize: 13, marginLeft: 8 }}>
+                <span style={{ fontWeight: 600, color: '#0F766E' }}>{currentUser?.name}</span>
+                <span style={{ color: '#64748B', fontSize: 13, marginLeft: 8 }}>
                   Akademisyen - Sadece kendi derslerinizi programa ekleyebilirsiniz
                 </span>
               </div>
@@ -4322,7 +4322,7 @@ function SinavOtomasyonuApp({
         {/* Professor no department warning */}
         {isProfessor && departments.length === 0 && (
           <Card style={{ marginBottom: 16 }}>
-            <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>
+            <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>
               <div style={{ fontSize: 16, marginBottom: 8 }}>
                 Henüz hiçbir bölümde dersiniz bulunmuyor
               </div>
@@ -4336,7 +4336,7 @@ function SinavOtomasyonuApp({
         {/* No department selected warning for admin */}
         {isAdmin && departments.length > 0 && !selectedDeptId && (
           <Card style={{ marginBottom: 16 }}>
-            <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>
+            <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>
               <div style={{ fontSize: 16, marginBottom: 8 }}>Lütfen bir bölüm seçin</div>
               <div style={{ fontSize: 13 }}>
                 Sınav programını yönetmek için yukarıdan bir bölüm seçin.
@@ -4376,7 +4376,7 @@ function SinavOtomasyonuApp({
               <span
                 style={{
                   fontSize: 11,
-                  color: '#6B7280',
+                  color: '#64748B',
                   opacity: activePeriod ? 1 : 0.35,
                   transform: donemlerGoster ? 'rotate(90deg)' : 'none',
                   transition: 'transform 0.15s',
@@ -4393,7 +4393,7 @@ function SinavOtomasyonuApp({
                 style={{
                   fontSize: 11.5,
                   fontWeight: 600,
-                  color: '#6B7280',
+                  color: '#64748B',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -4425,7 +4425,7 @@ function SinavOtomasyonuApp({
                       padding: '12px 14px',
                       cursor: 'pointer',
                       transition: 'all .18s',
-                      boxShadow: aktif ? '0 2px 10px rgba(37,99,235,0.12)' : 'none',
+                      boxShadow: aktif ? '0 2px 10px rgba(15, 118, 110,0.12)' : 'none',
                     }}
                   >
                     <div
@@ -4563,7 +4563,7 @@ function SinavOtomasyonuApp({
         {/* No period selected */}
         {!activePeriod && (
           <Card>
-            <div style={{ padding: 60, textAlign: 'center', color: '#999' }}>
+            <div style={{ padding: 60, textAlign: 'center', color: '#94A3B8' }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>&#128197;</div>
               <div style={{ fontSize: 16, marginBottom: 8 }}>Sınav dönemi bulunamadı</div>
               <div style={{ fontSize: 13 }}>
@@ -4608,7 +4608,7 @@ function SinavOtomasyonuApp({
                     border: `1px solid ${C.border}`,
                     borderRadius: '8px 0 0 8px',
                     background: viewMode === 'calendar' ? C.navy : 'white',
-                    color: viewMode === 'calendar' ? 'white' : '#666',
+                    color: viewMode === 'calendar' ? 'white' : '#64748B',
                     cursor: 'pointer',
                     fontSize: 13,
                   }}
@@ -4622,7 +4622,7 @@ function SinavOtomasyonuApp({
                     border: `1px solid ${C.border}`,
                     borderRadius: '0 8px 8px 0',
                     background: viewMode === 'table' ? C.navy : 'white',
-                    color: viewMode === 'table' ? 'white' : '#666',
+                    color: viewMode === 'table' ? 'white' : '#64748B',
                     cursor: 'pointer',
                     fontSize: 13,
                     borderLeft: 'none',
@@ -4633,7 +4633,7 @@ function SinavOtomasyonuApp({
               </div>
 
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12, color: '#666' }}>
+                <span style={{ fontSize: 12, color: '#64748B' }}>
                   {periodExams.length}/{courses.length} ders yerleştirildi
                 </span>
                 {/* Çakışma rozeti — fakülte geneli denetimin özeti. Tıklayınca
@@ -4708,7 +4708,7 @@ function SinavOtomasyonuApp({
                       style={{
                         fontSize: 12,
                         padding: '4px 10px',
-                        background: '#059669',
+                        background: '#1B2A4A',
                         color: 'white',
                         border: 'none',
                       }}
@@ -4729,7 +4729,7 @@ function SinavOtomasyonuApp({
                       style={{
                         fontSize: 12,
                         padding: '4px 10px',
-                        background: '#7C3AED',
+                        background: '#0F766E',
                         color: 'white',
                         border: 'none',
                       }}
@@ -4749,7 +4749,7 @@ function SinavOtomasyonuApp({
                       style={{
                         fontSize: 12,
                         padding: '4px 10px',
-                        background: '#059669',
+                        background: '#1B2A4A',
                         color: 'white',
                         border: 'none',
                         opacity: 0.5,
@@ -4792,7 +4792,9 @@ function SinavOtomasyonuApp({
                   <div style={{ fontWeight: 800, color: C.navy, fontSize: 15, marginBottom: 4 }}>
                     Fakülte geneli çakışma denetimi
                   </div>
-                  <div style={{ fontSize: 12.5, color: '#555', marginBottom: 14, lineHeight: 1.6 }}>
+                  <div
+                    style={{ fontSize: 12.5, color: '#475569', marginBottom: 14, lineHeight: 1.6 }}
+                  >
                     Salonlar ve gözetmenler bölüm bölüm tanımlı; bu denetim{' '}
                     <strong>bütün bölümlerin</strong> sınavlarını birlikte inceler. Her çakışma hata
                     değildir — bir salonda iki bölümün sınavı kapasite yetiyorsa birlikte
@@ -4835,10 +4837,10 @@ function SinavOtomasyonuApp({
                                 {engel ? 'ENGEL' : kabulEdildi ? 'ŞARTLI KABUL' : 'KARAR BEKLİYOR'}{' '}
                                 · {c.baslik}
                               </div>
-                              <div style={{ fontSize: 12.5, color: '#444', marginTop: 3 }}>
+                              <div style={{ fontSize: 12.5, color: '#334155', marginTop: 3 }}>
                                 {c.aciklama}
                               </div>
-                              <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>
+                              <div style={{ fontSize: 12, color: '#64748B', marginTop: 3 }}>
                                 {c.cozum}
                               </div>
                               {kabulEdildi && (
@@ -4929,7 +4931,7 @@ function SinavOtomasyonuApp({
                         fontSize: 12,
                         outline: 'none',
                         boxSizing: 'border-box',
-                        background: '#FAFAFA',
+                        background: '#F8FAFC',
                       }}
                     />
                     {courseSearch && (
@@ -4944,7 +4946,7 @@ function SinavOtomasyonuApp({
                           border: 'none',
                           cursor: 'pointer',
                           fontSize: 14,
-                          color: '#999',
+                          color: '#94A3B8',
                           padding: 0,
                           lineHeight: 1,
                         }}
@@ -5053,7 +5055,9 @@ function SinavOtomasyonuApp({
                     })}
 
                   {poolCourses.length === 0 && (
-                    <div style={{ padding: 20, textAlign: 'center', color: '#999', fontSize: 12 }}>
+                    <div
+                      style={{ padding: 20, textAlign: 'center', color: '#94A3B8', fontSize: 12 }}
+                    >
                       Ders bulunamadı
                     </div>
                   )}
@@ -5072,7 +5076,7 @@ function SinavOtomasyonuApp({
                   }}
                 >
                   {calendarDays.length === 0 ? (
-                    <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>
+                    <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>
                       Takvim günleri bulunamadı. Dönem tarihlerini kontrol edin.
                     </div>
                   ) : (
@@ -5130,11 +5134,11 @@ function SinavOtomasyonuApp({
                                 padding: '2px 4px',
                                 fontSize: 10,
                                 fontWeight: 500,
-                                color: '#666',
+                                color: '#64748B',
                                 textAlign: 'center',
-                                background: '#F9FAFB',
-                                borderRight: '2px solid #E5E7EB',
-                                borderBottom: '1px solid #E5E7EB',
+                                background: '#F8FAFC',
+                                borderRight: '2px solid #E2E8F0',
+                                borderBottom: '1px solid #E2E8F0',
                                 position: 'sticky',
                                 left: 0,
                                 zIndex: 1,
@@ -5217,7 +5221,7 @@ function SinavOtomasyonuApp({
             onClose={() => setGozetmenKuralAcik(false)}
             width={720}
           >
-            <div style={{ fontSize: 12.5, color: '#6B7280', marginBottom: 12, lineHeight: 1.55 }}>
+            <div style={{ fontSize: 12.5, color: '#64748B', marginBottom: 12, lineHeight: 1.55 }}>
               Dekanlık çıktısındaki otomatik gözetmen ataması bu kurallarla yapılır. Gözetmen
               listesi Bölüm Yönetimi → Gözetmenler ekranından yönetilir ({deptSupervisors.length}{' '}
               gözetmen tanımlı).
@@ -5264,7 +5268,7 @@ const SartliKabulModal = ({ cakisma, onKabul, onClose }) => {
           }}
         >
           <strong>{cakisma.baslik}</strong>
-          <div style={{ marginTop: 4, color: '#555' }}>{cakisma.aciklama}</div>
+          <div style={{ marginTop: 4, color: '#475569' }}>{cakisma.aciklama}</div>
           <div style={{ marginTop: 4, color: '#B45309' }}>{cakisma.cozum}</div>
         </div>
         <FormField label="Kabul sebebi *">
@@ -5278,7 +5282,7 @@ const SartliKabulModal = ({ cakisma, onKabul, onClose }) => {
               boxSizing: 'border-box',
               padding: '10px 12px',
               borderRadius: 8,
-              border: '1px solid ' + (C ? C.border : '#E5E1D8'),
+              border: '1px solid ' + (C ? C.border : '#E2E8F0'),
               fontSize: 13.5,
               fontFamily: 'inherit',
               resize: 'vertical',
@@ -5293,11 +5297,11 @@ const SartliKabulModal = ({ cakisma, onKabul, onClose }) => {
               style={{
                 padding: '4px 10px',
                 borderRadius: 14,
-                border: '1px solid ' + (C ? C.border : '#E5E1D8'),
+                border: '1px solid ' + (C ? C.border : '#E2E8F0'),
                 background: 'white',
                 fontSize: 11.5,
                 cursor: 'pointer',
-                color: '#555',
+                color: '#475569',
               }}
             >
               {h}

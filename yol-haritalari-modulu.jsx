@@ -17,19 +17,19 @@ const { useState, useEffect, useMemo, useCallback } = React;
 
 const YH = {
   navy: '#1B2A4A',
-  accent: '#4F46E5',
-  accentSoft: '#EEF2FF',
-  accentMid: '#C7D2FE',
-  text: '#1F2937',
-  textMuted: '#6B7280',
-  border: '#E5E7EB',
+  accent: '#0F766E',
+  accentSoft: '#F0FDFA',
+  accentMid: '#99F6E4',
+  text: '#1E293B',
+  textMuted: '#64748B',
+  border: '#E2E8F0',
   green: '#059669',
   greenLight: '#D1FAE5',
   amber: '#B45309',
   amberLight: '#FEF3C7',
   red: '#DC2626',
   redLight: '#FEE2E2',
-  bg: '#F8F9FB',
+  bg: '#F8FAFC',
 };
 
 // Yol haritası bağlanabilecek modüller — kayıtlı tüm modül listelerinin
@@ -347,7 +347,7 @@ function YhYol({ harita, isMobile }) {
               top: 0,
               bottom: 0,
               background:
-                'linear-gradient(to right, #2D3748 0%, #374151 40%, #374151 60%, #2D3748 100%)',
+                'linear-gradient(to right, #1E293B 0%, #334155 40%, #334155 60%, #1E293B 100%)',
               zIndex: 0,
               borderRadius: 4,
             }}
@@ -1508,7 +1508,7 @@ function YolHaritalariApp({ currentUser, activeDepartment }) {
                 onClick={kaydet}
                 disabled={kaydediliyor}
                 style={{
-                  background: kaydediliyor ? '#9CA3AF' : YH.green,
+                  background: kaydediliyor ? '#94A3B8' : YH.green,
                   color: '#fff',
                   border: 'none',
                   borderRadius: 9,

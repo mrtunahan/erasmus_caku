@@ -771,8 +771,8 @@ const dugme = (renk, dolu = true) => ({
 const TUR_KISA = { dikey: 'Dikey', kurumlararasi: 'Kurumlararası', merkezi: 'Merkezi (Ek M.1)' };
 const DURUM = {
   aktif: ['Aktif', '#047857', '#ECFDF5'],
-  aktarildi: ['Öğrenciye aktarıldı', '#1D4ED8', '#EFF6FF'],
-  kapali: ['Kapalı', '#6B7280', '#F3F4F6'],
+  aktarildi: ['Öğrenciye aktarıldı', '#115E59', '#F0FDFA'],
+  kapali: ['Kapalı', '#64748B', '#F1F5F9'],
 };
 
 // ── Personel: aday hesapları ──
@@ -862,7 +862,7 @@ export function AdayHesaplariPaneli({ activeDepartment, turler }) {
 
   return (
     <div
-      style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E7EB', padding: 16 }}
+      style={{ background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', padding: 16 }}
       data-aday-hesaplari
     >
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -970,7 +970,7 @@ export function AdayHesaplariPaneli({ activeDepartment, turler }) {
                             style={{ ...inp, width: 110, padding: '6px 8px', fontSize: 12.5 }}
                             data-aday-no-gir
                           />
-                          <button style={dugme('#1D4ED8')} onClick={() => aktar(a)} data-aday-aktar>
+                          <button style={dugme('#115E59')} onClick={() => aktar(a)} data-aday-aktar>
                             Numaraya aktar
                           </button>
                           {a.yetki && a.yetki.sifirlama && (
@@ -1036,7 +1036,7 @@ export function AdayDonemPaneli({ facultyId }) {
       style={{
         background: 'white',
         borderRadius: 12,
-        border: '1px solid #E5E7EB',
+        border: '1px solid #E2E8F0',
         padding: 16,
         marginBottom: 16,
       }}

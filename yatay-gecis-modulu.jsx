@@ -26,14 +26,14 @@ const YG = {
   navy: '#1B2A4A',
   accent: '#B45309',
   accentPale: '#FEF3C7',
-  text: '#1F2937',
-  textMuted: '#6B7280',
-  border: '#E5E7EB',
+  text: '#1E293B',
+  textMuted: '#64748B',
+  border: '#E2E8F0',
   green: '#059669',
   greenLight: '#D1FAE5',
   red: '#DC2626',
   redLight: '#FEE2E2',
-  bg: '#F8F9FB',
+  bg: '#F8FAFC',
 };
 
 // ── Geçiş türleri ──
@@ -252,17 +252,17 @@ const ygLabel = {
 // Sistemin kendiliğinden doldurduğu alanlar: insanın yazdığıyla karışmasın.
 // Değer görünür ama "bunu ben yazmadım" bilgisi de görünür kalır.
 const ygOtoInput = {
-  background: '#F0F9FF',
+  background: '#F0FDFA',
   borderColor: '#7DD3FC',
-  color: '#0C4A6E',
+  color: '#134E4A',
   fontWeight: 600,
 };
 const ygOtoRozet = {
   marginLeft: 6,
   padding: '1px 6px',
   borderRadius: 8,
-  background: '#E0F2FE',
-  color: '#0369A1',
+  background: '#CCFBF1',
+  color: '#0F766E',
   fontSize: 10,
   fontWeight: 700,
   letterSpacing: 0.2,
@@ -1099,7 +1099,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
 
   // Kilitli (sistemden gelen) alanların ortak görünümü — insanın yazdığıyla
   // karışmasın diye zemini gri, imleci "yazılamaz".
-  const kilitliStil = { ...ygInput, background: '#F3F4F6', color: '#4B5563', cursor: 'default' };
+  const kilitliStil = { ...ygInput, background: '#F1F5F9', color: '#475569', cursor: 'default' };
 
   // Bölüm numaraları akışa göre üretilir: vekâleten kayıtta bir bölüm fazla,
   // kurum içi geçişte yerleştirme bölümü hiç yok. Sabit numara yazılsaydı
@@ -1256,7 +1256,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
               style={{
                 ...ygInput,
                 cursor: form.basvurduguFakulteId ? 'pointer' : 'not-allowed',
-                background: form.basvurduguFakulteId ? 'white' : '#F3F4F6',
+                background: form.basvurduguFakulteId ? 'white' : '#F1F5F9',
               }}
             >
               <option value="">
@@ -3860,7 +3860,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                 style={{
                   fontSize: 11.5,
                   lineHeight: 1.5,
-                  color: sel ? '#4b5563' : YG.textMuted,
+                  color: sel ? '#475569' : YG.textMuted,
                 }}
               >
                 {t.aciklama}
