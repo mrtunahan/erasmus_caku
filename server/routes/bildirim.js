@@ -22,6 +22,7 @@ const { getDbSafe } = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const { kapsamNumaralari } = require('../lib/ogrenci-baglanti');
+const { bolumKimlikHaritasi, bolumVaryantlari } = require('../lib/bolum-kimlik');
 const {
   zilKimligi,
   bildirimBenimMi,
@@ -109,6 +110,14 @@ async function kimlikCoz(db, user, istenenBolum) {
     if (metin(istenenBolum)) bolumler.add(metin(istenenBolum));
   }
   bolumler.delete('');
+  // Aynı bölüm slug, ObjectId ya da eski kimlikle yazılmış olabilir; yayın
+  // hangi biçimle gönderildiyse eşleşsin (server/lib/bolum-kimlik.js).
+  try {
+    const harita = bolumKimlikHaritasi(await db.collection('departments').find({}).toArray());
+    [...bolumler].forEach((b) => bolumVaryantlari(harita, b).forEach((v) => bolumler.add(v)));
+  } catch (_e) {
+    /* bölüm listesi okunamazsa ham kimliklerle devam */
+  }
   return zilKimligi({ user, bolumler: [...bolumler], numaralar, sadele });
 }
 
