@@ -3,8 +3,9 @@
 //
 //   AdayGirisPaneli      → giriş ekranındaki "Aday" sekmesi (giriş + kayıt)
 //   AdaySifreDegistir    → geçici şifreyle girene zorunlu şifre değişimi
-//   AdayHesaplariPaneli  → personel: aday listesi, şifre sıfırlama,
-//                          öğrenci numarasına aktarma, hesap kapatma
+//   AdayHesapKutusu      → personel: başvuru/talep kartındaki aday hesabı
+//                          (öğrenci numarasına aktarma, şifre sıfırlama, kapatma)
+//   useAdayListesi       → bölümün aday hesapları (kartlar için tek okuma)
 //
 // Kural: lib/aday-hesap.js · Sunucu: server/routes/aday.js
 // ══════════════════════════════════════════════════════════════
@@ -24,7 +25,7 @@ import {
   ogrenciDikeyKaydiVarMi,
 } from './lib/aday-hesap.js';
 
-const { useEffect, useMemo, useState } = React;
+const { useEffect, useMemo, useState, useCallback } = React;
 
 const metin = (v) => String(v == null ? '' : v).trim();
 
@@ -768,227 +769,196 @@ const dugme = (renk, dolu = true) => ({
   whiteSpace: 'nowrap',
 });
 
-const TUR_KISA = { dikey: 'Dikey', kurumlararasi: 'Kurumlararası', merkezi: 'Merkezi (Ek M.1)' };
 const DURUM = {
   aktif: ['Aktif', '#047857', '#ECFDF5'],
   aktarildi: ['Öğrenciye aktarıldı', '#115E59', '#F0FDFA'],
   kapali: ['Kapalı', '#64748B', '#F1F5F9'],
 };
 
-// ── Personel: aday hesapları ──
-export function AdayHesaplariPaneli({ activeDepartment, turler }) {
-  const [liste, setListe] = useState([]);
-  const [yukleniyor, setYukleniyor] = useState(true);
-  const [hata, setHata] = useState('');
-  const [mesaj, setMesaj] = useState('');
-  const [ara, setAra] = useState('');
-  const [aktarilan, setAktarilan] = useState({}); // adayNo → girilen no
+// ── Personel: aday hesabı, BAŞVURU KARTININ İÇİNDE ──
+//
+// Eskiden modüllerde ayrı bir "Aday Hesapları" sekmesi vardı; personel aynı
+// adayı bir sekmede başvurusuyla, öteki sekmede hesabıyla görüyordu. Hesap
+// işlemleri (öğrenci numarasına aktarma, şifre sıfırlama, kapatma) artık
+// adayın başvuru/talep kartında durur. Liste bölüm başına BİR kez okunur.
 
-  const yukle = async () => {
-    setYukleniyor(true);
-    const j = await adayIstek(
+/** Bölümdeki aday hesapları: { harita: adayNo → aday, yenile } */
+export function useAdayListesi(activeDepartment, etkin) {
+  const [harita, setHarita] = useState({});
+  const yenile = useCallback(() => {
+    if (!etkin) {
+      setHarita({});
+      return Promise.resolve();
+    }
+    return adayIstek(
       '/liste' + (activeDepartment ? '?bolum=' + encodeURIComponent(activeDepartment) : '')
-    ).catch(() => ({ error: 'Sunucuya ulaşılamadı.' }));
-    setYukleniyor(false);
-    if (j.error) setHata(j.error);
-    else {
-      setHata('');
-      setListe(j.adaylar || []);
-    }
-  };
-  useEffect(() => {
-    yukle();
-  }, [activeDepartment]); // yukle her render'da yeniden kurulur; bölüm değişimi yeter
-
-  const gorunen = liste.filter((a) => {
-    if (Array.isArray(turler) && turler.length && !a.turler.some((t) => turler.includes(t)))
-      return false;
-    const q = ara.trim().toLocaleLowerCase('tr-TR');
-    if (!q) return true;
-    return (a.ad + ' ' + a.soyad + ' ' + a.adayNo + ' ' + a.eposta)
-      .toLocaleLowerCase('tr-TR')
-      .includes(q);
-  });
-
-  const sifirla = async (a) => {
-    if (!window.confirm(a.ad + ' ' + a.soyad + ' için geçici şifre üretilsin mi?')) return;
-    const j = await adayIstek('/sifre-sifirla', { adayNo: a.adayNo });
-    if (j.success) {
-      window.prompt(
-        'Geçici şifre (adaya iletin; bir daha gösterilmez). Aday ilk girişte kendi şifresini belirler:',
-        j.geciciSifre
-      );
-    } else alert(j.error || 'Sıfırlanamadı.');
-  };
-  const aktar = async (a) => {
-    const no = metin(aktarilan[a.adayNo]);
-    if (!/^\d{9}$/.test(no)) {
-      alert('Kesin kayıtta verilen 9 haneli öğrenci numarasını girin.');
-      return;
-    }
-    if (
-      !window.confirm(
-        a.adayNo +
-          ' (' +
-          a.ad +
-          ' ' +
-          a.soyad +
-          ') adayının bütün başvuruları ' +
-          no +
-          ' numarasına aktarılacak ve aday hesabı kapanacak. Devam edilsin mi?'
-      )
     )
-      return;
-    const j = await adayIstek('/numara-aktar', { adayNo: a.adayNo, ogrenciNo: no });
-    if (j.success) {
+      .then((j) => {
+        const h = {};
+        (j.adaylar || []).forEach((a) => {
+          h[a.adayNo] = a;
+        });
+        setHarita(h);
+      })
+      .catch(() => setHarita({}));
+  }, [activeDepartment, etkin]);
+  useEffect(() => {
+    yenile();
+  }, [yenile]);
+  return { harita, yenile };
+}
+
+export function AdayHesapKutusu({ aday, onDegisti }) {
+  const [no, setNo] = useState('');
+  const [mesaj, setMesaj] = useState('');
+  const [mesgul, setMesgul] = useState(false);
+  if (!aday) return null;
+  const d = DURUM[aday.durum] || DURUM.aktif;
+  const aktif = aday.durum === 'aktif';
+
+  const islem = async (fn) => {
+    setMesgul(true);
+    try {
+      await fn();
+    } finally {
+      setMesgul(false);
+    }
+  };
+  const aktar = () =>
+    islem(async () => {
+      const ogr = metin(no);
+      if (!/^\d{9}$/.test(ogr)) {
+        alert('Kesin kayıtta verilen 9 haneli öğrenci numarasını girin.');
+        return;
+      }
+      if (
+        !window.confirm(
+          aday.ad +
+            ' ' +
+            aday.soyad +
+            ' (' +
+            aday.adayNo +
+            ') adayının bütün başvuruları ' +
+            ogr +
+            ' numarasına aktarılacak ve aday hesabı kapanacak. Devam edilsin mi?'
+        )
+      )
+        return;
+      const j = await adayIstek('/numara-aktar', { adayNo: aday.adayNo, ogrenciNo: ogr });
+      if (!j.success) {
+        alert(j.error || 'Aktarılamadı.');
+        return;
+      }
       const t = j.tasinan || {};
-      setMesaj(
+      // Aktarımdan sonra kart öğrenci kartına döner ve bu kutu kaybolur;
+      // sonuç mesajı bu yüzden modüle iletilir (modül kendi şeridinde gösterir).
+      const m =
         'Aktarıldı: ' +
-          (t.yatay_gecis_basvurular || 0) +
-          ' yatay geçiş, ' +
-          (t.muafiyet_records || 0) +
-          ' dikey geçiş kaydı.'
-      );
-      yukle();
-    } else alert(j.error || 'Aktarılamadı.');
-  };
-  const kapat = async (a) => {
-    if (!window.confirm(a.adayNo + ' aday hesabı kapatılsın mı? Aday bir daha giriş yapamaz.'))
-      return;
-    const j = await adayIstek('/kapat', { adayNo: a.adayNo });
-    if (j.success) yukle();
-    else alert(j.error || 'Kapatılamadı.');
-  };
+        (t.yatay_gecis_basvurular || 0) +
+        ' yatay geçiş, ' +
+        (t.muafiyet_records || 0) +
+        ' dikey geçiş kaydı ' +
+        ogr +
+        ' numarasına taşındı.';
+      setMesaj(m);
+      onDegisti && onDegisti(m);
+    });
+  const sifirla = () =>
+    islem(async () => {
+      if (!window.confirm(aday.ad + ' ' + aday.soyad + ' için geçici şifre üretilsin mi?')) return;
+      const j = await adayIstek('/sifre-sifirla', { adayNo: aday.adayNo });
+      if (j.success) {
+        window.prompt(
+          'Geçici şifre (adaya iletin; bir daha gösterilmez). Aday ilk girişte kendi şifresini belirler:',
+          j.geciciSifre
+        );
+      } else alert(j.error || 'Sıfırlanamadı.');
+    });
+  const kapat = () =>
+    islem(async () => {
+      if (!window.confirm(aday.adayNo + ' aday hesabı kapatılsın mı? Aday bir daha giriş yapamaz.'))
+        return;
+      const j = await adayIstek('/kapat', { adayNo: aday.adayNo });
+      if (j.success) onDegisti && onDegisti();
+      else alert(j.error || 'Kapatılamadı.');
+    });
 
   return (
     <div
-      style={{ background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', padding: 16 }}
-      data-aday-hesaplari
+      data-aday-satir={aday.adayNo}
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        border: '1px solid #99F6E4',
+        background: '#F0FDFA',
+        borderRadius: 10,
+        padding: '10px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        fontSize: 12.5,
+        color: '#1E293B',
+      }}
     >
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 220 }}>
-          <div style={{ fontWeight: 700, color: '#0F172A' }}>Aday hesapları</div>
-          <div style={{ fontSize: 12.5, color: '#64748B' }}>
-            Öğrenci numarası olmadan kendi hesabını açan adaylar. Kesin kayıttan sonra numarasını
-            girip aktarın; başvuruları öğrenci hesabına geçer. Aktarılmayan adayın verisi dönem
-            bitişinden (ya da hesabın kapatılmasından) {ADAY_SAKLAMA_GUN} gün sonra otomatik
-            silinir. Şifreyi bölüm yetkilisi sıfırlar.
-          </div>
-        </div>
-        <input
-          value={ara}
-          onChange={(e) => setAra(e.target.value)}
-          placeholder="Ad, aday no, e-posta…"
-          style={{ ...inp, minWidth: 200 }}
-        />
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <b style={{ color: '#115E59' }}>Aday hesabı</b>
+        <span
+          style={{
+            padding: '1px 8px',
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 700,
+            color: d[1],
+            background: '#FFFFFF',
+            border: '1px solid ' + d[2],
+          }}
+        >
+          {d[0]}
+          {aday.durum === 'aktarildi' ? ' · ' + aday.ogrenciNo : ''}
+        </span>
+        <span style={{ color: '#64748B' }}>
+          {aday.adayNo} · T.C. {aday.tcMaske} · {aday.eposta} · {aday.telefon}
+        </span>
+        <span style={{ marginLeft: 'auto', color: '#64748B' }} data-aday-silinme>
+          {aday.silinme && aday.silinme.tarih ? (
+            <>
+              Otomatik silinme:{' '}
+              <b style={{ color: '#B91C1C' }}>
+                {aday.silinme.tarih.split('-').reverse().join('.')}
+              </b>
+              {aday.silinme.sebep ? ' · ' + aday.silinme.sebep : ''}
+            </>
+          ) : (
+            (aday.silinme && aday.silinme.sebep) || ''
+          )}
+        </span>
       </div>
-      {hata && <div style={{ color: '#B91C1C', marginTop: 10 }}>{hata}</div>}
-      {mesaj && (
-        <div style={{ color: '#047857', marginTop: 10, fontSize: 13 }} data-aday-mesaj>
-          {mesaj}
+      {aktif && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ color: '#475569' }}>Kesin kayıt yapıldıysa:</span>
+          <input
+            value={no}
+            onChange={(e) => setNo(e.target.value.replace(/\D/g, '').slice(0, 9))}
+            placeholder="Öğrenci no"
+            inputMode="numeric"
+            style={{ ...inp, width: 120, padding: '6px 8px', fontSize: 12.5 }}
+            data-aday-no-gir
+          />
+          <button style={dugme('#115E59')} onClick={aktar} disabled={mesgul} data-aday-aktar>
+            Numaraya aktar
+          </button>
+          {aday.yetki && aday.yetki.sifirlama && (
+            <button style={dugme('#0D9B8E', false)} onClick={sifirla} disabled={mesgul}>
+              Şifre sıfırla
+            </button>
+          )}
+          <button style={dugme('#B91C1C', false)} onClick={kapat} disabled={mesgul}>
+            Hesabı kapat
+          </button>
         </div>
       )}
-      {yukleniyor ? (
-        <div style={{ padding: 20, color: '#64748B' }}>Yükleniyor…</div>
-      ) : gorunen.length === 0 ? (
-        <div style={{ padding: 20, color: '#64748B' }}>Kayıtlı aday yok.</div>
-      ) : (
-        <div style={{ overflowX: 'auto', marginTop: 12 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ textAlign: 'left', color: '#64748B', fontSize: 11.5 }}>
-                <th style={th}>Aday</th>
-                <th style={th}>T.C.</th>
-                <th style={th}>İletişim</th>
-                <th style={th}>Türler</th>
-                <th style={th}>Durum</th>
-                <th style={th}>Otomatik silinme</th>
-                <th style={th}>İşlem</th>
-              </tr>
-            </thead>
-            <tbody>
-              {gorunen.map((a) => {
-                const d = DURUM[a.durum] || DURUM.aktif;
-                return (
-                  <tr
-                    key={a.adayNo}
-                    style={{ borderTop: '1px solid #F1F5F9' }}
-                    data-aday-satir={a.adayNo}
-                  >
-                    <td style={td}>
-                      <b>
-                        {a.ad} {a.soyad}
-                      </b>
-                      <div style={{ color: '#64748B', fontSize: 12 }}>{a.adayNo}</div>
-                    </td>
-                    <td style={td}>{a.tcMaske}</td>
-                    <td style={td}>
-                      {a.eposta}
-                      <div style={{ color: '#64748B', fontSize: 12 }}>{a.telefon}</div>
-                    </td>
-                    <td style={td}>{a.turler.map((t) => TUR_KISA[t] || t).join(', ')}</td>
-                    <td style={td}>
-                      <span
-                        style={{
-                          padding: '2px 8px',
-                          borderRadius: 999,
-                          fontSize: 11.5,
-                          fontWeight: 600,
-                          color: d[1],
-                          background: d[2],
-                        }}
-                      >
-                        {d[0]}
-                        {a.durum === 'aktarildi' ? ' · ' + a.ogrenciNo : ''}
-                      </span>
-                    </td>
-                    <td style={td} data-aday-silinme>
-                      {a.silinme && a.silinme.tarih ? (
-                        <b style={{ color: '#B91C1C' }}>
-                          {a.silinme.tarih.split('-').reverse().join('.')}
-                        </b>
-                      ) : (
-                        '—'
-                      )}
-                      <div style={{ color: '#64748B', fontSize: 11.5 }}>
-                        {(a.silinme && a.silinme.sebep) || ''}
-                      </div>
-                    </td>
-                    <td style={td}>
-                      {a.durum === 'aktif' && (
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          <input
-                            value={aktarilan[a.adayNo] || ''}
-                            onChange={(e) =>
-                              setAktarilan((o) => ({
-                                ...o,
-                                [a.adayNo]: e.target.value.replace(/\D/g, '').slice(0, 9),
-                              }))
-                            }
-                            placeholder="Öğrenci no"
-                            inputMode="numeric"
-                            style={{ ...inp, width: 110, padding: '6px 8px', fontSize: 12.5 }}
-                            data-aday-no-gir
-                          />
-                          <button style={dugme('#115E59')} onClick={() => aktar(a)} data-aday-aktar>
-                            Numaraya aktar
-                          </button>
-                          {a.yetki && a.yetki.sifirlama && (
-                            <button style={dugme('#0D9B8E', false)} onClick={() => sifirla(a)}>
-                              Şifre sıfırla
-                            </button>
-                          )}
-                          <button style={dugme('#B91C1C', false)} onClick={() => kapat(a)}>
-                            Kapat
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {mesaj && (
+        <div style={{ color: '#047857', fontWeight: 600 }} data-aday-mesaj>
+          {mesaj}
         </div>
       )}
     </div>
@@ -1103,12 +1073,10 @@ export function AdayDonemPaneli({ facultyId }) {
   );
 }
 
-const th = { padding: '6px 8px', fontWeight: 600 };
-const td = { padding: '8px', verticalAlign: 'top' };
-
 window.AdayGirisPaneli = AdayGirisPaneli;
 window.AdaySifreDegistir = AdaySifreDegistir;
-window.AdayHesaplariPaneli = AdayHesaplariPaneli;
+window.useAdayListesi = useAdayListesi;
+window.AdayHesapKutusu = AdayHesapKutusu;
 window.adayOturumKullanicisi = adayOturumKullanicisi;
 window.adayModulleri = adayModulleri;
 window.AdayDonemUyarisi = AdayDonemUyarisi;

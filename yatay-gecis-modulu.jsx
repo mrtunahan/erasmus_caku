@@ -1776,6 +1776,8 @@ function YgBasvuruKarti({
   onSilindi,
   tabanCozum,
   gecmis,
+  adayHesabi,
+  onAdayDegisti,
 }) {
   const [acik, setAcik] = useState(false);
   // Akademisyende yan panelde açılan ek (PDF)
@@ -2553,41 +2555,51 @@ function YgBasvuruKarti({
           {/* Aday numarası tanımlama — kesin kayıt yapılınca. Numara girildiği
               an başvuru öğrencinin KENDİ ekranında görünür hâle gelir; liste
               zaten ogrenciNo eşitliğiyle süzülüyor. */}
-          {isStaff && window.vekaletenMi && window.vekaletenMi(rec) && onNumaraTanimla && (
-            <div
-              style={{
-                border: '1px solid ' + YG.accent + '55',
-                background: YG.accentPale,
-                borderRadius: 10,
-                padding: 12,
-                marginBottom: 14,
-              }}
-            >
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#7c4a03', marginBottom: 4 }}>
-                Bu başvuruyu aday adına {rec.girenPersonel || 'bir akademisyen'} açtı
-              </div>
-              <div style={{ fontSize: 11.5, color: '#7c4a03', marginBottom: 10, lineHeight: 1.55 }}>
-                Kesin kayıt yapılıp öğrenci numarası verildiğinde buraya yazın. O andan itibaren
-                başvuru öğrencinin kendi ekranında görünür.
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                <input
-                  value={yeniNo}
-                  onChange={(e) => setYeniNo(e.target.value.replace(/\D/g, ''))}
-                  placeholder="Öğrenci numarası"
-                  style={{ ...ygInput, width: 190 }}
-                />
-                <button
-                  type="button"
-                  disabled={busy || !yeniNo.trim()}
-                  onClick={() => onNumaraTanimla(rec, yeniNo.trim(), () => setYeniNo(''))}
-                  style={ygBtn(!!yeniNo.trim() && !busy)}
-                >
-                  Numarayı Tanımla
-                </button>
-              </div>
-            </div>
+          {/* Kendi hesabını açan aday: hesap işlemleri burada (ayrı sekme yok). */}
+          {isStaff && adayHesabi && window.AdayHesapKutusu && (
+            <window.AdayHesapKutusu aday={adayHesabi} onDegisti={onAdayDegisti} />
           )}
+          {isStaff &&
+            !adayHesabi &&
+            window.vekaletenMi &&
+            window.vekaletenMi(rec) &&
+            onNumaraTanimla && (
+              <div
+                style={{
+                  border: '1px solid ' + YG.accent + '55',
+                  background: YG.accentPale,
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 14,
+                }}
+              >
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#7c4a03', marginBottom: 4 }}>
+                  Bu başvuruyu aday adına {rec.girenPersonel || 'bir akademisyen'} açtı
+                </div>
+                <div
+                  style={{ fontSize: 11.5, color: '#7c4a03', marginBottom: 10, lineHeight: 1.55 }}
+                >
+                  Kesin kayıt yapılıp öğrenci numarası verildiğinde buraya yazın. O andan itibaren
+                  başvuru öğrencinin kendi ekranında görünür.
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input
+                    value={yeniNo}
+                    onChange={(e) => setYeniNo(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Öğrenci numarası"
+                    style={{ ...ygInput, width: 190 }}
+                  />
+                  <button
+                    type="button"
+                    disabled={busy || !yeniNo.trim()}
+                    onClick={() => onNumaraTanimla(rec, yeniNo.trim(), () => setYeniNo(''))}
+                    style={ygBtn(!!yeniNo.trim() && !busy)}
+                  >
+                    Numarayı Tanımla
+                  </button>
+                </div>
+              </div>
+            )}
 
           {/* Akademisyen: öğrencinin BEYANINI yüklediği belgelerle denetle.
               Karar değerlendiricinindir; bu yalnız uyuşmazlıkları işaretler. */}
@@ -2952,6 +2964,11 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
       ? window.ogrenciYatayYeniBasvuruAcabilirMi(turId)
       : turId === 'kurumici');
   const [sekme, setSekme] = useState(isStudent ? 'yeni' : 'basvurular');
+  const [adayMesaj, setAdayMesaj] = useState('');
+  // Kendi hesabını açan adayların hesapları (kartta gösterilir; yalnız personel).
+  const adayListesi = window.useAdayListesi
+    ? window.useAdayListesi(activeDepartment, isStaff)
+    : { harita: {}, yenile: () => {} };
 
   const [kayitlar, setKayitlar] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -3734,16 +3751,10 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
         ...(yeniAcabilir ? [{ id: 'yeni', label: 'Yeni Başvuru' }] : []),
         { id: 'basvurular', label: 'Başvurularım' },
       ]
-    : [
-        { id: 'basvurular', label: 'Başvurular' },
-        // Yatay/dikey geçişle gelen adayın kesin kaydı yapılana kadar öğrenci
-        // numarası olmuyor; sisteme giremediği için başvurusunu da açamıyor.
-        // Bu sekmede akademisyen aday adına tüm işlemi yürütür.
-        { id: 'aday', label: 'Aday Adına Başvuru' },
-        // Kendi hesabını açan adaylar: şifre sıfırlama, kesin kayıtta
-        // öğrenci numarasına aktarma (aday-hesap-ekrani.jsx).
-        ...(window.AdayHesaplariPaneli ? [{ id: 'adayhesap', label: 'Aday Hesapları' }] : []),
-      ];
+    : // Personel TEK listede çalışır. "Aday Adına Başvuru" kaldırıldı: aday
+      // artık kendi hesabını açıp başvurur. Aday hesabı işlemleri (numaraya
+      // aktarma, şifre, kapatma) adayın başvuru kartındadır.
+      [{ id: 'basvurular', label: 'Başvurular' }];
 
   if (loading) {
     return <div style={{ padding: 60, textAlign: 'center', color: YG.textMuted }}>Yükleniyor…</div>;
@@ -3922,6 +3933,23 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
           {msg}
         </div>
       )}
+      {adayMesaj && (
+        <div
+          data-aday-mesaj
+          style={{
+            fontSize: 13,
+            color: '#047857',
+            fontWeight: 600,
+            marginBottom: 10,
+            padding: '8px 12px',
+            background: '#ECFDF5',
+            border: '1px solid #A7F3D0',
+            borderRadius: 10,
+          }}
+        >
+          {adayMesaj}
+        </div>
+      )}
 
       {/* Aday: başvuru dönemi dışındaysa uyarı (alan açık kalır). */}
       {adayMi && window.AdayDonemUyarisi && (
@@ -3941,31 +3969,6 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
             yukle();
             setTimeout(() => setMsg(''), 3000);
           }}
-        />
-      )}
-
-      {/* Akademisyen: numarası olmayan aday adına başvuru */}
-      {isStaff && sekme === 'aday' && (
-        <YgBasvuruFormu
-          key={'aday-' + turId}
-          tur={tur}
-          currentUser={currentUser}
-          departmentInfo={departmentInfo}
-          vekaleten
-          mevcutKayitlar={kayitlar}
-          onSaved={() => {
-            setMsg('Aday başvurusu kaydedildi.');
-            setSekme('basvurular');
-            yukle();
-            setTimeout(() => setMsg(''), 3000);
-          }}
-        />
-      )}
-
-      {isStaff && sekme === 'adayhesap' && window.AdayHesaplariPaneli && (
-        <window.AdayHesaplariPaneli
-          activeDepartment={activeDepartment}
-          turler={['kurumlararasi', 'merkezi']}
         />
       )}
 
@@ -4300,18 +4303,12 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                   ? tur.label +
                     ' için henüz bir başvurunuz yok. “Yeni Başvuru” sekmesinden ' +
                     'başvurunuzu oluşturabilirsiniz.'
-                  : tur.label +
-                    ' türünde bölümünüze yapılmış başvuru yok. Numarası henüz ' +
-                    'olmayan bir aday için “Aday Adına Başvuru” sekmesini kullanabilirsiniz.'
+                  : tur.label + ' türünde bölümünüze yapılmış başvuru yok.'
               }
               eylem={
-                isStudent && !yeniAcabilir ? null : (
-                  <button
-                    type="button"
-                    onClick={() => setSekme(isStudent ? 'yeni' : 'aday')}
-                    style={ygBtn(true)}
-                  >
-                    {isStudent ? 'Yeni başvuru oluştur' : 'Aday adına başvuru'}
+                !isStudent || !yeniAcabilir ? null : (
+                  <button type="button" onClick={() => setSekme('yeni')} style={ygBtn(true)}>
+                    Yeni başvuru oluştur
                   </button>
                 )
               }
@@ -4322,6 +4319,15 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                 <YgBasvuruKarti
                   key={r.id || r._docId}
                   rec={r}
+                  adayHesabi={adayListesi.harita[String(r.ogrenciNo || '')]}
+                  onAdayDegisti={(m) => {
+                    if (m) {
+                      setAdayMesaj(m);
+                      setTimeout(() => setAdayMesaj(''), 8000);
+                    }
+                    adayListesi.yenile();
+                    yukle();
+                  }}
                   tur={tur}
                   isStaff={isStaff}
                   busy={busy}
