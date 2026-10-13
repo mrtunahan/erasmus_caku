@@ -1,4 +1,10 @@
+// Ortam değişkenleri: önce çalışma klasöründeki .env (pm2 kökten çalıştırır:
+// /var/www/erasmus_caku/.env), sonra server/.env. dotenv var olanı EZMEZ;
+// iki dosya da okunur, ilk bulunan değer geçerlidir. Eskiden yalnız çalışma
+// klasörü okunuyordu ve server/.env'e yazılan anahtarlar (ör. RESEND_API_KEY)
+// sessizce yok sayılıyordu.
 require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
