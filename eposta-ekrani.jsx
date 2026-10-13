@@ -51,7 +51,11 @@ async function epostaIstek(yol, govde) {
     body: govde ? JSON.stringify(govde) : undefined,
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || 'İşlem yapılamadı (' + r.status + ').');
+  if (!r.ok) {
+    const e = new Error(j.error || 'İşlem yapılamadı (' + r.status + ').');
+    e.status = r.status;
+    throw e;
+  }
   return j;
 }
 
@@ -71,15 +75,30 @@ export function useEpostaDurumu(currentUser) {
         setDurum(d);
         return d;
       })
-      .catch(() => {
-        // Okunamazsa kullanıcı engellenmez (sunucu tarafı sorun olabilir).
+      .catch((e) => {
+        // Oturum sunucuda sonlandırıldıysa (şifre başka yerden yenilendi)
+        // ekran bozuk veriyle açık kalmasın: kabuk giriş ekranına döner.
+        if (e && e.status === 401 && window.__oturumSonlandi) window.__oturumSonlandi();
+        // Başka bir hatada kullanıcı engellenmez (sunucu tarafı sorun olabilir).
         setDurum(null);
         return null;
       });
   }, [anahtar]);
   useEffect(() => {
     yenile();
-  }, [yenile]);
+    if (!anahtar) return undefined;
+    // Sekme öne gelince ve 5 dakikada bir yeniden bakılır: şifresi başka
+    // cihazdan yenilenen hesabın açık kalmış sekmesi böylece kapanır.
+    const odak = () => {
+      if (document.visibilityState === 'visible') yenile();
+    };
+    document.addEventListener('visibilitychange', odak);
+    const t = setInterval(yenile, 5 * 60 * 1000);
+    return () => {
+      document.removeEventListener('visibilitychange', odak);
+      clearInterval(t);
+    };
+  }, [yenile, anahtar]);
   return [durum, yenile];
 }
 
