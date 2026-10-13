@@ -52,10 +52,8 @@ const STUDENT_TABS = [
 ];
 const STAFF_TABS = [
   { id: 'onay', label: 'Onay Bekleyenler', icon: 'plus' },
-  // Yatay/dikey geçişle gelen adayın kesin kaydı yapılana kadar öğrenci
-  // numarası olmuyor; sisteme giremediği için talebini de açamıyor. Bu
-  // sekmede akademisyen aday adına tüm işlemi yürütür.
-  { id: 'aday', label: 'Aday Adına Talep', icon: 'plus' },
+  // "Aday Adına Talep" kaldırıldı: numarası olmayan aday kendi hesabını açıp
+  // talebini kendisi yapar. Aday hesabı işlemleri talep kartındadır.
   { id: 'gecmis', label: 'Geçmiş Kayıtlar', icon: 'history' },
   { id: 'esgecmis', label: 'Eşleştirme Geçmişi', icon: 'history' },
   { id: 'ayarlar', label: 'Ayarlar', icon: 'settings' },
@@ -7966,6 +7964,9 @@ const ExemptionHistory = ({
   onMatchRemove,
   // Öğrencinin REDDEDİLEN derslerini düzeltip yeniden göndermesi.
   onYenidenGonder,
+  // Dikey geçiş: kendi hesabını açan adayların hesapları (adayNo → aday)
+  adayHaritasi,
+  onAdayDegisti,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedReview, setExpandedReview] = useState(null);
@@ -8576,6 +8577,18 @@ const ExemptionHistory = ({
                 </div>
               )}
 
+              {isExpanded &&
+                !isStudent &&
+                adayHaritasi &&
+                adayHaritasi[rec.studentNo] &&
+                window.AdayHesapKutusu && (
+                  <div style={{ padding: '0 20px 12px' }}>
+                    <window.AdayHesapKutusu
+                      aday={adayHaritasi[rec.studentNo]}
+                      onDegisti={onAdayDegisti}
+                    />
+                  </div>
+                )}
               {isExpanded && (onUpdateDecision || isStudent) && (
                 <div style={{ padding: '0 20px 16px' }}>
                   <ReviewPanel
@@ -10807,9 +10820,11 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
     ? dikeySaltGorunum
       ? STUDENT_TABS.filter((t) => t.id !== 'yeni')
       : STUDENT_TABS
-    : sabitTur === 'dikey' && window.AdayHesaplariPaneli
-      ? STAFF_TABS.concat([{ id: 'adayhesap', label: 'Aday Hesapları', icon: 'history' }])
-      : STAFF_TABS;
+    : STAFF_TABS;
+  // Dikey geçişte kendi hesabını açan adaylar (talep kartında gösterilir).
+  const adayListesi = window.useAdayListesi
+    ? window.useAdayListesi(activeDepartment, !isStudent && sabitTur === 'dikey')
+    : { harita: {}, yenile: function () {} };
   const [activeTab, setActiveTab] = useState(
     isStudent ? (dikeySaltGorunum ? 'gecmis' : 'yeni') : 'onay'
   );
@@ -11689,30 +11704,9 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
             onSaveThresholds={handleSaveThresholds}
           />
         )}
-        {/* Yeni Muafiyet: yalnızca öğrenci oluşturur; akademisyen onaylar */}
-        {activeTab === 'aday' && !isStudent && (
-          <ManualExemptionForm
-            key={'aday-' + basvuruTuru + '::' + (activeDepartment || '')}
-            currentUser={currentUser}
-            activeDepartment={activeDepartment}
-            courseContents={courseContents}
-            basvuruTuru={basvuruTuru}
-            turMeta={turMeta}
-            vekaleten
-            mevcutKayitlar={records}
-            onSave={function (saved) {
-              setRecords(function (prev) {
-                return [saved, ...prev];
-              });
-              setActiveTab('onay');
-            }}
-          />
-        )}
+        {/* Yeni Muafiyet: yalnızca öğrenci (ve aday) oluşturur; akademisyen onaylar */}
         {sabitTur === 'dikey' && currentUser?.aday && window.AdayDonemUyarisi && (
           <window.AdayDonemUyarisi currentUser={currentUser} turler={['dikey']} />
-        )}
-        {activeTab === 'adayhesap' && !isStudent && window.AdayHesaplariPaneli && (
-          <window.AdayHesaplariPaneli activeDepartment={activeDepartment} turler={['dikey']} />
         )}
         {activeTab === 'yeni' && isStudent && !dikeySaltGorunum && (
           <ManualExemptionForm
@@ -11735,6 +11729,12 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         {/* Onay Bekleyenler: akademisyen — karar bekleyen talepler */}
         {activeTab === 'onay' && !isStudent && (
           <ExemptionHistory
+            adayHaritasi={adayListesi.harita}
+            onAdayDegisti={function (m) {
+              adayListesi.yenile();
+              if (window.apiInvalidate) window.apiInvalidate('muafiyet_records');
+              if (m) window.alert(m);
+            }}
             records={turRecords.filter(function (r) {
               // Karar bekleyen dersler VEYA yaz intibakında akademisyen aksiyonu
               // bekleyen faz (ön onay / belge teslim sonrası not dönüşümü).
@@ -11761,6 +11761,12 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
         )}
         {activeTab === 'gecmis' && (
           <ExemptionHistory
+            adayHaritasi={adayListesi.harita}
+            onAdayDegisti={function (m) {
+              adayListesi.yenile();
+              if (window.apiInvalidate) window.apiInvalidate('muafiyet_records');
+              if (m) window.alert(m);
+            }}
             records={turRecords}
             loading={recordsLoading}
             onDelete={isStudent ? null : handleDeleteRecord}
