@@ -1141,3 +1141,30 @@ router.post('/default-professor-password', async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * E-postayla şifre sıfırlama (routes/eposta.js) için: hesabın şifresini
+ * MEVCUT saklama biçimiyle yazar ve hesabın giriş deneme sayacını sıfırlar.
+ * Aday şifresi kendi koleksiyonundadır ve orada yazılır.
+ * @returns {Promise<boolean>} hesap türü tanındı ve yazıldı mı
+ */
+module.exports.sifreYaz = async function sifreYaz(rol, kimlik, yeniSifre) {
+  const hash = await hashPassword(yeniSifre);
+  const k = String(kimlik || '');
+  if (rol === 'student') {
+    await setPasswordDoc('student_passwords', { [k]: hash }, true);
+    clearAttempts('student:' + k);
+  } else if (rol === 'professor') {
+    await setPasswordDoc('professor_passwords', { [k]: hash }, true);
+    clearAttempts('professor:' + k);
+  } else if (rol === 'bolum_yetkilisi') {
+    await setPasswordDoc('department_manager_passwords', { [k]: hash }, true);
+    clearAttempts('dept_manager:' + k);
+  } else if (rol === 'admin') {
+    await setPasswordDoc('admin', { password: hash, updatedAt: new Date() });
+    clearAttempts('admin');
+  } else {
+    return false;
+  }
+  return true;
+};

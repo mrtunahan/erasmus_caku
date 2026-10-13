@@ -16,6 +16,7 @@ const { logger } = require('../lib/logger');
 // dosyanın ileride farklı anahtara düşmesine yol açabilirdi.
 const { JWT_SECRET } = require('./auth');
 const { jetonKullanicisi } = require('../lib/aday-yetki');
+const oturumIptal = require('../lib/oturum-iptal');
 
 function extractToken(req) {
   if (req.cookies && req.cookies.caku_auth) return req.cookies.caku_auth;
@@ -42,7 +43,7 @@ function softAuth(getDb) {
         // imza geçerli değilse hata fırlatır. Bu nedenle req.user'a yalnızca
         // sunucumuz tarafından imzalanmış payload atanır — user-controlled
         // input olsa da kriptografik doğrulamadan sonra trust edilir.
-        const decoded = jetonKullanicisi(jwt.verify(token, JWT_SECRET));
+        const decoded = jetonKullanicisi(oturumIptal.denetle(jwt.verify(token, JWT_SECRET)));
         req.user = decoded;
         return next();
       } catch (err) {

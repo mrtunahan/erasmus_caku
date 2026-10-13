@@ -547,6 +547,7 @@ const Sidebar = ({
   isOpen,
   onClose,
   onRequestChangePassword,
+  onRequestEposta,
   commissionModules = [],
   studentLocked = false,
   ogrenciDikeyKaydi = false,
@@ -1050,7 +1051,54 @@ const Sidebar = ({
         )}
 
       {/* Şifre Değiştir butonu (tüm roller) — sidebar altı */}
-      <div style={{ marginTop: 'auto', padding: '8px 12px 16px' }}>
+      <div
+        style={{
+          marginTop: 'auto',
+          padding: '8px 12px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
+      >
+        {onRequestEposta && (
+          <button
+            onClick={() => {
+              onRequestEposta();
+              if (isMobile) onClose();
+            }}
+            data-eposta-menu
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid #E2E8F0',
+              background: 'white',
+              color: '#0D9488',
+              fontSize: 13,
+              fontWeight: 500,
+              fontFamily: "'Inter', sans-serif",
+              cursor: 'pointer',
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="2" y="4" width="20" height="16" rx="2" />
+              <polyline points="22 6 12 13 2 6" />
+            </svg>
+            E-posta Adresim
+          </button>
+        )}
         <button
           onClick={() => {
             if (onRequestChangePassword) onRequestChangePassword();
@@ -2255,6 +2303,14 @@ function AppShell() {
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+
+  // ── Hesap e-postası (eposta-ekrani.jsx) ──
+  // Doğrulanmış adresi olmayan kullanıcıya girişte ZORUNLU pencere açılır
+  // (sunucu e-posta gönderebiliyorsa: server/routes/eposta.js → zorunlu).
+  const [epostaAcik, setEpostaAcik] = useState(false);
+  const [epostaDurumu, epostaYenile] = window.useEpostaDurumu
+    ? window.useEpostaDurumu(currentUser)
+    : [null, () => Promise.resolve(null)];
   const [commissionModules, setCommissionModules] = useState([]);
   // DB bölümleri yüklenince artar. ⚠ Değeri ATILIYORDU (`const [, setDeptVersion]`):
   // kapsam denetimi bu değişimi göremediği için, bölümler geldiğinde aktif bölüm
@@ -3516,6 +3572,7 @@ function AppShell() {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           onRequestChangePassword={() => setShowChangePassword(true)}
+          onRequestEposta={window.EpostaPenceresi ? () => setEpostaAcik(true) : undefined}
           commissionModules={commissionModules}
           studentLocked={currentUser?.role === 'student' && !studentHasCourses}
           ogrenciDikeyKaydi={ogrenciDikeyKaydi}
@@ -3569,6 +3626,25 @@ function AppShell() {
           onClose={() => setShowChangePassword(false)}
         />
       )}
+      {/* E-posta adresi: doğrulanmış adres yoksa ZORUNLU (kapatılamaz); geçici
+          şifreyle giren adayın önce şifresini belirlemesi beklenir. */}
+      {window.EpostaPenceresi &&
+        epostaDurumu &&
+        epostaDurumu.destek &&
+        !(currentUser?.aday && currentUser.sifreDegistirmeli) &&
+        ((epostaDurumu.zorunlu && !epostaDurumu.dogrulandi) || epostaAcik) && (
+          <window.EpostaPenceresi
+            key={epostaDurumu.eposta || 'yeni'}
+            durum={epostaDurumu}
+            zorunlu={!!(epostaDurumu.zorunlu && !epostaDurumu.dogrulandi)}
+            onTamam={() => {
+              setEpostaAcik(false);
+              epostaYenile();
+            }}
+            onKapat={() => setEpostaAcik(false)}
+            onCikis={handleLogout}
+          />
+        )}
       {/* Aday şifresi kendi ucundan değişir. Geçici şifreyle giren aday
           (yetkili sıfırladı) kendi şifresini belirlemeden devam edemez. */}
       {currentUser?.aday &&

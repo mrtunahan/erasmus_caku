@@ -137,6 +137,11 @@ app.use('/api/bildirim', bildirimRoutes);
 app.use('/api/aday/kayit', authRateLimiter());
 app.use('/api/aday/giris', authRateLimiter());
 app.use('/api/aday', adayRoutes);
+// Hesap e-postası (kodla doğrulama) ve "Şifremi unuttum" (bkz. routes/eposta.js).
+// Kimliksiz uçlar giriş uçlarıyla aynı IP sınırına bağlı.
+app.use('/api/eposta/sifremi-unuttum', authRateLimiter());
+app.use('/api/eposta/sifre-yenile', authRateLimiter());
+app.use('/api/eposta', require('./routes/eposta'));
 
 // 404 + merkezi hata yakalayıcı (route'lardan sonra mount edilmeli)
 app.use(notFoundHandler);
@@ -178,6 +183,14 @@ async function start() {
       console.log(`${RETRY_DELAY_MS / 1000} saniye sonra tekrar denenecek...`);
       await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
     }
+  }
+
+  // Şifresi e-postayla sıfırlanan hesapların iptal edilmiş oturumları
+  // (lib/oturum-iptal.js) — dinlemeye başlamadan önce yüklenir.
+  try {
+    await require('./lib/oturum-iptal').yukle(await getDbSafe());
+  } catch (e) {
+    console.warn('[oturum-iptal] yüklenemedi:', e && e.message);
   }
 
   httpServer.listen(PORT, () => {
