@@ -44,6 +44,10 @@ const TUZ = () => String(process.env.EPOSTA_TUZU || JWT_SECRET);
 const sayaclar = new Map();
 function sinirAsildi(anahtar, enCok, pencereDk) {
   const simdi = Date.now();
+  // Tablo sınırsız büyümesin: süresi geçmiş sayaçlar ara ara temizlenir.
+  if (sayaclar.size > 5000) {
+    for (const [k, v] of sayaclar) if (simdi - v.bas > 60 * 60000) sayaclar.delete(k);
+  }
   const k = sayaclar.get(anahtar);
   if (!k || simdi - k.bas > pencereDk * 60000) {
     sayaclar.set(anahtar, { bas: simdi, n: 1 });
@@ -60,6 +64,14 @@ const ipOf = (req) =>
 /** Bu ortamda e-posta doğrulaması girişte zorunlu mu? */
 function zorunluMu() {
   return posta.postaHazirMi() || process.env.EPOSTA_ZORUNLU === '1';
+}
+
+/**
+ * Kod gönderilebilir mi? Üretimde anahtar yoksa HAYIR: kullanıcı hiç
+ * gelmeyecek bir kodu beklemesin. Geliştirmede ileti konsola yazılır.
+ */
+function gonderimMumkunMu() {
+  return posta.postaHazirMi() || process.env.NODE_ENV !== 'production';
 }
 
 async function iz(db, kind, veri) {
@@ -101,6 +113,7 @@ router.get('/durum', requireAuth, async (req, res) => {
     }
     return res.json({
       destek: true,
+      hazir: gonderimMumkunMu(),
       zorunlu: zorunluMu(),
       eposta: kayit ? kayit.eposta : '',
       dogrulandi: !!kayit,
@@ -120,6 +133,11 @@ router.post('/kod-gonder', requireAuth, async (req, res) => {
   const eposta = K.epostaSadele(req.body && req.body.eposta);
   if (!K.epostaGecerliMi(eposta)) {
     return res.status(400).json({ error: 'Geçerli bir e-posta adresi yazın.' });
+  }
+  if (!gonderimMumkunMu()) {
+    return res
+      .status(503)
+      .json({ error: 'E-posta gönderimi henüz yapılandırılmadı. Daha sonra tekrar deneyin.' });
   }
   if (sinirAsildi('kod:' + hesap, 5, 60) || sinirAsildi('kod-ip:' + ipOf(req), 30, 60)) {
     return res.status(429).json({ error: 'Çok fazla kod istendi. Bir süre sonra tekrar deneyin.' });

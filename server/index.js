@@ -1,4 +1,10 @@
+// Ortam değişkenleri: önce çalışma klasöründeki .env (pm2 kökten çalıştırır:
+// /var/www/erasmus_caku/.env), sonra server/.env. dotenv var olanı EZMEZ;
+// iki dosya da okunur, ilk bulunan değer geçerlidir. Eskiden yalnız çalışma
+// klasörü okunuyordu ve server/.env'e yazılan anahtarlar (ör. RESEND_API_KEY)
+// sessizce yok sayılıyordu.
 require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
@@ -192,6 +198,24 @@ async function start() {
   } catch (e) {
     console.warn('[oturum-iptal] yüklenemedi:', e && e.message);
   }
+  // E-posta koleksiyonları: adres araması için dizin; süresi geçen kod ve
+  // bağlantılar bir gün sonra MongoDB tarafından kendiliğinden silinir (TTL).
+  try {
+    const dbE = await getDbSafe();
+    await dbE.collection('hesap_epostalari').createIndex({ eposta: 1 });
+    await dbE.collection('sifre_sifirlama').createIndex({ son: 1 }, { expireAfterSeconds: 86400 });
+    await dbE.collection('eposta_dogrulama').createIndex({ son: 1 }, { expireAfterSeconds: 86400 });
+  } catch (e) {
+    console.warn('[eposta] dizinler oluşturulamadı:', e && e.message);
+  }
+  console.log(
+    require('./lib/posta').postaHazirMi()
+      ? '[posta] Resend etkin — e-posta doğrulaması girişte zorunlu.'
+      : '[posta] RESEND_API_KEY tanımlı değil — e-postalar gönderilmez (konsola yazılır)' +
+          (process.env.EPOSTA_ZORUNLU === '1'
+            ? '; EPOSTA_ZORUNLU=1 (test).'
+            : '; girişte e-posta zorunlu değil.')
+  );
 
   httpServer.listen(PORT, () => {
     console.log(`API sunucusu çalışıyor: http://localhost:${PORT}`);

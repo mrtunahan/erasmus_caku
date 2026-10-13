@@ -36,7 +36,10 @@ function uygulamaAdresi() {
 
 /** Gerçek gönderim yapılandırılmış mı? */
 function postaHazirMi() {
-  return /^re_[A-Za-z0-9_]{8,}$/.test(anahtar());
+  // Biçim katı denetlenmez (Resend anahtar biçimini değiştirebilir); yanlış
+  // anahtar gönderimde 401 döner ve günlüğe düşer.
+  const a = anahtar();
+  return a.startsWith('re_') && a.length >= 12 && !/\s/.test(a);
 }
 
 const testKutusuAcik = () =>

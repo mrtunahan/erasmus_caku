@@ -2717,6 +2717,24 @@ function AppShell() {
     }
   };
 
+  // Oturum sunucuda sonlandırıldıysa (useEpostaDurumu 401 aldı) yerel oturum
+  // da kapanır; kullanıcı giriş ekranında bir uyarı görür.
+  useEffect(() => {
+    window.__oturumSonlandi = () => {
+      try {
+        localStorage.removeItem('caku_oturum');
+        localStorage.removeItem('caku_current_user');
+      } catch (_) {
+        /* depolama kapalı */
+      }
+      if (window.apiInvalidate) window.apiInvalidate();
+      setCurrentUser(null);
+    };
+    return () => {
+      delete window.__oturumSonlandi;
+    };
+  }, []);
+
   const handleLogout = async () => {
     try {
       await Auth.signOut();
@@ -3572,7 +3590,11 @@ function AppShell() {
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           onRequestChangePassword={() => setShowChangePassword(true)}
-          onRequestEposta={window.EpostaPenceresi ? () => setEpostaAcik(true) : undefined}
+          onRequestEposta={
+            window.EpostaPenceresi && epostaDurumu && epostaDurumu.destek && epostaDurumu.hazir
+              ? () => setEpostaAcik(true)
+              : undefined
+          }
           commissionModules={commissionModules}
           studentLocked={currentUser?.role === 'student' && !studentHasCourses}
           ogrenciDikeyKaydi={ogrenciDikeyKaydi}
