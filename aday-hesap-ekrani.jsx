@@ -459,7 +459,7 @@ export function AdayGirisPaneli({ onLogin }) {
           Hesabım yok — aday hesabı oluştur
         </button>
         <div className="lg-hint" style={{ textAlign: 'center', marginTop: 0 }}>
-          Şifrenizi unuttuysanız başvurduğunuz bölümün sekreterliğinden sıfırlatın.
+          Şifrenizi unuttuysanız aşağıdaki “Şifremi unuttum” bağlantısını kullanın.
         </div>
       </form>
     );

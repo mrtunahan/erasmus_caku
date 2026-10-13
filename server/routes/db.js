@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
+const oturumIptal = require('../lib/oturum-iptal');
 const {
   jetonKullanicisi,
   adayOkuyabilirMi,
@@ -201,7 +202,7 @@ function decodeUser(req) {
   if (!token) return null;
   try {
     // Aday jetonu öğrenci + aday bayrağı olur (server/lib/aday-yetki.js).
-    return jetonKullanicisi(jwt.verify(token, JWT_SECRET));
+    return jetonKullanicisi(oturumIptal.denetle(jwt.verify(token, JWT_SECRET)));
   } catch (_e) {
     return null;
   }

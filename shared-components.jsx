@@ -8962,6 +8962,9 @@ window.KvkkMetniModal = KvkkMetniModal;
 
 // ── Login Modal ──
 const LoginModal = ({ onLogin }) => {
+  // Şifremi unuttum / e-postadaki yenileme bağlantısı (eposta-ekrani.jsx).
+  // null | 'unuttum' | 'yenile'
+  const [hesapModu, setHesapModu] = useState(() => (window.__sifreYenileJetonu ? 'yenile' : null));
   const [activeTab, setActiveTab] = useState('student'); // student, professor, admin
   // Kiracı kimliği (marka/kurum adları) DB'den geç yüklenebilir — event ile tazele.
   const [, setTenantTick] = useState(0);
@@ -10168,849 +10171,596 @@ const LoginModal = ({ onLogin }) => {
 
           {/* Right panel — form */}
           <div className="lg-right">
-            <h2 className="lg-right-heading">Giriş Yap</h2>
-            <p className="lg-right-sub">Devam etmek için hesabınızla oturum açın.</p>
+            <h2 className="lg-right-heading">{hesapModu ? 'Hesap Kurtarma' : 'Giriş Yap'}</h2>
+            <p className="lg-right-sub">
+              {hesapModu
+                ? 'Şifrenizi e-posta adresinizle yenileyin.'
+                : 'Devam etmek için hesabınızla oturum açın.'}
+            </p>
 
-            {activeTab === 'admin' && (
-              <div className="lg-admin-banner">
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-                Yönetici Girişi
-              </div>
-            )}
-
-            {/* Tabs - Admin hariç */}
-            {activeTab !== 'admin' &&
-              !registerMode &&
-              !setupPasswordMode &&
-              !(activeTab === 'student' && studentStep === 'password') && (
-                <div className="lg-tabs">
-                  {[
-                    { key: 'student', label: 'Öğrenci' },
-                    { key: 'professor', label: 'Akademisyen' },
-                    // Numarası olmayan geçiş adayı (dikey / kurumlararası /
-                    // merkezi yerleştirme) — bkz. aday-hesap-ekrani.jsx.
-                    ...(window.AdayGirisPaneli ? [{ key: 'aday', label: 'Aday' }] : []),
-                  ].map((tab) => {
-                    const active = activeTab === tab.key;
-                    return (
-                      <button
-                        key={tab.key}
-                        onClick={() => {
-                          setActiveTab(tab.key);
-                          setError('');
-                          setIdentifier('');
-                          setPassword('');
-                          setStudentStep('number');
-                          setStudentInfo(null);
-                          resetSetupState();
-                          setProfSearch('');
-                          setProfDropdownOpen(false);
-                        }}
-                        type="button"
-                        className={`lg-tab${active ? ' lg-tab-active' : ''}`}
-                      >
-                        {tab.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-            {/* Üniversite seçimi — yalnızca ÖĞRENCİ girişinde.
-                Akademisyen girişinde Üniversite/Fakülte/Bölüm seçimine GEREK YOK:
-                akademisyen adıyla giriş yapar ve doğrudan kendi ekranına yönlenir. */}
-            {activeTab === 'student' &&
-              !registerMode &&
-              !setupPasswordMode &&
-              studentStep !== 'password' && (
-                <div
-                  style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}
-                >
-                  {hierUniversities.length > 0 && (
-                    <div>
-                      <label className="lg-label">Üniversite</label>
-                      <select
-                        value={selUni}
-                        onChange={(e) => {
-                          setSelUni(e.target.value);
-                          setSelFaculty('');
-                          setSelDept('');
-                        }}
-                        className="lg-input"
-                      >
-                        <option value="">Üniversite seçin…</option>
-                        {hierUniversities.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              )}
-
-            {/* Yeni Öğrenci Kayıt Ekranı */}
-            {activeTab === 'aday' && window.AdayGirisPaneli ? (
-              <window.AdayGirisPaneli onLogin={onLogin} />
-            ) : registerMode ? (
-              <form onSubmit={handleRegister}>
-                <div className="lg-setup-hero">
-                  <div className="lg-setup-icon">
+            {hesapModu === 'yenile' && window.SifreYenilePaneli ? (
+              <window.SifreYenilePaneli
+                jeton={window.__sifreYenileJetonu}
+                onBitti={() => setHesapModu(null)}
+              />
+            ) : hesapModu === 'unuttum' && window.SifremiUnuttumPaneli ? (
+              <window.SifremiUnuttumPaneli onGeri={() => setHesapModu(null)} />
+            ) : (
+              <>
+                {activeTab === 'admin' && (
+                  <div className="lg-admin-banner">
                     <svg
-                      width="28"
-                      height="28"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#C4973B"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-                      <circle cx="8.5" cy="7" r="4" />
-                      <line x1="20" y1="8" x2="20" y2="14" />
-                      <line x1="23" y1="11" x2="17" y2="11" />
-                    </svg>
-                  </div>
-                  <h3 className="lg-setup-title">Kayıt Ol</h3>
-                  <p className="lg-setup-sub">
-                    <strong>{pendingStudentNumber}</strong> numaralı öğrenci olarak kayıt olun.
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <label className="lg-label">Ad</label>
-                    <input
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      placeholder="Adınız"
-                      autoFocus
-                      className="lg-input"
-                    />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <label className="lg-label">Soyad</label>
-                    <input
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      placeholder="Soyadınız"
-                      className="lg-input"
-                    />
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 18 }}>
-                  <label className="lg-label">Bölüm</label>
-                  <div className="lg-input-icon-wrap">
-                    <div className="lg-input-icon-left">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
-                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-                      </svg>
-                    </div>
-                    <select
-                      value={selectedDepartment}
-                      onChange={(e) => setSelectedDepartment(e.target.value)}
-                      className="lg-input lg-input-icon"
-                      style={{
-                        paddingRight: 40,
-                        color: selectedDepartment ? '#0F172A' : '#94A3B8',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <option value="" disabled>
-                        Bölümünüzü seçin
-                      </option>
-                      {DEPARTMENTS.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
-                    <div
-                      style={{
-                        position: 'absolute',
-                        right: 14,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#64748B',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 18 }}>
-                  <label className="lg-label">Şifre</label>
-                  <div className="lg-input-icon-wrap">
-                    <div className="lg-input-icon-left">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0110 0v4" />
-                      </svg>
-                    </div>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Şifrenizi belirleyin (en az 6 karakter)"
-                      className="lg-input lg-input-icon"
-                    />
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 22 }}>
-                  <label className="lg-label">Şifre Tekrar</label>
-                  <div className="lg-input-icon-wrap">
-                    <div className="lg-input-icon-left">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M20 6L9 17l-5-5" />
-                      </svg>
-                    </div>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Şifrenizi tekrar girin"
-                      className="lg-input lg-input-icon"
-                    />
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="lg-error">
-                    <svg
-                      width="16"
-                      height="16"
+                      width="14"
+                      height="14"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
-                      strokeWidth="2"
+                      strokeWidth="2.2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="15" y1="9" x2="9" y2="15" />
-                      <line x1="9" y1="9" x2="15" y2="15" />
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                     </svg>
-                    {error}
+                    Yönetici Girişi
                   </div>
                 )}
 
-                {/* ── KVKK AYDINLATMASI ──
+                {/* Tabs - Admin hariç */}
+                {activeTab !== 'admin' &&
+                  !registerMode &&
+                  !setupPasswordMode &&
+                  !(activeTab === 'student' && studentStep === 'password') && (
+                    <div className="lg-tabs">
+                      {[
+                        { key: 'student', label: 'Öğrenci' },
+                        { key: 'professor', label: 'Akademisyen' },
+                        // Numarası olmayan geçiş adayı (dikey / kurumlararası /
+                        // merkezi yerleştirme) — bkz. aday-hesap-ekrani.jsx.
+                        ...(window.AdayGirisPaneli ? [{ key: 'aday', label: 'Aday' }] : []),
+                      ].map((tab) => {
+                        const active = activeTab === tab.key;
+                        return (
+                          <button
+                            key={tab.key}
+                            onClick={() => {
+                              setActiveTab(tab.key);
+                              setError('');
+                              setIdentifier('');
+                              setPassword('');
+                              setStudentStep('number');
+                              setStudentInfo(null);
+                              resetSetupState();
+                              setProfSearch('');
+                              setProfDropdownOpen(false);
+                            }}
+                            type="button"
+                            className={`lg-tab${active ? ' lg-tab-active' : ''}`}
+                          >
+                            {tab.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                {/* Üniversite seçimi — yalnızca ÖĞRENCİ girişinde.
+                Akademisyen girişinde Üniversite/Fakülte/Bölüm seçimine GEREK YOK:
+                akademisyen adıyla giriş yapar ve doğrudan kendi ekranına yönlenir. */}
+                {activeTab === 'student' &&
+                  !registerMode &&
+                  !setupPasswordMode &&
+                  studentStep !== 'password' && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                        marginBottom: 18,
+                      }}
+                    >
+                      {hierUniversities.length > 0 && (
+                        <div>
+                          <label className="lg-label">Üniversite</label>
+                          <select
+                            value={selUni}
+                            onChange={(e) => {
+                              setSelUni(e.target.value);
+                              setSelFaculty('');
+                              setSelDept('');
+                            }}
+                            className="lg-input"
+                          >
+                            <option value="">Üniversite seçin…</option>
+                            {hierUniversities.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                {/* Yeni Öğrenci Kayıt Ekranı */}
+                {activeTab === 'aday' && window.AdayGirisPaneli ? (
+                  <window.AdayGirisPaneli onLogin={onLogin} />
+                ) : registerMode ? (
+                  <form onSubmit={handleRegister}>
+                    <div className="lg-setup-hero">
+                      <div className="lg-setup-icon">
+                        <svg
+                          width="28"
+                          height="28"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#C4973B"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                          <circle cx="8.5" cy="7" r="4" />
+                          <line x1="20" y1="8" x2="20" y2="14" />
+                          <line x1="23" y1="11" x2="17" y2="11" />
+                        </svg>
+                      </div>
+                      <h3 className="lg-setup-title">Kayıt Ol</h3>
+                      <p className="lg-setup-sub">
+                        <strong>{pendingStudentNumber}</strong> numaralı öğrenci olarak kayıt olun.
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <label className="lg-label">Ad</label>
+                        <input
+                          type="text"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          placeholder="Adınız"
+                          autoFocus
+                          className="lg-input"
+                        />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <label className="lg-label">Soyad</label>
+                        <input
+                          type="text"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          placeholder="Soyadınız"
+                          className="lg-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 18 }}>
+                      <label className="lg-label">Bölüm</label>
+                      <div className="lg-input-icon-wrap">
+                        <div className="lg-input-icon-left">
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+                          </svg>
+                        </div>
+                        <select
+                          value={selectedDepartment}
+                          onChange={(e) => setSelectedDepartment(e.target.value)}
+                          className="lg-input lg-input-icon"
+                          style={{
+                            paddingRight: 40,
+                            color: selectedDepartment ? '#0F172A' : '#94A3B8',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="" disabled>
+                            Bölümünüzü seçin
+                          </option>
+                          {DEPARTMENTS.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div
+                          style={{
+                            position: 'absolute',
+                            right: 14,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#64748B',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 18 }}>
+                      <label className="lg-label">Şifre</label>
+                      <div className="lg-input-icon-wrap">
+                        <div className="lg-input-icon-left">
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0110 0v4" />
+                          </svg>
+                        </div>
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Şifrenizi belirleyin (en az 6 karakter)"
+                          className="lg-input lg-input-icon"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 22 }}>
+                      <label className="lg-label">Şifre Tekrar</label>
+                      <div className="lg-input-icon-wrap">
+                        <div className="lg-input-icon-left">
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M20 6L9 17l-5-5" />
+                          </svg>
+                        </div>
+                        <input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Şifrenizi tekrar girin"
+                          className="lg-input lg-input-icon"
+                        />
+                      </div>
+                    </div>
+
+                    {error && (
+                      <div className="lg-error">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="15" y1="9" x2="9" y2="15" />
+                          <line x1="9" y1="9" x2="15" y2="15" />
+                        </svg>
+                        {error}
+                      </div>
+                    )}
+
+                    {/* ── KVKK AYDINLATMASI ──
                     Kutucuk RIZA almaz, aydınlatmanın yapıldığını teyit eder:
                     üniversitenin öğrenci verisini işlemesi kanuna dayanır,
                     rızaya değil (gerekçe lib/kvkk.js başında). Bu yüzden
                     "kabul ediyorum" değil "okudum" der; metin bir tıkla açılır
                     — okunamayan bir metin aydınlatma sayılmaz. */}
-                <label
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 10,
-                    marginBottom: 18,
-                    fontSize: 12.5,
-                    lineHeight: 1.5,
-                    color: '#475569',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={kvkkOkundu}
-                    onChange={(e) => setKvkkOkundu(e.target.checked)}
-                    style={{ marginTop: 2, width: 16, height: 16, flexShrink: 0 }}
-                  />
-                  <span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setKvkkAcik(true);
-                      }}
+                    <label
                       style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        font: 'inherit',
-                        color: '#115E59',
-                        textDecoration: 'underline',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        marginBottom: 18,
+                        fontSize: 12.5,
+                        lineHeight: 1.5,
+                        color: '#475569',
                         cursor: 'pointer',
                       }}
                     >
-                      Aydınlatma Metni
-                    </button>
-                    &rsquo;ni okudum ve kişisel verilerimin metinde belirtilen kapsamda işleneceği
-                    konusunda bilgilendirildim.
-                  </span>
-                </label>
-                {kvkkAcik && <KvkkMetniModal onClose={() => setKvkkAcik(false)} />}
-
-                <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
-                  {loading ? (
-                    <>
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        style={{ animation: 'loginSpin 1s linear infinite' }}
-                      >
-                        <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
-                      </svg>
-                      Kaydediliyor...
-                    </>
-                  ) : (
-                    <>
-                      Kayıt Ol ve Giriş Yap
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                        <polyline points="12 5 19 12 12 19" />
-                      </svg>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={resetSetupState}
-                  className="lg-btn lg-btn-secondary"
-                  style={{ marginTop: 10, padding: '10px 16px', fontSize: 13 }}
-                >
-                  Geri Dön
-                </button>
-              </form>
-            ) : setupPasswordMode ? (
-              /* Mevcut öğrenci: şifre değiştirme ekranı */
-              <form onSubmit={handleSetupPassword}>
-                <div className="lg-setup-hero">
-                  <div className="lg-setup-icon">
-                    <svg
-                      width="28"
-                      height="28"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#C4973B"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0110 0v4" />
-                    </svg>
-                  </div>
-                  <h3 className="lg-setup-title">Yeni Şifre Belirleyin</h3>
-                  <p className="lg-setup-sub">
-                    Hoş geldiniz, <strong>{pendingUser?.name}</strong>. Güvenliğiniz için lütfen
-                    yeni bir şifre belirleyin.
-                  </p>
-                </div>
-
-                <div style={{ marginBottom: 18 }}>
-                  <label className="lg-label">Yeni Şifre</label>
-                  <div className="lg-input-icon-wrap">
-                    <div className="lg-input-icon-left">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0110 0v4" />
-                      </svg>
-                    </div>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Yeni şifrenizi girin (en az 6 karakter)"
-                      autoFocus
-                      className="lg-input lg-input-icon"
-                    />
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 22 }}>
-                  <label className="lg-label">Şifre Tekrar</label>
-                  <div className="lg-input-icon-wrap">
-                    <div className="lg-input-icon-left">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M20 6L9 17l-5-5" />
-                      </svg>
-                    </div>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Şifrenizi tekrar girin"
-                      className="lg-input lg-input-icon"
-                    />
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="lg-error">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="15" y1="9" x2="9" y2="15" />
-                      <line x1="9" y1="9" x2="15" y2="15" />
-                    </svg>
-                    {error}
-                  </div>
-                )}
-
-                <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
-                  {loading ? (
-                    <>
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        style={{ animation: 'loginSpin 1s linear infinite' }}
-                      >
-                        <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
-                      </svg>
-                      Kaydediliyor...
-                    </>
-                  ) : (
-                    <>
-                      Şifreyi Belirle ve Giriş Yap
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                        <polyline points="12 5 19 12 12 19" />
-                      </svg>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={resetSetupState}
-                  className="lg-btn lg-btn-secondary"
-                  style={{ marginTop: 10, padding: '10px 16px', fontSize: 13 }}
-                >
-                  Geri Dön
-                </button>
-              </form>
-            ) : activeTab === 'student' && studentStep === 'password' ? (
-              /* Öğrenci: Şifre Giriş Adımı */
-              <form onSubmit={handleStudentLogin}>
-                <div className="lg-greeting">
-                  <div className="lg-greeting-label">Hoş geldiniz</div>
-                  <div className="lg-greeting-name">
-                    {studentInfo?.firstName} {studentInfo?.lastName}
-                  </div>
-                  <div className="lg-greeting-id">{identifier}</div>
-                </div>
-
-                <div style={{ marginBottom: 22 }}>
-                  <label className="lg-label">Şifre</label>
-                  <div className="lg-input-icon-wrap">
-                    <div className="lg-input-icon-left">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0110 0v4" />
-                      </svg>
-                    </div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Şifrenizi girin"
-                      autoFocus
-                      className="lg-input lg-input-icon lg-input-eye"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="lg-input-eye-btn"
-                      aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
-                    >
-                      {showPassword ? (
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
-                          <line x1="1" y1="1" x2="23" y2="23" />
-                        </svg>
-                      ) : (
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="lg-error">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="15" y1="9" x2="9" y2="15" />
-                      <line x1="9" y1="9" x2="15" y2="15" />
-                    </svg>
-                    {error}
-                  </div>
-                )}
-
-                <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
-                  {loading ? (
-                    <>
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        style={{ animation: 'loginSpin 1s linear infinite' }}
-                      >
-                        <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
-                      </svg>
-                      Giriş yapılıyor...
-                    </>
-                  ) : (
-                    <>
-                      Giriş Yap
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                        <polyline points="12 5 19 12 12 19" />
-                      </svg>
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStudentStep('number');
-                    setPassword('');
-                    setStudentInfo(null);
-                    setError('');
-                  }}
-                  className="lg-btn lg-btn-secondary"
-                  style={{ marginTop: 10, padding: '10px 16px', fontSize: 13 }}
-                >
-                  Farklı numara ile giriş
-                </button>
-              </form>
-            ) : activeTab === 'student' ? (
-              /* Öğrenci: Numara Giriş Adımı */
-              <form onSubmit={handleStudentContinue}>
-                <div style={{ marginBottom: 20 }}>
-                  <label className="lg-label">Öğrenci Numarası</label>
-                  <div className="lg-input-icon-wrap">
-                    <div className="lg-input-icon-left">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    </div>
-                    <input
-                      value={identifier}
-                      onChange={(e) => setIdentifier(e.target.value.replace(/\D/g, ''))}
-                      placeholder="9 haneli öğrenci numaranız"
-                      autoFocus
-                      maxLength={9}
-                      inputMode="numeric"
-                      className="lg-input lg-input-icon"
-                      style={{ letterSpacing: '1px' }}
-                    />
-                  </div>
-                  <div className="lg-hint">
-                    Sisteme ilk kez giriyorsanız, bilgilerinizi girip şifre belirlemeniz
-                    istenecektir.
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="lg-error">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="15" y1="9" x2="9" y2="15" />
-                      <line x1="9" y1="9" x2="15" y2="15" />
-                    </svg>
-                    {error}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading || identifier.length !== 9}
-                  className="lg-btn lg-btn-primary"
-                >
-                  {loading ? (
-                    <>
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        style={{ animation: 'loginSpin 1s linear infinite' }}
-                      >
-                        <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
-                      </svg>
-                      Kontrol ediliyor...
-                    </>
-                  ) : (
-                    <>
-                      Devam Et
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                        <polyline points="12 5 19 12 12 19" />
-                      </svg>
-                    </>
-                  )}
-                </button>
-              </form>
-            ) : (
-              /* Bölüm Yetkilisi / Akademisyen / Admin Form */
-              <form onSubmit={handleSubmit}>
-                {activeTab === 'bolum_yetkilisi' && (
-                  <div style={{ marginBottom: 18 }}>
-                    <label className="lg-label">Yetkili Adı Soyadı</label>
-                    <div className="lg-input-icon-wrap">
-                      <div className="lg-input-icon-left">
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                      </div>
                       <input
-                        value={identifier}
-                        onChange={(e) => setIdentifier(e.target.value)}
-                        placeholder="Adınızı ve soyadınızı girin"
-                        autoFocus
-                        className="lg-input lg-input-icon"
+                        type="checkbox"
+                        checked={kvkkOkundu}
+                        onChange={(e) => setKvkkOkundu(e.target.checked)}
+                        style={{ marginTop: 2, width: 16, height: 16, flexShrink: 0 }}
                       />
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'professor' && (
-                  <div style={{ marginBottom: 18 }}>
-                    <label className="lg-label">Akademisyen</label>
-                    {/* Seçili akademisyen gösterimi */}
-                    {identifier && !profDropdownOpen && (
-                      <div
-                        onClick={() => {
-                          setProfDropdownOpen(true);
-                          setProfSearch('');
-                        }}
-                        className="lg-prof-selected"
-                      >
-                        <div className="lg-prof-avatar">
-                          {(identifier || '')
-                            .split(' ')
-                            .map((w) => w.charAt(0))
-                            .slice(0, 2)
-                            .join('')
-                            .toUpperCase()}
-                        </div>
-                        <span style={{ flex: 1 }}>{identifier}</span>
+                      <span>
                         <button
                           type="button"
                           onClick={(e) => {
-                            e.stopPropagation();
-                            setIdentifier('');
-                            setProfSearch('');
-                            setProfDropdownOpen(true);
+                            e.preventDefault();
+                            setKvkkAcik(true);
                           }}
-                          className="lg-prof-clear"
-                          aria-label="Seçimi temizle"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            font: 'inherit',
+                            color: '#115E59',
+                            textDecoration: 'underline',
+                            cursor: 'pointer',
+                          }}
                         >
-                          ×
+                          Aydınlatma Metni
                         </button>
+                        &rsquo;ni okudum ve kişisel verilerimin metinde belirtilen kapsamda
+                        işleneceği konusunda bilgilendirildim.
+                      </span>
+                    </label>
+                    {kvkkAcik && <KvkkMetniModal onClose={() => setKvkkAcik(false)} />}
+
+                    <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
+                      {loading ? (
+                        <>
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            style={{ animation: 'loginSpin 1s linear infinite' }}
+                          >
+                            <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+                          </svg>
+                          Kaydediliyor...
+                        </>
+                      ) : (
+                        <>
+                          Kayıt Ol ve Giriş Yap
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                          </svg>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={resetSetupState}
+                      className="lg-btn lg-btn-secondary"
+                      style={{ marginTop: 10, padding: '10px 16px', fontSize: 13 }}
+                    >
+                      Geri Dön
+                    </button>
+                  </form>
+                ) : setupPasswordMode ? (
+                  /* Mevcut öğrenci: şifre değiştirme ekranı */
+                  <form onSubmit={handleSetupPassword}>
+                    <div className="lg-setup-hero">
+                      <div className="lg-setup-icon">
+                        <svg
+                          width="28"
+                          height="28"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#C4973B"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                          <path d="M7 11V7a5 5 0 0110 0v4" />
+                        </svg>
+                      </div>
+                      <h3 className="lg-setup-title">Yeni Şifre Belirleyin</h3>
+                      <p className="lg-setup-sub">
+                        Hoş geldiniz, <strong>{pendingUser?.name}</strong>. Güvenliğiniz için lütfen
+                        yeni bir şifre belirleyin.
+                      </p>
+                    </div>
+
+                    <div style={{ marginBottom: 18 }}>
+                      <label className="lg-label">Yeni Şifre</label>
+                      <div className="lg-input-icon-wrap">
+                        <div className="lg-input-icon-left">
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0110 0v4" />
+                          </svg>
+                        </div>
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Yeni şifrenizi girin (en az 6 karakter)"
+                          autoFocus
+                          className="lg-input lg-input-icon"
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 22 }}>
+                      <label className="lg-label">Şifre Tekrar</label>
+                      <div className="lg-input-icon-wrap">
+                        <div className="lg-input-icon-left">
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M20 6L9 17l-5-5" />
+                          </svg>
+                        </div>
+                        <input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Şifrenizi tekrar girin"
+                          className="lg-input lg-input-icon"
+                        />
+                      </div>
+                    </div>
+
+                    {error && (
+                      <div className="lg-error">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="15" y1="9" x2="9" y2="15" />
+                          <line x1="9" y1="9" x2="15" y2="15" />
+                        </svg>
+                        {error}
                       </div>
                     )}
-                    {/* Arama + Liste */}
-                    {(!identifier || profDropdownOpen) && (
-                      <div>
-                        <div className="lg-input-icon-wrap" style={{ marginBottom: 6 }}>
-                          <div className="lg-input-icon-left" style={{ left: 12 }}>
+
+                    <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
+                      {loading ? (
+                        <>
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            style={{ animation: 'loginSpin 1s linear infinite' }}
+                          >
+                            <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+                          </svg>
+                          Kaydediliyor...
+                        </>
+                      ) : (
+                        <>
+                          Şifreyi Belirle ve Giriş Yap
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                          </svg>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={resetSetupState}
+                      className="lg-btn lg-btn-secondary"
+                      style={{ marginTop: 10, padding: '10px 16px', fontSize: 13 }}
+                    >
+                      Geri Dön
+                    </button>
+                  </form>
+                ) : activeTab === 'student' && studentStep === 'password' ? (
+                  /* Öğrenci: Şifre Giriş Adımı */
+                  <form onSubmit={handleStudentLogin}>
+                    <div className="lg-greeting">
+                      <div className="lg-greeting-label">Hoş geldiniz</div>
+                      <div className="lg-greeting-name">
+                        {studentInfo?.firstName} {studentInfo?.lastName}
+                      </div>
+                      <div className="lg-greeting-id">{identifier}</div>
+                    </div>
+
+                    <div style={{ marginBottom: 22 }}>
+                      <label className="lg-label">Şifre</label>
+                      <div className="lg-input-icon-wrap">
+                        <div className="lg-input-icon-left">
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0110 0v4" />
+                          </svg>
+                        </div>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Şifrenizi girin"
+                          autoFocus
+                          className="lg-input lg-input-icon lg-input-eye"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="lg-input-eye-btn"
+                          aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                        >
+                          {showPassword ? (
                             <svg
-                              width="16"
-                              height="16"
+                              width="18"
+                              height="18"
                               viewBox="0 0 24 24"
                               fill="none"
                               stroke="currentColor"
@@ -11018,113 +10768,422 @@ const LoginModal = ({ onLogin }) => {
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             >
-                              <circle cx="11" cy="11" r="8" />
-                              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                              <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                              <line x1="1" y1="1" x2="23" y2="23" />
+                            </svg>
+                          ) : (
+                            <svg
+                              width="18"
+                              height="18"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {error && (
+                      <div className="lg-error">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="15" y1="9" x2="9" y2="15" />
+                          <line x1="9" y1="9" x2="15" y2="15" />
+                        </svg>
+                        {error}
+                      </div>
+                    )}
+
+                    <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
+                      {loading ? (
+                        <>
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            style={{ animation: 'loginSpin 1s linear infinite' }}
+                          >
+                            <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+                          </svg>
+                          Giriş yapılıyor...
+                        </>
+                      ) : (
+                        <>
+                          Giriş Yap
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                          </svg>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStudentStep('number');
+                        setPassword('');
+                        setStudentInfo(null);
+                        setError('');
+                      }}
+                      className="lg-btn lg-btn-secondary"
+                      style={{ marginTop: 10, padding: '10px 16px', fontSize: 13 }}
+                    >
+                      Farklı numara ile giriş
+                    </button>
+                  </form>
+                ) : activeTab === 'student' ? (
+                  /* Öğrenci: Numara Giriş Adımı */
+                  <form onSubmit={handleStudentContinue}>
+                    <div style={{ marginBottom: 20 }}>
+                      <label className="lg-label">Öğrenci Numarası</label>
+                      <div className="lg-input-icon-wrap">
+                        <div className="lg-input-icon-left">
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                        <input
+                          value={identifier}
+                          onChange={(e) => setIdentifier(e.target.value.replace(/\D/g, ''))}
+                          placeholder="9 haneli öğrenci numaranız"
+                          autoFocus
+                          maxLength={9}
+                          inputMode="numeric"
+                          className="lg-input lg-input-icon"
+                          style={{ letterSpacing: '1px' }}
+                        />
+                      </div>
+                      <div className="lg-hint">
+                        Sisteme ilk kez giriyorsanız, bilgilerinizi girip şifre belirlemeniz
+                        istenecektir.
+                      </div>
+                    </div>
+
+                    {error && (
+                      <div className="lg-error">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="15" y1="9" x2="9" y2="15" />
+                          <line x1="9" y1="9" x2="15" y2="15" />
+                        </svg>
+                        {error}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={loading || identifier.length !== 9}
+                      className="lg-btn lg-btn-primary"
+                    >
+                      {loading ? (
+                        <>
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            style={{ animation: 'loginSpin 1s linear infinite' }}
+                          >
+                            <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+                          </svg>
+                          Kontrol ediliyor...
+                        </>
+                      ) : (
+                        <>
+                          Devam Et
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                          </svg>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                ) : (
+                  /* Bölüm Yetkilisi / Akademisyen / Admin Form */
+                  <form onSubmit={handleSubmit}>
+                    {activeTab === 'bolum_yetkilisi' && (
+                      <div style={{ marginBottom: 18 }}>
+                        <label className="lg-label">Yetkili Adı Soyadı</label>
+                        <div className="lg-input-icon-wrap">
+                          <div className="lg-input-icon-left">
+                            <svg
+                              width="18"
+                              height="18"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             </svg>
                           </div>
                           <input
-                            type="text"
-                            value={profSearch}
-                            onChange={(e) => setProfSearch(e.target.value)}
-                            placeholder="Akademisyen adı yazın..."
+                            value={identifier}
+                            onChange={(e) => setIdentifier(e.target.value)}
+                            placeholder="Adınızı ve soyadınızı girin"
                             autoFocus
                             className="lg-input lg-input-icon"
-                            style={{ fontSize: 14, padding: '11px 14px 11px 38px' }}
                           />
-                        </div>
-                        <div className="lg-prof-list">
-                          {(() => {
-                            const filtered = professorList.filter((p) => {
-                              const matchesSearch =
-                                !profSearch ||
-                                (p.name || '')
-                                  .toLocaleLowerCase('tr')
-                                  .indexOf(profSearch.toLocaleLowerCase('tr')) >= 0;
-                              // Bölüm seçiliyse yumuşak filtre: o bölümdekiler +
-                              // bölümü tanımsız akademisyenler (örn. fakülte/üni
-                              // yöneticisi) görünür — onları gizlemek giriş
-                              // yapamaz hâle getirirdi, bölüm alanları hiç
-                              // dolmuyor (unv-yonetimi yalnız facultyId yazar).
-                              //
-                              // Ama "her bölümde görünsün" fazlaydı: fakülte
-                              // düzeyindeki kişi üniversitedeki HER bölümün
-                              // listesinde çıkıyor, başka bölümün yetkilisi onu
-                              // kendi akademisyeni sanıyordu. Fakülte biliniyorsa
-                              // kendi fakültesiyle sınırlanır; bilinmiyorsa
-                              // (eski kayıt) yine görünür — kimse kilitlenmez.
-                              const bolumsuz = !p.departmentId;
-                              const baskaFakulte =
-                                bolumsuz && selFaculty && p.facultyId && p.facultyId !== selFaculty;
-                              const matchesDept =
-                                !selDept || (bolumsuz ? !baskaFakulte : p.departmentId === selDept);
-                              return matchesSearch && matchesDept;
-                            });
-                            if (filtered.length === 0)
-                              return <div className="lg-prof-empty">Sonuç bulunamadı</div>;
-                            return filtered.map((p) => (
-                              <div
-                                key={p.id || p.name}
-                                onClick={() => {
-                                  setIdentifier(p.name);
-                                  setProfDropdownOpen(false);
-                                  setProfSearch('');
-                                }}
-                                className="lg-prof-row"
-                              >
-                                <div className="lg-prof-row-avatar">
-                                  {(p.name || '')
-                                    .split(' ')
-                                    .map((w) => w.charAt(0))
-                                    .slice(0, 2)
-                                    .join('')
-                                    .toUpperCase()}
-                                </div>
-                                {p.name}
-                              </div>
-                            ));
-                          })()}
                         </div>
                       </div>
                     )}
-                  </div>
-                )}
 
-                <div style={{ marginBottom: 22 }}>
-                  <label className="lg-label">Şifre</label>
-                  <div className="lg-input-icon-wrap">
-                    <div className="lg-input-icon-left">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0110 0v4" />
-                      </svg>
+                    {activeTab === 'professor' && (
+                      <div style={{ marginBottom: 18 }}>
+                        <label className="lg-label">Akademisyen</label>
+                        {/* Seçili akademisyen gösterimi */}
+                        {identifier && !profDropdownOpen && (
+                          <div
+                            onClick={() => {
+                              setProfDropdownOpen(true);
+                              setProfSearch('');
+                            }}
+                            className="lg-prof-selected"
+                          >
+                            <div className="lg-prof-avatar">
+                              {(identifier || '')
+                                .split(' ')
+                                .map((w) => w.charAt(0))
+                                .slice(0, 2)
+                                .join('')
+                                .toUpperCase()}
+                            </div>
+                            <span style={{ flex: 1 }}>{identifier}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIdentifier('');
+                                setProfSearch('');
+                                setProfDropdownOpen(true);
+                              }}
+                              className="lg-prof-clear"
+                              aria-label="Seçimi temizle"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )}
+                        {/* Arama + Liste */}
+                        {(!identifier || profDropdownOpen) && (
+                          <div>
+                            <div className="lg-input-icon-wrap" style={{ marginBottom: 6 }}>
+                              <div className="lg-input-icon-left" style={{ left: 12 }}>
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <circle cx="11" cy="11" r="8" />
+                                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                </svg>
+                              </div>
+                              <input
+                                type="text"
+                                value={profSearch}
+                                onChange={(e) => setProfSearch(e.target.value)}
+                                placeholder="Akademisyen adı yazın..."
+                                autoFocus
+                                className="lg-input lg-input-icon"
+                                style={{ fontSize: 14, padding: '11px 14px 11px 38px' }}
+                              />
+                            </div>
+                            <div className="lg-prof-list">
+                              {(() => {
+                                const filtered = professorList.filter((p) => {
+                                  const matchesSearch =
+                                    !profSearch ||
+                                    (p.name || '')
+                                      .toLocaleLowerCase('tr')
+                                      .indexOf(profSearch.toLocaleLowerCase('tr')) >= 0;
+                                  // Bölüm seçiliyse yumuşak filtre: o bölümdekiler +
+                                  // bölümü tanımsız akademisyenler (örn. fakülte/üni
+                                  // yöneticisi) görünür — onları gizlemek giriş
+                                  // yapamaz hâle getirirdi, bölüm alanları hiç
+                                  // dolmuyor (unv-yonetimi yalnız facultyId yazar).
+                                  //
+                                  // Ama "her bölümde görünsün" fazlaydı: fakülte
+                                  // düzeyindeki kişi üniversitedeki HER bölümün
+                                  // listesinde çıkıyor, başka bölümün yetkilisi onu
+                                  // kendi akademisyeni sanıyordu. Fakülte biliniyorsa
+                                  // kendi fakültesiyle sınırlanır; bilinmiyorsa
+                                  // (eski kayıt) yine görünür — kimse kilitlenmez.
+                                  const bolumsuz = !p.departmentId;
+                                  const baskaFakulte =
+                                    bolumsuz &&
+                                    selFaculty &&
+                                    p.facultyId &&
+                                    p.facultyId !== selFaculty;
+                                  const matchesDept =
+                                    !selDept ||
+                                    (bolumsuz ? !baskaFakulte : p.departmentId === selDept);
+                                  return matchesSearch && matchesDept;
+                                });
+                                if (filtered.length === 0)
+                                  return <div className="lg-prof-empty">Sonuç bulunamadı</div>;
+                                return filtered.map((p) => (
+                                  <div
+                                    key={p.id || p.name}
+                                    onClick={() => {
+                                      setIdentifier(p.name);
+                                      setProfDropdownOpen(false);
+                                      setProfSearch('');
+                                    }}
+                                    className="lg-prof-row"
+                                  >
+                                    <div className="lg-prof-row-avatar">
+                                      {(p.name || '')
+                                        .split(' ')
+                                        .map((w) => w.charAt(0))
+                                        .slice(0, 2)
+                                        .join('')
+                                        .toUpperCase()}
+                                    </div>
+                                    {p.name}
+                                  </div>
+                                ));
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ marginBottom: 22 }}>
+                      <label className="lg-label">Şifre</label>
+                      <div className="lg-input-icon-wrap">
+                        <div className="lg-input-icon-left">
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0110 0v4" />
+                          </svg>
+                        </div>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder={activeTab === 'admin' ? 'Admin şifresi' : 'Şifreniz'}
+                          autoFocus={activeTab === 'admin'}
+                          className="lg-input lg-input-icon lg-input-eye"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="lg-input-eye-btn"
+                          aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                        >
+                          {showPassword ? (
+                            <svg
+                              width="18"
+                              height="18"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                              <line x1="1" y1="1" x2="23" y2="23" />
+                            </svg>
+                          ) : (
+                            <svg
+                              width="18"
+                              height="18"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
                     </div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder={activeTab === 'admin' ? 'Admin şifresi' : 'Şifreniz'}
-                      autoFocus={activeTab === 'admin'}
-                      className="lg-input lg-input-icon lg-input-eye"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="lg-input-eye-btn"
-                      aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
-                    >
-                      {showPassword ? (
+
+                    {error && (
+                      <div className="lg-error">
                         <svg
-                          width="18"
-                          height="18"
+                          width="16"
+                          height="16"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -11132,84 +11191,75 @@ const LoginModal = ({ onLogin }) => {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                         >
-                          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
-                          <line x1="1" y1="1" x2="23" y2="23" />
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="15" y1="9" x2="9" y2="15" />
+                          <line x1="9" y1="9" x2="15" y2="15" />
                         </svg>
+                        {error}
+                      </div>
+                    )}
+
+                    <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
+                      {loading ? (
+                        <>
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            style={{ animation: 'loginSpin 1s linear infinite' }}
+                          >
+                            <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
+                          </svg>
+                          Giriş yapılıyor...
+                        </>
                       ) : (
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
+                        <>
+                          Giriş Yap
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                          </svg>
+                        </>
                       )}
                     </button>
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="lg-error">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="15" y1="9" x2="9" y2="15" />
-                      <line x1="9" y1="9" x2="15" y2="15" />
-                    </svg>
-                    {error}
-                  </div>
+                  </form>
                 )}
 
-                <button type="submit" disabled={loading} className="lg-btn lg-btn-primary">
-                  {loading ? (
-                    <>
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        style={{ animation: 'loginSpin 1s linear infinite' }}
-                      >
-                        <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" />
-                      </svg>
-                      Giriş yapılıyor...
-                    </>
-                  ) : (
-                    <>
-                      Giriş Yap
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                        <polyline points="12 5 19 12 12 19" />
-                      </svg>
-                    </>
-                  )}
-                </button>
-              </form>
+                {/* Şifremi unuttum — bütün sekmeler için tek bağlantı (yalnız e-posta ister). */}
+                {window.SifremiUnuttumPaneli && !registerMode && !setupPasswordMode && (
+                  <div style={{ textAlign: 'center', marginTop: 16 }}>
+                    <button
+                      type="button"
+                      onClick={() => setHesapModu('unuttum')}
+                      data-sifremi-unuttum
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        color: '#7FE7DC',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      Şifremi unuttum
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

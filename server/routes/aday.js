@@ -199,7 +199,7 @@ router.post('/kayit', async (req, res) => {
       return res.status(409).json({
         error:
           'Bu T.C. kimlik numarasıyla açılmış bir aday hesabı var. Giriş yapın; şifrenizi ' +
-          'unuttuysanız başvurduğunuz bölümden sıfırlatın.',
+          'unuttuysanız “Şifremi unuttum” ile yenileyin ya da bölümünüzden sıfırlatın.',
       });
     }
     const simdi = new Date();

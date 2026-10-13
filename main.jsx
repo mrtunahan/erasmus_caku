@@ -31,6 +31,9 @@ try {
 import './shared-components.jsx';
 // Numarasız aday hesabı: giriş ekranının "Aday" sekmesi (eager — giriş öncesi gerekir).
 import './aday-hesap-ekrani.jsx';
+// Hesap e-postası ve şifremi unuttum (eager — giriş öncesi gerekir; e-postadaki
+// yenileme bağlantısının jetonunu kabuktan ÖNCE alır).
+import './eposta-ekrani.jsx';
 
 // ── Phase 1.5: Gerçek zamanlı (Socket.IO) — opsiyonel & dayanıklı ──
 // Sunucu yazma yapınca her açık istemci ilgili cache'i geçersiz kılar,
