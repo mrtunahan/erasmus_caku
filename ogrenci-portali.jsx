@@ -16,39 +16,39 @@ const { useState, useEffect, useRef, useCallback: _useCallback, useMemo } = Reac
       '@keyframes fadeOutDown{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(20px)}}' +
       '@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}' +
       '@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}' +
-      '.portal-bg{background:linear-gradient(135deg,#FFFDF7 0%,#FFF9E6 30%,#FFF4CC 70%,#FFFDF7 100%);position:relative;min-height:100vh;}' +
+      '.portal-bg{background:linear-gradient(135deg,#F8FAFC 0%,#F5F7FA 30%,#F1F5F9 70%,#F8FAFC 100%);position:relative;min-height:100vh;}' +
       ".portal-bg::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:0;" +
       'background:' +
-      'radial-gradient(ellipse 120px 120px at 10% 15%,rgba(255,215,0,0.12) 0%,transparent 70%),' +
-      'radial-gradient(ellipse 100px 100px at 85% 20%,rgba(255,193,7,0.10) 0%,transparent 70%),' +
-      'radial-gradient(ellipse 80px 80px at 20% 80%,rgba(255,235,59,0.08) 0%,transparent 70%),' +
-      'radial-gradient(ellipse 90px 90px at 75% 75%,rgba(255,215,0,0.10) 0%,transparent 70%),' +
-      'radial-gradient(ellipse 60px 60px at 50% 50%,rgba(255,193,7,0.06) 0%,transparent 70%);}' +
-      '.daisy-card{background:rgba(255,255,255,0.92);backdrop-filter:blur(8px);border:1px solid rgba(255,215,0,0.18);border-radius:16px;box-shadow:0 2px 16px rgba(255,193,7,0.08);transition:box-shadow 0.25s,transform 0.25s;}' +
-      '.daisy-card:hover{box-shadow:0 6px 24px rgba(255,193,7,0.15);transform:translateY(-1px);}' +
-      '.daisy-btn{background:linear-gradient(135deg,#F59E0B,#D97706);color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(245,158,11,0.3);transition:all 0.2s;}' +
-      '.daisy-btn:hover{box-shadow:0 6px 20px rgba(245,158,11,0.4);transform:translateY(-1px);}' +
+      'radial-gradient(ellipse 120px 120px at 10% 15%,rgba(15,118,110,0.12) 0%,transparent 70%),' +
+      'radial-gradient(ellipse 100px 100px at 85% 20%,rgba(15,118,110,0.10) 0%,transparent 70%),' +
+      'radial-gradient(ellipse 80px 80px at 20% 80%,rgba(15,118,110,0.08) 0%,transparent 70%),' +
+      'radial-gradient(ellipse 90px 90px at 75% 75%,rgba(15,118,110,0.10) 0%,transparent 70%),' +
+      'radial-gradient(ellipse 60px 60px at 50% 50%,rgba(15,118,110,0.06) 0%,transparent 70%);}' +
+      '.daisy-card{background:rgba(255,255,255,0.92);backdrop-filter:blur(8px);border:1px solid rgba(15,118,110,0.18);border-radius:16px;box-shadow:0 2px 16px rgba(15,118,110,0.08);transition:box-shadow 0.25s,transform 0.25s;}' +
+      '.daisy-card:hover{box-shadow:0 6px 24px rgba(15,118,110,0.15);transform:translateY(-1px);}' +
+      '.daisy-btn{background:linear-gradient(135deg,#0F766E,#0F766E);color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(15,118,110,0.3);transition:all 0.2s;}' +
+      '.daisy-btn:hover{box-shadow:0 6px 20px rgba(15,118,110,0.4);transform:translateY(-1px);}' +
       '.portal-wrap{position:relative;z-index:1;}' +
-      ".ql-toolbar.ql-snow{border:none !important;border-bottom:1px solid rgba(255,215,0,0.25) !important;background:linear-gradient(135deg,#FFFDF7,#FFF9E6) !important;border-radius:10px 10px 0 0 !important;padding:8px 12px !important;font-family:'Source Sans 3','Inter',sans-serif !important;flex-wrap:wrap !important;}" +
+      ".ql-toolbar.ql-snow{border:none !important;border-bottom:1px solid rgba(15,118,110,0.25) !important;background:linear-gradient(135deg,#F8FAFC,#F5F7FA) !important;border-radius:10px 10px 0 0 !important;padding:8px 12px !important;font-family:'Source Sans 3','Inter',sans-serif !important;flex-wrap:wrap !important;}" +
       ".ql-container.ql-snow{border:none !important;font-family:'Source Sans 3','Inter',sans-serif !important;font-size:14px !important;}" +
       '.ql-editor{min-height:150px !important;line-height:1.7 !important;color:#2C2C2C !important;padding:12px 16px !important;}' +
-      '.ql-editor.ql-blank::before{color:#6B7280 !important;font-style:normal !important;font-size:14px !important;}' +
+      '.ql-editor.ql-blank::before{color:#64748B !important;font-style:normal !important;font-size:14px !important;}' +
       '.ql-snow .ql-stroke{stroke:#1B2A4A !important;}' +
       '.ql-snow .ql-fill,.ql-snow .ql-stroke.ql-fill{fill:#1B2A4A !important;}' +
       '.ql-snow .ql-picker-label{color:#1B2A4A !important;}' +
-      '.ql-snow .ql-active .ql-stroke,.ql-snow button:hover .ql-stroke{stroke:#F59E0B !important;}' +
-      '.ql-snow .ql-active .ql-fill,.ql-snow button:hover .ql-fill{fill:#F59E0B !important;}' +
-      '.ql-snow .ql-active{color:#F59E0B !important;}' +
-      '.ql-snow button:hover,.ql-snow .ql-picker-label:hover{color:#F59E0B !important;}' +
-      '.ql-snow .ql-picker-options{border-radius:8px !important;box-shadow:0 4px 16px rgba(0,0,0,0.12) !important;border:1px solid #E5E1D8 !important;}' +
+      '.ql-snow .ql-active .ql-stroke,.ql-snow button:hover .ql-stroke{stroke:#0F766E !important;}' +
+      '.ql-snow .ql-active .ql-fill,.ql-snow button:hover .ql-fill{fill:#0F766E !important;}' +
+      '.ql-snow .ql-active{color:#0F766E !important;}' +
+      '.ql-snow button:hover,.ql-snow .ql-picker-label:hover{color:#0F766E !important;}' +
+      '.ql-snow .ql-picker-options{border-radius:8px !important;box-shadow:0 4px 16px rgba(0,0,0,0.12) !important;border:1px solid #E2E8F0 !important;}' +
       '.ql-editor img{max-width:100% !important;border-radius:8px !important;margin:8px 0 !important;}' +
-      '.ql-editor blockquote{border-left:4px solid #F59E0B !important;padding-left:12px !important;color:#6B7280 !important;}' +
-      ".ql-editor pre.ql-syntax{background:#1B2A4A !important;color:#FEF3C7 !important;border-radius:8px !important;padding:12px 16px !important;font-family:'JetBrains Mono',monospace !important;}" +
+      '.ql-editor blockquote{border-left:4px solid #0F766E !important;padding-left:12px !important;color:#64748B !important;}' +
+      ".ql-editor pre.ql-syntax{background:#1B2A4A !important;color:#CCFBF1 !important;border-radius:8px !important;padding:12px 16px !important;font-family:'JetBrains Mono',monospace !important;}" +
       '.portal-post-content img{max-width:100%;border-radius:8px;margin:8px 0;}' +
-      '.portal-post-content blockquote{border-left:4px solid #F59E0B;padding-left:12px;color:#6B7280;margin:8px 0;}' +
-      ".portal-post-content pre{background:#1B2A4A;color:#FEF3C7;border-radius:8px;padding:12px 16px;font-family:'JetBrains Mono',monospace;overflow-x:auto;}" +
+      '.portal-post-content blockquote{border-left:4px solid #0F766E;padding-left:12px;color:#64748B;margin:8px 0;}' +
+      ".portal-post-content pre{background:#1B2A4A;color:#CCFBF1;border-radius:8px;padding:12px 16px;font-family:'JetBrains Mono',monospace;overflow-x:auto;}" +
       '.portal-post-content a{color:#3B82F6;text-decoration:underline;}' +
-      '.portal-post-content .mention-tag{background:linear-gradient(135deg,#DBEAFE,#EFF6FF);color:#2563EB;padding:1px 6px;border-radius:4px;font-weight:600;font-size:0.95em;cursor:pointer;border:1px solid rgba(37,99,235,0.15);}' +
+      '.portal-post-content .mention-tag{background:linear-gradient(135deg,#CCFBF1,#F0FDFA);color:#0F766E;padding:1px 6px;border-radius:4px;font-weight:600;font-size:0.95em;cursor:pointer;border:1px solid rgba(15, 118, 110,0.15);}' +
       '.portal-post-content ul,.portal-post-content ol{padding-left:24px;margin:4px 0;}' +
       '.portal-post-content h2{font-size:18px;font-weight:700;color:#1B2A4A;margin:12px 0 6px;}' +
       '.portal-post-content h3{font-size:16px;font-weight:600;color:#1B2A4A;margin:10px 0 4px;}' +
@@ -67,16 +67,18 @@ const _PBadge = window.Badge;
 const PAdSenseBanner = window.AdSenseBanner;
 
 // ── Daisy Tema Renkleri ──
+// Portalın vurgu paleti uygulamanın birincil rengine (teal) bağlandı; eski
+// bal-sarısı tema portalı uygulamanın geri kalanından kopuk gösteriyordu.
 const DY = {
-  gold: '#F59E0B',
-  goldDark: '#D97706',
-  goldLight: '#FEF3C7',
-  goldBorder: 'rgba(255,215,0,0.25)',
-  warm: '#92400E',
-  warmLight: '#FFFBEB',
-  cream: '#FFFDF7',
-  accent: '#B45309',
-  accentLight: '#FDE68A',
+  gold: '#0F766E',
+  goldDark: '#115E59',
+  goldLight: '#CCFBF1',
+  goldBorder: 'rgba(15,118,110,0.18)',
+  warm: '#134E4A',
+  warmLight: '#F0FDFA',
+  cream: '#F8FAFC',
+  accent: '#0F766E',
+  accentLight: '#99F6E4',
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -143,13 +145,13 @@ var ICONS = {
 // ══════════════════════════════════════════════════════════════
 
 const PORTAL_CATEGORIES = [
-  { id: 'soru', label: 'Soru-Cevap', icon: 'question', color: '#3B82F6', bg: '#DBEAFE' },
+  { id: 'soru', label: 'Soru-Cevap', icon: 'question', color: '#3B82F6', bg: '#CCFBF1' },
   { id: 'not', label: 'Not Paylaşımı', icon: 'book', color: '#8B5CF6', bg: '#EDE9FE' },
-  { id: 'duyuru', label: 'Duyuru', icon: 'megaphone', color: '#EF4444', bg: '#FEE2E2' },
-  { id: 'etkinlik', label: 'Etkinlik', icon: 'calendar', color: '#F59E0B', bg: '#FEF3C7' },
-  { id: 'kaynak', label: 'Kaynak', icon: 'link', color: '#10B981', bg: '#D1FAE5' },
+  { id: 'duyuru', label: 'Duyuru', icon: 'megaphone', color: '#DC2626', bg: '#FEE2E2' },
+  { id: 'etkinlik', label: 'Etkinlik', icon: 'calendar', color: '#0F766E', bg: '#CCFBF1' },
+  { id: 'kaynak', label: 'Kaynak', icon: 'link', color: '#059669', bg: '#D1FAE5' },
   { id: 'sohbet', label: 'Sohbet', icon: 'chat', color: '#EC4899', bg: '#FCE7F3' },
-  { id: 'anket', label: 'Anket', icon: 'barChart', color: '#6366F1', bg: '#E0E7FF' },
+  { id: 'anket', label: 'Anket', icon: 'barChart', color: '#0D9488', bg: '#CCFBF1' },
 ];
 
 const REACTION_TYPES = [
@@ -292,13 +294,13 @@ const BADGES = [
 
 // ── Seviye Sistemi ──
 const LEVELS = [
-  { level: 1, label: 'Çaylak', minXP: 0, color: '#9CA3AF' },
-  { level: 2, label: 'Öğrenci', minXP: 50, color: '#60A5FA' },
+  { level: 1, label: 'Çaylak', minXP: 0, color: '#94A3B8' },
+  { level: 2, label: 'Öğrenci', minXP: 50, color: '#2DD4BF' },
   { level: 3, label: 'Aktif Üye', minXP: 150, color: '#34D399' },
   { level: 4, label: 'Katkıcı', minXP: 350, color: '#A78BFA' },
-  { level: 5, label: 'Uzman', minXP: 700, color: '#F59E0B' },
+  { level: 5, label: 'Uzman', minXP: 700, color: '#0F766E' },
   { level: 6, label: 'Lider', minXP: 1200, color: '#F97316' },
-  { level: 7, label: 'Efsane', minXP: 2000, color: '#EF4444' },
+  { level: 7, label: 'Efsane', minXP: 2000, color: '#DC2626' },
 ];
 
 const BOLUMLER = [
@@ -1203,10 +1205,10 @@ function hashColor(str) {
     '#3B82F6',
     '#8B5CF6',
     '#EC4899',
-    '#EF4444',
-    '#F59E0B',
-    '#10B981',
-    '#6366F1',
+    '#DC2626',
+    '#0F766E',
+    '#059669',
+    '#0D9488',
     '#14B8A6',
   ];
   return colors[Math.abs(hash) % colors.length];
@@ -1377,12 +1379,12 @@ const VoteWidget = ({ post, userId, onVote }) => {
           alignItems: 'center',
           justifyContent: 'center',
           transition: 'all 0.2s',
-          color: userUpvoted ? '#16A34A' : PC.textMuted,
+          color: userUpvoted ? '#059669' : PC.textMuted,
         }}
         onMouseEnter={function (e) {
           if (!userUpvoted) {
             e.currentTarget.style.background = '#F0FDF4';
-            e.currentTarget.style.color = '#16A34A';
+            e.currentTarget.style.color = '#059669';
           }
         }}
         onMouseLeave={function (e) {
@@ -1405,7 +1407,7 @@ const VoteWidget = ({ post, userId, onVote }) => {
           fontSize: 16,
           fontWeight: 800,
           lineHeight: 1.2,
-          color: score > 0 ? '#16A34A' : score < 0 ? '#DC2626' : PC.navy,
+          color: score > 0 ? '#059669' : score < 0 ? '#DC2626' : PC.navy,
           minWidth: 24,
           textAlign: 'center',
         }}
@@ -1883,7 +1885,7 @@ const CommentItem = ({
               position: 'absolute',
               top: 0,
               right: 0,
-              background: 'linear-gradient(135deg, #10B981, #059669)',
+              background: 'linear-gradient(135deg, #059669, #059669)',
               color: 'white',
               fontSize: 10,
               fontWeight: 700,
@@ -1963,7 +1965,7 @@ const CommentItem = ({
                     fontSize: 0,
                   }}
                   onMouseEnter={function (e) {
-                    e.currentTarget.style.color = '#EF4444';
+                    e.currentTarget.style.color = '#DC2626';
                   }}
                   onMouseLeave={function (e) {
                     e.currentTarget.style.color = PC.textMuted;
@@ -2100,7 +2102,7 @@ const CommentItem = ({
                     background: 'transparent',
                     cursor: 'pointer',
                     fontSize: 12,
-                    color: isLiked ? '#EF4444' : PC.textMuted,
+                    color: isLiked ? '#DC2626' : PC.textMuted,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 4,
@@ -2181,7 +2183,7 @@ const CommentItem = ({
                         background: 'transparent',
                         cursor: 'pointer',
                         fontSize: 12,
-                        color: isBestAnswer ? '#10B981' : PC.textMuted,
+                        color: isBestAnswer ? '#059669' : PC.textMuted,
                         display: 'flex',
                         alignItems: 'center',
                         gap: 4,
@@ -2619,7 +2621,7 @@ const CommentSection = ({ postId, currentUser, post, allUsers }) => {
                       cursor: sending ? 'wait' : 'pointer',
                       boxShadow: isHtmlEmpty(newComment)
                         ? 'none'
-                        : '0 2px 8px rgba(245,158,11,0.3)',
+                        : '0 2px 8px rgba(15,118,110,0.3)',
                     }}
                   >
                     {sending ? 'Gönderiliyor...' : 'Yorum Yap'}
@@ -2858,7 +2860,7 @@ const RichTextEditor = ({ value, onChange, placeholder, onImageUpload, allUsers 
         return;
       }
       var range = quill.getSelection(true) || { index: quill.getLength() };
-      quill.insertText(range.index, 'Yükleniyor...', { italic: true, color: '#999' });
+      quill.insertText(range.index, 'Yükleniyor...', { italic: true, color: '#94A3B8' });
       quill.setSelection(range.index + 13);
 
       if (onImageUpload) {
@@ -3072,7 +3074,7 @@ const PostCard = ({
       {post.pinned && (
         <div
           style={{
-            background: 'linear-gradient(90deg, #F59E0B, #F97316)',
+            background: 'linear-gradient(90deg, #0F766E, #F97316)',
             padding: '4px 16px',
             fontSize: 11,
             fontWeight: 700,
@@ -3090,7 +3092,7 @@ const PostCard = ({
       {post.status === 'pending' && (
         <div
           style={{
-            background: 'linear-gradient(90deg, #F59E0B, #D97706)',
+            background: 'linear-gradient(90deg, #0F766E, #0F766E)',
             padding: '8px 16px',
             fontSize: 12,
             fontWeight: 600,
@@ -3125,7 +3127,7 @@ const PostCard = ({
                   padding: '4px 12px',
                   border: 'none',
                   borderRadius: 6,
-                  background: '#16A34A',
+                  background: '#059669',
                   color: 'white',
                   fontSize: 11,
                   fontWeight: 700,
@@ -3350,8 +3352,8 @@ const PostCard = ({
                         borderRadius: 6,
                         fontSize: 10,
                         fontWeight: 700,
-                        background: '#DBEAFE',
-                        color: '#1D4ED8',
+                        background: '#CCFBF1',
+                        color: '#115E59',
                       }}
                     >
                       <svg
@@ -3385,7 +3387,7 @@ const PostCard = ({
                       border:
                         '1px solid ' +
                         (followedUsers && followedUsers.indexOf(post.authorId) >= 0
-                          ? '#10B981'
+                          ? '#059669'
                           : PC.border),
                       background:
                         followedUsers && followedUsers.indexOf(post.authorId) >= 0
@@ -3461,8 +3463,8 @@ const PostCard = ({
                             fontSize: 11,
                             padding: '2px 8px',
                             borderRadius: 10,
-                            background: isCourseCode(t) ? DY.goldLight : '#E0E7FF',
-                            color: isCourseCode(t) ? DY.goldDark : '#4F46E5',
+                            background: isCourseCode(t) ? DY.goldLight : '#CCFBF1',
+                            color: isCourseCode(t) ? DY.goldDark : '#0F766E',
                             fontWeight: 600,
                             cursor: 'pointer',
                             transition: 'all 0.15s',
@@ -3516,7 +3518,7 @@ const PostCard = ({
                 {getVoteScore(post) !== 0 && (
                   <span
                     style={{
-                      color: getVoteScore(post) > 0 ? '#16A34A' : '#DC2626',
+                      color: getVoteScore(post) > 0 ? '#059669' : '#DC2626',
                       fontWeight: 600,
                     }}
                   >
@@ -3541,13 +3543,13 @@ const PostCard = ({
                     background: 'transparent',
                     cursor: 'pointer',
                     borderRadius: 6,
-                    color: post.pinned ? '#F59E0B' : PC.textMuted,
+                    color: post.pinned ? '#0F766E' : PC.textMuted,
                   }}
                   onMouseEnter={function (e) {
-                    e.currentTarget.style.color = '#F59E0B';
+                    e.currentTarget.style.color = '#0F766E';
                   }}
                   onMouseLeave={function (e) {
-                    e.currentTarget.style.color = post.pinned ? '#F59E0B' : PC.textMuted;
+                    e.currentTarget.style.color = post.pinned ? '#0F766E' : PC.textMuted;
                   }}
                 >
                   <svg
@@ -3614,7 +3616,7 @@ const PostCard = ({
                     color: PC.textMuted,
                   }}
                   onMouseEnter={function (e) {
-                    e.currentTarget.style.color = '#EF4444';
+                    e.currentTarget.style.color = '#DC2626';
                   }}
                   onMouseLeave={function (e) {
                     e.currentTarget.style.color = PC.textMuted;
@@ -4086,24 +4088,24 @@ const PostCard = ({
               style={{
                 marginLeft: 'auto',
                 padding: '6px 12px',
-                border: '1px solid ' + (isBookmarked ? '#F59E0B' : PC.border),
+                border: '1px solid ' + (isBookmarked ? '#0F766E' : PC.border),
                 borderRadius: 20,
-                background: isBookmarked ? '#FEF3C7' : 'white',
+                background: isBookmarked ? '#CCFBF1' : 'white',
                 cursor: 'pointer',
                 fontSize: 13,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                color: isBookmarked ? '#F59E0B' : PC.textMuted,
+                color: isBookmarked ? '#0F766E' : PC.textMuted,
                 transition: 'all 0.2s',
               }}
               onMouseEnter={function (e) {
-                e.currentTarget.style.borderColor = '#F59E0B';
-                e.currentTarget.style.color = '#F59E0B';
+                e.currentTarget.style.borderColor = '#0F766E';
+                e.currentTarget.style.color = '#0F766E';
               }}
               onMouseLeave={function (e) {
-                e.currentTarget.style.borderColor = isBookmarked ? '#F59E0B' : PC.border;
-                e.currentTarget.style.color = isBookmarked ? '#F59E0B' : PC.textMuted;
+                e.currentTarget.style.borderColor = isBookmarked ? '#0F766E' : PC.border;
+                e.currentTarget.style.color = isBookmarked ? '#0F766E' : PC.textMuted;
               }}
             >
               <svg
@@ -4148,8 +4150,8 @@ const PostCard = ({
                   transition: 'all 0.2s',
                 }}
                 onMouseEnter={function (e) {
-                  e.currentTarget.style.borderColor = '#EF4444';
-                  e.currentTarget.style.color = '#EF4444';
+                  e.currentTarget.style.borderColor = '#DC2626';
+                  e.currentTarget.style.color = '#DC2626';
                 }}
                 onMouseLeave={function (e) {
                   e.currentTarget.style.borderColor = PC.border;
@@ -4603,9 +4605,9 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
                   borderRadius: 12,
                   fontSize: 12,
                   fontWeight: 600,
-                  background: isCourseCode(t) ? DY.goldLight : '#E0E7FF',
-                  color: isCourseCode(t) ? DY.goldDark : '#4F46E5',
-                  border: '1px solid ' + (isCourseCode(t) ? DY.goldBorder : '#C7D2FE'),
+                  background: isCourseCode(t) ? DY.goldLight : '#CCFBF1',
+                  color: isCourseCode(t) ? DY.goldDark : '#0F766E',
+                  border: '1px solid ' + (isCourseCode(t) ? DY.goldBorder : '#99F6E4'),
                 }}
               >
                 #{t}
@@ -4625,7 +4627,7 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
                     fontSize: 14,
                     lineHeight: 1,
                     fontWeight: 700,
-                    color: isCourseCode(t) ? DY.goldDark : '#4F46E5',
+                    color: isCourseCode(t) ? DY.goldDark : '#0F766E',
                   }}
                 >
                   {'\u2715'}
@@ -4738,7 +4740,7 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
               }}
               style={{ padding: 4, border: 'none', background: 'transparent', cursor: 'pointer' }}
             >
-              <SvgIcon path={ICONS.x} size={16} color="#EF4444" />
+              <SvgIcon path={ICONS.x} size={16} color="#DC2626" />
             </button>
           </div>
         ) : (
@@ -4815,7 +4817,7 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
                       border: 'none',
                       background: 'transparent',
                       cursor: 'pointer',
-                      color: '#EF4444',
+                      color: '#DC2626',
                     }}
                   >
                     X
@@ -4942,7 +4944,7 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
             cursor: posting ? 'wait' : 'pointer',
             fontSize: 14,
             fontWeight: 700,
-            boxShadow: '0 4px 12px rgba(245,158,11,0.3)',
+            boxShadow: '0 4px 12px rgba(15,118,110,0.3)',
           }}
         >
           {uploading ? 'Yükleniyor...' : posting ? 'Gönderiliyor...' : 'Paylaş'}
@@ -5033,7 +5035,7 @@ const BadgeDisplay = ({ badges, compact }) => {
               padding: compact ? '2px 6px' : '4px 10px',
               borderRadius: 10,
               fontSize: compact ? 11 : 12,
-              background: 'linear-gradient(135deg, #FFFBEB, #FEF3C7)',
+              background: 'linear-gradient(135deg, #F0FDFA, #CCFBF1)',
               border: '1px solid ' + DY.goldBorder,
               cursor: 'default',
               transition: 'all 0.15s',
@@ -5196,7 +5198,7 @@ const UserProfilePage = ({
                     borderRadius: 12,
                     fontSize: 11,
                     fontWeight: 700,
-                    border: '1px solid ' + (isFollowed ? '#10B981' : DY.gold),
+                    border: '1px solid ' + (isFollowed ? '#059669' : DY.gold),
                     background: isFollowed ? '#D1FAE5' : DY.goldLight,
                     color: isFollowed ? '#059669' : DY.goldDark,
                     cursor: 'pointer',
@@ -5233,11 +5235,11 @@ const UserProfilePage = ({
           }}
         >
           {[
-            { v: stats.postCount, l: 'Gönderi', c: '#F59E0B' },
+            { v: stats.postCount, l: 'Gönderi', c: '#0F766E' },
             {
               v: stats.totalVoteScore,
               l: 'Oy Puanı',
-              c: stats.totalVoteScore >= 0 ? '#16A34A' : '#DC2626',
+              c: stats.totalVoteScore >= 0 ? '#059669' : '#DC2626',
             },
             { v: stats.totalReactions, l: 'Tepki', c: '#EC4899' },
             { v: stats.bestAnswerCount, l: 'En İyi Cevap', c: '#8B5CF6' },
@@ -5330,8 +5332,8 @@ const UserProfilePage = ({
                       borderRadius: 8,
                       fontSize: 11,
                       fontWeight: 600,
-                      background: isCourseCode(c) ? DY.goldLight : '#E0E7FF',
-                      color: isCourseCode(c) ? DY.goldDark : '#4F46E5',
+                      background: isCourseCode(c) ? DY.goldLight : '#CCFBF1',
+                      color: isCourseCode(c) ? DY.goldDark : '#0F766E',
                     }}
                   >
                     {c}
@@ -5713,7 +5715,7 @@ const LeaderboardPanel = ({ posts, allUsers: _allUsers, currentUser }) => {
     [posts, period, category, deptFilter, profiles]
   );
 
-  var medalColors = ['#F59E0B', '#9CA3AF', '#CD7F32'];
+  var medalColors = ['#0F766E', '#94A3B8', '#CD7F32'];
 
   return (
     <div
@@ -5789,8 +5791,8 @@ const LeaderboardPanel = ({ posts, allUsers: _allUsers, currentUser }) => {
                 fontSize: 10,
                 fontWeight: isActive ? 700 : 500,
                 border: 'none',
-                background: isActive ? '#E0E7FF' : PC.bg,
-                color: isActive ? '#4F46E5' : PC.textMuted,
+                background: isActive ? '#CCFBF1' : PC.bg,
+                color: isActive ? '#0F766E' : PC.textMuted,
                 cursor: 'pointer',
               }}
             >
@@ -6017,7 +6019,7 @@ const TrendingSidebar = ({ posts }) => {
                     style={{
                       color:
                         getVoteScore(p) > 0
-                          ? '#16A34A'
+                          ? '#059669'
                           : getVoteScore(p) < 0
                             ? '#DC2626'
                             : PC.textMuted,
@@ -6119,9 +6121,9 @@ const FollowingSidebar = ({ followData, onFollowUser, onFollowTag, allUsers, pos
                     borderRadius: 8,
                     fontSize: 10,
                     fontWeight: 600,
-                    border: '1px solid #EF4444',
+                    border: '1px solid #DC2626',
                     background: '#FEF2F2',
-                    color: '#EF4444',
+                    color: '#DC2626',
                     cursor: 'pointer',
                   }}
                 >
@@ -6161,8 +6163,8 @@ const FollowingSidebar = ({ followData, onFollowUser, onFollowTag, allUsers, pos
                     borderRadius: 12,
                     fontSize: 11,
                     fontWeight: 600,
-                    background: isCourseCode(tag) ? DY.goldLight : '#E0E7FF',
-                    color: isCourseCode(tag) ? DY.goldDark : '#4F46E5',
+                    background: isCourseCode(tag) ? DY.goldLight : '#CCFBF1',
+                    color: isCourseCode(tag) ? DY.goldDark : '#0F766E',
                     cursor: 'pointer',
                   }}
                 >
@@ -6272,14 +6274,14 @@ const TagCloud = ({ posts, onFilterTag, activeTag, onFollowTag, followedTags }) 
                 fontSize: 10 + Math.round(intensity * 4),
                 fontWeight: isActive ? 700 : 500,
                 border: isActive
-                  ? '2px solid ' + (isCourse ? DY.gold : '#6366F1')
+                  ? '2px solid ' + (isCourse ? DY.gold : '#0D9488')
                   : '1px solid ' + PC.border,
                 background: isActive
                   ? isCourse
                     ? DY.goldLight
-                    : '#E0E7FF'
+                    : '#CCFBF1'
                   : 'rgba(255,255,255,' + (1 - intensity * 0.3) + ')',
-                color: isCourse ? DY.goldDark : '#4F46E5',
+                color: isCourse ? DY.goldDark : '#0F766E',
                 cursor: 'pointer',
                 transition: 'all 0.15s',
                 opacity: isActive ? 1 : 0.6 + intensity * 0.4,
@@ -6311,7 +6313,7 @@ const TagCloud = ({ posts, onFilterTag, activeTag, onFollowTag, followedTags }) 
                     fontWeight: 700,
                     color:
                       followedTags && followedTags.indexOf(item.tag) >= 0
-                        ? '#10B981'
+                        ? '#059669'
                         : PC.textMuted,
                   }}
                 >
@@ -6343,10 +6345,10 @@ const ToastContainer = ({ toasts }) => {
       }}
     >
       {toasts.map(function (t) {
-        var bgColor = t.type === 'error' ? '#FEE2E2' : t.type === 'info' ? '#DBEAFE' : '#D1FAE5';
+        var bgColor = t.type === 'error' ? '#FEE2E2' : t.type === 'info' ? '#CCFBF1' : '#D1FAE5';
         var borderColor =
-          t.type === 'error' ? '#EF4444' : t.type === 'info' ? '#3B82F6' : '#10B981';
-        var textColor = t.type === 'error' ? '#991B1B' : t.type === 'info' ? '#1E40AF' : '#065F46';
+          t.type === 'error' ? '#DC2626' : t.type === 'info' ? '#3B82F6' : '#059669';
+        var textColor = t.type === 'error' ? '#991B1B' : t.type === 'info' ? '#115E59' : '#065F46';
         var icon = t.type === 'error' ? '\u2716' : t.type === 'info' ? '\u2139' : '\u2714';
         return (
           <div
@@ -6531,7 +6533,7 @@ const _NotificationBell = ({ currentUser }) => {
               width: 16,
               height: 16,
               borderRadius: '50%',
-              background: '#EF4444',
+              background: '#DC2626',
               color: 'white',
               fontSize: 10,
               fontWeight: 700,
@@ -6687,7 +6689,7 @@ const UserProfileCard = ({ currentUser, posts, onViewProfile }) => {
             l: 'Oy',
             color:
               stats.totalVoteScore > 0
-                ? '#16A34A'
+                ? '#059669'
                 : stats.totalVoteScore < 0
                   ? '#DC2626'
                   : undefined,
@@ -7019,7 +7021,7 @@ const AdvancedSearchBar = ({
               icon =
                 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z M7 7h.01';
               label = '#Etiket';
-              color = '#6366F1';
+              color = '#0D9488';
             }
             return (
               <div
@@ -7154,7 +7156,7 @@ const AdvancedSearchBar = ({
                 background: 'white',
                 cursor: 'pointer',
                 fontSize: 12,
-                color: '#EF4444',
+                color: '#DC2626',
                 fontWeight: 600,
               }}
             >
@@ -7196,7 +7198,7 @@ const ModerationQueuePanel = ({
         <div
           style={{
             padding: '16px 20px',
-            background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+            background: 'linear-gradient(135deg, #0F766E 0%, #0F766E 100%)',
             color: 'white',
             display: 'flex',
             alignItems: 'center',
@@ -7240,7 +7242,7 @@ const ModerationQueuePanel = ({
       <div
         style={{
           padding: '16px 20px',
-          background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+          background: 'linear-gradient(135deg, #0F766E 0%, #0F766E 100%)',
           color: 'white',
           display: 'flex',
           alignItems: 'center',
@@ -7288,7 +7290,7 @@ const ModerationQueuePanel = ({
                 padding: 16,
                 borderRadius: 12,
                 border: '1px solid ' + PC.border,
-                background: '#FFFBEB',
+                background: '#F0FDFA',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -7397,7 +7399,7 @@ const ModerationQueuePanel = ({
                       padding: '6px 16px',
                       border: 'none',
                       borderRadius: 8,
-                      background: '#16A34A',
+                      background: '#059669',
                       color: 'white',
                       fontSize: 12,
                       fontWeight: 700,
@@ -7408,7 +7410,7 @@ const ModerationQueuePanel = ({
                       e.currentTarget.style.background = '#15803D';
                     }}
                     onMouseLeave={function (e) {
-                      e.currentTarget.style.background = '#16A34A';
+                      e.currentTarget.style.background = '#059669';
                     }}
                   >
                     Onayla
@@ -7562,7 +7564,7 @@ const ModeratorPanel = ({ moderators, onAdd, onRemove }) => {
                           width: 32,
                           height: 32,
                           borderRadius: '50%',
-                          background: 'linear-gradient(135deg, #059669, #10B981)',
+                          background: 'linear-gradient(135deg, #059669, #059669)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -7724,7 +7726,7 @@ const ModeratorPanel = ({ moderators, onAdd, onRemove }) => {
                       fontFamily: 'inherit',
                     }}
                     onMouseEnter={function (e) {
-                      e.currentTarget.style.background = '#F9FAFB';
+                      e.currentTarget.style.background = '#F8FAFC';
                     }}
                     onMouseLeave={function (e) {
                       e.currentTarget.style.background = 'transparent';
@@ -8506,7 +8508,7 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
                         position: 'absolute',
                         top: -4,
                         right: -4,
-                        background: '#EF4444',
+                        background: '#DC2626',
                         color: 'white',
                         fontSize: 10,
                         fontWeight: 700,
@@ -8605,9 +8607,9 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
             marginBottom: 24,
           }}
         >
-          <StatCard label="Toplam Gönderi" value={posts.length} color="#F59E0B" icon="file" />
-          <StatCard label="Tepkiler" value={totalReactions} color="#EF4444" icon="heart" />
-          <StatCard label="Yorumlar" value={totalComments} color="#10B981" icon="chat" />
+          <StatCard label="Toplam Gönderi" value={posts.length} color="#0F766E" icon="file" />
+          <StatCard label="Tepkiler" value={totalReactions} color="#DC2626" icon="heart" />
+          <StatCard label="Yorumlar" value={totalComments} color="#059669" icon="chat" />
           <StatCard
             label="Kayıtlı Üyeler"
             value={registeredStudentCount}
@@ -8802,13 +8804,13 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
                   gap: 6,
                   padding: '6px 14px',
                   borderRadius: 20,
-                  background: isCourseCode(tagFilter.replace(/^#/, '')) ? DY.goldLight : '#E0E7FF',
+                  background: isCourseCode(tagFilter.replace(/^#/, '')) ? DY.goldLight : '#CCFBF1',
                   border:
                     '1px solid ' +
-                    (isCourseCode(tagFilter.replace(/^#/, '')) ? DY.gold : '#6366F1'),
+                    (isCourseCode(tagFilter.replace(/^#/, '')) ? DY.gold : '#0D9488'),
                   fontSize: 12,
                   fontWeight: 600,
-                  color: isCourseCode(tagFilter.replace(/^#/, '')) ? DY.goldDark : '#4F46E5',
+                  color: isCourseCode(tagFilter.replace(/^#/, '')) ? DY.goldDark : '#0F766E',
                   alignSelf: isMobile ? 'flex-start' : 'center',
                 }}
               >

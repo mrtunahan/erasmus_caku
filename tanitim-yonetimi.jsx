@@ -296,7 +296,7 @@ function TanitimYonetimiApp({ currentUser }) {
 
   const kart = {
     background: 'white',
-    border: '1px solid #E5E7EB',
+    border: '1px solid #E2E8F0',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -314,7 +314,7 @@ function TanitimYonetimiApp({ currentUser }) {
     width: '100%',
     padding: '9px 12px',
     borderRadius: 8,
-    border: '1px solid #D1D5DB',
+    border: '1px solid #CBD5E1',
     fontSize: 13.5,
     fontFamily: 'inherit',
   };
@@ -341,7 +341,7 @@ function TanitimYonetimiApp({ currentUser }) {
         <p style={{ margin: 0, fontSize: 13, color: C.textMuted || '#64748B' }}>
           Kök adreste (giriş öncesi) görünen sayfanın “Öne çıkanlar” bölümü. Eklediğiniz slaytlar
           kitap sayfası gibi çevrilerek gösterilir.{' '}
-          <a href="/" target="_blank" rel="noreferrer" style={{ color: '#1D4ED8' }}>
+          <a href="/" target="_blank" rel="noreferrer" style={{ color: '#115E59' }}>
             Sayfayı aç
           </a>
         </p>
@@ -355,9 +355,9 @@ function TanitimYonetimiApp({ currentUser }) {
             marginBottom: 14,
             fontSize: 13,
             background:
-              mesaj.tur === 'hata' ? '#FEE2E2' : mesaj.tur === 'basari' ? '#D1FAE5' : '#EFF6FF',
+              mesaj.tur === 'hata' ? '#FEE2E2' : mesaj.tur === 'basari' ? '#D1FAE5' : '#F0FDFA',
             color:
-              mesaj.tur === 'hata' ? '#991B1B' : mesaj.tur === 'basari' ? '#065F46' : '#1E40AF',
+              mesaj.tur === 'hata' ? '#991B1B' : mesaj.tur === 'basari' ? '#065F46' : '#115E59',
           }}
         >
           {mesaj.metin}
@@ -382,9 +382,9 @@ function TanitimYonetimiApp({ currentUser }) {
             style={{
               padding: '8px 18px',
               borderRadius: 999,
-              border: '1px solid ' + (bolum === anahtar ? C.navy || '#1B2A4A' : '#D1D5DB'),
+              border: '1px solid ' + (bolum === anahtar ? C.navy || '#1B2A4A' : '#CBD5E1'),
               background: bolum === anahtar ? C.navy || '#1B2A4A' : 'white',
-              color: bolum === anahtar ? 'white' : '#374151',
+              color: bolum === anahtar ? 'white' : '#334155',
               fontSize: 13,
               fontWeight: 700,
               fontFamily: 'inherit',
@@ -563,7 +563,7 @@ function TanitimYonetimiApp({ currentUser }) {
                             height: 70,
                             objectFit: 'cover',
                             borderRadius: 8,
-                            border: '1px solid #E5E7EB',
+                            border: '1px solid #E2E8F0',
                             opacity: gi < 4 ? 1 : 0.4,
                           }}
                         />
@@ -629,10 +629,10 @@ function TanitimYonetimiApp({ currentUser }) {
                 </label>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={kaydet} style={dugme('#10B981')}>
+                <button onClick={kaydet} style={dugme('#059669')}>
                   Kaydet
                 </button>
-                <button onClick={() => setDuzenlenen(null)} style={dugme('#6B7280')}>
+                <button onClick={() => setDuzenlenen(null)} style={dugme('#64748B')}>
                   İptal
                 </button>
               </div>
@@ -670,7 +670,7 @@ function TanitimYonetimiApp({ currentUser }) {
                           height: 70,
                           objectFit: 'cover',
                           borderRadius: 8,
-                          border: '1px solid #E5E7EB',
+                          border: '1px solid #E2E8F0',
                           display: 'block',
                         }}
                       />
@@ -698,12 +698,12 @@ function TanitimYonetimiApp({ currentUser }) {
                         width: 110,
                         height: 70,
                         borderRadius: 8,
-                        background: '#F3F4F6',
+                        background: '#F1F5F9',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: 11,
-                        color: '#9CA3AF',
+                        color: '#94A3B8',
                         flexShrink: 0,
                       }}
                     >
@@ -732,8 +732,8 @@ function TanitimYonetimiApp({ currentUser }) {
                             fontWeight: 700,
                             padding: '2px 8px',
                             borderRadius: 10,
-                            background: '#F3F4F6',
-                            color: '#6B7280',
+                            background: '#F1F5F9',
+                            color: '#64748B',
                           }}
                         >
                           YAYINDA DEĞİL
@@ -760,8 +760,8 @@ function TanitimYonetimiApp({ currentUser }) {
                       disabled={i === 0}
                       title="Yukarı taşı"
                       style={{
-                        ...dugme('#F3F4F6'),
-                        color: '#374151',
+                        ...dugme('#F1F5F9'),
+                        color: '#334155',
                         padding: '4px 10px',
                         opacity: i === 0 ? 0.4 : 1,
                       }}
@@ -773,8 +773,8 @@ function TanitimYonetimiApp({ currentUser }) {
                       disabled={i === sirali.length - 1}
                       title="Aşağı taşı"
                       style={{
-                        ...dugme('#F3F4F6'),
-                        color: '#374151',
+                        ...dugme('#F1F5F9'),
+                        color: '#334155',
                         padding: '4px 10px',
                         opacity: i === sirali.length - 1 ? 0.4 : 1,
                       }}
@@ -786,7 +786,7 @@ function TanitimYonetimiApp({ currentUser }) {
                 <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                   <button
                     onClick={() => setDuzenlenen({ ...s })}
-                    style={{ ...dugme('#2563EB'), padding: '6px 14px', fontSize: 12.5 }}
+                    style={{ ...dugme('#0F766E'), padding: '6px 14px', fontSize: 12.5 }}
                   >
                     Düzenle
                   </button>
@@ -820,7 +820,7 @@ function TanitimYonetimiApp({ currentUser }) {
               </button>
               <button
                 onClick={onerilenleriEkle}
-                style={{ ...dugme('#F3F4F6'), color: '#374151' }}
+                style={{ ...dugme('#F1F5F9'), color: '#334155' }}
                 title="Otomasyondaki modüllerden hazır bir liste ekler; sonra düzenleyebilirsiniz."
               >
                 Önerilen modülleri ekle
@@ -872,10 +872,10 @@ function TanitimYonetimiApp({ currentUser }) {
                 Yayında
               </label>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={modulKaydet} style={dugme('#10B981')}>
+                <button onClick={modulKaydet} style={dugme('#059669')}>
                   Kaydet
                 </button>
-                <button onClick={() => setModulDuzenlenen(null)} style={dugme('#6B7280')}>
+                <button onClick={() => setModulDuzenlenen(null)} style={dugme('#64748B')}>
                   İptal
                 </button>
               </div>
@@ -929,8 +929,8 @@ function TanitimYonetimiApp({ currentUser }) {
                               fontWeight: 700,
                               padding: '2px 8px',
                               borderRadius: 10,
-                              background: '#F3F4F6',
-                              color: '#6B7280',
+                              background: '#F1F5F9',
+                              color: '#64748B',
                             }}
                           >
                             YAYINDA DEĞİL
@@ -940,7 +940,7 @@ function TanitimYonetimiApp({ currentUser }) {
                       <div
                         style={{ fontSize: 12.5, color: C.textMuted || '#64748B', marginTop: 4 }}
                       >
-                        {m.ozet || <span style={{ color: '#9CA3AF' }}>(özet yok)</span>}
+                        {m.ozet || <span style={{ color: '#94A3B8' }}>(özet yok)</span>}
                       </div>
                     </div>
                     <div
@@ -951,8 +951,8 @@ function TanitimYonetimiApp({ currentUser }) {
                         disabled={i === 0}
                         title="Yukarı taşı"
                         style={{
-                          ...dugme('#F3F4F6'),
-                          color: '#374151',
+                          ...dugme('#F1F5F9'),
+                          color: '#334155',
                           padding: '4px 10px',
                           opacity: i === 0 ? 0.4 : 1,
                         }}
@@ -964,8 +964,8 @@ function TanitimYonetimiApp({ currentUser }) {
                         disabled={i === sekmeler.length - 1}
                         title="Aşağı taşı"
                         style={{
-                          ...dugme('#F3F4F6'),
-                          color: '#374151',
+                          ...dugme('#F1F5F9'),
+                          color: '#334155',
                           padding: '4px 10px',
                           opacity: i === sekmeler.length - 1 ? 0.4 : 1,
                         }}
@@ -977,7 +977,7 @@ function TanitimYonetimiApp({ currentUser }) {
                   <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                     <button
                       onClick={() => setModulDuzenlenen({ ...m })}
-                      style={{ ...dugme('#2563EB'), padding: '6px 14px', fontSize: 12.5 }}
+                      style={{ ...dugme('#0F766E'), padding: '6px 14px', fontSize: 12.5 }}
                     >
                       Düzenle
                     </button>
@@ -987,8 +987,8 @@ function TanitimYonetimiApp({ currentUser }) {
                         setSuzgec(m.anahtar);
                       }}
                       style={{
-                        ...dugme('#F3F4F6'),
-                        color: '#374151',
+                        ...dugme('#F1F5F9'),
+                        color: '#334155',
                         padding: '6px 14px',
                         fontSize: 12.5,
                       }}

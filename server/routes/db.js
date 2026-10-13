@@ -4,7 +4,12 @@ const jwt = require('jsonwebtoken');
 const { getDbSafe } = require('../config/database');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
-const { jetonKullanicisi, adayOkuyabilirMi, adayYazmaKarari } = require('../lib/aday-yetki');
+const {
+  jetonKullanicisi,
+  adayOkuyabilirMi,
+  adayYazmaKarari,
+  ogrenciAdayTuruKarari,
+} = require('../lib/aday-yetki');
 const {
   yetkiAlani,
   bolumKaydiKarari,
@@ -3194,6 +3199,9 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
     if (DB_AUTH_ENFORCED) {
       const aday = adayYazmaKarari(op, req.user);
       if (!aday.izin) return res.status(403).json({ error: aday.hata });
+      // Numaralı öğrenci aday türlerinde (dikey/kurumlararası/merkezi) yeni başvuru açamaz.
+      const ogr = ogrenciAdayTuruKarari(op, req.user);
+      if (!ogr.izin) return res.status(403).json({ error: ogr.hata });
     }
   }
   // Aday hesabı kapatıldı / numaraya aktarıldı / silindiyse eski oturumla

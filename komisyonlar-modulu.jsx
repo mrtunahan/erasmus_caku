@@ -7,14 +7,14 @@ const { useState, useEffect, useMemo, useCallback: _useCallback } = React;
 
 const KOM = {
   // Genel tema ile uyumlu: lacivert + mavi aksan (mor kaldırıldı)
-  primary: '#2563EB',
-  primaryLight: '#60A5FA',
-  primaryPale: '#EFF6FF',
-  bg: '#FAFAFA',
+  primary: '#0F766E',
+  primaryLight: '#2DD4BF',
+  primaryPale: '#F0FDFA',
+  bg: '#F8FAFC',
   card: '#FFFFFF',
-  text: '#1F2937',
-  textMuted: '#6B7280',
-  border: '#E5E7EB',
+  text: '#1E293B',
+  textMuted: '#64748B',
+  border: '#E2E8F0',
   green: '#059669',
   greenLight: '#D1FAE5',
   red: '#DC2626',
@@ -270,7 +270,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
     width: '100%',
     padding: '10px 12px',
     borderRadius: 8,
-    border: '1px solid #D1D5DB',
+    border: '1px solid #CBD5E1',
     fontSize: 13,
     outline: 'none',
     fontFamily: "'Inter', sans-serif",
@@ -283,7 +283,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
         <KomIcon
           path="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
           size={48}
-          color="#D1D5DB"
+          color="#CBD5E1"
         />
         <p style={{ color: KOM.textMuted, fontSize: 14, marginTop: 16 }}>
           Bu modüle yalnızca fakülte yöneticisi veya bölüm yetkilisi erişebilir.
@@ -300,14 +300,14 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
             style={{
               width: 36,
               height: 36,
-              border: '3px solid #E5E7EB',
+              border: '3px solid #E2E8F0',
               borderTopColor: KOM.primary,
               borderRadius: '50%',
               animation: 'spin 0.8s linear infinite',
               margin: '0 auto 16px',
             }}
           />
-          <p style={{ color: '#666', fontSize: 14 }}>Komisyonlar yükleniyor...</p>
+          <p style={{ color: '#64748B', fontSize: 14 }}>Komisyonlar yükleniyor...</p>
         </div>
       </div>
     );
@@ -485,7 +485,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
                 padding: 12,
                 maxHeight: 210,
                 overflowY: 'auto',
-                background: '#FCFCFD',
+                background: '#F8FAFC',
               }}
             >
               {MODUL_SECENEKLERI.map((m) => {
@@ -557,7 +557,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
                     right: 0,
                     zIndex: 10,
                     background: 'white',
-                    border: '1px solid #D1D5DB',
+                    border: '1px solid #CBD5E1',
                     borderRadius: 8,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                     maxHeight: 220,
@@ -571,7 +571,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
                       style={{
                         padding: '10px 14px',
                         cursor: 'pointer',
-                        borderBottom: '1px solid #F3F4F6',
+                        borderBottom: '1px solid #F1F5F9',
                         fontSize: 13,
                         color: KOM.text,
                       }}
@@ -612,9 +612,9 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
                       alignItems: 'center',
                       gap: 10,
                       padding: '8px 12px',
-                      background: '#F9FAFB',
+                      background: '#F8FAFC',
                       borderRadius: 8,
-                      border: '1px solid #F3F4F6',
+                      border: '1px solid #F1F5F9',
                       flexWrap: 'wrap',
                     }}
                   >
@@ -651,7 +651,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
                       style={{
                         padding: '4px 8px',
                         borderRadius: 6,
-                        border: '1px solid #D1D5DB',
+                        border: '1px solid #CBD5E1',
                         fontSize: 12,
                         background: 'white',
                         cursor: 'pointer',
@@ -688,7 +688,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
               style={{
                 padding: '10px 20px',
                 borderRadius: 8,
-                border: '1px solid #D1D5DB',
+                border: '1px solid #CBD5E1',
                 background: 'white',
                 color: KOM.textMuted,
                 fontSize: 13,
@@ -722,7 +722,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
           <KomIcon
             path="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
             size={48}
-            color="#D1D5DB"
+            color="#CBD5E1"
           />
           <p style={{ color: KOM.textMuted, fontSize: 14, marginTop: 16 }}>
             Henüz komisyon oluşturulmamış. Yeni komisyon oluşturmak için yukarıdaki butona tıklayın.
@@ -744,7 +744,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
                 key={comm.id}
                 style={{
                   ...cardStyle,
-                  border: isSelected ? `2px solid ${KOM.primary}` : '1px solid #E5E7EB',
+                  border: isSelected ? `2px solid ${KOM.primary}` : '1px solid #E2E8F0',
                   transition: 'all 0.2s',
                 }}
               >
@@ -752,7 +752,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
                 <div
                   style={{
                     padding: '16px 18px',
-                    borderBottom: '1px solid #F3F4F6',
+                    borderBottom: '1px solid #F1F5F9',
                     display: 'flex',
                     alignItems: 'flex-start',
                     justifyContent: 'space-between',
@@ -816,7 +816,7 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
                         border: 'none',
                         cursor: 'pointer',
                         padding: 6,
-                        color: '#6B7280',
+                        color: '#64748B',
                         borderRadius: 6,
                       }}
                     >
@@ -897,14 +897,14 @@ function KomisyonlarModuluApp({ currentUser, activeDepartment, departmentInfo: _
                                 member.role === 'Başkan'
                                   ? '#FEF3C7'
                                   : member.role === 'Başkan Yrd.'
-                                    ? '#DBEAFE'
-                                    : '#F3F4F6',
+                                    ? '#CCFBF1'
+                                    : '#F1F5F9',
                               color:
                                 member.role === 'Başkan'
                                   ? '#92400E'
                                   : member.role === 'Başkan Yrd.'
-                                    ? '#1E40AF'
-                                    : '#6B7280',
+                                    ? '#115E59'
+                                    : '#64748B',
                             }}
                           >
                             {member.role}

@@ -1589,7 +1589,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                               borderRadius: 8,
                               fontSize: 14,
                               fontFamily: 'inherit',
-                              backgroundColor: editingProf.departmentId ? 'white' : '#F3F4F6',
+                              backgroundColor: editingProf.departmentId ? 'white' : '#F1F5F9',
                               cursor: editingProf.departmentId ? 'pointer' : 'not-allowed',
                             }}
                           >
@@ -1728,7 +1728,7 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                               const dept = prof.departmentId
                                 ? DEPARTMENTS.find((d) => d.id === prof.departmentId)
                                 : null;
-                              const deptColor = dept?.color || '#6b7280';
+                              const deptColor = dept?.color || '#64748b';
                               return (
                                 <span
                                   style={{

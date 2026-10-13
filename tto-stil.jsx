@@ -6,15 +6,15 @@ import { TTO_DURUMLAR } from './lib/tto-talep.js';
 const TC = (typeof window !== 'undefined' && window.C) || {};
 export const T = {
   navy: TC.navy || '#1B2A4A',
-  metin: TC.text || '#1F2937',
+  metin: TC.text || '#1E293B',
   soluk: TC.textMuted || '#64748B',
-  kenar: TC.border || '#E5E7EB',
-  kenarGiris: '#D1D5DB',
+  kenar: TC.border || '#E2E8F0',
+  kenarGiris: '#CBD5E1',
   yuzey: '#FFFFFF',
   zemin: '#F8FAFC',
   vurgu: '#B45309',
   vurguSolgun: '#FEF3C7',
-  birincil: '#1D4ED8',
+  birincil: '#115E59',
   tehlike: '#DC2626',
   basari: '#059669',
 };

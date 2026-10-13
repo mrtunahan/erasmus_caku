@@ -7,9 +7,9 @@ const { useState, useEffect, useMemo, useCallback } = React;
 
 // ── Renkler ──
 const PRJ = {
-  primary: '#6366f1',
-  primaryLight: '#818cf8',
-  primaryPale: '#eef2ff',
+  primary: '#0d9488',
+  primaryLight: '#2dd4bf',
+  primaryPale: '#f0fdfa',
   gold: '#d4af37',
   green: '#059669',
   greenLight: '#d1fae5',
@@ -19,9 +19,9 @@ const PRJ = {
   orangeLight: '#ffedd5',
   bg: '#F0FDFA',
   card: '#ffffff',
-  text: '#1f2937',
-  textMuted: '#6b7280',
-  border: '#e5e7eb',
+  text: '#1e293b',
+  textMuted: '#64748b',
+  border: '#e2e8f0',
   navy: '#1B2A4A',
 };
 
@@ -500,12 +500,12 @@ function exportProjectsWord(projects, courseName) {
     '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">' +
     '<head><meta charset="UTF-8"><style>body{font-family:Calibri,sans-serif;font-size:11pt}' +
     'h1{text-align:center;font-size:16pt;color:#1B2A4A;margin-bottom:4pt}' +
-    'h2{font-size:12pt;color:#2563eb;margin-top:12pt;margin-bottom:6pt}' +
+    'h2{font-size:12pt;color:#0f766e;margin-top:12pt;margin-bottom:6pt}' +
     'table{border-collapse:collapse;width:100%;margin-top:8pt}' +
-    'th{background:#1B2A4A;color:white;padding:8pt 6pt;font-size:10pt;text-align:left;border:1px solid #999}' +
-    'td{padding:6pt;border:1px solid #ccc;font-size:10pt;vertical-align:top}' +
-    'tr:nth-child(even){background:#f5f7ff}' +
-    '.info{background:#dbeafe;border:1px solid #93c5fd;border-radius:4pt;padding:8pt;margin-bottom:12pt;font-size:10pt}' +
+    'th{background:#1B2A4A;color:white;padding:8pt 6pt;font-size:10pt;text-align:left;border:1px solid #94A3B8}' +
+    'td{padding:6pt;border:1px solid #CBD5E1;font-size:10pt;vertical-align:top}' +
+    'tr:nth-child(even){background:#f0fdfa}' +
+    '.info{background:#ccfbf1;border:1px solid #5eead4;border-radius:4pt;padding:8pt;margin-bottom:12pt;font-size:10pt}' +
     '</style></head><body>' +
     '<h1>Proje Grupları Raporu</h1>' +
     '<div class="info"><b>Ders:</b> ' +
@@ -546,7 +546,7 @@ function ProjectCard({
 }) {
   var isOwner = project.createdBy === userId;
   var memberCount = project.members ? project.members.length : 0;
-  var memberColors = ['#6366f1', '#059669', '#ea580c', '#7c3aed'];
+  var memberColors = ['#0d9488', '#059669', '#ea580c', '#7c3aed'];
   var expandedState = useState(false);
   var expanded = expandedState[0];
   var setExpanded = expandedState[1];
@@ -568,7 +568,7 @@ function ProjectCard({
       bg: 'linear-gradient(135deg, #fef3c7, #fde68a)',
       text: '#92400e',
       label: 'Onay Bekliyor',
-      dot: '#f59e0b',
+      dot: '#d97706',
     },
     approved: {
       bg: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
@@ -587,10 +587,10 @@ function ProjectCard({
 
   var accentGradient =
     status === 'pending'
-      ? 'linear-gradient(135deg, #f59e0b, #fbbf24)'
+      ? 'linear-gradient(135deg, #d97706, #fbbf24)'
       : status === 'rejected'
-        ? 'linear-gradient(135deg, #ef4444, #f87171)'
-        : 'linear-gradient(135deg, #6366f1, #818cf8)';
+        ? 'linear-gradient(135deg, #dc2626, #f87171)'
+        : 'linear-gradient(135deg, #0d9488, #2dd4bf)';
 
   var toggleExpand = function (e) {
     e.stopPropagation();
@@ -605,11 +605,12 @@ function ProjectCard({
         background: 'white',
         borderRadius: 20,
         overflow: 'hidden',
-        border: '1px solid ' + (expanded || hovered ? 'rgba(99,102,241,0.25)' : 'rgba(0,0,0,0.06)'),
+        border:
+          '1px solid ' + (expanded || hovered ? 'rgba(13, 148, 136,0.25)' : 'rgba(0,0,0,0.06)'),
         boxShadow: expanded
-          ? '0 20px 40px rgba(99,102,241,0.15), 0 0 0 1px rgba(99,102,241,0.08)'
+          ? '0 20px 40px rgba(13, 148, 136,0.15), 0 0 0 1px rgba(13, 148, 136,0.08)'
           : hovered
-            ? '0 12px 28px rgba(99,102,241,0.1), 0 0 0 1px rgba(99,102,241,0.06)'
+            ? '0 12px 28px rgba(13, 148, 136,0.1), 0 0 0 1px rgba(13, 148, 136,0.06)'
             : '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)',
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         display: 'flex',
@@ -718,7 +719,7 @@ function ProjectCard({
                 color: PRJ.textMuted,
               }}
             >
-              <PrjIcon path={PRJ_ICONS.clock} size={13} color="#9ca3af" />
+              <PrjIcon path={PRJ_ICONS.clock} size={13} color="#94a3b8" />
               {prjFormatDate(project.createdAt)}
             </div>
 
@@ -799,7 +800,7 @@ function ProjectCard({
                 }}
                 title="Onayla"
                 style={{
-                  background: 'linear-gradient(135deg, #059669, #10b981)',
+                  background: 'linear-gradient(135deg, #059669, #059669)',
                   border: 'none',
                   cursor: 'pointer',
                   color: 'white',
@@ -823,7 +824,7 @@ function ProjectCard({
                 }}
                 title="Reddet"
                 style={{
-                  background: 'linear-gradient(135deg, #dc2626, #ef4444)',
+                  background: 'linear-gradient(135deg, #dc2626, #dc2626)',
                   border: 'none',
                   cursor: 'pointer',
                   color: 'white',
@@ -880,7 +881,7 @@ function ProjectCard({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: expanded ? 'rgba(99,102,241,0.08)' : 'transparent',
+              background: expanded ? 'rgba(13, 148, 136,0.08)' : 'transparent',
               transition: 'all 0.2s',
             }}
           >
@@ -889,7 +890,7 @@ function ProjectCard({
               height="16"
               viewBox="0 0 24 24"
               fill="none"
-              stroke={expanded ? '#6366f1' : PRJ.textMuted}
+              stroke={expanded ? '#0d9488' : PRJ.textMuted}
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -923,7 +924,7 @@ function ProjectCard({
               gap: 6,
             }}
           >
-            <PrjIcon path={PRJ_ICONS.user} size={13} color="#9ca3af" />
+            <PrjIcon path={PRJ_ICONS.user} size={13} color="#94a3b8" />
             Olusturan:{' '}
             <span style={{ fontWeight: 600, color: PRJ.text }}>{project.createdByName}</span>
           </div>
@@ -956,7 +957,7 @@ function ProjectCard({
                     onRespondInvite(project.id, myMemberIdx, 'accepted');
                   }}
                   style={{
-                    background: 'linear-gradient(135deg, #059669, #10b981)',
+                    background: 'linear-gradient(135deg, #059669, #059669)',
                     color: 'white',
                     border: 'none',
                     borderRadius: 8,
@@ -977,7 +978,7 @@ function ProjectCard({
                     onRespondInvite(project.id, myMemberIdx, 'rejected');
                   }}
                   style={{
-                    background: 'linear-gradient(135deg, #dc2626, #ef4444)',
+                    background: 'linear-gradient(135deg, #dc2626, #dc2626)',
                     color: 'white',
                     border: 'none',
                     borderRadius: 8,
@@ -1103,7 +1104,7 @@ function ProjectCard({
                           marginLeft: 'auto',
                           fontSize: 10,
                           fontWeight: 700,
-                          background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+                          background: 'linear-gradient(135deg, #0d9488, #2dd4bf)',
                           color: 'white',
                           padding: '3px 10px',
                           borderRadius: 6,
@@ -1488,7 +1489,7 @@ function CreateProjectModal({
                       fontSize: 14,
                       outline: 'none',
                       fontFamily: "'Source Sans 3', sans-serif",
-                      background: idx === 0 ? '#f9fafb' : 'white',
+                      background: idx === 0 ? '#f8fafc' : 'white',
                       color: idx === 0 ? PRJ.textMuted : PRJ.text,
                     }}
                   />
@@ -1639,7 +1640,7 @@ function CreateProjectModal({
             style={{
               padding: '10px 24px',
               border: 'none',
-              background: 'linear-gradient(135deg, #1e40af, #2563eb)',
+              background: 'linear-gradient(135deg, #115e59, #0f766e)',
               color: 'white',
               borderRadius: 8,
               cursor: 'pointer',
@@ -1833,8 +1834,8 @@ function AddCourseModal({
             style={{
               marginBottom: 16,
               padding: 14,
-              background: '#F0F7FF',
-              border: '1px solid #BFDBFE',
+              background: '#F0FDFA',
+              border: '1px solid #99F6E4',
               borderRadius: 10,
             }}
           >
@@ -1974,7 +1975,7 @@ function AddCourseModal({
                                   background: active ? PRJ.primaryPale : 'transparent',
                                 }}
                                 onMouseEnter={function (e) {
-                                  if (!active) e.currentTarget.style.background = '#F3F4F6';
+                                  if (!active) e.currentTarget.style.background = '#F1F5F9';
                                 }}
                                 onMouseLeave={function (e) {
                                   if (!active) e.currentTarget.style.background = 'transparent';
@@ -2077,7 +2078,7 @@ function AddCourseModal({
               fontSize: 14,
               outline: 'none',
               fontFamily: "'Source Sans 3', sans-serif",
-              background: isProfessor && !!selectedCourseId ? '#F3F4F6' : 'white',
+              background: isProfessor && !!selectedCourseId ? '#F1F5F9' : 'white',
             }}
           />
         </div>
@@ -2109,7 +2110,7 @@ function AddCourseModal({
               fontSize: 14,
               outline: 'none',
               fontFamily: "'Source Sans 3', sans-serif",
-              background: isProfessor && !!selectedCourseId ? '#F3F4F6' : 'white',
+              background: isProfessor && !!selectedCourseId ? '#F1F5F9' : 'white',
             }}
           />
         </div>
@@ -2141,7 +2142,7 @@ function AddCourseModal({
               fontSize: 14,
               outline: 'none',
               fontFamily: "'Source Sans 3', sans-serif",
-              background: isProfessor && !!selectedCourseId ? '#F3F4F6' : 'white',
+              background: isProfessor && !!selectedCourseId ? '#F1F5F9' : 'white',
             }}
           />
         </div>
@@ -2301,7 +2302,7 @@ function AddCourseModal({
             style={{
               padding: '10px 24px',
               border: 'none',
-              background: 'linear-gradient(135deg, #1e40af, #2563eb)',
+              background: 'linear-gradient(135deg, #115e59, #0f766e)',
               color: 'white',
               borderRadius: 8,
               cursor: 'pointer',
@@ -2612,7 +2613,7 @@ function BulkScheduleModal({ onClose, onDistribute, projectCount }) {
             style={{
               padding: '10px 24px',
               border: 'none',
-              background: 'linear-gradient(135deg, #059669, #10b981)',
+              background: 'linear-gradient(135deg, #059669, #059669)',
               color: 'white',
               borderRadius: 8,
               cursor: 'pointer',
@@ -3458,7 +3459,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             background: 'transparent',
             padding: '0',
             marginBottom: 24,
-            borderBottom: '1px solid #E5E7EB',
+            borderBottom: '1px solid #E2E8F0',
           }}
         >
           <div
@@ -3586,7 +3587,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 border: '1px solid ' + PRJ.border,
               }}
             >
-              <PrjIcon path={PRJ_ICONS.book} size={48} color="#d1d5db" />
+              <PrjIcon path={PRJ_ICONS.book} size={48} color="#cbd5e1" />
               <h3 style={{ color: PRJ.textMuted, marginTop: 16 }}>
                 {searchQuery ? 'Arama sonucu bulunamadı' : 'Henüz ders eklenmemiş'}
               </h3>
@@ -3622,7 +3623,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       position: 'relative',
                     }}
                     onMouseEnter={function (e) {
-                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(37,99,235,0.12)';
+                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(15, 118, 110,0.12)';
                       e.currentTarget.style.borderColor = PRJ.primary;
                       e.currentTarget.style.transform = 'translateY(-2px)';
                     }}
@@ -4111,7 +4112,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               transition: 'all 0.2s',
             }}
           >
-            <PrjIcon path={PRJ_ICONS.search} size={16} color="#9ca3af" />
+            <PrjIcon path={PRJ_ICONS.search} size={16} color="#94a3b8" />
             <input
               type="text"
               value={searchQuery}
@@ -4150,13 +4151,13 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 width: 24,
                 height: 24,
                 borderRadius: 8,
-                background: 'rgba(99,102,241,0.1)',
+                background: 'rgba(13, 148, 136,0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <PrjIcon path={PRJ_ICONS.folder} size={13} color="#6366f1" />
+              <PrjIcon path={PRJ_ICONS.folder} size={13} color="#0d9488" />
             </span>
             {projects.length} proje
           </div>
@@ -4225,7 +4226,7 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       justifyContent: 'center',
                     }}
                   >
-                    <PrjIcon path={PRJ_ICONS.clock} size={13} color="#f59e0b" />
+                    <PrjIcon path={PRJ_ICONS.clock} size={13} color="#d97706" />
                   </span>
                   {pendingCount} onay bekliyor
                 </div>
@@ -4301,14 +4302,14 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 width: 64,
                 height: 64,
                 borderRadius: 16,
-                background: 'rgba(99,102,241,0.08)',
+                background: 'rgba(13, 148, 136,0.08)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginBottom: 16,
               }}
             >
-              <PrjIcon path={PRJ_ICONS.folder} size={32} color="#a5b4fc" />
+              <PrjIcon path={PRJ_ICONS.folder} size={32} color="#5eead4" />
             </div>
             <h3 style={{ color: PRJ.text, marginTop: 8, fontSize: 16, fontWeight: 600 }}>
               {searchQuery ? 'Arama sonucu bulunamadi' : 'Henuz proje grubu olusturulmamis'}

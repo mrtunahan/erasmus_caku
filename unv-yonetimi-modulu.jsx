@@ -12,15 +12,15 @@ const UNV = {
   primary: '#1B2A4A',
   accent: '#8B2635',
   accentPale: '#FBEAEC',
-  text: '#1F2937',
-  textMuted: '#6B7280',
-  border: '#E5E7EB',
+  text: '#1E293B',
+  textMuted: '#64748B',
+  border: '#E2E8F0',
   green: '#059669',
   greenLight: '#D1FAE5',
   red: '#DC2626',
   redLight: '#FEE2E2',
-  blue: '#2563EB',
-  blueLight: '#DBEAFE',
+  blue: '#0F766E',
+  blueLight: '#CCFBF1',
 };
 
 const UIcon = ({ path, size = 18, color = 'currentColor' }) => (
@@ -339,7 +339,7 @@ function UnvYonetimiApp({ currentUser }) {
         <UIcon
           path="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
           size={48}
-          color="#D1D5DB"
+          color="#CBD5E1"
         />
         <p style={{ color: UNV.textMuted, fontSize: 14, marginTop: 16 }}>
           Bu modüle yalnızca üniversite yöneticisi erişebilir.
@@ -482,7 +482,7 @@ function UnvYonetimiApp({ currentUser }) {
                 </div>
 
                 {/* Fakülte yetkilileri */}
-                <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: 12 }}>
+                <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 12 }}>
                   <p style={{ ...uLabel, marginBottom: 8 }}>Fakülte Yetkilileri</p>
                   {managers.length === 0 ? (
                     <p style={{ fontSize: 12, color: UNV.textMuted, margin: '0 0 10px' }}>

@@ -19,20 +19,20 @@ const GB = {
   navy: '#1B2A4A',
   accent: '#0F766E',
   accentPale: '#CCFBF1',
-  text: '#1F2937',
-  textMuted: '#6B7280',
-  border: '#E5E7EB',
+  text: '#1E293B',
+  textMuted: '#64748B',
+  border: '#E2E8F0',
   green: '#059669',
   greenLight: '#D1FAE5',
   amber: '#B45309',
   amberLight: '#FEF3C7',
   red: '#DC2626',
-  bg: '#F8F9FB',
+  bg: '#F8FAFC',
 };
 
 const GB_DURUM = {
   bekliyor: { label: 'Bekliyor', color: GB.amber, bg: GB.amberLight },
-  goruldu: { label: 'Görüldü', color: '#1D4ED8', bg: '#DBEAFE' },
+  goruldu: { label: 'Görüldü', color: '#115E59', bg: '#CCFBF1' },
   // İşleme alındı: belgeyi gönderen taraf, işin başladığını buradan görür.
   islemde: { label: 'İşleme Alındı', color: '#7C3AED', bg: '#EDE9FE' },
   tamamlandi: { label: 'Tamamlandı', color: GB.green, bg: GB.greenLight },
@@ -190,7 +190,7 @@ function GbKart({ item, onDurum, onSil, busy }) {
               type="button"
               disabled={busy}
               onClick={() => onDurum(docId, index, 'goruldu')}
-              style={gbBtn('#1D4ED8')}
+              style={gbBtn('#115E59')}
             >
               Görüldü
             </button>
@@ -798,9 +798,9 @@ function GelenBelgelerApp({ currentUser, activeDepartment }) {
             marginBottom: 14,
             padding: '10px 14px',
             borderRadius: 10,
-            background: '#EFF6FF',
-            border: '1px solid #BFDBFE',
-            color: '#1E40AF',
+            background: '#F0FDFA',
+            border: '1px solid #99F6E4',
+            color: '#115E59',
             fontSize: 12.5,
             lineHeight: 1.55,
           }}

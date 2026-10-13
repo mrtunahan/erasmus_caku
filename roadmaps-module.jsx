@@ -211,8 +211,8 @@ const PROJECTS = {
     abbr: '2B',
     name: '2209-B',
     subtitle: 'Üniversite Öğrencileri Sanayiye Yönelik Araştırma Projeleri Desteği',
-    accent: '#0369A1',
-    accentSoft: '#F0F9FF',
+    accent: '#0F766E',
+    accentSoft: '#F0FDFA',
     accentMid: '#7DD3FC',
     logo: 'https://www.tubitak.gov.tr/favicon.ico',
     logoFull: 'https://www.google.com/s2/favicons?domain=tubitak.gov.tr&sz=64',
@@ -612,7 +612,7 @@ function StepCard({
   const done = step._status === 'completed';
   const active = step._status === 'in-progress';
   const stBg = done ? '#DCFCE7' : active ? '#FEF3C7' : '#F1F5F9';
-  const stColor = done ? '#16A34A' : active ? '#D97706' : '#94A3B8';
+  const stColor = done ? '#059669' : active ? '#D97706' : '#94A3B8';
   const noteText = notes[`${activeProject}-${i}`] || '';
 
   return (
@@ -1132,7 +1132,7 @@ export default function RoadmapsModule({
     <div
       style={{
         fontFamily: "'DM Sans', sans-serif",
-        background: '#FAFBFC',
+        background: '#F8FAFC',
         minHeight: '100vh',
         color: '#1E293B',
       }}
@@ -1300,7 +1300,7 @@ export default function RoadmapsModule({
             {/* Right Column: Progress & Eval */}
             <div
               style={{
-                background: '#FAFBFC',
+                background: '#F8FAFC',
                 borderRadius: 16,
                 padding: 24,
                 border: '1px dashed #E2E8F0',
@@ -1420,7 +1420,7 @@ export default function RoadmapsModule({
               const done = s._status === 'completed';
               const active = s._status === 'in-progress';
               const stInfo = done
-                ? { bg: '#DCFCE7', color: '#16A34A' }
+                ? { bg: '#DCFCE7', color: '#059669' }
                 : active
                   ? { bg: '#FEF3C7', color: '#D97706' }
                   : { bg: '#F1F5F9', color: '#94A3B8' };
@@ -1435,7 +1435,7 @@ export default function RoadmapsModule({
                         top: 40,
                         bottom: 0,
                         width: 2,
-                        background: done ? proj.accentMid : '#EEF0F4',
+                        background: done ? proj.accentMid : '#F1F5F9',
                         zIndex: 0,
                       }}
                     />
@@ -1633,7 +1633,7 @@ export default function RoadmapsModule({
           </div>
           <div style={{ display: 'flex', gap: 14 }}>
             {[
-              { c: '#16A34A', l: 'Tamamlandı' },
+              { c: '#059669', l: 'Tamamlandı' },
               { c: '#D97706', l: 'Devam Ediyor' },
               { c: '#CBD5E1', l: 'Bekliyor' },
             ].map((x, i) => (

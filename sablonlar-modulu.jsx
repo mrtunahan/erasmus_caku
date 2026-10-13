@@ -14,12 +14,12 @@ const SB_Btn = window.Btn;
 
 const SB_MODULES = [
   { id: 'erasmus', label: 'Erasmus', color: '#3B82F6' },
-  { id: 'muafiyet', label: 'Ders Muafiyet', color: '#10B981' },
+  { id: 'muafiyet', label: 'Ders Muafiyet', color: '#059669' },
   { id: 'capyandal', label: 'ÇAP / Yandal', color: '#6D28D9' },
   { id: 'yataygecis', label: 'Yatay Geçiş', color: '#B45309' },
   { id: 'staj', label: 'Staj', color: '#0EA5E9' },
   { id: 'sinav', label: 'Sınav Otomasyonu', color: '#DC2626' },
-  { id: 'dersprogrami', label: 'Ders Programı', color: '#F59E0B' },
+  { id: 'dersprogrami', label: 'Ders Programı', color: '#D97706' },
   { id: 'projeler', label: 'Proje Performans', color: '#8B5CF6' },
   { id: 'formlar', label: 'Formlar', color: '#64748B' },
   { id: 'performans', label: 'Performans', color: '#0D9488' },
@@ -45,19 +45,19 @@ const SB_MODULES = [
 const SBC = (typeof window !== 'undefined' && window.C) || {};
 const SB = {
   navy: SBC.navy || '#1B2A4A',
-  metin: SBC.text || '#1F2937',
+  metin: SBC.text || '#1E293B',
   soluk: SBC.textMuted || '#64748B',
   soluk2: '#94A3B8',
   koyu: '#334155',
-  kenar: SBC.border || '#E5E7EB',
-  kenarGiris: '#D1D5DB',
+  kenar: SBC.border || '#E2E8F0',
+  kenarGiris: '#CBD5E1',
   yuzey: SBC.card || '#FFFFFF',
-  yuzey2: '#FAFAFA',
+  yuzey2: '#F8FAFC',
   cipZemin: '#F1F5F9',
   cipMetin: '#475569',
   vurgu: SBC.gold || '#C4973B',
-  birincil: '#0891B2',
-  birincilSolgun: '#ECFEFF',
+  birincil: '#0F766E',
+  birincilSolgun: '#F0FDFA',
   basari: SBC.green || '#059669',
   uyari: '#D97706',
   uyariSolgun: '#FEF3C7',
@@ -72,7 +72,7 @@ SB.baslik = SB.navy;
 const SB_MESAJ = {
   error: { bg: SB.tehlikeSolgun, fg: '#991B1B', bd: '#FECACA' },
   ok: { bg: '#D1FAE5', fg: '#065F46', bd: '#A7F3D0' },
-  info: { bg: '#DBEAFE', fg: '#1E40AF', bd: '#BFDBFE' },
+  info: { bg: '#CCFBF1', fg: '#115E59', bd: '#99F6E4' },
 };
 
 // ── EYLEM BİÇİMLERİ: ÜÇ TON, DAHA FAZLASI DEĞİL ──
@@ -837,7 +837,7 @@ function SablonKarti({ tpl, onEsle, onDuzenle, onDegistir, onSil }) {
           Aynı bilgi tek çipte duruyor, uzun açıklama ipucuna taşındı. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         {cokTurlu && (
-          <span style={sbRozet('#EEF2FF', '#4338CA')}>{docTypeLabel(tpl.module, tpl.docType)}</span>
+          <span style={sbRozet('#F0FDFA', '#115E59')}>{docTypeLabel(tpl.module, tpl.docType)}</span>
         )}
         <span style={sbRozet(SB.cipZemin, SB.cipMetin, 600)}>
           {SB_SCOPE_LABEL[tpl.scope] || tpl.scope}
@@ -1530,7 +1530,7 @@ function AddTemplateModal(props) {
             style={{
               width: '100%',
               padding: 8,
-              border: '1px dashed #9CA3AF',
+              border: '1px dashed #94A3B8',
               borderRadius: 8,
               fontSize: 13,
               background: SB.yuzey2,
@@ -2002,7 +2002,7 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
                     fontWeight: 700,
                     padding: '1px 7px',
                     borderRadius: 8,
-                    background: '#1F2937',
+                    background: '#1E293B',
                     color: 'white',
                     fontFamily: "'JetBrains Mono', monospace",
                   }}
@@ -2031,9 +2031,9 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
                   <div
                     style={{
                       ...selStyle,
-                      background: '#F3F4F6',
-                      color: '#4B5563',
-                      border: '1px dashed #D1D5DB',
+                      background: '#F1F5F9',
+                      color: '#475569',
+                      border: '1px dashed #CBD5E1',
                       fontWeight: 600,
                     }}
                     title={

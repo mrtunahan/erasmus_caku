@@ -4,12 +4,12 @@
 const { useState, useEffect, useMemo } = React;
 
 const AL = {
-  primary: '#0891B2',
-  primaryPale: '#ECFEFF',
+  primary: '#0F766E',
+  primaryPale: '#F0FDFA',
   navy: '#1E293B',
   text: '#334155',
   textMuted: '#64748B',
-  border: '#E5E7EB',
+  border: '#E2E8F0',
 };
 
 // Defansif render: server-side audit girişlerinde bazı alanlar obje olabilir
@@ -248,7 +248,7 @@ function AuditLogModuluApp({ currentUser, activeDepartment: _activeDepartment })
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 800 }}>
             <thead>
-              <tr style={{ background: '#FAFAFA', borderBottom: `2px solid ${AL.border}` }}>
+              <tr style={{ background: '#F8FAFC', borderBottom: `2px solid ${AL.border}` }}>
                 {['Tarih', 'Aktör', 'Rol', 'Aksiyon', 'Hedef', 'Kayıt ID', 'Detay'].map((h) => (
                   <th
                     key={h}
@@ -269,7 +269,7 @@ function AuditLogModuluApp({ currentUser, activeDepartment: _activeDepartment })
             </thead>
             <tbody>
               {filtered.slice(0, 500).map((l, i) => (
-                <tr key={l.id || i} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                <tr key={l.id || i} style={{ borderBottom: '1px solid #F1F5F9' }}>
                   <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', color: AL.textMuted }}>
                     {l.createdAt ? new Date(l.createdAt).toLocaleString('tr-TR') : ''}
                   </td>

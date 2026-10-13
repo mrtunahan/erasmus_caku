@@ -8,22 +8,22 @@ const { useState, useEffect, useCallback, useMemo } = React;
 
 // ── Tema ──
 const FM_C = window.C || {
-  bg: '#F7F5F0',
+  bg: '#F5F7FA',
   card: '#FFFFFF',
   navy: '#1B2A4A',
   navyLight: '#2D4A7A',
   gold: '#C4973B',
   goldLight: '#E8D5A8',
   goldPale: '#FBF6EC',
-  accent: '#8B2635',
-  green: '#2E7D52',
-  greenLight: '#D4EDDA',
-  text: '#2C2C2C',
-  textMuted: '#6B7280',
-  border: '#E5E1D8',
-  borderLight: '#F0EDE6',
+  accent: '#0F766E',
+  green: '#059669',
+  greenLight: '#ECFDF5',
+  text: '#1E293B',
+  textMuted: '#64748B',
+  border: '#E2E8F0',
+  borderLight: '#E2E8F0',
   blue: '#3B82F6',
-  blueLight: '#DBEAFE',
+  blueLight: '#CCFBF1',
 };
 
 // ── Kategoriler ──
@@ -33,8 +33,8 @@ const FORM_KATEGORILER = [
     label: 'Öğrenci İşleri',
     icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
     color: '#3B82F6',
-    bg: '#DBEAFE',
-    borderColor: '#93C5FD',
+    bg: '#CCFBF1',
+    borderColor: '#5EEAD4',
   },
   {
     id: 'bolum',
@@ -90,7 +90,7 @@ function dosyaRenk(fileName) {
   if (!fileName) return FM_C.textMuted;
   const ext = fileName.split('.').pop().toLowerCase();
   if (ext === 'pdf') return '#DC2626';
-  if (['doc', 'docx'].includes(ext)) return '#2563EB';
+  if (['doc', 'docx'].includes(ext)) return '#0F766E';
   if (['xls', 'xlsx'].includes(ext)) return '#059669';
   if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return '#7C3AED';
   return FM_C.textMuted;

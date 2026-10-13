@@ -6,14 +6,14 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
 const STAJ = {
-  primary: '#0891B2',
+  primary: '#0F766E',
   primaryLight: '#22D3EE',
-  primaryPale: '#ECFEFF',
+  primaryPale: '#F0FDFA',
   bg: '#F0FDFA',
   card: '#FFFFFF',
-  text: '#1F2937',
-  textMuted: '#6B7280',
-  border: '#E5E7EB',
+  text: '#1E293B',
+  textMuted: '#64748B',
+  border: '#E2E8F0',
   green: '#059669',
   greenLight: '#D1FAE5',
   red: '#DC2626',
@@ -21,9 +21,9 @@ const STAJ = {
   orange: '#EA580C',
   orangeLight: '#FFEDD5',
   navy: '#1B2A4A',
-  accent: '#0891B2',
+  accent: '#0F766E',
   accentMid: '#0891B280',
-  accentSoft: '#ECFEFF',
+  accentSoft: '#F0FDFA',
 };
 
 const StajIcon = ({ path, size = 18, color = 'currentColor' }) => (
@@ -44,7 +44,7 @@ const StajIcon = ({ path, size = 18, color = 'currentColor' }) => (
 // ── Staj Durumları ──
 const STAJ_STATUS = {
   beklemede: { label: 'Beklemede', color: '#EAB308', bg: '#FEF9C3' },
-  devam: { label: 'Devam Ediyor', color: '#3B82F6', bg: '#DBEAFE' },
+  devam: { label: 'Devam Ediyor', color: '#3B82F6', bg: '#CCFBF1' },
   tamamlandi: { label: 'Tamamlandı', color: '#059669', bg: '#D1FAE5' },
   reddedildi: { label: 'Reddedildi', color: '#DC2626', bg: '#FEE2E2' },
 };
@@ -458,14 +458,14 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
     const stBg = done
       ? '#DCFCE7'
       : pending
-        ? '#DBEAFE'
+        ? '#CCFBF1'
         : active
           ? '#FEF3C7'
           : waiting
             ? '#FEF9C3'
             : '#F1F5F9';
     const stColor = done
-      ? '#16A34A'
+      ? '#059669'
       : pending
         ? '#3B82F6'
         : active
@@ -486,7 +486,7 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
       <div
         onClick={() => setExpanded(isOpen ? null : i)}
         style={{
-          background: isOpen ? STAJ.accentSoft : locked ? '#FAFAFA' : '#fff',
+          background: isOpen ? STAJ.accentSoft : locked ? '#F8FAFC' : '#fff',
           border: `1.5px solid ${isOpen ? STAJ.accent + '35' : locked ? '#F1F5F9' : '#F1F5F9'}`,
           borderRadius: 14,
           padding: '12px 16px',
@@ -641,10 +641,10 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
                   marginTop: 8,
                   padding: '8px 12px',
                   borderRadius: 6,
-                  background: '#DBEAFE',
-                  border: '1px solid #93C5FD',
+                  background: '#CCFBF1',
+                  border: '1px solid #5EEAD4',
                   fontSize: 12,
-                  color: '#1E40AF',
+                  color: '#115E59',
                   fontWeight: 500,
                   display: 'flex',
                   alignItems: 'center',
@@ -654,7 +654,7 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
                 <StajIcon
                   path="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                   size={14}
-                  color="#1E40AF"
+                  color="#115E59"
                 />
                 Yetkili onayı bekleniyor...
               </div>
@@ -722,8 +722,8 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
                         gap: 6,
                         padding: '6px 10px',
                         borderRadius: 6,
-                        background: link.module || link.tab ? '#ECFEFF' : '#F9FAFB',
-                        border: `1px solid ${link.module || link.tab ? STAJ.accent + '30' : '#E5E7EB'}`,
+                        background: link.module || link.tab ? '#F0FDFA' : '#F8FAFC',
+                        border: `1px solid ${link.module || link.tab ? STAJ.accent + '30' : '#E2E8F0'}`,
                         cursor: link.module || link.tab ? 'pointer' : 'default',
                         fontSize: 12,
                         color: link.module || link.tab ? STAJ.accent : '#64748B',
@@ -796,7 +796,7 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
                   borderRadius: 8,
                   border: 'none',
                   background:
-                    step.id === 1 || areRequiredDocsUploaded(step.id) ? STAJ.primary : '#9CA3AF',
+                    step.id === 1 || areRequiredDocsUploaded(step.id) ? STAJ.primary : '#94A3B8',
                   color: 'white',
                   fontSize: 13,
                   fontWeight: 600,
@@ -832,14 +832,14 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
             style={{
               width: 30,
               height: 30,
-              border: '3px solid #E5E1D8',
+              border: '3px solid #E2E8F0',
               borderTopColor: STAJ.primary,
               borderRadius: '50%',
               animation: 'spin 0.8s linear infinite',
               margin: '0 auto 12px',
             }}
           />
-          <p style={{ color: '#666', fontSize: 13 }}>Yol haritası yükleniyor...</p>
+          <p style={{ color: '#64748B', fontSize: 13 }}>Yol haritası yükleniyor...</p>
         </div>
       </div>
     );
@@ -851,7 +851,7 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
         background: 'white',
         borderRadius: 16,
         padding: responsive.val(16, 24, 32),
-        border: '1px solid #E5E7EB',
+        border: '1px solid #E2E8F0',
         position: 'relative',
       }}
     >
@@ -907,7 +907,7 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
               width: 120,
               height: 6,
               borderRadius: 3,
-              background: '#E5E7EB',
+              background: '#E2E8F0',
               overflow: 'hidden',
             }}
           >
@@ -969,7 +969,7 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
             padding: '12px 14px',
             borderRadius: 10,
             background: 'white',
-            border: '1.5px solid #E5E7EB',
+            border: '1.5px solid #E2E8F0',
           }}
         >
           <div style={{ fontSize: 12, fontWeight: 700, color: STAJ.navy, marginBottom: 8 }}>
@@ -985,7 +985,7 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
                   style={{
                     padding: '7px 14px',
                     borderRadius: 8,
-                    border: `1.5px solid ${active ? STAJ.primary : '#E5E7EB'}`,
+                    border: `1.5px solid ${active ? STAJ.primary : '#E2E8F0'}`,
                     background: active ? STAJ.primary : 'white',
                     color: active ? 'white' : STAJ.navy,
                     fontSize: 12,
@@ -1020,13 +1020,13 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
               actionMsg.includes('Hata') || actionMsg.includes('gerekli')
                 ? STAJ.redLight
                 : actionMsg.includes('bekleniyor')
-                  ? '#DBEAFE'
+                  ? '#CCFBF1'
                   : STAJ.greenLight,
             color:
               actionMsg.includes('Hata') || actionMsg.includes('gerekli')
                 ? STAJ.red
                 : actionMsg.includes('bekleniyor')
-                  ? '#1E40AF'
+                  ? '#115E59'
                   : STAJ.green,
             fontSize: 13,
             fontWeight: 500,
@@ -1048,7 +1048,7 @@ function StajRoadmap({ onTabChange, currentUser, activeDepartment }) {
             top: 0,
             bottom: 0,
             background:
-              'linear-gradient(to right, #2D3748 0%, #374151 40%, #374151 60%, #2D3748 100%)',
+              'linear-gradient(to right, #1E293B 0%, #334155 40%, #334155 60%, #1E293B 100%)',
             zIndex: 0,
             borderRadius: 4,
           }}
@@ -1848,7 +1848,7 @@ function StajBasvuruFormu({
     width: '100%',
     padding: '9px 12px',
     borderRadius: 8,
-    border: '1px solid #D1D5DB',
+    border: '1px solid #CBD5E1',
     fontSize: 13,
     outline: 'none',
     fontFamily: "'Inter', sans-serif",
@@ -1867,7 +1867,7 @@ function StajBasvuruFormu({
     background: 'white',
     borderRadius: 12,
     padding: responsive.val(14, 18, 22),
-    border: '1px solid #E5E7EB',
+    border: '1px solid #E2E8F0',
     marginBottom: 16,
   };
   const sectionTitleStyle = {
@@ -1982,7 +1982,7 @@ function StajBasvuruFormu({
               alignItems: 'center',
               gap: 8,
               flexShrink: 0,
-              boxShadow: '0 4px 12px rgba(8,145,178,0.25)',
+              boxShadow: '0 4px 12px rgba(15, 118, 110,0.25)',
               transition: 'transform 0.15s',
             }}
             onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
@@ -2020,8 +2020,8 @@ function StajBasvuruFormu({
                 label: 'Aktif',
                 value: activeApps,
                 color: '#3B82F6',
-                bg: '#DBEAFE',
-                border: '#93C5FD',
+                bg: '#CCFBF1',
+                border: '#5EEAD4',
                 icon: 'M13 10V3L4 14h7v7l9-11h-7z',
               },
               {
@@ -2047,7 +2047,7 @@ function StajBasvuruFormu({
                   background: 'white',
                   borderRadius: 12,
                   padding: responsive.val('12px 14px', '14px 16px', '14px 18px'),
-                  border: '1px solid #E5E7EB',
+                  border: '1px solid #E2E8F0',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 12,
@@ -2099,7 +2099,7 @@ function StajBasvuruFormu({
                 fontWeight: 600,
                 padding: '2px 8px',
                 borderRadius: 999,
-                background: '#F3F4F6',
+                background: '#F1F5F9',
                 color: STAJ.textMuted,
               }}
             >
@@ -2155,7 +2155,7 @@ function StajBasvuruFormu({
                 width: 80,
                 height: 80,
                 borderRadius: '50%',
-                background: `linear-gradient(135deg, ${STAJ.primaryPale} 0%, #F0F9FF 100%)`,
+                background: `linear-gradient(135deg, ${STAJ.primaryPale} 0%, #F0FDFA 100%)`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -2258,19 +2258,19 @@ function StajBasvuruFormu({
                   onClick={() => handleEdit(app)}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(8, 145, 178, 0.12)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(15, 118, 110, 0.12)';
                     e.currentTarget.style.borderColor = `${STAJ.primary}50`;
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)';
                     e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
-                    e.currentTarget.style.borderColor = '#E5E7EB';
+                    e.currentTarget.style.borderColor = '#E2E8F0';
                   }}
                   style={{
                     background: 'white',
                     borderRadius: 14,
                     padding: responsive.val(14, 16, 18),
-                    border: '1px solid #E5E7EB',
+                    border: '1px solid #E2E8F0',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                     cursor: 'pointer',
                     transition: 'transform 0.2s, box-shadow 0.2s, border-color 0.2s',
@@ -2286,7 +2286,7 @@ function StajBasvuruFormu({
                         height: 44,
                         borderRadius: 12,
                         flexShrink: 0,
-                        background: `linear-gradient(135deg, ${STAJ.primary} 0%, #0E7490 100%)`,
+                        background: `linear-gradient(135deg, ${STAJ.primary} 0%, #115E59 100%)`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -2337,14 +2337,14 @@ function StajBasvuruFormu({
                               fontWeight: 500,
                               padding: '3px 9px',
                               borderRadius: 6,
-                              background: '#F9FAFB',
-                              border: '1px solid #F3F4F6',
+                              background: '#F8FAFC',
+                              border: '1px solid #F1F5F9',
                             }}
                           >
                             <StajIcon
                               path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
                               size={11}
-                              color="#9CA3AF"
+                              color="#94A3B8"
                             />
                             {app.stajEtapLabel}
                           </span>
@@ -2360,14 +2360,14 @@ function StajBasvuruFormu({
                               fontWeight: 500,
                               padding: '3px 9px',
                               borderRadius: 6,
-                              background: '#F9FAFB',
-                              border: '1px solid #F3F4F6',
+                              background: '#F8FAFC',
+                              border: '1px solid #F1F5F9',
                             }}
                           >
                             <StajIcon
                               path="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                               size={11}
-                              color="#9CA3AF"
+                              color="#94A3B8"
                             />
                             {app.stajBaslamaTarihi || '—'} / {app.stajBitisTarihi || '—'}
                           </span>
@@ -2430,7 +2430,7 @@ function StajBasvuruFormu({
                               ? '#3B82F6'
                               : isStepRejected
                                 ? STAJ.red
-                                : '#E5E7EB';
+                                : '#E2E8F0';
                         return (
                           <div
                             key={i}
@@ -2467,14 +2467,14 @@ function StajBasvuruFormu({
           style={{
             padding: '8px 12px',
             borderRadius: 8,
-            border: '1px solid #D1D5DB',
+            border: '1px solid #CBD5E1',
             background: 'white',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
           }}
         >
-          <StajIcon path="M15 19l-7-7 7-7" size={16} color="#6B7280" />
+          <StajIcon path="M15 19l-7-7 7-7" size={16} color="#64748B" />
         </button>
         <h3 style={{ fontSize: 16, fontWeight: 600, color: STAJ.navy, margin: 0 }}>
           {isReadOnly
@@ -2742,7 +2742,7 @@ function StajBasvuruFormu({
                       padding: '12px 16px',
                       borderRadius: 10,
                       cursor: isReadOnly ? 'default' : 'pointer',
-                      border: `2px solid ${isSelected ? STAJ.primary : '#E5E7EB'}`,
+                      border: `2px solid ${isSelected ? STAJ.primary : '#E2E8F0'}`,
                       background: isSelected ? STAJ.primaryPale : 'white',
                       transition: 'all 0.2s',
                       opacity: isReadOnly && !isSelected ? 0.5 : 1,
@@ -2754,7 +2754,7 @@ function StajBasvuruFormu({
                           width: 20,
                           height: 20,
                           borderRadius: '50%',
-                          border: `2px solid ${isSelected ? STAJ.primary : '#D1D5DB'}`,
+                          border: `2px solid ${isSelected ? STAJ.primary : '#CBD5E1'}`,
                           background: isSelected ? STAJ.primary : 'white',
                           display: 'flex',
                           alignItems: 'center',
@@ -3003,7 +3003,7 @@ function StajBasvuruFormu({
                   cursor: 'pointer',
                   padding: '8px 14px',
                   borderRadius: 8,
-                  border: `1.5px solid ${form.saglikGuvencesi === opt.id ? STAJ.primary : '#D1D5DB'}`,
+                  border: `1.5px solid ${form.saglikGuvencesi === opt.id ? STAJ.primary : '#CBD5E1'}`,
                   background: form.saglikGuvencesi === opt.id ? STAJ.primaryPale : 'white',
                   fontSize: 13,
                   color: form.saglikGuvencesi === opt.id ? STAJ.primary : STAJ.text,
@@ -3043,7 +3043,7 @@ function StajBasvuruFormu({
           style={{
             padding: '12px 24px',
             borderRadius: 8,
-            border: '1px solid #D1D5DB',
+            border: '1px solid #CBD5E1',
             background: 'white',
             color: STAJ.textMuted,
             fontSize: 14,
@@ -3060,7 +3060,7 @@ function StajBasvuruFormu({
               padding: '12px 28px',
               borderRadius: 8,
               border: 'none',
-              background: saving ? '#9CA3AF' : STAJ.primary,
+              background: saving ? '#94A3B8' : STAJ.primary,
               color: 'white',
               fontSize: 14,
               fontWeight: 600,
@@ -3470,7 +3470,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
   const sectionStyle = {
     background: 'white',
     borderRadius: 12,
-    border: '1px solid #E5E7EB',
+    border: '1px solid #E2E8F0',
     overflow: 'hidden',
   };
 
@@ -3493,7 +3493,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
               style={{
                 width: 32,
                 height: 32,
-                border: '3px solid #E5E7EB',
+                border: '3px solid #E2E8F0',
                 borderTopColor: STAJ.primary,
                 borderRadius: '50%',
                 animation: 'spin 0.8s linear infinite',
@@ -3513,7 +3513,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
           style={{
             background: 'white',
             borderRadius: 16,
-            border: '1.5px solid #E5E7EB',
+            border: '1.5px solid #E2E8F0',
             padding: '48px 32px',
             textAlign: 'center',
           }}
@@ -3523,7 +3523,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
               width: 72,
               height: 72,
               borderRadius: '50%',
-              background: '#F3F4F6',
+              background: '#F1F5F9',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -3533,7 +3533,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
             <StajIcon
               path="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
               size={32}
-              color="#9CA3AF"
+              color="#94A3B8"
             />
           </div>
           <h4 style={{ fontSize: 16, fontWeight: 700, color: STAJ.navy, margin: '0 0 10px' }}>
@@ -3569,8 +3569,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                   gap: 10,
                   padding: '10px 14px',
                   borderRadius: 8,
-                  background: '#F9FAFB',
-                  border: '1px solid #E5E7EB',
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
                   opacity: 0.6,
                 }}
               >
@@ -3579,7 +3579,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                     width: 32,
                     height: 32,
                     borderRadius: 8,
-                    background: '#F3F4F6',
+                    background: '#F1F5F9',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -3589,14 +3589,14 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                   <StajIcon
                     path="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                     size={14}
-                    color="#9CA3AF"
+                    color="#94A3B8"
                   />
                 </div>
                 <div style={{ flex: 1, textAlign: 'left' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#6B7280' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#64748B' }}>
                     {belge.title}
                   </div>
-                  <div style={{ fontSize: 11, color: '#9CA3AF' }}>Adım {belge.step}</div>
+                  <div style={{ fontSize: 11, color: '#94A3B8' }}>Adım {belge.step}</div>
                 </div>
                 <span
                   style={{
@@ -3604,8 +3604,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                     fontWeight: 600,
                     padding: '2px 8px',
                     borderRadius: 6,
-                    background: '#F3F4F6',
-                    color: '#9CA3AF',
+                    background: '#F1F5F9',
+                    color: '#94A3B8',
                   }}
                 >
                   Kilitli
@@ -3650,7 +3650,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
             padding: '12px 14px',
             borderRadius: 10,
             background: 'white',
-            border: '1.5px solid #E5E7EB',
+            border: '1.5px solid #E2E8F0',
           }}
         >
           <div style={{ fontSize: 12, fontWeight: 700, color: STAJ.navy, marginBottom: 8 }}>
@@ -3666,7 +3666,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                   style={{
                     padding: '7px 14px',
                     borderRadius: 8,
-                    border: `1.5px solid ${active ? STAJ.primary : '#E5E7EB'}`,
+                    border: `1.5px solid ${active ? STAJ.primary : '#E2E8F0'}`,
                     background: active ? STAJ.primary : 'white',
                     color: active ? 'white' : STAJ.navy,
                     fontSize: 12,
@@ -3712,7 +3712,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                   : myApplication.status === 'beklemede'
                     ? '#FCD34D'
                     : myApplication.status === 'tamamlandi'
-                      ? '#BAE6FD'
+                      ? '#99F6E4'
                       : '#FCA5A5'
               }`,
               display: 'flex',
@@ -3892,8 +3892,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                             marginTop: 8,
                             padding: '6px 10px',
                             borderRadius: 6,
-                            background: '#F9FAFB',
-                            border: '1px solid #F3F4F6',
+                            background: '#F8FAFC',
+                            border: '1px solid #F1F5F9',
                             fontSize: 12,
                             color: STAJ.text,
                             display: 'flex',
@@ -3905,7 +3905,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                           <StajIcon
                             path="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
                             size={13}
-                            color="#6B7280"
+                            color="#64748B"
                           />
                           <span style={{ fontWeight: 500 }}>{uploaded.fileName}</span>
                           <span style={{ color: STAJ.textMuted }}>
@@ -3927,9 +3927,9 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                                   style={{
                                     padding: '4px 10px',
                                     borderRadius: 6,
-                                    border: '1px solid #93C5FD',
-                                    background: '#EFF6FF',
-                                    color: '#2563EB',
+                                    border: '1px solid #5EEAD4',
+                                    background: '#F0FDFA',
+                                    color: '#0F766E',
                                     fontSize: 11,
                                     fontWeight: 600,
                                     cursor: 'pointer',
@@ -4003,7 +4003,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                           style={{
                             padding: '8px 14px',
                             borderRadius: 8,
-                            border: '1px solid #D1D5DB',
+                            border: '1px solid #CBD5E1',
                             background: 'white',
                             color: STAJ.primary,
                             fontSize: 12,
@@ -4083,8 +4083,8 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                           style={{
                             padding: '8px 14px',
                             borderRadius: 8,
-                            background: '#DBEAFE',
-                            color: '#1E40AF',
+                            background: '#CCFBF1',
+                            color: '#115E59',
                             fontSize: 11,
                             fontWeight: 600,
                             display: 'flex',
@@ -4105,7 +4105,7 @@ function StajBelgeYukleme({ currentUser, activeDepartment }) {
                             borderRadius: 8,
                             border: 'none',
                             background: isUploading
-                              ? '#9CA3AF'
+                              ? '#94A3B8'
                               : uploaded?.fileName
                                 ? '#EA580C'
                                 : STAJ.primary,
@@ -6116,8 +6116,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
     const pending = pendingIdx !== -1;
     return {
       label: `Adım ${step.id}/${total} — ${step.title}${pending ? ' (Onay Bekliyor)' : ''}`,
-      color: pending ? '#3B82F6' : '#0891B2',
-      bg: pending ? '#DBEAFE' : '#ECFEFF',
+      color: pending ? '#3B82F6' : '#0F766E',
+      bg: pending ? '#CCFBF1' : '#F0FDFA',
     };
   };
 
@@ -6129,14 +6129,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             style={{
               width: 36,
               height: 36,
-              border: '3px solid #E5E1D8',
+              border: '3px solid #E2E8F0',
               borderTopColor: STAJ.primary,
               borderRadius: '50%',
               animation: 'spin 0.8s linear infinite',
               margin: '0 auto 16px',
             }}
           />
-          <p style={{ color: '#666', fontSize: 14 }}>Staj kayıtları yükleniyor...</p>
+          <p style={{ color: '#64748B', fontSize: 14 }}>Staj kayıtları yükleniyor...</p>
         </div>
       </div>
     );
@@ -6218,7 +6218,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   width: 40,
                   height: 40,
                   borderRadius: 10,
-                  border: `1.5px solid ${unreadCount > 0 ? STAJ.primary : '#E5E7EB'}`,
+                  border: `1.5px solid ${unreadCount > 0 ? STAJ.primary : '#E2E8F0'}`,
                   background: unreadCount > 0 ? STAJ.primaryPale : 'white',
                   cursor: 'pointer',
                   display: 'flex',
@@ -6243,7 +6243,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       minWidth: 18,
                       height: 18,
                       borderRadius: 9,
-                      background: '#EF4444',
+                      background: '#DC2626',
                       color: 'white',
                       fontSize: 10,
                       fontWeight: 700,
@@ -6270,7 +6270,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     width: responsive.val(320, 380, 420),
                     background: 'white',
                     borderRadius: 14,
-                    border: '1px solid #E5E7EB',
+                    border: '1px solid #E2E8F0',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
                     overflow: 'hidden',
                   }}
@@ -6283,8 +6283,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '14px 16px',
-                      borderBottom: '1px solid #F3F4F6',
-                      background: '#FAFAFA',
+                      borderBottom: '1px solid #F1F5F9',
+                      background: '#F8FAFC',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -6332,7 +6332,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         justifyContent: 'space-between',
                         gap: 8,
                         padding: '8px 16px',
-                        borderBottom: '1px solid #F3F4F6',
+                        borderBottom: '1px solid #F1F5F9',
                         background: '#FFFFFF',
                       }}
                     >
@@ -6384,7 +6384,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                             fontWeight: 600,
                             padding: '5px 10px',
                             borderRadius: 6,
-                            border: '1px solid #E5E7EB',
+                            border: '1px solid #E2E8F0',
                             background: 'white',
                             color: STAJ.textMuted,
                             cursor: 'pointer',
@@ -6403,7 +6403,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         <StajIcon
                           path="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
                           size={32}
-                          color="#D1D5DB"
+                          color="#CBD5E1"
                         />
                         <p style={{ fontSize: 13, color: STAJ.textMuted, marginTop: 10 }}>
                           Henüz bildirim yok
@@ -6428,7 +6428,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         const dotColor = isApprovedNotif
                           ? STAJ.green
                           : isRejectedNotif
-                            ? '#EF4444'
+                            ? '#DC2626'
                             : isNewAppNotif
                               ? '#8B5CF6'
                               : STAJ.primary;
@@ -6438,7 +6438,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                             ? '#FEF2F2'
                             : isNewAppNotif
                               ? '#F5F3FF'
-                              : '#F0F9FF';
+                              : '#F0FDFA';
                         const isSelected = selectedNotifIds.has(notif.id);
                         return (
                           <div
@@ -6447,7 +6447,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                               display: 'flex',
                               gap: 12,
                               padding: '12px 16px',
-                              borderBottom: '1px solid #F9FAFB',
+                              borderBottom: '1px solid #F8FAFC',
                               background: isSelected ? '#FEF2F2' : isRead ? 'white' : bgUnread,
                               transition: 'background 0.2s',
                             }}
@@ -6474,7 +6474,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                   width: 8,
                                   height: 8,
                                   borderRadius: '50%',
-                                  background: isRead ? '#D1D5DB' : dotColor,
+                                  background: isRead ? '#CBD5E1' : dotColor,
                                 }}
                               />
                             </div>
@@ -6514,7 +6514,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                 {isRejectedNotif && (
                                   <>
                                     <b>{notif.stepTitle}</b> adımı{' '}
-                                    <span style={{ color: '#EF4444' }}>{notif.rejectedBy}</span>{' '}
+                                    <span style={{ color: '#DC2626' }}>{notif.rejectedBy}</span>{' '}
                                     tarafından reddedildi
                                   </>
                                 )}
@@ -6549,7 +6549,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                 )}
                                 {notif.stajEtapLabel && <span>{notif.stajEtapLabel}</span>}
                               </div>
-                              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                              <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
                                 {timeAgo}
                               </div>
                             </div>
@@ -6630,7 +6630,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   width: 40,
                   height: 40,
                   borderRadius: 10,
-                  border: `1.5px solid ${studentUnread > 0 ? STAJ.primary : '#E5E7EB'}`,
+                  border: `1.5px solid ${studentUnread > 0 ? STAJ.primary : '#E2E8F0'}`,
                   background: studentUnread > 0 ? STAJ.primaryPale : 'white',
                   cursor: 'pointer',
                   display: 'flex',
@@ -6655,7 +6655,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       minWidth: 18,
                       height: 18,
                       borderRadius: 9,
-                      background: '#EF4444',
+                      background: '#DC2626',
                       color: 'white',
                       fontSize: 10,
                       fontWeight: 700,
@@ -6681,7 +6681,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     width: 340,
                     background: 'white',
                     borderRadius: 14,
-                    border: '1px solid #E5E7EB',
+                    border: '1px solid #E2E8F0',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
                     overflow: 'hidden',
                   }}
@@ -6693,8 +6693,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '14px 16px',
-                      borderBottom: '1px solid #F3F4F6',
-                      background: '#FAFAFA',
+                      borderBottom: '1px solid #F1F5F9',
+                      background: '#F8FAFC',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -6742,7 +6742,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         justifyContent: 'space-between',
                         gap: 8,
                         padding: '8px 16px',
-                        borderBottom: '1px solid #F3F4F6',
+                        borderBottom: '1px solid #F1F5F9',
                         background: '#FFFFFF',
                       }}
                     >
@@ -6794,7 +6794,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                             fontWeight: 600,
                             padding: '5px 10px',
                             borderRadius: 6,
-                            border: '1px solid #E5E7EB',
+                            border: '1px solid #E2E8F0',
                             background: 'white',
                             color: STAJ.textMuted,
                             cursor: 'pointer',
@@ -6811,7 +6811,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         <StajIcon
                           path="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
                           size={32}
-                          color="#D1D5DB"
+                          color="#CBD5E1"
                         />
                         <p style={{ fontSize: 13, color: STAJ.textMuted, marginTop: 10 }}>
                           Henüz bildirim yok
@@ -6826,13 +6826,13 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         const iconColor = isApproved
                           ? STAJ.green
                           : isRejected || isAppRejected
-                            ? '#EF4444'
+                            ? '#DC2626'
                             : STAJ.primary;
                         const bgUnread = isApproved
                           ? '#F0FDF4'
                           : isRejected || isAppRejected
                             ? '#FEF2F2'
-                            : '#F0F9FF';
+                            : '#F0FDFA';
                         const iconPath = isApproved
                           ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
                           : isRejected || isAppRejected
@@ -6855,7 +6855,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                               display: 'flex',
                               gap: 12,
                               padding: '12px 16px',
-                              borderBottom: '1px solid #F9FAFB',
+                              borderBottom: '1px solid #F8FAFC',
                               background: isSelected ? '#FEF2F2' : isRead ? 'white' : bgUnread,
                             }}
                           >
@@ -6895,13 +6895,13 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                 ) : isAppRejected ? (
                                   <>
                                     Staj başvurunuz{' '}
-                                    <span style={{ color: '#EF4444' }}>{notif.rejectedBy}</span>{' '}
-                                    tarafından <b style={{ color: '#EF4444' }}>reddedilmiştir</b>
+                                    <span style={{ color: '#DC2626' }}>{notif.rejectedBy}</span>{' '}
+                                    tarafından <b style={{ color: '#DC2626' }}>reddedilmiştir</b>
                                   </>
                                 ) : isRejected ? (
                                   <>
                                     <b>{notif.stepTitle}</b> adımınız{' '}
-                                    <span style={{ color: '#EF4444' }}>{notif.rejectedBy}</span>{' '}
+                                    <span style={{ color: '#DC2626' }}>{notif.rejectedBy}</span>{' '}
                                     tarafından reddedilmiştir
                                   </>
                                 ) : (
@@ -6932,7 +6932,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                               <div style={{ fontSize: 11, color: STAJ.textMuted, marginTop: 2 }}>
                                 {notif.stajEtapLabel || ''}
                               </div>
-                              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                              <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>
                                 {timeAgo}
                               </div>
                             </div>
@@ -7002,7 +7002,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           <div
             style={{
               display: 'flex',
-              background: '#F3F4F6',
+              background: '#F1F5F9',
               borderRadius: 10,
               padding: 3,
             }}
@@ -7105,7 +7105,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 background: 'white',
                 borderRadius: 12,
                 padding: responsive.val(16, 20, 24),
-                border: '1px solid #E5E7EB',
+                border: '1px solid #E2E8F0',
                 marginBottom: 20,
               }}
             >
@@ -7139,7 +7139,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       width: '100%',
                       padding: '9px 12px',
                       borderRadius: 8,
-                      border: '1px solid #D1D5DB',
+                      border: '1px solid #CBD5E1',
                       fontSize: 13,
                       outline: 'none',
                       boxSizing: 'border-box',
@@ -7166,7 +7166,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       width: '100%',
                       padding: '9px 12px',
                       borderRadius: 8,
-                      border: '1px solid #D1D5DB',
+                      border: '1px solid #CBD5E1',
                       fontSize: 13,
                       outline: 'none',
                       boxSizing: 'border-box',
@@ -7193,7 +7193,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       width: '100%',
                       padding: '9px 12px',
                       borderRadius: 8,
-                      border: '1px solid #D1D5DB',
+                      border: '1px solid #CBD5E1',
                       fontSize: 13,
                       outline: 'none',
                       boxSizing: 'border-box',
@@ -7220,7 +7220,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       width: '100%',
                       padding: '9px 12px',
                       borderRadius: 8,
-                      border: '1px solid #D1D5DB',
+                      border: '1px solid #CBD5E1',
                       fontSize: 13,
                       outline: 'none',
                       boxSizing: 'border-box',
@@ -7260,8 +7260,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           fontSize: 11,
                           padding: '3px 10px',
                           borderRadius: 8,
-                          background: '#DBEAFE',
-                          color: '#1D4ED8',
+                          background: '#CCFBF1',
+                          color: '#115E59',
                           fontWeight: 600,
                         }}
                       >
@@ -7293,7 +7293,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   style={{
                     padding: '9px 18px',
                     borderRadius: 8,
-                    border: '1px solid #D1D5DB',
+                    border: '1px solid #CBD5E1',
                     background: 'white',
                     color: STAJ.textMuted,
                     fontSize: 13,
@@ -7328,14 +7328,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 background: 'white',
                 borderRadius: 12,
                 padding: 40,
-                border: '1px solid #E5E7EB',
+                border: '1px solid #E2E8F0',
                 textAlign: 'center',
               }}
             >
               <StajIcon
                 path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
                 size={48}
-                color="#D1D5DB"
+                color="#CBD5E1"
               />
               <p style={{ color: STAJ.textMuted, fontSize: 14, marginTop: 16 }}>
                 Henüz staj etabı tanımlanmamış. Öğrencilerin başvuru yapabilmesi için en az bir etap
@@ -7355,7 +7355,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       background: 'white',
                       borderRadius: 10,
                       padding: 16,
-                      border: `1px solid ${isActive ? STAJ.primary + '40' : '#E5E7EB'}`,
+                      border: `1px solid ${isActive ? STAJ.primary + '40' : '#E2E8F0'}`,
                       display: 'flex',
                       flexWrap: 'wrap',
                       alignItems: 'center',
@@ -7373,7 +7373,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                             fontWeight: 600,
                             padding: '2px 8px',
                             borderRadius: 10,
-                            background: isActive ? STAJ.greenLight : isPast ? '#F3F4F6' : '#DBEAFE',
+                            background: isActive ? STAJ.greenLight : isPast ? '#F1F5F9' : '#CCFBF1',
                             color: isActive ? STAJ.green : isPast ? STAJ.textMuted : '#3B82F6',
                           }}
                         >
@@ -7418,8 +7418,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                 fontWeight: 600,
                                 padding: '2px 8px',
                                 borderRadius: 10,
-                                background: '#DBEAFE',
-                                color: '#1D4ED8',
+                                background: '#CCFBF1',
+                                color: '#115E59',
                               }}
                             >
                               📅 Kayıt &amp; Komisyon son: {onayBitis}
@@ -7549,7 +7549,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           style={{
                             padding: '6px 12px',
                             borderRadius: 6,
-                            border: '1px solid #D1D5DB',
+                            border: '1px solid #CBD5E1',
                             background: 'white',
                             color: STAJ.primary,
                             fontSize: 12,
@@ -7587,7 +7587,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
         <div>
           <div
             style={{
-              background: 'linear-gradient(135deg, #ECFEFF 0%, #F0F9FF 100%)',
+              background: 'linear-gradient(135deg, #F0FDFA 0%, #F0FDFA 100%)',
               border: '1.5px solid #0891B220',
               borderRadius: 14,
               padding: responsive.val(14, 18, 22),
@@ -7634,7 +7634,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   style={{
                     padding: '9px 16px',
                     borderRadius: 8,
-                    border: '1.5px solid #0891B2',
+                    border: '1.5px solid #0F766E',
                     background: 'white',
                     color: STAJ.primary,
                     fontSize: 13,
@@ -7658,7 +7658,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     padding: '9px 16px',
                     borderRadius: 8,
                     border: 'none',
-                    background: exporting ? '#9CA3AF' : STAJ.primary,
+                    background: exporting ? '#94A3B8' : STAJ.primary,
                     color: 'white',
                     fontSize: 13,
                     fontWeight: 600,
@@ -7690,7 +7690,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     background: 'white',
                     borderRadius: 10,
                     padding: 16,
-                    border: '1px solid #E5E7EB',
+                    border: '1px solid #E2E8F0',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -7720,7 +7720,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   background: 'white',
                   borderRadius: 12,
                   padding: 40,
-                  border: '1px solid #E5E7EB',
+                  border: '1px solid #E2E8F0',
                   textAlign: 'center',
                 }}
               >
@@ -7833,7 +7833,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         width: '100%',
                         padding: '10px 12px',
                         borderRadius: 8,
-                        border: '1px solid #D1D5DB',
+                        border: '1px solid #CBD5E1',
                         fontSize: 13,
                         outline: 'none',
                         fontFamily: "'Inter', sans-serif",
@@ -7872,7 +7872,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         style={{
                           padding: '10px 18px',
                           borderRadius: 8,
-                          border: '1px solid #D1D5DB',
+                          border: '1px solid #CBD5E1',
                           background: 'white',
                           color: STAJ.textMuted,
                           fontSize: 13,
@@ -7970,7 +7970,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           padding: 4,
                         }}
                       >
-                        <StajIcon path="M6 18L18 6M6 6l12 12" size={20} color="#6B7280" />
+                        <StajIcon path="M6 18L18 6M6 6l12 12" size={20} color="#64748B" />
                       </button>
                     </div>
 
@@ -7996,11 +7996,11 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       return (
                         <div
                           style={{
-                            background: '#F9FAFB',
+                            background: '#F8FAFC',
                             borderRadius: 12,
                             padding: 20,
                             marginBottom: 20,
-                            border: '1px solid #E5E7EB',
+                            border: '1px solid #E2E8F0',
                           }}
                         >
                           <div
@@ -8062,7 +8062,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                           flex: 1,
                                           height: 4,
                                           borderRadius: 2,
-                                          background: currentIdx >= i ? STAJ.primary : '#E5E7EB',
+                                          background: currentIdx >= i ? STAJ.primary : '#E2E8F0',
                                           transition: 'background 0.3s',
                                         },
                                       }),
@@ -8075,7 +8075,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                           borderRadius: '50%',
                                           flexShrink: 0,
                                           background: isDone ? STAJ.primary : 'white',
-                                          border: `2px solid ${isDone ? STAJ.primary : '#D1D5DB'}`,
+                                          border: `2px solid ${isDone ? STAJ.primary : '#CBD5E1'}`,
                                           display: 'flex',
                                           alignItems: 'center',
                                           justifyContent: 'center',
@@ -8088,7 +8088,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                       React.createElement(StajIcon, {
                                         path: step.icon,
                                         size: 16,
-                                        color: isDone ? 'white' : '#D1D5DB',
+                                        color: isDone ? 'white' : '#CBD5E1',
                                       })
                                     )
                                   );
@@ -8165,7 +8165,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                               gap: 8,
                               marginTop: 16,
                               paddingTop: 14,
-                              borderTop: '1px solid #E5E7EB',
+                              borderTop: '1px solid #E2E8F0',
                             }}
                           >
                             {!canActOnDept && (
@@ -8271,8 +8271,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                     style={{
                                       padding: '10px 16px',
                                       borderRadius: 8,
-                                      background: '#DBEAFE',
-                                      color: '#1E40AF',
+                                      background: '#CCFBF1',
+                                      color: '#115E59',
                                       fontSize: 13,
                                       fontWeight: 500,
                                       flex: 1,
@@ -8313,7 +8313,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                   flex: 1,
                                   padding: '10px 20px',
                                   borderRadius: 8,
-                                  border: '1px solid #D1D5DB',
+                                  border: '1px solid #CBD5E1',
                                   background: 'white',
                                   color: STAJ.navy,
                                   fontSize: 13,
@@ -8556,9 +8556,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                             style={{
                                               padding: '6px 12px',
                                               borderRadius: 6,
-                                              border: '1px solid #93C5FD',
-                                              background: '#EFF6FF',
-                                              color: '#2563EB',
+                                              border: '1px solid #5EEAD4',
+                                              background: '#F0FDFA',
+                                              color: '#0F766E',
                                               fontSize: 11,
                                               fontWeight: 600,
                                               cursor: 'pointer',
@@ -8578,7 +8578,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                             style={{
                                               padding: '6px 12px',
                                               borderRadius: 6,
-                                              border: '1px solid #D1D5DB',
+                                              border: '1px solid #CBD5E1',
                                               background: 'white',
                                               color: STAJ.primary,
                                               fontSize: 11,
@@ -8600,7 +8600,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                         <span
                                           style={{
                                             fontSize: 10,
-                                            color: '#EF4444',
+                                            color: '#DC2626',
                                             fontWeight: 500,
                                           }}
                                         >
@@ -8746,9 +8746,9 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                   fontWeight: 700,
                                   padding: '3px 10px',
                                   borderRadius: 999,
-                                  background: '#DBEAFE',
-                                  color: '#1E40AF',
-                                  border: '1px solid #93C5FD',
+                                  background: '#CCFBF1',
+                                  color: '#115E59',
+                                  border: '1px solid #5EEAD4',
                                 }}
                               >
                                 ⏱ {pendingCount} Onay Bekliyor
@@ -8787,10 +8787,10 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                             style={{
                               height: 8,
                               borderRadius: 999,
-                              background: '#F3F4F6',
+                              background: '#F1F5F9',
                               overflow: 'hidden',
                               marginBottom: 16,
-                              border: '1px solid #E5E7EB',
+                              border: '1px solid #E2E8F0',
                             }}
                           >
                             <div
@@ -8819,8 +8819,8 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                   ? '#3B82F6'
                                   : isRejected
                                     ? STAJ.red
-                                    : '#E5E7EB';
-                              const circleColor = isActive ? 'white' : '#9CA3AF';
+                                    : '#E2E8F0';
+                              const circleColor = isActive ? 'white' : '#94A3B8';
                               const circleContent = isCompleted
                                 ? '✓'
                                 : isRejected
@@ -8830,17 +8830,17 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                               const cardBg = isCompleted
                                 ? STAJ.greenLight
                                 : isPending
-                                  ? '#EFF6FF'
+                                  ? '#F0FDFA'
                                   : isRejected
                                     ? STAJ.redLight
-                                    : '#F9FAFB';
+                                    : '#F8FAFC';
                               const cardBorder = isCompleted
                                 ? '#A7F3D0'
                                 : isPending
-                                  ? '#93C5FD'
+                                  ? '#5EEAD4'
                                   : isRejected
                                     ? '#FCA5A5'
-                                    : '#E5E7EB';
+                                    : '#E2E8F0';
 
                               const statusBadge = isCompleted
                                 ? { label: 'Onaylandı', bg: STAJ.green, color: 'white' }
@@ -8848,7 +8848,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                   ? { label: 'Onay Bekliyor', bg: '#3B82F6', color: 'white' }
                                   : isRejected
                                     ? { label: 'Reddedildi', bg: STAJ.red, color: 'white' }
-                                    : { label: 'Başlamadı', bg: '#E5E7EB', color: '#6B7280' };
+                                    : { label: 'Başlamadı', bg: '#E2E8F0', color: '#64748B' };
 
                               return (
                                 <div
@@ -8869,7 +8869,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                         top: 36,
                                         bottom: 0,
                                         width: 2,
-                                        background: isCompleted ? STAJ.green : '#E5E7EB',
+                                        background: isCompleted ? STAJ.green : '#E2E8F0',
                                         opacity: isActive ? 1 : 0.6,
                                       }}
                                     />
@@ -8889,7 +8889,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                       justifyContent: 'center',
                                       fontSize: 14,
                                       fontWeight: 700,
-                                      border: `3px solid ${isActive ? 'white' : '#F3F4F6'}`,
+                                      border: `3px solid ${isActive ? 'white' : '#F1F5F9'}`,
                                       boxShadow: isActive ? `0 0 0 2px ${circleBg}` : 'none',
                                       zIndex: 1,
                                     }}
@@ -8945,7 +8945,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                                             borderRadius: 999,
                                             background: 'white',
                                             color: STAJ.textMuted,
-                                            border: '1px solid #E5E7EB',
+                                            border: '1px solid #E2E8F0',
                                             display: 'inline-flex',
                                             alignItems: 'center',
                                             gap: 4,
@@ -9142,7 +9142,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         gap: 10,
                         marginTop: 20,
                         paddingTop: 16,
-                        borderTop: '1px solid #E5E7EB',
+                        borderTop: '1px solid #E2E8F0',
                       }}
                     >
                       <button
@@ -9172,7 +9172,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         style={{
                           padding: '10px 20px',
                           borderRadius: 8,
-                          border: '1px solid #D1D5DB',
+                          border: '1px solid #CBD5E1',
                           background: 'white',
                           color: STAJ.textMuted,
                           fontSize: 13,
@@ -9190,7 +9190,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
               {isStajYetkilisi && (
                 <div
                   style={{
-                    background: 'linear-gradient(135deg, #ECFEFF 0%, #F0F9FF 100%)',
+                    background: 'linear-gradient(135deg, #F0FDFA 0%, #F0FDFA 100%)',
                     border: '1.5px solid #0891B220',
                     borderRadius: 14,
                     padding: responsive.val(14, 18, 22),
@@ -9246,7 +9246,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           width: '100%',
                           padding: '9px 12px',
                           borderRadius: 8,
-                          border: '1px solid #D1D5DB',
+                          border: '1px solid #CBD5E1',
                           fontSize: 13,
                           outline: 'none',
                           background: 'white',
@@ -9283,7 +9283,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                         style={{
                           padding: '9px 16px',
                           borderRadius: 8,
-                          border: '1.5px solid #0891B2',
+                          border: '1.5px solid #0F766E',
                           background: 'white',
                           color: STAJ.primary,
                           fontSize: 13,
@@ -9307,7 +9307,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           padding: '9px 16px',
                           borderRadius: 8,
                           border: 'none',
-                          background: exporting ? '#9CA3AF' : STAJ.primary,
+                          background: exporting ? '#94A3B8' : STAJ.primary,
                           color: 'white',
                           fontSize: 13,
                           fontWeight: 600,
@@ -9853,7 +9853,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     bg: STAJ.primaryPale,
                   },
                   { label: 'Beklemede', value: stats.beklemede, color: '#EAB308', bg: '#FEF9C3' },
-                  { label: 'Devam Eden', value: stats.devam, color: '#3B82F6', bg: '#DBEAFE' },
+                  { label: 'Devam Eden', value: stats.devam, color: '#3B82F6', bg: '#CCFBF1' },
                   { label: 'Tamamlanan', value: stats.tamamlandi, color: '#059669', bg: '#D1FAE5' },
                   { label: 'Reddedilen', value: stats.reddedildi, color: '#DC2626', bg: '#FEE2E2' },
                 ].map((s, i) => (
@@ -9863,7 +9863,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       background: 'white',
                       borderRadius: 12,
                       padding: responsive.val(12, 16, 20),
-                      border: '1px solid #E5E7EB',
+                      border: '1px solid #E2E8F0',
                       textAlign: 'center',
                     }}
                   >
@@ -9902,7 +9902,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                       width: '100%',
                       padding: '10px 14px',
                       borderRadius: 8,
-                      border: '1px solid #D1D5DB',
+                      border: '1px solid #CBD5E1',
                       fontSize: 13,
                       outline: 'none',
                     }}
@@ -9914,7 +9914,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                   style={{
                     padding: '10px 14px',
                     borderRadius: 8,
-                    border: '1px solid #D1D5DB',
+                    border: '1px solid #CBD5E1',
                     fontSize: 13,
                     outline: 'none',
                     background: 'white',
@@ -9943,14 +9943,14 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     background: 'white',
                     borderRadius: 12,
                     padding: 40,
-                    border: '1px solid #E5E7EB',
+                    border: '1px solid #E2E8F0',
                     textAlign: 'center',
                   }}
                 >
                   <StajIcon
                     path="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
                     size={48}
-                    color="#D1D5DB"
+                    color="#CBD5E1"
                   />
                   <p style={{ color: STAJ.textMuted, fontSize: 14, marginTop: 16 }}>
                     {searchTerm || filterStatus !== 'all'
@@ -9994,7 +9994,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           background: awaitingApproval ? '#FEF9C3' : 'white',
                           borderRadius: 10,
                           padding: responsive.val(12, 16, 16),
-                          border: `1px solid ${awaitingApproval ? '#FCD34D' : '#E5E7EB'}`,
+                          border: `1px solid ${awaitingApproval ? '#FCD34D' : '#E2E8F0'}`,
                           cursor: 'pointer',
                           display: 'grid',
                           // Sabit ilk sütun: orta alan tüm kayıtlarda aynı
@@ -10112,7 +10112,7 @@ function StajModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                           >
                             {status.label}
                           </span>
-                          <StajIcon path="M9 5l7 7-7 7" size={16} color="#9CA3AF" />
+                          <StajIcon path="M9 5l7 7-7 7" size={16} color="#94A3B8" />
                         </div>
                       </div>
                     );

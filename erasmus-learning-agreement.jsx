@@ -69,7 +69,7 @@ const eBtnGhost = {
   ...eBtn,
   background: C ? C.card : '#fff',
   color: C ? C.navy : '#0B2341',
-  border: `1px solid ${C ? C.border : '#E5E7EB'}`,
+  border: `1px solid ${C ? C.border : '#E2E8F0'}`,
 };
 
 // ── Sade bölüm paneli (gradyan/ikon yok, tek ton) ──
@@ -78,7 +78,7 @@ const eSection = {
   padding: 20,
   background: C ? C.card : '#fff',
   borderRadius: 12,
-  border: `1px solid ${C ? C.border : '#E5E7EB'}`,
+  border: `1px solid ${C ? C.border : '#E2E8F0'}`,
 };
 const eSectionTitle = {
   fontSize: 12,
@@ -678,10 +678,10 @@ const CourseMatchCard = ({
       !!(onizleme?.homeGrades?.[i] ?? onizleme?.homeGrade ?? '')
   );
   const statusMeta = {
-    pending: { label: 'Onay Bekliyor', color: '#92400E', bg: '#FEF3C7', dot: '#F59E0B' },
-    approved: { label: 'Onaylandı', color: '#065F46', bg: '#D1FAE5', dot: '#10B981' },
-    rejected: { label: 'Reddedildi', color: '#991B1B', bg: '#FEE2E2', dot: '#EF4444' },
-  }[status] || { label: status, color: C.textMuted, bg: '#F3F4F6', dot: '#9CA3AF' };
+    pending: { label: 'Onay Bekliyor', color: '#92400E', bg: '#FEF3C7', dot: '#D97706' },
+    approved: { label: 'Onaylandı', color: '#065F46', bg: '#D1FAE5', dot: '#059669' },
+    rejected: { label: 'Reddedildi', color: '#991B1B', bg: '#FEE2E2', dot: '#DC2626' },
+  }[status] || { label: status, color: C.textMuted, bg: '#F1F5F9', dot: '#94A3B8' };
   const borderColor = onayaTabi
     ? { pending: '#FCD34D', approved: '#6EE7B7', rejected: '#FCA5A5' }[status] || C.border
     : C.border;
@@ -739,7 +739,7 @@ const CourseMatchCard = ({
                   padding: '5px 12px',
                   borderRadius: 7,
                   border: 'none',
-                  background: '#10B981',
+                  background: '#059669',
                   color: 'white',
                   fontSize: 12,
                   fontWeight: 600,
@@ -756,7 +756,7 @@ const CourseMatchCard = ({
                   padding: '5px 12px',
                   borderRadius: 7,
                   border: 'none',
-                  background: '#EF4444',
+                  background: '#DC2626',
                   color: 'white',
                   fontSize: 12,
                   fontWeight: 600,
@@ -801,7 +801,7 @@ const CourseMatchCard = ({
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
               marginBottom: 10,
-              background: '#EEF0F5',
+              background: '#F1F5F9',
               padding: '6px 10px',
               borderRadius: 6,
               display: 'inline-block',
@@ -1125,7 +1125,7 @@ const CourseMatchEditModal = ({
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
               marginBottom: 12,
-              background: '#EEF0F5',
+              background: '#F1F5F9',
               padding: '8px 12px',
               borderRadius: 8,
             }}
@@ -2202,7 +2202,7 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect, activeDepartment }) =>
                   width: 32,
                   height: 32,
                   border: '3px solid #e2e8f0',
-                  borderTopColor: '#2563eb',
+                  borderTopColor: '#0f766e',
                   borderRadius: '50%',
                   animation: 'spin 0.8s linear infinite',
                   margin: '0 auto 12px',
@@ -2234,7 +2234,7 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect, activeDepartment }) =>
                       border: `2px solid ${isSelected ? '#1e3a5f' : '#e2e8f0'}`,
                       borderRadius: 10,
                       cursor: 'pointer',
-                      background: isSelected ? '#f0f4ff' : 'white',
+                      background: isSelected ? '#f0fdfa' : 'white',
                       transition: 'all 0.15s',
                     }}
                   >
@@ -2244,7 +2244,7 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect, activeDepartment }) =>
                           width: 22,
                           height: 22,
                           borderRadius: 6,
-                          border: `2px solid ${isSelected ? '#1e3a5f' : '#d1d5db'}`,
+                          border: `2px solid ${isSelected ? '#1e3a5f' : '#cbd5e1'}`,
                           background: isSelected ? '#1e3a5f' : 'white',
                           display: 'flex',
                           alignItems: 'center',
@@ -2277,8 +2277,8 @@ const HomeInstitutionCatalogModal = ({ onClose, onSelect, activeDepartment }) =>
                               borderRadius: 4,
                               fontSize: 10,
                               fontWeight: 600,
-                              background: course.type === 'Zorunlu' ? '#DBEAFE' : '#FEF3C7',
-                              color: course.type === 'Zorunlu' ? '#1E40AF' : '#92400E',
+                              background: course.type === 'Zorunlu' ? '#CCFBF1' : '#FEF3C7',
+                              color: course.type === 'Zorunlu' ? '#115E59' : '#92400E',
                             }}
                           >
                             {course.type}
@@ -2566,7 +2566,7 @@ const TripHistoryModal = ({
         <style>{`
           @keyframes slideInRight { from { transform: translateX(60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
           @keyframes spin { to { transform: rotate(360deg); } }
-          .th-uni-item:hover { background: #EFF6FF !important; }
+          .th-uni-item:hover { background: #F0FDFA !important; }
           .th-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important; }
         `}</style>
 
@@ -2703,7 +2703,7 @@ const TripHistoryModal = ({
                   style={{
                     padding: '18px 14px',
                     fontSize: 12,
-                    color: '#6B7280',
+                    color: '#64748B',
                     lineHeight: 1.6,
                   }}
                 >
@@ -2722,8 +2722,8 @@ const TripHistoryModal = ({
                     style={{
                       padding: '10px 14px',
                       cursor: 'pointer',
-                      background: isActive ? '#EFF6FF' : 'transparent',
-                      borderLeft: `3px solid ${isActive ? '#2563EB' : 'transparent'}`,
+                      background: isActive ? '#F0FDFA' : 'transparent',
+                      borderLeft: `3px solid ${isActive ? '#0F766E' : 'transparent'}`,
                       transition: 'all 0.15s',
                     }}
                   >
@@ -2731,7 +2731,7 @@ const TripHistoryModal = ({
                       style={{
                         fontSize: 12,
                         fontWeight: isActive ? 700 : 500,
-                        color: isActive ? '#1D4ED8' : '#374151',
+                        color: isActive ? '#115E59' : '#334155',
                         lineHeight: 1.4,
                       }}
                     >
@@ -2817,7 +2817,7 @@ const TripHistoryModal = ({
                     width: 40,
                     height: 40,
                     border: '3px solid #E2E8F0',
-                    borderTopColor: '#2563EB',
+                    borderTopColor: '#0F766E',
                     borderRadius: '50%',
                     animation: 'spin 0.8s linear infinite',
                   }}
@@ -2857,7 +2857,7 @@ const TripHistoryModal = ({
                       height="13"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="#2563EB"
+                      stroke="#0F766E"
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -2876,8 +2876,8 @@ const TripHistoryModal = ({
                           {
                             v: grouped.length,
                             label: 'Benzersiz Eşleştirme',
-                            color: '#1D4ED8',
-                            bg: '#EFF6FF',
+                            color: '#115E59',
+                            bg: '#F0FDFA',
                           },
                           { v: outgoingCount, label: 'Gidiş', color: '#059669', bg: '#ECFDF5' },
                           { v: returnCount, label: 'Dönüş', color: '#D97706', bg: '#FFFBEB' },
@@ -2971,8 +2971,8 @@ const TripHistoryModal = ({
                               style={{
                                 padding: '6px 12px',
                                 borderRadius: 7,
-                                border: `1.5px solid ${filterType === f.id ? '#2563EB' : '#E2E8F0'}`,
-                                background: filterType === f.id ? '#2563EB' : 'white',
+                                border: `1.5px solid ${filterType === f.id ? '#0F766E' : '#E2E8F0'}`,
+                                background: filterType === f.id ? '#0F766E' : 'white',
                                 color: filterType === f.id ? 'white' : '#64748B',
                                 fontSize: 11,
                                 fontWeight: 600,
@@ -3125,7 +3125,7 @@ const TripHistoryModal = ({
                                   >
                                     {isOut ? '🛫 Gidiş' : '🛬 Dönüş'}
                                   </span>
-                                  <span style={{ fontSize: 11, color: '#6B7280' }}>
+                                  <span style={{ fontSize: 11, color: '#64748B' }}>
                                     {(entry.homeCourses || []).length} →{' '}
                                     {(entry.hostCourses || []).length} ders
                                   </span>
@@ -3137,17 +3137,17 @@ const TripHistoryModal = ({
                                       style={{
                                         fontSize: 11,
                                         fontWeight: 600,
-                                        color: '#1E40AF',
-                                        background: '#EFF6FF',
+                                        color: '#115E59',
+                                        background: '#F0FDFA',
                                         padding: '1px 7px',
                                         borderRadius: 4,
-                                        border: '1px solid #DBEAFE',
+                                        border: '1px solid #CCFBF1',
                                       }}
                                     >
                                       {c.code || c.name?.substring(0, 12)}
                                     </span>
                                   ))}
-                                  <span style={{ fontSize: 11, color: '#9CA3AF' }}>→</span>
+                                  <span style={{ fontSize: 11, color: '#94A3B8' }}>→</span>
                                   {(entry.hostCourses || []).map((c, ci) => (
                                     <span
                                       key={ci}
@@ -3182,7 +3182,7 @@ const TripHistoryModal = ({
                                   >
                                     {homeTotalAkts} AKTS
                                   </div>
-                                  <div style={{ fontSize: 10, color: '#9CA3AF' }}>
+                                  <div style={{ fontSize: 10, color: '#94A3B8' }}>
                                     {(entry.usedBy || []).length} öğrenci
                                   </div>
                                 </div>
@@ -3241,9 +3241,9 @@ const TripHistoryModal = ({
                                         style={{
                                           marginBottom: 4,
                                           padding: '8px 10px',
-                                          background: '#F0F9FF',
+                                          background: '#F0FDFA',
                                           borderRadius: 8,
-                                          borderLeft: '3px solid #2563EB',
+                                          borderLeft: '3px solid #0F766E',
                                           display: 'flex',
                                           justifyContent: 'space-between',
                                           alignItems: 'center',
@@ -3255,13 +3255,13 @@ const TripHistoryModal = ({
                                               fontFamily: 'monospace',
                                               fontSize: 10,
                                               fontWeight: 700,
-                                              color: '#1D4ED8',
+                                              color: '#115E59',
                                               marginRight: 6,
                                             }}
                                           >
                                             {c.code}
                                           </span>
-                                          <span style={{ fontSize: 11, color: '#1E40AF' }}>
+                                          <span style={{ fontSize: 11, color: '#115E59' }}>
                                             {c.name}
                                           </span>
                                         </div>
@@ -3269,11 +3269,11 @@ const TripHistoryModal = ({
                                           style={{
                                             fontSize: 10,
                                             fontWeight: 700,
-                                            color: '#2563EB',
+                                            color: '#0F766E',
                                             background: 'white',
                                             padding: '1px 6px',
                                             borderRadius: 4,
-                                            border: '1px solid #DBEAFE',
+                                            border: '1px solid #CCFBF1',
                                             marginLeft: 8,
                                             flexShrink: 0,
                                           }}
@@ -3311,7 +3311,7 @@ const TripHistoryModal = ({
                                           height="12"
                                           viewBox="0 0 24 24"
                                           fill="none"
-                                          stroke="#6B7280"
+                                          stroke="#64748B"
                                           strokeWidth="2.5"
                                           strokeLinecap="round"
                                           strokeLinejoin="round"
@@ -3433,7 +3433,7 @@ const TripHistoryModal = ({
                                                 style={{
                                                   fontSize: 11,
                                                   fontWeight: 700,
-                                                  color: '#1E40AF',
+                                                  color: '#115E59',
                                                   background: 'rgba(255,255,255,0.8)',
                                                   padding: '0 5px',
                                                   borderRadius: 3,
@@ -3484,7 +3484,7 @@ const TripHistoryModal = ({
                                             borderRadius: 16,
                                             border: '1px solid #E2E8F0',
                                             fontSize: 11,
-                                            color: '#374151',
+                                            color: '#334155',
                                             fontWeight: 500,
                                           }}
                                         >
@@ -3506,7 +3506,7 @@ const TripHistoryModal = ({
                                           </div>
                                           {s.name}
                                           {s.semester && (
-                                            <span style={{ color: '#9CA3AF', fontSize: 10 }}>
+                                            <span style={{ color: '#94A3B8', fontSize: 10 }}>
                                               · {s.semester}
                                             </span>
                                           )}
@@ -4006,7 +4006,7 @@ const StudentDetailModal = ({
                         borderRadius: 8,
                         border: 'none',
                         background:
-                          newUniName.trim() && newUniCountry.trim() ? '#2563eb' : '#94a3b8',
+                          newUniName.trim() && newUniCountry.trim() ? '#0f766e' : '#94a3b8',
                         color: 'white',
                         fontSize: 13,
                         fontWeight: 600,
@@ -4022,9 +4022,9 @@ const StudentDetailModal = ({
                       style={{
                         padding: '8px 16px',
                         borderRadius: 8,
-                        border: '1px solid #d1d5db',
+                        border: '1px solid #cbd5e1',
                         background: 'white',
-                        color: '#6b7280',
+                        color: '#64748b',
                         fontSize: 13,
                         fontWeight: 500,
                         cursor: 'pointer',
@@ -4052,7 +4052,7 @@ const StudentDetailModal = ({
                         style={{
                           width: '100%',
                           padding: '10px 14px 10px 36px',
-                          border: `1.5px solid ${showUniDropdown ? '#3b82f6' : '#d1d5db'}`,
+                          border: `1.5px solid ${showUniDropdown ? '#3b82f6' : '#cbd5e1'}`,
                           borderRadius: 8,
                           fontSize: 14,
                           fontFamily: 'inherit',
@@ -4086,9 +4086,9 @@ const StudentDetailModal = ({
                       style={{
                         padding: '10px 14px',
                         borderRadius: 8,
-                        border: '1.5px solid #d1d5db',
+                        border: '1.5px solid #cbd5e1',
                         background: 'white',
-                        color: '#374151',
+                        color: '#334155',
                         fontSize: 13,
                         fontWeight: 600,
                         cursor: 'pointer',
@@ -4101,11 +4101,11 @@ const StudentDetailModal = ({
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.borderColor = '#3b82f6';
-                        e.currentTarget.style.color = '#2563eb';
+                        e.currentTarget.style.color = '#0f766e';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = '#d1d5db';
-                        e.currentTarget.style.color = '#374151';
+                        e.currentTarget.style.borderColor = '#cbd5e1';
+                        e.currentTarget.style.color = '#334155';
                       }}
                     >
                       <PlusIcon /> Yeni Ekle
@@ -4129,7 +4129,7 @@ const StudentDetailModal = ({
                           maxHeight: 240,
                           overflowY: 'auto',
                           background: 'white',
-                          border: '1.5px solid #d1d5db',
+                          border: '1.5px solid #cbd5e1',
                           borderRadius: 10,
                           boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
                           zIndex: 1000,
@@ -4157,8 +4157,8 @@ const StudentDetailModal = ({
                                 padding: '6px 14px',
                                 borderRadius: 6,
                                 border: '1px solid #3b82f6',
-                                background: '#eff6ff',
-                                color: '#2563eb',
+                                background: '#f0fdfa',
+                                color: '#0f766e',
                                 fontSize: 12,
                                 fontWeight: 600,
                                 cursor: 'pointer',
@@ -4178,10 +4178,10 @@ const StudentDetailModal = ({
                                 cursor: 'pointer',
                                 fontSize: 13,
                                 color:
-                                  editedStudent.hostInstitution === uni ? '#2563eb' : '#374151',
+                                  editedStudent.hostInstitution === uni ? '#0f766e' : '#334155',
                                 fontWeight: editedStudent.hostInstitution === uni ? 600 : 400,
                                 background:
-                                  editedStudent.hostInstitution === uni ? '#eff6ff' : 'white',
+                                  editedStudent.hostInstitution === uni ? '#f0fdfa' : 'white',
                                 borderBottom: '1px solid #f1f5f9',
                                 transition: 'background 0.1s',
                               }}
@@ -4224,7 +4224,7 @@ const StudentDetailModal = ({
               style={{
                 width: '100%',
                 padding: '10px 14px',
-                border: `1.5px solid #d1d5db`,
+                border: `1.5px solid #cbd5e1`,
                 borderRadius: 8,
                 fontSize: 14,
                 fontFamily: 'inherit',
@@ -4319,7 +4319,7 @@ const StudentDetailModal = ({
               padding: '8px 16px',
               borderRadius: 8,
               border: 'none',
-              background: '#10B981',
+              background: '#059669',
               color: 'white',
               fontSize: 13,
               fontWeight: 600,
@@ -4334,7 +4334,7 @@ const StudentDetailModal = ({
               padding: '8px 16px',
               borderRadius: 8,
               border: 'none',
-              background: '#EF4444',
+              background: '#DC2626',
               color: 'white',
               fontSize: 13,
               fontWeight: 600,
@@ -4354,8 +4354,8 @@ const StudentDetailModal = ({
               <div
                 style={{
                   padding: 16,
-                  background: '#EFF6FF',
-                  border: '1.5px solid #93C5FD',
+                  background: '#F0FDFA',
+                  border: '1.5px solid #5EEAD4',
                   borderRadius: 12,
                   marginBottom: 20,
                 }}
@@ -4364,7 +4364,7 @@ const StudentDetailModal = ({
                   style={{
                     fontSize: 14,
                     fontWeight: 600,
-                    color: '#1e40af',
+                    color: '#115e59',
                     marginBottom: 12,
                     display: 'flex',
                     alignItems: 'center',
@@ -4376,7 +4376,7 @@ const StudentDetailModal = ({
                     height="16"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#1e40af"
+                    stroke="#115e59"
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -4501,8 +4501,8 @@ const StudentDetailModal = ({
                         disabled={alreadyExists}
                         style={{
                           padding: '10px 16px',
-                          background: alreadyExists ? '#f5f5f5' : 'white',
-                          border: `2px solid ${alreadyExists ? '#e0e0e0' : C.gold}`,
+                          background: alreadyExists ? '#f1f5f9' : 'white',
+                          border: `2px solid ${alreadyExists ? '#e2e8f0' : C.gold}`,
                           borderRadius: 8,
                           cursor: alreadyExists ? 'not-allowed' : 'pointer',
                           fontSize: 13,
@@ -4645,7 +4645,7 @@ const StudentDetailModal = ({
                   padding: '10px 18px',
                   borderRadius: 8,
                   border: 'none',
-                  background: '#EF4444',
+                  background: '#DC2626',
                   color: 'white',
                   fontSize: 13,
                   fontWeight: 600,
@@ -5070,16 +5070,16 @@ const generateOutgoingWordDoc = async (student, onPreview, bolumId) => {
 <h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ GİDİŞ ÖNCESİ DERS EŞLEŞTİRME DEĞERLENDİRMESİ</h3>
 <p style='text-align: justify; margin: 20px 0;'>Bölümümüz <b>${student.studentNumber}</b> numaralı öğrencisi <b>${student.firstName} ${erasmusUpperSurname(student.lastName)}</b>'nın, <b>${academicYear} Eğitim-Öğretim Yılı ${seasonTR} Dönemi</b>'ni ERASMUS+ Öğrenim Hareketliliği programı kapsamında <b>${student.hostCountry}</b>'da bulunan "<b>${student.hostInstitution}</b>"${student.hostFaculty ? ' ' + student.hostFaculty : ''}${student.hostDepartment ? ' ' + student.hostDepartment : ''} Bölümünde alacağı derslerin karşılıklarının uygun olduğuna ve gereği için Fakültemiz ilgili kurullarında görüşülmek üzere Dekanlık Makamına sunulmasına,</p>
 <table border='1' cellpadding='4' cellspacing='0' style='width: 100%; border-collapse: collapse; margin: 5px 0; font-size: 9pt;'>
-<thead><tr style='background-color: #e8e8e8; font-weight: bold; font-size: 8pt;'>
+<thead><tr style='background-color: #e2e8f0; font-weight: bold; font-size: 8pt;'>
 <td colspan='4' style='border: 1px solid black; text-align: center;'><b>${hostHeader}</b></td>
 <td colspan='5' style='border: 1px solid black; text-align: center;'><b>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin</b></td>
 </tr>
-<tr style='background-color: #e0e0e0; font-weight: bold;'>
+<tr style='background-color: #e2e8f0; font-weight: bold;'>
 <th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Dönem</th>
 <th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Dönem</th><th style='border: 1px solid black;'>Statüsü</th>
 </tr></thead><tbody>
 ${rows.join('')}
-<tr style='font-weight: bold; background-color: #f0f0f0;'>
+<tr style='font-weight: bold; background-color: #f1f5f9;'>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHostCredits}</td><td style='border: 1px solid black;'></td>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td><td style='border: 1px solid black;'></td><td style='border: 1px solid black;'></td>
 </tr></tbody></table>
@@ -5236,16 +5236,16 @@ const generateReturnWordDoc = async (student, onPreview, bolumId) => {
 <h3 style='text-align: center; margin-bottom: 30px;'>ERASMUS+ DÖNÜŞÜ MUAFİYET İSTEĞİ</h3>
 <p style='text-align: justify; margin: 20px 0;'>Bölümümüz <b>${student.studentNumber}</b> numaralı öğrencisi <b>${student.firstName} ${erasmusUpperSurname(student.lastName)}</b>'nın, <b>${academicYear} Akademik Yılı ${seasonTR} Dönemi</b>'nde ERASMUS+ programı kapsamında yurtdışında almış olduğu derslerin, Bilgisayar Mühendisliği Bölümü lisans programında hangi derslere karşılık geldiği, hangi derslere sayılacağının belirlenmesi talebi hakkında vermiş olduğu dilekçesi incelenmiş olup, aşağıda tabloda verildiği şekliyle uygun olduğuna ve gereği için Fakültemiz ilgili kurullarında görüşülmek üzere Dekanlık Makamına sunulmasına,</p>
 <table border='1' cellpadding='4' cellspacing='0' style='width: 100%; border-collapse: collapse; margin: 5px 0; font-size: 9pt;'>
-<thead><tr style='background-color: #e8e8e8; font-weight: bold; font-size: 8pt;'>
+<thead><tr style='background-color: #e2e8f0; font-weight: bold; font-size: 8pt;'>
 <td colspan='4' style='border: 1px solid black; text-align: center;'><b>${hostHeader}</b></td>
 <td colspan='5' style='border: 1px solid black; text-align: center;'><b>Çankırı Karatekin Üniversitesi Mühendislik Fakültesi Bilgisayar Mühendisliği Bölümünde Muaf Olacağı Dersin</b></td>
 </tr>
-<tr style='background-color: #e0e0e0; font-weight: bold;'>
+<tr style='background-color: #e2e8f0; font-weight: bold;'>
 <th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Başarı Notu</th>
 <th style='border: 1px solid black;'>Kodu</th><th style='border: 1px solid black;'>Adı</th><th style='border: 1px solid black;'>AKTS</th><th style='border: 1px solid black;'>Başarı Notu</th><th style='border: 1px solid black;'>Statüsü</th>
 </tr></thead><tbody>
 ${rows.join('')}
-<tr style='font-weight: bold; background-color: #f0f0f0;'>
+<tr style='font-weight: bold; background-color: #f1f5f9;'>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHostCredits}</td><td style='border: 1px solid black;'></td>
 <td colspan='2' style='border: 1px solid black; text-align: right;'>Toplam</td><td style='border: 1px solid black; text-align: center;'>${totalHomeCredits}</td><td style='border: 1px solid black;'></td><td style='border: 1px solid black;'></td>
 </tr></tbody></table>
@@ -6057,11 +6057,11 @@ function ErasmusLearningAgreementApp({
                               background:
                                 student.duzenlemeAcik === true || talepVar(student)
                                   ? '#FEF3C7'
-                                  : '#F3F4F6',
+                                  : '#F1F5F9',
                               color:
                                 student.duzenlemeAcik === true || talepVar(student)
                                   ? '#B45309'
-                                  : '#6B7280',
+                                  : '#64748B',
                               border: '1px solid transparent',
                             }}
                           >
@@ -6102,7 +6102,7 @@ function ErasmusLearningAgreementApp({
                                 justifySelf: 'end',
                                 fontSize: 11,
                                 fontWeight: 700,
-                                color: '#1D4ED8',
+                                color: '#115E59',
                                 padding: '2px 0',
                               }}
                               title="İzin isteğiniz iletildi, yetkilinin onayı bekleniyor."

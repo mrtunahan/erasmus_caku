@@ -24,8 +24,8 @@ const DBWrite = window.DBWrite || {};
 // ══════════════════════════════════════════════════════════════
 const BY = {
   navy: '#1B2A4A',
-  blue: '#2563EB',
-  bluePale: '#EFF6FF',
+  blue: '#0F766E',
+  bluePale: '#F0FDFA',
   teal: '#0F766E',
   tealText: '#0F766E',
   tealPale: '#F0FDFA',
@@ -34,9 +34,9 @@ const BY = {
   amberPale: '#FFFBEB',
   red: '#DC2626',
   redPale: '#FEF2F2',
-  text: '#1F2937',
+  text: '#1E293B',
   textMuted: '#64748B',
-  border: '#E5E7EB',
+  border: '#E2E8F0',
   surface: '#FFFFFF',
   surfaceMuted: '#F8FAFC',
 };
@@ -54,7 +54,7 @@ const BYAciklama = ({ children }) => (
   <div
     style={{
       background: BY.bluePale,
-      border: `1px solid #BFDBFE`,
+      border: `1px solid #99F6E4`,
       borderRadius: 10,
       padding: '11px 14px',
       margin: '0 0 16px',
@@ -704,7 +704,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
             padding: '7px 13px',
             borderRadius: 999,
             background: BY.bluePale,
-            border: '1px solid #BFDBFE',
+            border: '1px solid #99F6E4',
             color: BY.blue,
             fontSize: 13,
             fontWeight: 700,
@@ -862,7 +862,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
               style={{
                 background: 'white',
                 borderRadius: 12,
-                border: '1px solid #E5E7EB',
+                border: '1px solid #E2E8F0',
                 overflow: 'hidden',
                 boxShadow: '0 1px 2px rgba(16,24,40,0.04)',
               }}
@@ -884,7 +884,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                           <td style={{ ...byTd, fontWeight: 600 }}>{d.name}</td>
                           <td style={byTd}>
                             {d.managerNames?.join(', ') || d.managerName || (
-                              <span style={{ color: '#9CA3AF' }}>Atanmadı</span>
+                              <span style={{ color: '#94A3B8' }}>Atanmadı</span>
                             )}
                           </td>
                           <td style={{ ...byTd, textAlign: 'center' }}>
@@ -979,18 +979,18 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                     {nonSupervisorProfs.length > 0 && (
                       <div
                         style={{
-                          border: '1px solid #E5E7EB',
+                          border: '1px solid #E2E8F0',
                           borderRadius: 10,
                           padding: '12px 14px',
                           marginBottom: 14,
-                          background: '#F9FAFB',
+                          background: '#F8FAFC',
                         }}
                       >
                         <div
                           style={{
                             fontSize: 13,
                             fontWeight: 700,
-                            color: '#1F2937',
+                            color: '#1E293B',
                             marginBottom: 8,
                           }}
                         >
@@ -1000,7 +1000,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                           ({nonSupervisorProfs.length}) — seçip topluca gözetmen yapın
                         </div>
                         {baskaBolumdenSecebilir && (
-                          <div style={{ fontSize: 12, color: '#6B7280', margin: '-4px 0 8px' }}>
+                          <div style={{ fontSize: 12, color: '#64748B', margin: '-4px 0 8px' }}>
                             Fakülte yetkilisi olarak başka bölümlerin akademisyenlerini de bu bölüme
                             gözetmen verebilirsiniz; önce bu bölümünkiler listelenir.
                           </div>
@@ -1027,9 +1027,9 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                                 style={{
                                   padding: '5px 12px',
                                   borderRadius: 16,
-                                  border: '1px solid ' + (secili ? '#0F766E' : '#D1D5DB'),
+                                  border: '1px solid ' + (secili ? '#0F766E' : '#CBD5E1'),
                                   background: secili ? '#CCFBF1' : 'white',
-                                  color: secili ? '#0F766E' : '#4B5563',
+                                  color: secili ? '#0F766E' : '#475569',
                                   fontSize: 12,
                                   fontWeight: secili ? 700 : 500,
                                   cursor: 'pointer',
@@ -1109,9 +1109,9 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                                   style={{
                                     padding: '3px 10px',
                                     borderRadius: 14,
-                                    border: '1px solid ' + (gunler.length ? '#FCD34D' : '#D1D5DB'),
+                                    border: '1px solid ' + (gunler.length ? '#FCD34D' : '#CBD5E1'),
                                     background: gunler.length ? '#FFFBEB' : 'white',
-                                    color: gunler.length ? '#B45309' : '#6B7280',
+                                    color: gunler.length ? '#B45309' : '#64748B',
                                     fontSize: 12,
                                     fontWeight: gunler.length ? 700 : 500,
                                     cursor: 'pointer',
@@ -1170,7 +1170,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
             </FormField>
             <FormField label="Yetkili Kişi">
               {editingItem === 'new' ? (
-                <div style={{ fontSize: 12, color: '#6B7280', padding: '8px 0' }}>
+                <div style={{ fontSize: 12, color: '#64748B', padding: '8px 0' }}>
                   Bölümü kaydettikten sonra "Düzenle" ile yetkili atayabilirsiniz (önce bölüme
                   akademisyen eklenmelidir).
                 </div>
@@ -1196,7 +1196,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                     gap: 6,
                     maxHeight: 220,
                     overflowY: 'auto',
-                    border: '1px solid #E5E7EB',
+                    border: '1px solid #E2E8F0',
                     borderRadius: 8,
                     padding: 8,
                   }}
@@ -1213,7 +1213,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                           padding: '6px 8px',
                           cursor: 'pointer',
                           borderRadius: 6,
-                          background: selected ? '#EFF6FF' : 'transparent',
+                          background: selected ? '#F0FDFA' : 'transparent',
                         }}
                       >
                         <input
@@ -1227,20 +1227,20 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                             setForm({ ...form, managerNames: next });
                           }}
                         />
-                        <span style={{ fontSize: 13, color: '#1F2937' }}>{p.name}</span>
+                        <span style={{ fontSize: 13, color: '#1E293B' }}>{p.name}</span>
                       </label>
                     );
                   })}
                 </div>
               )}
               {Array.isArray(form.managerNames) && form.managerNames.length > 0 && (
-                <div style={{ fontSize: 11, color: '#6B7280', marginTop: 6 }}>
+                <div style={{ fontSize: 11, color: '#64748B', marginTop: 6 }}>
                   Seçili: <b>{form.managerNames.length}</b> kişi
                 </div>
               )}
             </FormField>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <GhostBtn onClick={() => setEditingItem(null)} style={{ color: '#6B7280' }}>
+              <GhostBtn onClick={() => setEditingItem(null)} style={{ color: '#64748B' }}>
                 İptal
               </GhostBtn>
               <Btn onClick={handleDeptSave} disabled={saving}>
@@ -1274,7 +1274,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
               />
             </FormField>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <GhostBtn onClick={() => setEditingItem(null)} style={{ color: '#6B7280' }}>
+              <GhostBtn onClick={() => setEditingItem(null)} style={{ color: '#64748B' }}>
                 İptal
               </GhostBtn>
               <Btn onClick={handleClassSave} disabled={saving}>
@@ -1294,7 +1294,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
           width={460}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ fontSize: 12.5, color: '#555', lineHeight: 1.6 }}>
+            <div style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.6 }}>
               Buraya girilen günlerde <strong>otomatik gözetmen ataması yapılmaz</strong>. İzin,
               görevlendirme, kurul günü gibi durumlar için kullanın. Elle atama yaparsanız bu kural
               devreye girmez.
@@ -1350,7 +1350,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
               ))}
               {(window.gozetmenMusaitsizGunler ? window.gozetmenMusaitsizGunler(musaitlikAcik) : [])
                 .length === 0 && (
-                <span style={{ fontSize: 12.5, color: '#9CA3AF' }}>
+                <span style={{ fontSize: 12.5, color: '#94A3B8' }}>
                   Kısıt yok — her gün atanabilir.
                 </span>
               )}
@@ -1363,7 +1363,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
       {editingItem === 'new_sup' && activeTab === 'supervisors' && (
         <Modal open={true} title="Gözetmen Ekle" onClose={() => setEditingItem(null)} width={450}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <p style={{ fontSize: 13, color: '#6B7280', margin: 0 }}>
+            <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>
               Mevcut bir akademisyeni gözetmen olarak atayabilir veya yeni bir isim girebilirsiniz.
             </p>
 
@@ -1378,7 +1378,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: 8,
-                    border: '1px solid #D1D5DB',
+                    border: '1px solid #CBD5E1',
                     fontSize: 13,
                   }}
                 >
@@ -1395,7 +1395,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
               </FormField>
             )}
 
-            <div style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF' }}>veya</div>
+            <div style={{ textAlign: 'center', fontSize: 12, color: '#94A3B8' }}>veya</div>
 
             <FormField label="Yeni Akademisyen Adı (Unvan+Ad+Soyad)">
               <Input
@@ -1406,7 +1406,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
             </FormField>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <GhostBtn onClick={() => setEditingItem(null)} style={{ color: '#6B7280' }}>
+              <GhostBtn onClick={() => setEditingItem(null)} style={{ color: '#64748B' }}>
                 İptal
               </GhostBtn>
               <Btn onClick={handleSupSave} disabled={saving}>
@@ -1436,7 +1436,7 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                 />
               </FormField>
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <GhostBtn onClick={() => setEditingItem(null)} style={{ color: '#6B7280' }}>
+                <GhostBtn onClick={() => setEditingItem(null)} style={{ color: '#64748B' }}>
                   İptal
                 </GhostBtn>
                 <Btn onClick={handleSupSave} disabled={saving}>
@@ -1512,21 +1512,21 @@ function DersSecimKilitleri({ activeDepartment, currentUser }) {
 
   return (
     <div
-      style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E7EB', padding: 16 }}
+      style={{ background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', padding: 16 }}
     >
-      <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 14px' }}>
+      <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 14px' }}>
         Öğrenci ders seçimini kaydedince kilitlenir. Değişiklik talebinde kilidi buradan açın;
         öğrenci yeniden düzenleyip kaydedebilir (tekrar kilitlenir).
       </p>
       {rows.length === 0 ? (
-        <div style={{ padding: 24, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
+        <div style={{ padding: 24, textAlign: 'center', color: '#94A3B8', fontSize: 14 }}>
           Kilitli ders seçimi bulunmuyor.
         </div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table style={byTablo}>
             <thead>
-              <tr style={{ background: '#F9FAFB', textAlign: 'left' }}>
+              <tr style={{ background: '#F8FAFC', textAlign: 'left' }}>
                 <th style={{ padding: '10px 12px' }}>Öğrenci No</th>
                 <th style={{ padding: '10px 12px' }}>Dönem</th>
                 <th style={{ padding: '10px 12px' }}>Ders</th>
@@ -1539,7 +1539,7 @@ function DersSecimKilitleri({ activeDepartment, currentUser }) {
               {rows.map((r) => (
                 <tr
                   key={r.id || r._docId || r.studentNumber + r.termKey}
-                  style={{ borderTop: '1px solid #F3F4F6' }}
+                  style={{ borderTop: '1px solid #F1F5F9' }}
                 >
                   <td style={{ padding: '10px 12px', fontWeight: 600 }}>{r.studentNumber}</td>
                   <td style={{ padding: '10px 12px' }}>
@@ -1691,7 +1691,7 @@ function BenimSayfamAyarlari({ activeDepartment }) {
   const inputStyle = {
     padding: '9px 12px',
     borderRadius: 8,
-    border: '1px solid #D1D5DB',
+    border: '1px solid #CBD5E1',
     fontSize: 13,
     outline: 'none',
     fontFamily: "'Inter', sans-serif",
@@ -1701,17 +1701,17 @@ function BenimSayfamAyarlari({ activeDepartment }) {
     display: 'block',
     fontSize: 12,
     fontWeight: 600,
-    color: '#6B7280',
+    color: '#64748B',
     marginBottom: 6,
   };
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', color: '#6B7280' }}>Yükleniyor...</div>;
+    return <div style={{ padding: 40, textAlign: 'center', color: '#64748B' }}>Yükleniyor...</div>;
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <p style={{ fontSize: 12.5, color: '#6B7280', margin: 0, lineHeight: 1.5 }}>
+      <p style={{ fontSize: 12.5, color: '#64748B', margin: 0, lineHeight: 1.5 }}>
         Bu ayarlar bu bölümün öğrencilerinin <b>Benim Sayfam</b> ekranında görünür. Hızlı
         bağlantılar ve kampüs haritası bölümden bölüme değişebilir.
       </p>
@@ -1720,7 +1720,7 @@ function BenimSayfamAyarlari({ activeDepartment }) {
       <div
         style={{
           background: 'white',
-          border: '1px solid #E5E7EB',
+          border: '1px solid #E2E8F0',
           borderRadius: 12,
           padding: 18,
         }}
@@ -1741,7 +1741,7 @@ function BenimSayfamAyarlari({ activeDepartment }) {
           </Btn>
         </div>
         {links.length === 0 ? (
-          <p style={{ fontSize: 13, color: '#9CA3AF', margin: 0 }}>
+          <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>
             Henüz bağlantı yok. "Bağlantı Ekle" ile başlayın (ör. Öğrenci Bilgi Sistemi, Kütüphane).
           </p>
         ) : (
@@ -1797,7 +1797,7 @@ function BenimSayfamAyarlari({ activeDepartment }) {
       <div
         style={{
           background: 'white',
-          border: '1px solid #E5E7EB',
+          border: '1px solid #E2E8F0',
           borderRadius: 12,
           padding: 18,
         }}
@@ -1857,7 +1857,7 @@ function BenimSayfamAyarlari({ activeDepartment }) {
           <div
             style={{
               marginTop: 12,
-              border: '1px solid #E5E7EB',
+              border: '1px solid #E2E8F0',
               borderRadius: 8,
               overflow: 'hidden',
             }}
@@ -1987,7 +1987,7 @@ function AkademisyenKart({ prof, onSaved, bolumAdi }) {
   const inputStyle = {
     padding: '8px 10px',
     borderRadius: 8,
-    border: '1px solid #D1D5DB',
+    border: '1px solid #CBD5E1',
     fontSize: 13,
     outline: 'none',
     fontFamily: "'Inter', sans-serif",
@@ -1999,7 +1999,7 @@ function AkademisyenKart({ prof, onSaved, bolumAdi }) {
     <div
       style={{
         background: 'white',
-        border: '1px solid #E5E7EB',
+        border: '1px solid #E2E8F0',
         borderRadius: 12,
         padding: 16,
         display: 'flex',
@@ -2015,8 +2015,8 @@ function AkademisyenKart({ prof, onSaved, bolumAdi }) {
             height: 56,
             borderRadius: '50%',
             flexShrink: 0,
-            background: '#F3F4F6',
-            border: '1px solid #E5E7EB',
+            background: '#F1F5F9',
+            border: '1px solid #E2E8F0',
             overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
@@ -2035,7 +2035,7 @@ function AkademisyenKart({ prof, onSaved, bolumAdi }) {
               height="26"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#9CA3AF"
+              stroke="#94A3B8"
               strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -2079,7 +2079,7 @@ function AkademisyenKart({ prof, onSaved, bolumAdi }) {
           style={{
             fontSize: 11,
             fontWeight: 600,
-            color: '#6B7280',
+            color: '#64748B',
             display: 'block',
             marginBottom: 4,
           }}
@@ -2098,7 +2098,7 @@ function AkademisyenKart({ prof, onSaved, bolumAdi }) {
           style={{
             fontSize: 11,
             fontWeight: 600,
-            color: '#6B7280',
+            color: '#64748B',
             display: 'block',
             marginBottom: 4,
           }}
@@ -2156,7 +2156,7 @@ function AkademisyenBilgileri({ professors, onSaved, bolumAdi }) {
 
   return (
     <div>
-      <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 16px', lineHeight: 1.5 }}>
+      <p style={{ fontSize: 12.5, color: '#64748B', margin: '0 0 16px', lineHeight: 1.5 }}>
         Bu bölümün akademisyenleri. İletişim bilgileri, danışmanı bu akademisyen olan öğrencilerin{' '}
         <b>Benim Sayfam → Danışman Bilgileri</b> alanında görünür. Danışmanlık bölüm bazlıdır: bir
         bölümün öğrencisine yalnızca o bölümün akademisyeni danışman olabilir.{' '}
@@ -2167,11 +2167,11 @@ function AkademisyenBilgileri({ professors, onSaved, bolumAdi }) {
         <div
           style={{
             background: 'white',
-            border: '1px solid #E5E7EB',
+            border: '1px solid #E2E8F0',
             borderRadius: 12,
             padding: 40,
             textAlign: 'center',
-            color: '#9CA3AF',
+            color: '#94A3B8',
             fontSize: 13.5,
           }}
         >
@@ -2871,7 +2871,7 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
     display: 'block',
     fontSize: 11,
     fontWeight: 700,
-    color: '#6B7280',
+    color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: '0.04em',
     marginBottom: 5,
@@ -2880,14 +2880,14 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
     width: '100%',
     padding: '9px 11px',
     borderRadius: 8,
-    border: '1px solid #D1D5DB',
+    border: '1px solid #CBD5E1',
     fontSize: 13,
     boxSizing: 'border-box',
     fontFamily: 'inherit',
   };
   const kutu = {
     background: 'white',
-    border: '1px solid #E5E7EB',
+    border: '1px solid #E2E8F0',
     borderRadius: 12,
     padding: 18,
     marginBottom: 16,
@@ -2896,9 +2896,9 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
   const cip = (secili) => ({
     padding: '5px 12px',
     borderRadius: 999,
-    border: '1px solid ' + (secili ? C.blue : '#D1D5DB'),
+    border: '1px solid ' + (secili ? C.blue : '#CBD5E1'),
     background: secili ? C.blue + '14' : 'white',
-    color: secili ? C.blue : '#6B7280',
+    color: secili ? C.blue : '#64748B',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -2919,7 +2919,7 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
           flexWrap: 'wrap',
         }}
       >
-        <p style={{ fontSize: 12.5, color: '#6B7280', margin: 0, lineHeight: 1.55, maxWidth: 720 }}>
+        <p style={{ fontSize: 12.5, color: '#64748B', margin: 0, lineHeight: 1.55, maxWidth: 720 }}>
           Duyurular, hedeflenen kişilerin ekranında <b>pop-up</b> olarak açılır. Kullanıcı duyuruyu
           kapattığında bir daha görmez. İçerik metin, görsel ya da video olabilir.
           Hedefleyebildiğiniz bölümler yetki düzeyinize göre belirlenir ({kapsam.length} bölüm).
@@ -2999,7 +2999,7 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
                       display: 'inline-block',
                       padding: '8px 16px',
                       borderRadius: 8,
-                      border: '1px solid #D1D5DB',
+                      border: '1px solid #CBD5E1',
                       background: 'white',
                       color: '#1B2A4A',
                       fontSize: 13,
@@ -3028,7 +3028,7 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
                   </button>
                 )}
               </div>
-              <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: 5 }}>En fazla 50 MB.</div>
+              <div style={{ fontSize: 11.5, color: '#94A3B8', marginTop: 5 }}>En fazla 50 MB.</div>
             </div>
           )}
 
@@ -3072,7 +3072,7 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
                 style={{ ...girdi, resize: 'vertical' }}
               />
             )}
-            <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 6, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 6, lineHeight: 1.5 }}>
               Araç çubuğundaki her biçim duyuruda da görünür: başlık, kalın/italik, liste, girinti,
               hizalama, alıntı, kod, renk ve bağlantı. Renkler sabit palettendir — serbest renk
               seçilseydi bir kısmı gösterimde düşerdi. Aşağıdaki önizleme, duyurunun kullanıcıda
@@ -3165,7 +3165,7 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
 
             <div
               style={{
-                border: '1px solid #E5E7EB',
+                border: '1px solid #E2E8F0',
                 borderRadius: 10,
                 maxHeight: 300,
                 overflowY: 'auto',
@@ -3173,7 +3173,7 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
               }}
             >
               {fakulteObekleri.length === 0 && (
-                <div style={{ padding: 14, fontSize: 12.5, color: '#6B7280' }}>
+                <div style={{ padding: 14, fontSize: 12.5, color: '#64748B' }}>
                   Aramaya uyan bölüm yok.
                 </div>
               )}
@@ -3278,7 +3278,7 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
               </div>
             )}
             {form.hedefDepartmentIds.length > 0 && (
-              <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 6 }}>
+              <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 6 }}>
                 Seçilen {form.hedefDepartmentIds.length} bölüm — kapsamınız {kapsamMetni}.
               </div>
             )}
@@ -3324,11 +3324,11 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
           {window.DuyuruIcerik && (form.metin || form.medyaUrl || form.videoUrl) && (
             <div
               style={{
-                border: '1px dashed #D1D5DB',
+                border: '1px dashed #CBD5E1',
                 borderRadius: 10,
                 padding: 14,
                 marginBottom: 16,
-                background: '#F9FAFB',
+                background: '#F8FAFC',
               }}
             >
               <div style={{ ...etiket, marginBottom: 10 }}>Önizleme</div>
@@ -3354,10 +3354,10 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
       )}
 
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>Yükleniyor...</div>
+        <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>Yükleniyor...</div>
       ) : liste.length === 0 ? (
         <div
-          style={{ ...kutu, textAlign: 'center', color: '#9CA3AF', fontSize: 13.5, padding: 40 }}
+          style={{ ...kutu, textAlign: 'center', color: '#94A3B8', fontSize: 13.5, padding: 40 }}
         >
           Henüz duyuru yok.
         </div>
@@ -3374,7 +3374,7 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
                 key={d.id}
                 style={{
                   background: 'white',
-                  border: '1px solid #E5E7EB',
+                  border: '1px solid #E2E8F0',
                   borderRadius: 12,
                   padding: 14,
                   opacity: pasif ? 0.6 : 1,
@@ -3398,8 +3398,8 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
                           fontWeight: 700,
                           padding: '2px 8px',
                           borderRadius: 999,
-                          background: '#EEF2FF',
-                          color: '#4338CA',
+                          background: '#F0FDFA',
+                          color: '#115E59',
                           textTransform: 'uppercase',
                         }}
                       >
@@ -3407,12 +3407,12 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
                           ?.label || d.tur}
                       </span>
                       {pasif && (
-                        <span style={{ marginLeft: 8, fontSize: 11.5, color: '#9CA3AF' }}>
+                        <span style={{ marginLeft: 8, fontSize: 11.5, color: '#94A3B8' }}>
                           pasif
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 4 }}>
+                    <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 4 }}>
                       {adlar || 'Tüm bölümler'}
                       {(d.baslangic || d.bitis) &&
                         ' · ' + (d.baslangic || '…') + ' → ' + (d.bitis || '…')}
@@ -3452,9 +3452,9 @@ function DuyuruYonetimi({ currentUser, activeDepartment }) {
                     <div
                       style={{
                         fontSize: 11.5,
-                        color: '#6B7280',
-                        background: '#F3F4F6',
-                        border: '1px solid #E5E7EB',
+                        color: '#64748B',
+                        background: '#F1F5F9',
+                        border: '1px solid #E2E8F0',
                         borderRadius: 8,
                         padding: '6px 12px',
                         maxWidth: 230,
@@ -3760,14 +3760,14 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
   };
 
   if (yukleniyor || !form) {
-    return <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>Yükleniyor...</div>;
+    return <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>Yükleniyor...</div>;
   }
 
   const etiket = {
     display: 'block',
     fontSize: 11,
     fontWeight: 700,
-    color: '#6B7280',
+    color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: '0.04em',
     marginBottom: 5,
@@ -3776,7 +3776,7 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
     width: '100%',
     padding: '9px 11px',
     borderRadius: 8,
-    border: '1px solid #D1D5DB',
+    border: '1px solid #CBD5E1',
     fontSize: 13,
     boxSizing: 'border-box',
     fontFamily: 'inherit',
@@ -3784,9 +3784,9 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
   const cip = (secili) => ({
     padding: '6px 14px',
     borderRadius: 999,
-    border: '1px solid ' + (secili ? C.blue : '#D1D5DB'),
+    border: '1px solid ' + (secili ? C.blue : '#CBD5E1'),
     background: secili ? C.blue + '14' : 'white',
-    color: secili ? C.blue : '#6B7280',
+    color: secili ? C.blue : '#64748B',
     fontSize: 12.5,
     fontWeight: 600,
     cursor: 'pointer',
@@ -3862,7 +3862,7 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
 
   return (
     <div>
-      <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 16px', lineHeight: 1.55 }}>
+      <p style={{ fontSize: 12.5, color: '#64748B', margin: '0 0 16px', lineHeight: 1.55 }}>
         Bu kurallar öğrencinin <b>Benim Sayfam → Mezuniyet Durumum</b> hesabında kullanılır. Öğrenci
         transkriptini yükler, sistem bu kurallara göre geçilen/kalan dersleri ve mezuniyet
         koşullarını çıkarır. Kural tanımlanmazsa varsayılanlar geçerlidir. Öğretim modeli iki
@@ -3874,7 +3874,7 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
       <div
         style={{
           background: 'white',
-          border: '1px solid #E5E7EB',
+          border: '1px solid #E2E8F0',
           borderRadius: 12,
           padding: 18,
           marginBottom: 16,
@@ -3943,11 +3943,11 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
               }}
             >
               Model: {modelEtiketi}
-              <span style={{ fontWeight: 400, color: '#6B7280' }}> · {yilMetni}</span>
+              <span style={{ fontWeight: 400, color: '#64748B' }}> · {yilMetni}</span>
             </div>
           </div>
 
-          <div style={{ fontSize: 11.5, color: '#6B7280', marginTop: 8, lineHeight: 1.55 }}>
+          <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 8, lineHeight: 1.55 }}>
             {isyeriVar ? (
               <>
                 Programın <b>son {form.isyeriYariyilSayisi} yarıyılı</b> ({isyeriAralik}) ders değil{' '}
@@ -3973,7 +3973,7 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
               onChange={(e) => setForm({ ...form, toplamAkts: e.target.value.replace(/\D/g, '') })}
               style={girdi}
             />
-            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
               {form.toplamYariyil > 0
                 ? 'Yarıyıl başına ' + Math.round(form.toplamAkts / form.toplamYariyil) + ' AKTS'
                 : ''}
@@ -4028,22 +4028,22 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
             (karşı kurumdan gelen yüzlük puanın harfe çevrilmesinde) kullanılır. */}
         <div style={{ marginBottom: 16 }}>
           <label style={etiket}>Ders geçme ölçeği (yüzlük puan → harf → katsayı)</label>
-          <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 8, lineHeight: 1.55 }}>
+          <div style={{ fontSize: 11.5, color: '#64748B', marginBottom: 8, lineHeight: 1.55 }}>
             Bu ölçek iki yerde kullanılır: mezuniyet hesabında hangi harfin geçer sayıldığı, ve{' '}
             <b>yaz intibakında</b> öğrencinin karşı kurumdan aldığı <b>yüzlük puanın</b> ÇAKÜ harf
             notuna çevrilmesi. Karşı kurumun kendi harf notu kullanılmaz.
           </div>
 
-          <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}>
             <div
               style={{
                 display: 'flex',
                 gap: 8,
                 padding: '6px 10px',
-                background: '#F9FAFB',
+                background: '#F8FAFC',
                 fontSize: 10.5,
                 fontWeight: 700,
-                color: '#6B7280',
+                color: '#64748B',
                 textTransform: 'uppercase',
                 letterSpacing: '0.04em',
               }}
@@ -4061,7 +4061,7 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
                   gap: 8,
                   alignItems: 'center',
                   padding: '6px 10px',
-                  borderTop: '1px solid #F3F4F6',
+                  borderTop: '1px solid #F1F5F9',
                 }}
               >
                 <span style={{ display: 'flex', gap: 4, alignItems: 'center', width: 130 }}>
@@ -4070,7 +4070,7 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
                     onChange={(e) => olcekSatir(i, 'min', e.target.value)}
                     style={{ ...girdi, width: 56, padding: '6px 8px', textAlign: 'center' }}
                   />
-                  <span style={{ color: '#9CA3AF' }}>–</span>
+                  <span style={{ color: '#94A3B8' }}>–</span>
                   <input
                     value={r.max ?? ''}
                     onChange={(e) => olcekSatir(i, 'max', e.target.value)}
@@ -4100,7 +4100,7 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
                     alignItems: 'center',
                     gap: 6,
                     fontSize: 12,
-                    color: '#374151',
+                    color: '#334155',
                   }}
                 >
                   <input
@@ -4149,11 +4149,11 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
         {/* ── Puan aralığı olmayan harfler ── */}
         <div style={{ marginBottom: 16 }}>
           <label style={etiket}>Diğer harf notları (puan aralığı olmayan)</label>
-          <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 8, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 11.5, color: '#64748B', marginBottom: 8, lineHeight: 1.5 }}>
             Devamsızlık, sınava girmeme, muafiyet gibi durumlar. “Ortalamada sayılan harf” doluysa
             not, ortalama hesabında o harfin katsayısıyla işleme girer (ör. FF1/FF2/FF3 → F2).
           </div>
-          <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}>
             {(form.ekHarfler || []).map((r, i) => (
               <div
                 key={i}
@@ -4162,7 +4162,7 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
                   gap: 8,
                   alignItems: 'center',
                   padding: '6px 10px',
-                  borderTop: i === 0 ? 'none' : '1px solid #F3F4F6',
+                  borderTop: i === 0 ? 'none' : '1px solid #F1F5F9',
                   flexWrap: 'wrap',
                 }}
               >
@@ -4238,7 +4238,7 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
             />
           </div>
         </div>
-        <div style={{ fontSize: 11.5, color: '#6B7280', marginBottom: 14, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11.5, color: '#64748B', marginBottom: 14, lineHeight: 1.5 }}>
           Ölçekte yer almayan bir not <b>“belirsiz”</b> sayılır ve geçilmiş kabul edilmez —
           öğrenciye olmayan bir mezuniyet vaat etmemek için. Bu iki alan ölçeği <b>tamamlar</b>,
           onun yerine geçmez.
