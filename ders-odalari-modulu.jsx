@@ -6033,6 +6033,12 @@ function NotlarSekmesi({ oda, rol, ac }) {
   }));
   const enCok = Math.max(1, ...dagilim.map((d) => d.sayi));
   const toplamAgirlik = D.agirlikToplami(kalemler);
+  // Ağırlıklar bir kez kaydedildikten sonra eklenen ödev/sütun %0 alır;
+  // akademisyen bunu fark etsin diye ayrıca uyarılır.
+  const kayitliAgirlik = (veri.notAyari && veri.notAyari.agirliklar) || {};
+  const agirliksiz = Object.keys(kayitliAgirlik).length
+    ? kalemler.filter((k) => !(k.id in kayitliAgirlik))
+    : [];
   const benimSatir = ogrenciMi ? veri.ogrenciler.find((s) => s.ben) : null;
 
   // ── ÇIKTI (akademisyen / yetkili) ──
@@ -6658,6 +6664,13 @@ function NotlarSekmesi({ oda, rol, ac }) {
       )}
 
       {cizelge.uyari && !ogrenciMi && <Uyari tur="bilgi">{cizelge.uyari}</Uyari>}
+      {hoca && agirliksiz.length > 0 && (
+        <Uyari tur="bilgi">
+          Ağırlık verilmemiş sütun{agirliksiz.length > 1 ? 'lar' : ''}:{' '}
+          {agirliksiz.map((k) => k.ad).join(', ')} — ağırlıklar kaydedildikten sonra eklendiği için
+          ortalamaya %0 ile giriyor. "Not ayarları"ndan ağırlık verin.
+        </Uyari>
+      )}
 
       <section style={{ ...kart, borderRadius: 14, overflow: 'hidden' }}>
         <div
