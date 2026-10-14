@@ -2580,9 +2580,16 @@ async function exportDeptPrintable(
     };
   });
 
+  // Aynı dersin müfredat karşılıkları (ör. BIL345 / BLM445) aynı oturumdaysa
+  // tek satırda yazılır (bkz. lib/sinav-birlesim.js → ciktiSatirlariniBirlestir).
+  const satirlar =
+    window.SinavBirlesim && window.SinavBirlesim.ciktiSatirlariniBirlestir
+      ? window.SinavBirlesim.ciktiSatirlariniBirlestir(enriched)
+      : enriched;
+
   // Önce Şablonlar modülüne atanmış sınav programı şablonunu dene
   if (window.TemplateEngine && window.TemplateEngine.produceFromTemplate) {
-    const rows = enriched.map((e) => ({
+    const rows = satirlar.map((e) => ({
       dersAd: e.name || '',
       dersKod: e.code || '',
       baslangic: e.startStr || '',
@@ -2623,7 +2630,7 @@ async function exportDeptPrintable(
   const titleDept = (deptName || '').toUpperCase();
   const periodUpper = (periodLabel || '').toUpperCase();
 
-  const rows = enriched
+  const rows = satirlar
     .map((e) => {
       const bg = SINIF_BG[e.sinif] || '#FFFFFF';
       return `<tr style="background:${bg}">
@@ -2801,9 +2808,15 @@ async function exportToXLSX(
     'GÖZETMEN',
     'SINIF',
   ];
+  // Liste sayfası: aynı dersin müfredat karşılıkları tek satır. Gün
+  // sayfaları zaten aynı salondaki kodları "A / B" diye tek hücreye yazıyor.
+  const listeSatirlari =
+    window.SinavBirlesim && window.SinavBirlesim.ciktiSatirlariniBirlestir
+      ? window.SinavBirlesim.ciktiSatirlariniBirlestir(enriched)
+      : enriched;
   const listData = [
     listHeader,
-    ...enriched.map((e) => [
+    ...listeSatirlari.map((e) => [
       e.name,
       e.code,
       e.studentCount || '',

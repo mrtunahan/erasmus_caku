@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ciktiSatirlariniBirlestir,
   dersAdiKoku,
   kodAnahtari,
   birlesimIliskisi,
@@ -308,5 +309,92 @@ describe('ortak oturumda çakışma denetimi', () => {
     expect(c).toHaveLength(1);
     expect(c[0]).toMatchObject({ tur: 'salon', seviye: 'engel' }); // 40 + 5 > 42
     expect(c[0].aciklama).toMatch(/FZK181 \(40 öğrenci\)/);
+  });
+});
+
+// ── Çıktı: aynı dersin müfredat karşılıkları tek satır ──
+
+describe('ciktiSatirlariniBirlestir', () => {
+  const ad = 'İnovasyon, Patent ve Teknoloji Ticarileşme';
+  const ortak = { date: '2026-06-02', timeSlot: '10:00', duration: 60, durationStr: '60 dk' };
+
+  it('aynı oturumdaki iki müfredat kodu tek satır olur', () => {
+    const satirlar = [
+      {
+        ...ortak,
+        id: 'a',
+        name: ad,
+        code: 'BIL345',
+        birlesimId: 'B1',
+        studentCount: 20,
+        assignedRoom: 'D1',
+        assignedSupervisors: 'Dr. A',
+        sinif: 3,
+        endStr: 'x',
+      },
+      {
+        ...ortak,
+        id: 'b',
+        name: ad,
+        code: 'BLM445',
+        birlesimId: 'B1',
+        studentCount: 15,
+        assignedRoom: 'D1',
+        assignedSupervisors: 'Dr. A, Dr. B',
+        sinif: 4,
+        endStr: 'x',
+      },
+    ];
+    const out = ciktiSatirlariniBirlestir(satirlar);
+    expect(out).toHaveLength(1);
+    expect(out[0].code).toBe('BIL345 / BLM445');
+    expect(out[0].studentCount).toBe(35);
+    expect(out[0].assignedRoom).toBe('D1');
+    expect(out[0].assignedSupervisors).toBe('Dr. A, Dr. B');
+    expect(out[0].siniflar).toEqual([3, 4]);
+  });
+
+  it('birleştirilmemiş ama aynı salondaysa da tek satır', () => {
+    const out = ciktiSatirlariniBirlestir([
+      { ...ortak, name: ad, code: 'BIL345', assignedRoom: 'D1' },
+      { ...ortak, name: ad, code: 'BLM445', assignedRoom: 'D1' },
+    ]);
+    expect(out).toHaveLength(1);
+  });
+
+  it('farklı salondaki aynı adlı sınavlar ayrı kalır', () => {
+    const out = ciktiSatirlariniBirlestir([
+      { ...ortak, name: ad, code: 'BIL345', assignedRoom: 'D1' },
+      { ...ortak, name: ad, code: 'BLM445', assignedRoom: 'D2' },
+    ]);
+    expect(out).toHaveLength(2);
+  });
+
+  it('aynı kodlu şubeler ayrı satır kalır, sıra bozulmaz', () => {
+    const out = ciktiSatirlariniBirlestir([
+      { ...ortak, name: 'Fizik I (Şube 1)', code: 'FZK181', birlesimId: 'B2' },
+      { ...ortak, name: 'Kimya', code: 'KIM101', timeSlot: '13:00' },
+      { ...ortak, name: 'Fizik I (Şube 2)', code: 'FZK181', birlesimId: 'B2' },
+    ]);
+    expect(out.map((s) => s.code)).toEqual(['FZK181', 'KIM101', 'FZK181']);
+  });
+
+  it('farklı saatteki aynı ders birleşmez; uzun süren sınavın bitişi alınır', () => {
+    const out = ciktiSatirlariniBirlestir([
+      { ...ortak, name: ad, code: 'BIL345', birlesimId: 'B3', duration: 60, endStr: '11:00' },
+      {
+        ...ortak,
+        name: ad,
+        code: 'BLM445',
+        birlesimId: 'B3',
+        duration: 90,
+        endStr: '11:30',
+        durationStr: '90 dk',
+      },
+      { ...ortak, name: ad, code: 'BIL345', timeSlot: '15:00' },
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[0].endStr).toBe('11:30');
+    expect(out[0].durationStr).toBe('90 dk');
   });
 });
