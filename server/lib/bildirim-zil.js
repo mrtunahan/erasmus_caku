@@ -133,6 +133,7 @@ const MODUL_ROTALARI = {
   lisansustu: 'lisansustu',
   formlar: 'formlar',
   komisyonlar: 'komisyonlar',
+  dersodalari: 'dersodalari',
 };
 
 /**

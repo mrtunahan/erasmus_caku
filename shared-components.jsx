@@ -395,6 +395,8 @@ import * as MuafiyetSatirYaz from './lib/muafiyet-satir-yaz.js';
 import * as StajAdimYaz from './lib/staj-adim-yaz.js';
 import { trAnahtar, trEsit, trIcerir, trKucuk, trSirala } from './lib/tr-metin.js';
 import { YOKLAMA_LISTE_ROWS, YOKLAMA_LISTE_STATIC } from './lib/yoklama-listesi.js';
+import * as DersOdasi from './lib/ders-odasi.js';
+import { NOT_CIZELGESI_ROWS, NOT_CIZELGESI_STATIC } from './lib/ders-odasi.js';
 import * as RandevuKurali from './lib/randevu.js';
 import * as CihazKimligi from './lib/cihaz-kimlik.js';
 import * as AkademisyenBilgi from './lib/akademisyen-bilgi.js';
@@ -962,6 +964,14 @@ const DEPARTMENT_MODULES = [
     id: 'lisansustu',
     label: 'Lisansüstü',
     icon: 'M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.42a12 12 0 01.84 4.42c0 3.31-3.13 6-7 6s-7-2.69-7-6c0-1.55.42-3.04 1.16-4.42L12 14z',
+  },
+  {
+    // Ders Odaları — her dersin her dönemi için Classroom benzeri oda:
+    // duyuru, ödev, teslim, not, yorum. Öğrenci yalnız ders seçiminde
+    // seçtiği dersin odasına girer (bkz. lib/ders-odasi.js).
+    id: 'dersodalari',
+    label: 'Ders Odaları',
+    icon: 'M4 6a2 2 0 012-2h12a2 2 0 012 2v9a2 2 0 01-2 2H9l-5 3V6zm4 3h8m-8 4h5',
   },
   {
     id: 'projeler',
@@ -3558,6 +3568,21 @@ window.TEMPLATE_VARS = {
     docTypes: [{ id: 'devam-listesi', label: 'Ders Devam (Yoklama) Listesi' }],
     'devam-listesi': { static: YOKLAMA_LISTE_STATIC, row: YOKLAMA_LISTE_ROWS },
     default: { static: YOKLAMA_LISTE_STATIC, row: YOKLAMA_LISTE_ROWS },
+  },
+  // ── Ders Odaları: Ödev Not Çizelgesi ──
+  // Odadaki bütün ödevlerin notları: künye + öğrenciler + ÖDEV sütunları.
+  // Ödev sayısı dersten derse değiştiği için satırda `odev1 … odev20` diye
+  // numaralı değişkenler var: şablonda kaç ödev sütunu varsa o kadarı dolar
+  // (bkz. lib/ders-odasi.js → notCizelgesiVerisi). Excel çıktısı .xlsx,
+  // yazdırma / PDF çıktısı Word şablonundan üretilir.
+  dersodalari: {
+    docTypes: [
+      { id: 'not-cizelgesi', label: 'Ödev Not Çizelgesi — Excel (.xlsx)' },
+      { id: 'not-cizelgesi-pdf', label: 'Ödev Not Çizelgesi — Yazdırma / PDF (Word)' },
+    ],
+    'not-cizelgesi': { static: NOT_CIZELGESI_STATIC, row: NOT_CIZELGESI_ROWS },
+    'not-cizelgesi-pdf': { static: NOT_CIZELGESI_STATIC, row: NOT_CIZELGESI_ROWS },
+    default: { static: NOT_CIZELGESI_STATIC, row: NOT_CIZELGESI_ROWS },
   },
   akreditasyon: {
     docTypes: [{ id: 'odr', label: 'Öz Değerlendirme Raporu (ÖDR)' }],
@@ -15509,6 +15534,8 @@ window.gozetmenMusaitMi = gozetmenMusaitMi;
 // yerde (lib/gozetmen.js). Bölüm Yönetimi ile Sınav Otomasyonu aynısını çağırır.
 window.Gozetmen = GozetmenKurallari;
 // Aynı saatte birlikte yapılan sınavlar (şubeler, farklı müfredatlar) tek oturum.
+// Ders odaları kural dosyası (lib/ders-odasi.js) — modül ve şablon motoru okur.
+window.DersOdasi = DersOdasi;
 window.SinavBirlesim = SinavBirlesim;
 window.GozetmenKurallariPaneli = GozetmenKurallariPaneli;
 window.belgeGonderimHataMetni = gonderimHataMetni;

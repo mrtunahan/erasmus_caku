@@ -103,6 +103,10 @@ window.__lazyModules = {
 
   portal: { loader: () => import('./ogrenci-portali.jsx'), component: 'OgrenciPortaliApp' },
   projeler: { loader: () => import('./proje-modulu.jsx'), component: 'ProjeModuluApp' },
+  dersodalari: {
+    loader: () => import('./ders-odalari-modulu.jsx'),
+    component: 'DersOdalariApp',
+  },
   formlar: { loader: () => import('./formlar-modulu.jsx'), component: 'FormlarModuluApp' },
   kullanici: {
     loader: () => import('./kullanici-yonetimi.jsx'),

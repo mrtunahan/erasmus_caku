@@ -647,7 +647,7 @@ const Sidebar = ({
     // sadece DERSE BAĞLI 3 modül: kendi dersini ders programına ekler, sınav
     // programına yerleştirir, proje modülünde kendi dersi için işlem yapar.
     if (isOnExtraDept) {
-      const crossAllowed = ['dersprogrami', 'sinav', 'projeler'];
+      const crossAllowed = ['dersprogrami', 'sinav', 'projeler', 'dersodalari'];
       return DEPARTMENT_MODULES.filter((m) => crossAllowed.includes(m.id));
     }
 
@@ -666,6 +666,7 @@ const Sidebar = ({
         'formlar',
         'dersprogrami',
         'lisansustu',
+        'dersodalari',
         'projeler',
         'staj',
         'performans',
@@ -678,6 +679,7 @@ const Sidebar = ({
     const stdBase = [
       'benim',
       'erasmus',
+      'dersodalari',
       'projeler',
       'formlar',
       'staj',
@@ -3035,7 +3037,7 @@ function AppShell() {
     //   • Saf akademisyen → eski set
     //   • Öğrenci → eski set
     const allowedDeptModules = isOnExtraDept
-      ? ['dersprogrami', 'sinav', 'projeler']
+      ? ['dersprogrami', 'sinav', 'projeler', 'dersodalari']
       : isDeptManager || isAdmin || isHierarchyManager
         ? DEPARTMENT_MODULES.filter((m) => m.id !== 'benim').map((m) => m.id)
         : isProfessor
@@ -3045,6 +3047,7 @@ function AppShell() {
               'formlar',
               'dersprogrami',
               'lisansustu',
+              'dersodalari',
               'projeler',
               'staj',
               'performans',
@@ -3052,6 +3055,7 @@ function AppShell() {
           : [
               'benim',
               'erasmus',
+              'dersodalari',
               'projeler',
               'formlar',
               'staj',
