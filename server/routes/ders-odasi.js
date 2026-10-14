@@ -41,6 +41,17 @@ function egitmenKurali() {
   return egitmenSozu;
 }
 
+let programSozu = null;
+function programKurali() {
+  if (!programSozu) {
+    programSozu = Promise.all([
+      import('../../lib/ders-slot.js'),
+      import('../../lib/ders-saatleri.js'),
+    ]);
+  }
+  return programSozu;
+}
+
 const ODALAR = 'ders_odalari';
 const ICERIK = 'oda_icerikleri';
 const TESLIM = 'oda_teslimleri';
@@ -199,6 +210,32 @@ async function odaRolu(db, oda, user) {
   return null;
 }
 
+// Dersin haftalık saatleri ve derslikleri (ders programından). Program
+// yoksa ya da okunamazsa boş liste: oda yine açılır.
+async function odaProgrami(db, oda) {
+  try {
+    const K = await kural();
+    const [Slot, Saat] = await programKurali();
+    const yari = metin(oda.donem).split('_')[1] || '';
+    const dokumanlar = await db.collection('course_schedules').find({}).toArray();
+    const ayarlar = await db.collection('bolum_program_ayarlari').find({}).toArray();
+    const ayar = new Map();
+    ayarlar.forEach((k) => {
+      const id = metin(k.id || k._docId || k.departmentId);
+      if (id) ayar.set(id, k);
+    });
+    return K.dersProgramiOzeti(dokumanlar, {
+      dersKod: oda.dersKod,
+      yari,
+      slotDersleri: Slot.slotDersleri,
+      saatler: (bolum, seviye) => Saat.bolumSaatleri(ayar.get(bolum), seviye),
+    });
+  } catch (e) {
+    console.warn('[oda] program okunamadı:', e && e.message);
+    return [];
+  }
+}
+
 async function odaKaydet(db, ders, donem) {
   const K = await kural();
   const dersId = dersKimligi(ders);
@@ -322,6 +359,17 @@ function teslimGorunumu(t, ogrenciIcin) {
   }
   return g;
 }
+function yorumGorunumu(y, user) {
+  return {
+    id: y._id,
+    yazar: y.yazar,
+    yazarAd: y.yazarAd || y.yazar,
+    rol: y.rol,
+    metin: y.metin,
+    olusturuldu: y.olusturuldu,
+    benim: metin(y.yazar) === metin(user && user.identifier),
+  };
+}
 function dosyaGorunumu(d) {
   return { id: d._id, ad: d.ad, boyut: d.boyut, uzanti: d.uzanti, yukleyen: d.yukleyen };
 }
@@ -423,10 +471,17 @@ router.get(
     const yorumlar = await db
       .collection(YORUM)
       .find({ odaId: oda._id })
-      .project({ icerikId: 1 })
+      .sort({ olusturuldu: 1 })
       .toArray();
     const yorumSayisi = {};
-    yorumlar.forEach((y) => (yorumSayisi[y.icerikId] = (yorumSayisi[y.icerikId] || 0) + 1));
+    // Akış kartında son iki yorum önizlenir (tamamı paylaşım ayrıntısında).
+    const sonYorumlar = {};
+    yorumlar.forEach((y) => {
+      yorumSayisi[y.icerikId] = (yorumSayisi[y.icerikId] || 0) + 1;
+      const l = (sonYorumlar[y.icerikId] = sonYorumlar[y.icerikId] || []);
+      l.push(yorumGorunumu(y, req.user));
+      if (l.length > 2) l.shift();
+    });
     let benimTeslimlerim = [];
     if (rol === 'ogrenci') {
       benimTeslimlerim = (
@@ -442,6 +497,8 @@ router.get(
       rol,
       icerikler: icerikler.map(icerikGorunumu),
       yorumSayisi,
+      sonYorumlar,
+      program: await odaProgrami(db, oda),
       benimTeslimlerim,
       ogrenciSayisi,
       ogrenciNo: rol === 'ogrenci' ? ogrenciNo(req.user) : '',
@@ -459,7 +516,17 @@ router.post(
     if (b.rol !== 'hoca') return res.status(403).json({ error: 'Yalnız dersin akademisyeni.' });
     const renk = /^#[0-9A-Fa-f]{6}$/.test(metin(req.body.renk)) ? metin(req.body.renk) : '';
     const aciklama = metin(req.body.aciklama).slice(0, 500);
-    await b.db.collection(ODALAR).updateOne({ _id: b.oda._id }, { $set: { renk, aciklama } });
+    const K = await kural();
+    const canliHam = metin(req.body.canliDers);
+    const canliDers = K.guvenliBaglanti(canliHam);
+    if (canliHam && !canliDers) {
+      return res
+        .status(400)
+        .json({ error: 'Canlı ders bağlantısı http(s):// ile başlayan geçerli bir adres olmalı.' });
+    }
+    await b.db
+      .collection(ODALAR)
+      .updateOne({ _id: b.oda._id }, { $set: { renk, aciklama, canliDers } });
     degisti(req);
     res.json({ success: true });
   })
@@ -697,15 +764,7 @@ router.get(
     const { db, oda, icerik, rol } = b;
     const yorumlar = (
       await db.collection(YORUM).find({ icerikId: icerik._id }).sort({ olusturuldu: 1 }).toArray()
-    ).map((y) => ({
-      id: y._id,
-      yazar: y.yazar,
-      yazarAd: y.yazarAd || y.yazar,
-      rol: y.rol,
-      metin: y.metin,
-      olusturuldu: y.olusturuldu,
-      benim: metin(y.yazar) === metin(req.user.identifier),
-    }));
+    ).map((y) => yorumGorunumu(y, req.user));
     const out = { icerik: icerikGorunumu(icerik), oda: { ...oda, id: oda._id }, rol, yorumlar };
     if (icerik.tur === 'odev') {
       if (rol === 'ogrenci') {
