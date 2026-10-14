@@ -149,6 +149,10 @@ app.use('/api/eposta/sifremi-unuttum', authRateLimiter());
 app.use('/api/eposta/sifre-yenile', authRateLimiter());
 app.use('/api/eposta', require('./routes/eposta'));
 
+// Ders odaları (Classroom benzeri): paylaşım, ödev, teslim, not, yorum.
+const dersOdasiRoutes = require('./routes/ders-odasi');
+app.use('/api/oda', dersOdasiRoutes);
+
 // 404 + merkezi hata yakalayıcı (route'lardan sonra mount edilmeli)
 app.use(notFoundHandler);
 app.use(sentryErrorHandler());
@@ -232,6 +236,14 @@ async function start() {
       .catch((e) => console.warn('[aday] temizlik çalışmadı:', e && e.message));
   setTimeout(adayTemizle, 60 * 1000).unref();
   setInterval(adayTemizle, 6 * 60 * 60 * 1000).unref();
+
+  // ── Ders odası: son tarihe 24 saatten az kalan ödev hatırlatması ──
+  const odevHatirlat = () =>
+    dersOdasiRoutes
+      .hatirlatmalar()
+      .catch((e) => console.warn('[oda] hatırlatma çalışmadı:', e && e.message));
+  setTimeout(odevHatirlat, 2 * 60 * 1000).unref();
+  setInterval(odevHatirlat, 60 * 60 * 1000).unref();
 }
 
 // Graceful shutdown

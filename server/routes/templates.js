@@ -55,6 +55,8 @@ const ALLOWED_MODULES = new Set([
   'yataygecis',
   // Ders devam (yoklama) listesi — akademisyenin dönem çıktısı.
   'yoklama',
+  // Ders odaları — ödev not çizelgesi (akademisyenin dönem çıktısı).
+  'dersodalari',
   // TTO işbirliği talep formu — YALNIZ üniversite yetkilisi yükler.
   'tto',
 ]);

@@ -3833,3 +3833,5 @@ router.get('/:collection/:docId', async (req, res) => {
 });
 
 module.exports = router;
+// Ders odaları (routes/ders-odasi.js) yetkilinin alanını aynı kuraldan okur.
+module.exports.kullaniciAlani = kullaniciAlani;
