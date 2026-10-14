@@ -141,6 +141,32 @@ async function dersHocalari(ders) {
   return out;
 }
 
+// Dersin akademisyenlerinin iletişim bilgileri (Kişiler / Ders bilgisi
+// kartında ada tıklanınca açılır). Yalnız öğrencinin zaten okuyabildiği
+// alanlar döner (bkz. db.js STUDENT_READ_STRIPPED.professors): ad, unvan,
+// e-posta, dahili, fotoğraf. Kayıt bulunamayan hoca yalnız adıyla gelir.
+async function hocaIletisimleri(db, oda) {
+  const hocalar = oda.hocalar || [];
+  if (!hocalar.length) return [];
+  const E = await egitmenKurali();
+  const profiller = await db
+    .collection('professors')
+    .find({})
+    .project({ name: 1, title: 1, unvan: 1, email: 1, dahili: 1, photoURL: 1 })
+    .toArray()
+    .catch(() => []);
+  return hocalar.map((ad) => {
+    const p = profiller.find((x) => metin(x.name) && E.ayniEgitmen(x.name, ad)) || {};
+    return {
+      ad,
+      unvan: metin(p.unvan || p.title),
+      email: metin(p.email),
+      dahili: metin(p.dahili),
+      photoURL: metin(p.photoURL),
+    };
+  });
+}
+
 async function hocaMi(oda, user) {
   if (!oda || !user) return false;
   const E = await egitmenKurali();
@@ -491,7 +517,21 @@ router.get(
           .toArray()
       ).map((t) => teslimGorunumu(t, true));
     }
-    const ogrenciSayisi = (await odaOgrencileri(db, oda)).length;
+    const ogrenciler = await odaOgrencileri(db, oda);
+    const ogrenciSayisi = ogrenciler.length;
+    // Sınıf çalışmaları sekmesindeki üçlü (atandı / teslim / puanlandı) —
+    // yalnız hoca ve yetkili görür.
+    const odevOzetleri = {};
+    if (rol !== 'ogrenci') {
+      const K = await kural();
+      const teslimler = await db.collection(TESLIM).find({ odaId: oda._id }).toArray();
+      icerikler
+        .filter((i) => i.tur === 'odev')
+        .forEach((i) => {
+          const ilgili = teslimler.filter((t) => t.icerikId === i._id);
+          odevOzetleri[i._id] = K.odevOzeti(icerikGorunumu(i), ogrenciler, ilgili);
+        });
+    }
     res.json({
       oda: { ...oda, id: oda._id },
       rol,
@@ -501,6 +541,8 @@ router.get(
       program: await odaProgrami(db, oda),
       benimTeslimlerim,
       ogrenciSayisi,
+      odevOzetleri,
+      hocaBilgileri: await hocaIletisimleri(db, oda),
       ogrenciNo: rol === 'ogrenci' ? ogrenciNo(req.user) : '',
     });
   })
