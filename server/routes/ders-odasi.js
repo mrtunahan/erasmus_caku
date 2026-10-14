@@ -57,7 +57,9 @@ const ICERIK = 'oda_icerikleri';
 const TESLIM = 'oda_teslimleri';
 const YORUM = 'oda_yorumlari';
 const DOSYA = 'oda_dosyalari';
-const KOLEKSIYONLAR = [ODALAR, ICERIK, TESLIM, YORUM, DOSYA];
+// Vize/final gibi ek not sütunlarının notları (ödev notları teslimde durur).
+const EKNOT = 'oda_ek_notlar';
+const KOLEKSIYONLAR = [ODALAR, ICERIK, TESLIM, YORUM, DOSYA, EKNOT];
 
 const metin = (v) => String(v == null ? '' : v).trim();
 const yeniId = () => crypto.randomBytes(9).toString('hex');
@@ -1178,9 +1180,8 @@ router.get(
   sar(async (req, res) => {
     const b = await odaVeRol(req, res, req.params.odaId);
     if (!b) return;
-    if (b.rol === 'ogrenci')
-      return res.status(403).json({ error: 'Yalnız akademisyen ve yetkili.' });
     const { db, oda } = b;
+    if (b.rol === 'ogrenci') return res.json(await ogrenciNotCizelgesi(db, oda, req.user));
     const odevler = (
       await db
         .collection(ICERIK)
@@ -1212,7 +1213,167 @@ router.get(
     } catch (_) {
       kunye = { bolumAd: '', fakulteAd: '' };
     }
-    res.json({ oda: { ...oda, id: oda._id }, odevler, teslimler, ogrenciler, kunye });
+    const ekNotlar = (await db.collection(EKNOT).find({ odaId: oda._id }).toArray()).map(
+      ekNotGorunumu
+    );
+    res.json({
+      oda: { ...oda, id: oda._id },
+      odevler,
+      teslimler,
+      ogrenciler,
+      ekNotlar,
+      notAyari: oda.notAyari || {},
+      kunye,
+    });
+  })
+);
+
+const ekNotGorunumu = (n) => ({ kalemId: n.kalemId, ogrenciNo: n.ogrenciNo, puan: n.puan });
+
+// Öğrencinin gördüğü not çizelgesi: bütün sınıfın notları var ama YALNIZ
+// kendi satırında ad ve numara açıktır. Diğer öğrencilerin kimliği burada,
+// sunucuda maskelenir; numaralar her istekte yeniden üretilen sahte
+// anahtarlarla değiştirilir ve sıra karıştırılır — istemciye gerçek numara
+// hiç gitmez. Ödev notu ancak "geri verildikten", ek sütun notu ancak sütun
+// "yayınlandıktan" sonra görünür (taslak notlar sızmaz). Ödevlerin
+// öğrenciye özel ek süreleri (numara anahtarlı) da çıkarılır.
+async function ogrenciNotCizelgesi(db, oda, user) {
+  const K = await kural();
+  const ben = ogrenciNo(user);
+  const ogrenciler = await odaOgrencileri(db, oda);
+  const karisik = ogrenciler
+    .filter((s) => s.no !== ben)
+    .map((s) => ({ s, r: crypto.randomBytes(4).readUInt32BE(0) }))
+    .sort((a, b) => a.r - b.r)
+    .map((x) => x.s);
+  const anahtar = new Map([[ben, ben]]);
+  karisik.forEach((s, i) => anahtar.set(s.no, 'x' + (i + 1)));
+  const benimKaydim = ogrenciler.find((s) => s.no === ben);
+  const liste = (benimKaydim ? [{ ...benimKaydim, ben: true }] : []).concat(
+    karisik.map((s) => ({
+      no: anahtar.get(s.no),
+      ad: K.adMaskele(s.ad),
+      soyad: K.adMaskele(s.soyad),
+      maskeli: true,
+    }))
+  );
+  const odevler = (
+    await db
+      .collection(ICERIK)
+      .find({ odaId: oda._id, tur: 'odev' })
+      .sort({ olusturuldu: 1 })
+      .toArray()
+  ).map((i) => ({ ...icerikGorunumu(i), ekSureler: {} }));
+  const teslimler = (await db.collection(TESLIM).find({ odaId: oda._id }).toArray())
+    .filter((t) => t.geriVerildi && metin(t.puan) !== '' && anahtar.has(metin(t.ogrenciNo)))
+    .map((t) => ({
+      icerikId: t.icerikId,
+      ogrenciNo: anahtar.get(metin(t.ogrenciNo)),
+      puan: t.puan,
+      teslimEdildi: !!t.teslimEdildi,
+      geriVerildi: true,
+    }));
+  const ayar = oda.notAyari || {};
+  const yayinda = new Set((ayar.ekKalemler || []).filter((k) => k.yayinlandi).map((k) => k.id));
+  const ekNotlar = (await db.collection(EKNOT).find({ odaId: oda._id }).toArray())
+    .filter((n) => yayinda.has(n.kalemId) && anahtar.has(metin(n.ogrenciNo)))
+    .map((n) => ({ ...ekNotGorunumu(n), ogrenciNo: anahtar.get(metin(n.ogrenciNo)) }));
+  return {
+    oda: { ...oda, id: oda._id },
+    odevler,
+    teslimler,
+    ogrenciler: liste,
+    ekNotlar,
+    notAyari: {
+      agirliklar: ayar.agirliklar || {},
+      // Yayınlanmamış sütun öğrenciye hiç gitmez; ortalama görünen
+      // sütunların ağırlıklarıyla ölçeklenir.
+      ekKalemler: (ayar.ekKalemler || []).filter((k) => k.yayinlandi),
+    },
+    kunye: { bolumAd: '', fakulteAd: '' },
+  };
+}
+
+// ── NOT AYARI: ağırlıklar ve ek sütunlar (vize, final, proje…) ──
+router.post(
+  '/oda/:odaId/not-ayari',
+  requireAuth,
+  yazmaLimiti,
+  sar(async (req, res) => {
+    const b = await odaVeRol(req, res, req.params.odaId);
+    if (!b) return;
+    if (b.rol !== 'hoca') return res.status(403).json({ error: 'Yalnız dersin akademisyeni.' });
+    const { db, oda } = b;
+    const K = await kural();
+    const odevIdleri = (
+      await db
+        .collection(ICERIK)
+        .find({ odaId: oda._id, tur: 'odev' })
+        .project({ _id: 1 })
+        .toArray()
+    ).map((i) => i._id);
+    const r = K.notAyariDogrula(req.body, odevIdleri, yeniId);
+    if (r.hata) return res.status(400).json({ error: r.hata });
+    const kalan = new Set(r.ayar.ekKalemler.map((k) => k.id));
+    const silinen = ((oda.notAyari && oda.notAyari.ekKalemler) || [])
+      .map((k) => k.id)
+      .filter((id) => !kalan.has(id));
+    if (silinen.length) {
+      await db.collection(EKNOT).deleteMany({ odaId: oda._id, kalemId: { $in: silinen } });
+    }
+    await db
+      .collection(ODALAR)
+      .updateOne(
+        { _id: oda._id },
+        { $set: { notAyari: { ...r.ayar, guncellendi: new Date().toISOString() } } }
+      );
+    degisti(req);
+    res.json({ success: true, notAyari: r.ayar });
+  })
+);
+
+// Ek sütuna not girme (boş puan notu siler).
+router.post(
+  '/oda/:odaId/ek-not',
+  requireAuth,
+  yazmaLimiti,
+  sar(async (req, res) => {
+    const b = await odaVeRol(req, res, req.params.odaId);
+    if (!b) return;
+    if (b.rol !== 'hoca')
+      return res.status(403).json({ error: 'Notu yalnız dersin akademisyeni verir.' });
+    const { db, oda } = b;
+    const kalemId = metin(req.body.kalemId);
+    const no = metin(req.body.ogrenciNo);
+    const kalem = ((oda.notAyari && oda.notAyari.ekKalemler) || []).find((k) => k.id === kalemId);
+    if (!kalem) return res.status(404).json({ error: 'Not sütunu bulunamadı.' });
+    const uyeler = await odaOgrencileri(db, oda);
+    if (!uyeler.some((s) => s.no === no))
+      return res.status(400).json({ error: 'Öğrenci bu derste kayıtlı değil.' });
+    const K = await kural();
+    const karar = K.puanKarari(req.body.puan, kalem.maks);
+    if (!karar.gecerli) return res.status(400).json({ error: karar.hata });
+    const _id = [oda._id, kalemId, no].join('|');
+    if (karar.deger === '') {
+      await db.collection(EKNOT).deleteOne({ _id });
+    } else {
+      await db.collection(EKNOT).updateOne(
+        { _id },
+        {
+          $set: {
+            odaId: oda._id,
+            kalemId,
+            ogrenciNo: no,
+            puan: karar.deger,
+            giren: metin(req.user && req.user.identifier),
+            guncellendi: new Date().toISOString(),
+          },
+        },
+        { upsert: true }
+      );
+    }
+    degisti(req);
+    res.json({ success: true, puan: karar.deger });
   })
 );
 

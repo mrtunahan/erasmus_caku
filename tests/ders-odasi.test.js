@@ -27,6 +27,13 @@ import {
   guvenliBaglanti,
   baglantilariAyir,
   akisZamani,
+  notKalemleri,
+  agirlikToplami,
+  agirlikliOrtalama,
+  harfNotu,
+  notAyariDogrula,
+  adMaskele,
+  noMaskele,
 } from '../lib/ders-odasi.js';
 
 const MB = 1024 * 1024;
@@ -379,5 +386,75 @@ describe('bağlantılar ve akış zamanı', () => {
     expect(akisZamani('2026-10-14T06:15:00Z', simdi)).toBe('Bugün, 09:15');
     expect(akisZamani('2026-10-13T15:40:00Z', simdi)).toBe('Dün, 18:40');
     expect(akisZamani('2026-10-01T11:00:00Z', simdi)).toMatch(/1 Eki 2026 14:00/);
+  });
+});
+
+describe('not defteri: kalemler, ağırlık, harf, maske', () => {
+  const odevler = [
+    { id: 'a', baslik: 'Ödev 1', puan: 20 },
+    { id: 'b', baslik: 'Ödev 2', puan: '' },
+  ];
+  it('ağırlık girilmemişse kalemler eşit ağırlıklı', () => {
+    const ks = notKalemleri(odevler, {});
+    expect(ks.map((k) => k.agirlik)).toEqual([50, 50]);
+    expect(ks[1].maks).toBe(100);
+    expect(ks.map((k) => k.kisa)).toEqual(['Ö1', 'Ö2']);
+  });
+  it('ödev + vize + final ağırlıklı ortalaması', () => {
+    const ks = notKalemleri(odevler, {
+      agirliklar: { 'odev:a': 20, 'ek:v': 30, 'ek:f': 50 },
+      ekKalemler: [
+        { id: 'ek:v', ad: 'Vize Sınavı', maks: 100, yayinlandi: true },
+        { id: 'ek:f', ad: 'Final', maks: 100 },
+      ],
+    });
+    expect(agirlikToplami(ks)).toBe(100);
+    expect(ks.find((k) => k.id === 'ek:v').kisa).toBe('VS');
+    const p = { 'odev:a': 18, 'ek:v': 70, 'ek:f': 80 };
+    expect(agirlikliOrtalama(ks, (k) => (k.id in p ? p[k.id] : ''))).toEqual({ ort: 79, eksik: 0 });
+    // Final girilmemiş: 0 sayılır, eksik bildirilir.
+    const q = { 'odev:a': 18, 'ek:v': 70 };
+    expect(agirlikliOrtalama(ks, (k) => (k.id in q ? q[k.id] : ''))).toEqual({ ort: 39, eksik: 1 });
+    expect(agirlikliOrtalama(ks, () => '')).toEqual({ ort: '', eksik: 3 });
+  });
+  it('ağırlık toplamı 100 değilse ölçeklenir', () => {
+    const ks = notKalemleri(odevler, { agirliklar: { 'odev:a': 10, 'odev:b': 10 } });
+    expect(agirlikliOrtalama(ks, (k) => (k.id === 'odev:a' ? 20 : 50)).ort).toBe(75);
+  });
+  it('harf notu', () => {
+    expect([95, 87, 80, 76, 70, 65, 62, 55, 10].map(harfNotu)).toEqual([
+      'AA',
+      'BA',
+      'BB',
+      'CB',
+      'CC',
+      'DC',
+      'DD',
+      'FD',
+      'FF',
+    ]);
+    expect(harfNotu('')).toBe('');
+  });
+  it('not ayarı doğrulama', () => {
+    const r = notAyariDogrula(
+      {
+        agirliklar: { 'odev:a': '40', 'odev:zz': 10, 'ek:v': 60 },
+        ekKalemler: [{ id: 'ek:v', ad: 'Vize', maks: '' }, { ad: 'Final' }],
+      },
+      ['a'],
+      () => 'yeni1'
+    );
+    expect(r.hata).toBeUndefined();
+    expect(r.ayar.ekKalemler.map((k) => [k.id, k.maks])).toEqual([
+      ['ek:v', 100],
+      ['ek:yeni1', 100],
+    ]);
+    expect(r.ayar.agirliklar).toEqual({ 'odev:a': 40, 'ek:v': 60 });
+    expect(notAyariDogrula({ ekKalemler: [{ ad: '' }] }, [], () => 'x').hata).toBeTruthy();
+    expect(notAyariDogrula({ agirliklar: { 'odev:a': 150 } }, ['a'], () => 'x').hata).toBeTruthy();
+  });
+  it('öğrenci kimliği maskelenir', () => {
+    expect(adMaskele('Ayşe Nur Yılmaz')).toBe('A*** N** Y*****');
+    expect(noMaskele('260905044')).toBe('*********');
   });
 });

@@ -602,11 +602,19 @@ function Uyari({ children, tur }) {
 // ══════════════════════════════════════════════════════════════
 const DO_STIL = `
 .do-kap{max-width:1200px;margin:0 auto;width:100%}
-.do-ust{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;margin:0 auto 18px;max-width:1200px}
+.do-ust-kap{position:relative;max-width:1200px;margin:0 auto 20px;background:#fff;border:1px solid #E2E8F0;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.05);overflow:hidden}
+.do-ust-kap::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,#1B2A4A 0%,#0F766E 60%,#99F6E4 100%)}
+.do-ust{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;padding:10px 14px 13px}
+.do-sekmeler{display:inline-flex;gap:4px;padding:4px;border-radius:11px;background:#F1F5F9;border:1px solid #E2E8F0;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.do-sekmeler::-webkit-scrollbar{display:none}
+.do-sekme{display:inline-flex;align-items:center;gap:7px;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:#64748B;white-space:nowrap;transition:background .15s,color .15s}
+.do-sekme:hover{background:#E2E8F0;color:#1B2A4A}
+.do-sekme-aktif,.do-sekme-aktif:hover{background:#1B2A4A;color:#fff;box-shadow:0 1px 3px rgba(15,23,42,.2)}
+.do-ayrac{width:1px;align-self:stretch;margin:4px 2px;background:#E2E8F0}
 .do-ust>.do-sol{justify-self:start;display:flex;align-items:center;gap:10px;min-width:0}
 .do-ust>.do-orta{justify-self:center}
 .do-ust>.do-sag{justify-self:end;display:flex;align-items:center;gap:8px}
-@media (max-width:820px){.do-ust{grid-template-columns:1fr}.do-ust>.do-sol,.do-ust>.do-orta,.do-ust>.do-sag{justify-self:center}}
+@media (max-width:820px){.do-ust{grid-template-columns:minmax(0,1fr)}.do-ust>.do-sol{justify-self:start}.do-ust>.do-orta{justify-self:stretch;min-width:0}.do-ust>.do-orta .do-sekmeler{display:flex;width:100%}.do-ust>.do-sag{justify-self:end}}
 .do-izgara{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start}
 @media (min-width:1024px){.do-izgara{grid-template-columns:minmax(0,4fr) minmax(0,8fr)}}
 .do-ek-izgara{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
@@ -831,53 +839,47 @@ const dosyaSimgesi = (u) =>
     : 'belge';
 
 // ── ORTALANMIŞ ÜST ÇUBUK ──
+// Beyaz bir şerit: solda geri dönüş ve ders künyesi, ortada simgeli sekmeler,
+// altta tema renklerinde ince bir vurgu çizgisi. Dar ekranda sekmeler
+// sarmalanmaz, yatay kayar.
+const SEKME_SIMGESI = {
+  akis: 'akis',
+  odevler: 'odev',
+  kisiler: 'grup',
+  notlar: 'grafik',
+  talimatlar: 'belge',
+  calisma: 'odev',
+};
 function UstCubuk({ sol, sekmeler, aktif, sec, sag, veriAdi }) {
   return (
-    <div className="do-ust">
-      <div className="do-sol">{sol}</div>
-      <div className="do-orta">
-        {sekmeler && sekmeler.length > 0 && (
-          <nav
-            role="tablist"
-            style={{
-              display: 'inline-flex',
-              gap: 4,
-              padding: 4,
-              borderRadius: 12,
-              background: '#EEF2F7',
-              border: '1px solid ' + DO.border,
-              flexWrap: 'wrap',
-              justifyContent: 'center',
-            }}
-          >
-            {sekmeler.map(([id, ad]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={aktif === id}
-                {...{ [veriAdi || 'data-oda-sekme']: id }}
-                onClick={() => sec(id)}
-                style={{
-                  border: 'none',
-                  borderRadius: 9,
-                  padding: '7px 16px',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  background: aktif === id ? DO.primary : 'transparent',
-                  color: aktif === id ? '#fff' : DO.muted,
-                  boxShadow: aktif === id ? '0 1px 3px rgba(15,23,42,.18)' : 'none',
-                  transition: 'background .15s, color .15s',
-                }}
-              >
-                {ad}
-              </button>
-            ))}
-          </nav>
-        )}
+    <div className="do-ust-kap" data-oda-ust-cubuk>
+      <div className="do-ust">
+        <div className="do-sol">{sol}</div>
+        <div className="do-orta">
+          {sekmeler && sekmeler.length > 0 && (
+            <nav role="tablist" className="do-sekmeler">
+              {sekmeler.map(([id, ad]) => {
+                const secili = aktif === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={secili}
+                    className={secili ? 'do-sekme do-sekme-aktif' : 'do-sekme'}
+                    {...{ [veriAdi || 'data-oda-sekme']: id }}
+                    onClick={() => sec(id)}
+                  >
+                    {SEKME_SIMGESI[id] && <Ikon ad={SEKME_SIMGESI[id]} boyut={16} />}
+                    {ad}
+                  </button>
+                );
+              })}
+            </nav>
+          )}
+        </div>
+        <div className="do-sag">{sag}</div>
       </div>
-      <div className="do-sag">{sag}</div>
     </div>
   );
 }
@@ -892,14 +894,15 @@ function GeriDugmesi({ onClick, etiket }) {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-        border: '1px solid ' + DO.border,
-        background: '#fff',
+        border: 'none',
+        background: 'transparent',
         color: DO.primary,
         borderRadius: 8,
-        padding: '7px 12px',
+        padding: '7px 10px',
         fontSize: 13,
         fontWeight: 600,
         cursor: 'pointer',
+        whiteSpace: 'nowrap',
       }}
     >
       <Ikon ad="geri" boyut={16} />
@@ -1033,7 +1036,7 @@ function OdaEkrani({ odaId, icerikId, setIcerikId, sekme, setSekme, ayarlar, cur
     ['odevler', 'Sınıf çalışmaları'],
     ['kisiler', 'Kişiler'],
   ];
-  if (!ogrenci) sekmeler.push(['notlar', 'Notlar']);
+  sekmeler.push(['notlar', 'Notlar']);
 
   const yaklasan = odevler
     .filter((o) => o.sonTarih && new Date(o.sonTarih).getTime() > Date.now())
@@ -1082,6 +1085,7 @@ function OdaEkrani({ odaId, icerikId, setIcerikId, sekme, setSekme, ayarlar, cur
         sol={
           <>
             <GeriDugmesi onClick={geri} etiket="Ders odaları" />
+            <span className="do-ayrac" aria-hidden="true" />
             <div
               style={{
                 display: 'flex',
@@ -1264,8 +1268,6 @@ function OdaEkrani({ odaId, icerikId, setIcerikId, sekme, setSekme, ayarlar, cur
             yorumSayisi={yorumSayisi}
             odevOzetleri={veri.odevOzetleri || {}}
             ogrenciSayisi={ogrenciSayisi}
-            hocaBilgileri={hocaBilgileri}
-            oda={oda}
             ac={setIcerikId}
           />
         </div>
@@ -1282,7 +1284,7 @@ function OdaEkrani({ odaId, icerikId, setIcerikId, sekme, setSekme, ayarlar, cur
           />
         </div>
       )}
-      {sekme === 'notlar' && !ogrenci && (
+      {sekme === 'notlar' && (
         <div className="do-kap">
           <NotlarSekmesi oda={oda} rol={rol} ac={(id) => setIcerikId(id)} />
         </div>
@@ -2529,7 +2531,6 @@ function PuanDagilimiKarti({ odevler }) {
 }
 
 function SinifCalismalari({
-  oda,
   icerikler,
   teslimHaritasi,
   benimNo,
@@ -2537,7 +2538,6 @@ function SinifCalismalari({
   yorumSayisi,
   odevOzetleri,
   ogrenciSayisi,
-  hocaBilgileri,
   ac,
 }) {
   const [suzgec, setSuzgec] = useState('hepsi');
@@ -2725,16 +2725,6 @@ function SinifCalismalari({
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
           <TeslimTakvimiKarti odevler={odevler} ac={ac} />
           <PuanDagilimiKarti odevler={odevler} />
-          <section style={{ ...yanKart, gap: 8 }} data-ders-sorumlulari>
-            {kartBasligi('kisi', 'Ders sorumluları')}
-            {(oda.hocalar || []).length === 0 ? (
-              <div style={{ fontSize: 12, color: DO.muted }}>Akademisyen atanmamış.</div>
-            ) : (
-              (oda.hocalar || []).map((h) => (
-                <HocaIletisim key={h} ad={h} bilgi={hocaBilgisiBul(hocaBilgileri, h)} />
-              ))
-            )}
-          </section>
         </aside>
       </div>
     </div>
@@ -5582,13 +5572,385 @@ function KisilerSekmesi({ oda, rol, ogrenciSayisi, hocaBilgileri, notlaraGit }) 
 // ══════════════════════════════════════════════════════════════
 // NOTLAR + EXCEL / PDF
 // ══════════════════════════════════════════════════════════════
-function NotlarSekmesi({ oda, ac }) {
+// Not defteri. Sütunlar: ödevler + akademisyenin açtığı ek sütunlar (vize,
+// final…). Her sütunun ağırlığı (%) "Not ayarları"ndan verilir; satırda
+// ağırlıklı ortalama ve harf notu hesaplanır. Öğrenci de bu sekmeyi görür:
+// bütün sınıfın notları vardır ama diğer öğrencilerin adı/numarası sunucuda
+// yıldızlanmıştır; öğrenciye yalnız geri verilmiş / yayınlanmış notlar gelir.
+const DAGILIM_ARALIKLARI = [
+  { ad: '0-49', alt: 0, ust: 49.995, renk: '#B91C1C' },
+  { ad: '50-69', alt: 50, ust: 69.995, renk: '#F59E0B' },
+  { ad: '70-79', alt: 70, ust: 79.995, renk: '#1B2A4A' },
+  { ad: '80-89', alt: 80, ust: 89.995, renk: '#0F766E' },
+  { ad: '90-100', alt: 90, ust: 1000, renk: '#2DD4BF' },
+];
+const sayiYaz = (v) => (v === '' || v == null ? '–' : K().puanMetni ? K().puanMetni(v) : String(v));
+const ort = (l) =>
+  l.length ? Math.round((l.reduce((a, b) => a + b, 0) / l.length) * 10) / 10 : '';
+
+function IstatistikKutusu({ simge, ust, deger, renk }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '10px 14px',
+        borderRadius: 12,
+        background: '#F2F3FF',
+        minWidth: 150,
+      }}
+    >
+      <span style={{ color: renk || DO.primary, display: 'inline-flex' }}>
+        <Ikon ad={simge} boyut={20} />
+      </span>
+      <div>
+        <div style={{ fontSize: 11, color: DO.muted }}>{ust}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: DO.primary }}>{deger}</div>
+      </div>
+    </div>
+  );
+}
+
+// Ek sütun hücresi: yazılır, Enter ya da odaktan çıkınca kaydedilir.
+function EkNotHucresi({ odaId, kalem, ogrenciNo, deger, kaydedildi }) {
+  const [v, setV] = useState(deger === '' || deger == null ? '' : String(deger));
+  const [durum, setDurum] = useState('');
+  const odakta = useRef(false);
+  useEffect(() => {
+    if (!odakta.current) setV(deger === '' || deger == null ? '' : String(deger));
+  }, [deger]);
+  const kaydet = async () => {
+    const yeni = metin(v).replace(',', '.');
+    const eski = deger === '' || deger == null ? '' : String(deger);
+    if (yeni === eski) return setDurum('');
+    setDurum('kayit');
+    try {
+      await api('/oda/' + encodeURIComponent(odaId) + '/ek-not', {
+        body: { kalemId: kalem.id, ogrenciNo, puan: yeni },
+      });
+      setDurum('');
+      kaydedildi();
+    } catch (e) {
+      setDurum('hata');
+      alert(e.message);
+    }
+  };
+  return (
+    <input
+      value={v}
+      inputMode="decimal"
+      aria-label={kalem.ad + ' notu'}
+      data-ek-not={kalem.id + '|' + ogrenciNo}
+      placeholder="–"
+      onFocus={() => (odakta.current = true)}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => {
+        odakta.current = false;
+        kaydet();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+      }}
+      style={{
+        width: 56,
+        textAlign: 'center',
+        fontSize: 13,
+        fontWeight: 600,
+        padding: '5px 4px',
+        borderRadius: 7,
+        border: '1px solid ' + (durum === 'hata' ? DO.red : DO.border),
+        background: durum === 'kayit' ? DO.amberLight : '#fff',
+        color: DO.text,
+      }}
+    />
+  );
+}
+
+function NotAyariPaneli({ oda, kalemler, kapat, kaydedildi }) {
+  const [satirlar, setSatirlar] = useState(() =>
+    kalemler.map((k) => ({
+      id: k.id,
+      tur: k.tur,
+      ad: k.ad,
+      kisa: k.kisa,
+      maks: String(k.maks),
+      agirlik: String(k.agirlik),
+      yayinlandi: k.yayinlandi,
+    }))
+  );
+  const [mesgul, setMesgul] = useState(false);
+  const [hata, setHata] = useState('');
+  const toplam =
+    Math.round(satirlar.reduce((t, r) => t + (Number(r.agirlik.replace(',', '.')) || 0), 0) * 100) /
+    100;
+  const guncelle = (id, alan, deger) =>
+    setSatirlar((l) => l.map((r) => (r.id === id ? { ...r, [alan]: deger } : r)));
+  const ekle = (ad) =>
+    setSatirlar((l) =>
+      l.concat({
+        id: 'ek:' + Math.random().toString(36).slice(2, 10),
+        tur: 'ek',
+        ad,
+        kisa: K().kisaAd ? K().kisaAd(ad) : '',
+        maks: '100',
+        agirlik: '0',
+        yayinlandi: false,
+      })
+    );
+  const esitDagit = () => {
+    const n = satirlar.length;
+    if (!n) return;
+    const pay = Math.floor((100 / n) * 100) / 100;
+    setSatirlar((l) =>
+      l.map((r, i) => ({
+        ...r,
+        agirlik: String(i === n - 1 ? Math.round((100 - pay * (n - 1)) * 100) / 100 : pay),
+      }))
+    );
+  };
+  const kaydet = async () => {
+    setMesgul(true);
+    setHata('');
+    try {
+      const agirliklar = {};
+      satirlar.forEach((r) => (agirliklar[r.id] = r.agirlik.replace(',', '.')));
+      await api('/oda/' + encodeURIComponent(oda.id) + '/not-ayari', {
+        body: {
+          agirliklar,
+          ekKalemler: satirlar
+            .filter((r) => r.tur === 'ek')
+            .map((r) => ({
+              id: r.id,
+              ad: r.ad,
+              kisa: r.kisa,
+              maks: r.maks.replace(',', '.'),
+              yayinlandi: r.yayinlandi,
+            })),
+        },
+      });
+      kaydedildi();
+    } catch (e) {
+      setHata(e.message);
+    } finally {
+      setMesgul(false);
+    }
+  };
+  const girdi = {
+    border: '1px solid ' + DO.border,
+    borderRadius: 7,
+    padding: '6px 8px',
+    fontSize: 13,
+    color: DO.text,
+    background: '#fff',
+    minWidth: 0,
+  };
+  return (
+    <section
+      data-not-ayari
+      style={{
+        ...kart,
+        borderRadius: 14,
+        padding: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 14,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: DO.primary }}>Not ayarları</div>
+          <div style={{ fontSize: 12, color: DO.muted }}>
+            Ödevlerin ve ek sütunların ağırlıkları. Vize, final, proje gibi sütunları buradan
+            ekleyin; notları tabloda girilir.
+          </div>
+        </div>
+        <span
+          data-agirlik-toplami
+          style={{
+            fontSize: 13,
+            fontWeight: 700,
+            padding: '5px 12px',
+            borderRadius: 999,
+            background: toplam === 100 ? DO.accentLight : DO.amberLight,
+            color: toplam === 100 ? DO.accent : DO.amber,
+            border: '1px solid ' + (toplam === 100 ? DO.accentBorder : '#FCD34D'),
+          }}
+        >
+          Toplam %{sayiYaz(toplam)}
+          {toplam !== 100 ? ' · 100 olmalı' : ''}
+        </span>
+      </div>
+      {hata && <Uyari>{hata}</Uyari>}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 620 }}>
+          <thead>
+            <tr>
+              {['Sütun', 'Kısa ad', 'En yüksek', 'Ağırlık %', 'Öğrenci görür', ''].map((b) => (
+                <th key={b} style={{ ...th, textAlign: 'left' }}>
+                  {b}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {satirlar.map((r) => (
+              <tr key={r.id} data-ayar-satiri={r.id}>
+                <td style={{ ...td, textAlign: 'left' }}>
+                  {r.tur === 'odev' ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <Etiket zemin="#EEF2F7" renk={DO.primary}>
+                        Ödev
+                      </Etiket>
+                      {r.ad}
+                    </span>
+                  ) : (
+                    <input
+                      value={r.ad}
+                      onChange={(e) => guncelle(r.id, 'ad', e.target.value)}
+                      aria-label="Sütun adı"
+                      style={{ ...girdi, width: '100%' }}
+                    />
+                  )}
+                </td>
+                <td style={{ ...td, textAlign: 'left' }}>
+                  {r.tur === 'odev' ? (
+                    <span style={{ fontFamily: monoYazi, fontSize: 12 }}>{r.kisa}</span>
+                  ) : (
+                    <input
+                      value={r.kisa}
+                      maxLength={6}
+                      onChange={(e) => guncelle(r.id, 'kisa', e.target.value)}
+                      aria-label="Kısa ad"
+                      style={{ ...girdi, width: 64, fontFamily: monoYazi }}
+                    />
+                  )}
+                </td>
+                <td style={{ ...td, textAlign: 'left' }}>
+                  {r.tur === 'odev' ? (
+                    <span title="Ödevin puanı ödev ayarından gelir">{r.maks}</span>
+                  ) : (
+                    <input
+                      value={r.maks}
+                      inputMode="decimal"
+                      onChange={(e) => guncelle(r.id, 'maks', e.target.value)}
+                      aria-label="En yüksek puan"
+                      style={{ ...girdi, width: 70 }}
+                    />
+                  )}
+                </td>
+                <td style={{ ...td, textAlign: 'left' }}>
+                  <input
+                    value={r.agirlik}
+                    inputMode="decimal"
+                    data-agirlik={r.id}
+                    onChange={(e) => guncelle(r.id, 'agirlik', e.target.value)}
+                    aria-label={r.ad + ' ağırlığı'}
+                    style={{ ...girdi, width: 70 }}
+                  />
+                </td>
+                <td style={{ ...td, textAlign: 'left' }}>
+                  {r.tur === 'odev' ? (
+                    <span style={{ fontSize: 12, color: DO.muted }}>Geri verilince</span>
+                  ) : (
+                    <Anahtar
+                      acik={r.yayinlandi}
+                      degistir={() => guncelle(r.id, 'yayinlandi', !r.yayinlandi)}
+                    />
+                  )}
+                </td>
+                <td style={{ ...td, textAlign: 'right' }}>
+                  {r.tur === 'ek' && (
+                    <SimgeDugmesi
+                      simge="cop"
+                      baslik="Sütunu kaldır (notları da silinir)"
+                      onClick={() => {
+                        if (confirm('"' + r.ad + '" sütunu ve girilmiş notları silinsin mi?'))
+                          setSatirlar((l) => l.filter((x) => x.id !== r.id));
+                      }}
+                    />
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {['Vize', 'Final', 'Proje'].map((ad) => (
+            <button
+              key={ad}
+              type="button"
+              data-ek-kalem-ekle={ad}
+              onClick={() => ekle(ad)}
+              style={ikincilDugme}
+            >
+              <Ikon ad="arti" boyut={15} /> {ad}
+            </button>
+          ))}
+          <button type="button" onClick={() => ekle('Yeni sütun')} style={ikincilDugme}>
+            <Ikon ad="arti" boyut={15} /> Başka sütun
+          </button>
+          <button
+            type="button"
+            onClick={esitDagit}
+            style={{ ...ikincilDugme, background: '#fff', border: '1px solid ' + DO.border }}
+          >
+            Eşit dağıt
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Dugme onClick={kapat} disabled={mesgul}>
+            Vazgeç
+          </Dugme>
+          <button
+            type="button"
+            onClick={kaydet}
+            disabled={mesgul}
+            data-not-ayari-kaydet
+            style={birincilDugme}
+          >
+            {mesgul ? 'Kaydediliyor…' : 'Kaydet'}
+          </button>
+        </div>
+      </div>
+      <div style={{ fontSize: 11, color: DO.soft }}>
+        Toplam %100 değilse ortalama, ağırlık toplamına göre ölçeklenir. Henüz kimseye not
+        verilmemiş sütun ortalamaya girmez; notlanmış sütunda eksik not 0 sayılır. Harf notu 100'lük
+        ölçeğe göredir (AA ≥ 90, BA ≥ 85, BB ≥ 80, CB ≥ 75, CC ≥ 70, DC ≥ 65, DD ≥ 60, FD ≥ 50).
+      </div>
+    </section>
+  );
+}
+
+function NotlarSekmesi({ oda, rol, ac }) {
   const [veri, setVeri] = useState(null);
   const [hata, setHata] = useState('');
   const [arama, setArama] = useState('');
   const [durum, setDurum] = useState('hepsi');
-  const [sira, setSira] = useState('soyad');
+  const [sira, setSira] = useState(rol === 'ogrenci' ? 'yuksek' : 'soyad');
   const [mesgul, setMesgul] = useState('');
+  const [grafik, setGrafik] = useState(true);
+  const [ayarAcik, setAyarAcik] = useState(false);
+  const hoca = rol === 'hoca';
+  const ogrenciMi = rol === 'ogrenci';
 
   const yukle = useCallback(() => {
     api('/oda/' + encodeURIComponent(oda.id) + '/notlar')
@@ -5601,33 +5963,93 @@ function NotlarSekmesi({ oda, ac }) {
   useEffect(yukle, [yukle]);
   useEffect(() => {
     const h = () => yukle();
-    window.addEventListener('realtime:oda_teslimleri', h);
-    return () => window.removeEventListener('realtime:oda_teslimleri', h);
+    const c = ['oda_teslimleri', 'oda_ek_notlar', 'ders_odalari'];
+    c.forEach((x) => window.addEventListener('realtime:' + x, h));
+    return () => c.forEach((x) => window.removeEventListener('realtime:' + x, h));
   }, [yukle]);
 
   if (hata) return <Uyari>{hata}</Uyari>;
   if (!veri) return <Bos baslik="Yükleniyor…" />;
   const D = K();
   const { odevler, teslimler } = veri;
+  const kalemler = D.notKalemleri(odevler, veri.notAyari || {});
   const harita = new Map(teslimler.map((t) => [t.icerikId + '|' + t.ogrenciNo, t]));
-  // "Not verilmiş / verilmemiş" süzgeci: bütün ödevlerde notu olan öğrenci notlu sayılır.
-  const notBul = (no) =>
-    odevler.length && odevler.every((o) => metin((harita.get(o.id + '|' + no) || {}).puan) !== '')
-      ? 'var'
-      : '';
-  const durumBul = (no) => {
-    const dd = odevler.map((o) => D.teslimDurumu(o, harita.get(o.id + '|' + no), no));
-    if (dd.includes('gec')) return 'gec';
-    if (dd.length && dd.every((x) => x === 'teslim' || x === 'notlandi')) return 'teslim';
-    return 'atandi';
+  const ekHarita = new Map(
+    (veri.ekNotlar || []).map((n) => [n.kalemId + '|' + n.ogrenciNo, n.puan])
+  );
+  const puanAl = (k, no) => {
+    if (k.tur === 'odev') {
+      const t = harita.get(k.icerikId + '|' + no);
+      return t && metin(t.puan) !== '' ? t.puan : '';
+    }
+    const p = ekHarita.get(k.id + '|' + no);
+    return p == null ? '' : p;
   };
-  const liste = D.ogrencileriSuz(veri.ogrenciler, { arama, durum, sira, durumBul, notBul });
+  const kalemPuanlari = (k) =>
+    veri.ogrenciler
+      .map((s) => puanAl(k, s.no))
+      .filter((p) => metin(p) !== '')
+      .map(Number);
+  // Henüz kimseye notu girilmemiş sütun (yapılmamış final gibi) ortalamaya
+  // girmez; notlanmış sütunda öğrencinin eksik notu 0 sayılır.
+  const etkinKalemler = kalemler.filter((k) => kalemPuanlari(k).length > 0);
+  const sonuc = new Map();
+  veri.ogrenciler.forEach((s) => {
+    const r = D.agirlikliOrtalama(etkinKalemler, (k) => puanAl(k, s.no));
+    sonuc.set(s.no, { ...r, harf: D.harfNotu(r.ort) });
+  });
+
+  // Süzme ve sıralama. Öğrencinin kendi satırı her zaman başta durur.
+  let liste = D.ogrencileriSuz(veri.ogrenciler, {
+    arama,
+    sira: sira === 'yuksek' || sira === 'dusuk' ? 'soyad' : sira,
+  }).filter((s) => {
+    const r = sonuc.get(s.no);
+    if (durum === 'basarili') return r.ort !== '' && r.ort >= 70;
+    if (durum === 'destek') return r.ort !== '' && r.ort < 70;
+    if (durum === 'eksik') return r.eksik > 0;
+    return true;
+  });
+  if (sira === 'yuksek' || sira === 'dusuk') {
+    const y = sira === 'yuksek' ? -1 : 1;
+    liste = liste.slice().sort((a, b) => {
+      const x = sonuc.get(a.no).ort;
+      const z = sonuc.get(b.no).ort;
+      if (x === '') return 1;
+      if (z === '') return -1;
+      return (x - z) * y;
+    });
+  }
+  if (ogrenciMi) liste = liste.filter((s) => s.ben).concat(liste.filter((s) => !s.ben));
+
+  const tumOrt = veri.ogrenciler.map((s) => sonuc.get(s.no).ort).filter((x) => x !== '');
+  const genelOrt = ort(tumOrt);
+  const tamamlanan = kalemler.filter(
+    (k) => veri.ogrenciler.length && kalemPuanlari(k).length === veri.ogrenciler.length
+  ).length;
+  const dagilim = DAGILIM_ARALIKLARI.map((a) => ({
+    ...a,
+    sayi: tumOrt.filter((x) => x >= a.alt && x <= a.ust).length,
+  }));
+  const enCok = Math.max(1, ...dagilim.map((d) => d.sayi));
+  const toplamAgirlik = D.agirlikToplami(kalemler);
+  const benimSatir = ogrenciMi ? veri.ogrenciler.find((s) => s.ben) : null;
+
+  // ── ÇIKTI (akademisyen / yetkili) ──
   const cizelge = D.notCizelgesiVerisi({
     oda: veri.oda,
     odevler,
     ogrenciler: liste,
     teslimler,
     kunye: { ...veri.kunye, kurumAd: 'Çankırı Karatekin Üniversitesi' },
+  });
+  const ekKalemler = kalemler.filter((k) => k.tur === 'ek');
+  cizelge.rows.forEach((r, i) => {
+    const s = liste[i];
+    const so = sonuc.get(s.no);
+    r.agirlikli = so.ort === '' ? '' : D.puanMetni(so.ort);
+    r.harf = so.harf;
+    ekKalemler.forEach((k) => (r[k.id] = D.puanMetni(puanAl(k, s.no))));
   });
 
   const dosyaGovdesi = [oda.dersKod, 'not cizelgesi', D.kisaYil ? D.kisaYil(oda.donem) : '']
@@ -5669,26 +6091,36 @@ function NotlarSekmesi({ oda, ac }) {
             (o.baslik ? ' (' + o.baslik + (o.puan ? ' / ' + o.puan : '') + ')' : '')
         )
       )
-      .concat(['Teslim', 'Toplam', 'Ortalama (100)']);
+      .concat(ekKalemler.map((k) => k.ad + ' / ' + k.maks))
+      .concat(['Teslim', 'Toplam', 'Ortalama (100)', 'Ağırlıklı Ort.', 'Harf']);
     const satirlar = [
       [{ v: sd.kurumAd, stil: S.vurgu }],
       [{ v: [sd.fakulteAd, sd.bolumAd].filter(Boolean).join(' — '), stil: S.vurgu }],
       [{ v: sd.baslik, stil: S.vurgu }],
       [{ v: sd.dersKodAd + (sd.ogretimUyesi ? ' · ' + sd.ogretimUyesi : ''), stil: S.vurgu }],
-      [],
+      [
+        {
+          v:
+            'Ağırlıklar: ' + kalemler.map((k) => k.kisa + ' %' + D.puanMetni(k.agirlik)).join(', '),
+        },
+      ],
       bas,
     ].concat(
       cizelge.rows.map((r) =>
         [r.sira, r.ogrenciNo, r.ad, r.soyad]
           .concat(cizelge.odevler.map((_o, i) => r[D.odevAnahtari(i + 1)]))
-          .concat([r.teslimSayisi, r.toplam, r.ortalama])
+          .concat(ekKalemler.map((k) => r[k.id]))
+          .concat([r.teslimSayisi, r.toplam, r.ortalama, r.agirlikli, r.harf])
       )
     );
     return window.xlsxIndir(dosyaGovdesi, {
       sayfaAdi: 'Not Çizelgesi',
       satirlar,
       baslikIndeksi: 5,
-      sutunGenislikleri: [6, 14, 16, 16].concat(cizelge.odevler.map(() => 14)).concat([9, 9, 13]),
+      sutunGenislikleri: [6, 14, 16, 16]
+        .concat(cizelge.odevler.map(() => 14))
+        .concat(ekKalemler.map(() => 12))
+        .concat([9, 9, 13, 13, 7]),
     });
   };
 
@@ -5734,6 +6166,9 @@ function NotlarSekmesi({ oda, ac }) {
           '</th>'
       )
       .join('');
+    const ekBas = ekKalemler
+      .map((x) => '<th>' + k(x.ad) + '<br><small>/' + k(x.maks) + '</small></th>')
+      .join('');
     const govde = cizelge.rows
       .map(
         (r) =>
@@ -5747,12 +6182,15 @@ function NotlarSekmesi({ oda, ac }) {
           k(r.soyad) +
           '</td>' +
           cizelge.odevler.map((_o, i) => '<td>' + k(r[D.odevAnahtari(i + 1)]) + '</td>').join('') +
+          ekKalemler.map((x) => '<td>' + k(r[x.id]) + '</td>').join('') +
           '<td>' +
           k(r.teslimSayisi) +
-          '</td><td><b>' +
+          '</td><td>' +
           k(r.toplam) +
+          '</td><td><b>' +
+          k(r.agirlikli) +
           '</b></td><td>' +
-          k(r.ortalama) +
+          k(r.harf) +
           '</td></tr>'
       )
       .join('');
@@ -5782,11 +6220,14 @@ function NotlarSekmesi({ oda, ac }) {
       '</span></div>' +
       '<table><thead><tr><th>No</th><th>Öğrenci No</th><th>Adı</th><th>Soyadı</th>' +
       odevBas +
-      '<th>Teslim</th><th>Toplam</th><th>Ort. (100)</th></tr></thead><tbody>' +
+      ekBas +
+      '<th>Teslim</th><th>Toplam</th><th>Ağırlıklı Ort.</th><th>Harf</th></tr></thead><tbody>' +
       govde +
       '</tbody></table>' +
       '<div class="liste">' +
       k(sd.odevListesi) +
+      '<br>Ağırlıklar: ' +
+      k(kalemler.map((x) => x.kisa + ' %' + D.puanMetni(x.agirlik)).join(', ')) +
       '</div>' +
       '<div class="imza">' +
       k(sd.tarih) +
@@ -5845,139 +6286,694 @@ function NotlarSekmesi({ oda, ac }) {
     }
   };
 
+  // ── GÖRÜNÜM ──
+  const secim = {
+    border: '1px solid ' + DO.border,
+    borderRadius: 8,
+    padding: '8px 10px',
+    fontSize: 13,
+    color: DO.text,
+    background: '#F2F3FF',
+  };
+  const puanRozeti = (p, k, taslak) => {
+    if (metin(p) === '') return <span style={{ color: DO.soft }}>–</span>;
+    const oran = (Number(p) / k.maks) * 100;
+    return (
+      <span
+        title={taslak ? 'Taslak — öğrenci görmüyor' : ''}
+        style={{
+          display: 'inline-block',
+          minWidth: 42,
+          padding: '4px 8px',
+          borderRadius: 7,
+          fontWeight: 700,
+          fontSize: 13,
+          background: taslak ? DO.amberLight : oran >= 85 ? '#CCFBF1' : '#EEF2F7',
+          color: taslak ? DO.amber : oran >= 85 ? DO.accent : DO.text,
+          border: taslak ? '1px dashed #F59E0B' : 'none',
+        }}
+      >
+        {D.puanMetni(p)}
+      </span>
+    );
+  };
+  const harfRozeti = (h) =>
+    h ? (
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          padding: '2px 7px',
+          borderRadius: 6,
+          fontFamily: monoYazi,
+          background:
+            h === 'FF' || h === 'FD'
+              ? DO.redLight
+              : h === 'DD' || h === 'DC'
+                ? DO.amberLight
+                : '#CCFBF1',
+          color:
+            h === 'FF' || h === 'FD' ? DO.red : h === 'DD' || h === 'DC' ? DO.amber : DO.accent,
+        }}
+      >
+        {h}
+      </span>
+    ) : (
+      <span style={{ color: DO.soft }}>–</span>
+    );
+  const ortRengi = (x) =>
+    x === '' ? DO.soft : x < 50 ? DO.red : x < 70 ? DO.amber : x >= 85 ? DO.accent : DO.primary;
+  const yapisik = { position: 'sticky', left: 0, zIndex: 1 };
+  const bth = {
+    ...th,
+    padding: '12px 12px',
+    background: '#EEF1FF',
+    color: DO.primary,
+    fontWeight: 700,
+    verticalAlign: 'bottom',
+  };
+  const ekOrtalama = (k) => ort(kalemPuanlari(k));
+
   return (
-    <div data-notlar>
+    <div data-notlar style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* Başlık */}
       <div
         style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+          <span
+            style={{
+              width: 48,
+              height: 48,
+              flex: '0 0 48px',
+              borderRadius: 12,
+              background: DO.primary,
+              color: '#fff',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ikon ad="grafik" boyut={24} />
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flexWrap: 'wrap',
+                fontSize: 12,
+                color: DO.muted,
+              }}
+            >
+              <KodRozeti kod={oda.dersKod} />
+              <span>· {D.donemEtiketi ? D.donemEtiketi(oda.donem) : oda.donem}</span>
+              <Etiket zemin={DO.accentLight} renk={DO.accent} kenar={DO.accentBorder}>
+                {ogrenciMi ? 'Notlarım' : 'Aktif değerlendirme'}
+              </Etiket>
+            </div>
+            <h2
+              style={{
+                margin: '4px 0 0',
+                fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
+                fontSize: 24,
+                fontWeight: 700,
+                letterSpacing: -0.3,
+                color: DO.primary,
+              }}
+            >
+              Not Matrisi &amp; Değerlendirme Defteri
+            </h2>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <IstatistikKutusu
+            simge="grup"
+            ust="Kayıtlı öğrenci"
+            deger={veri.ogrenciler.length + ' kişi'}
+          />
+          <IstatistikKutusu
+            simge="grafik"
+            ust="Genel ortalama"
+            renk={DO.amber}
+            deger={genelOrt === '' ? '–' : D.puanMetni(genelOrt) + ' / 100'}
+          />
+          {ogrenciMi && benimSatir ? (
+            <IstatistikKutusu
+              simge="tamam"
+              ust="Benim ortalamam"
+              renk={DO.accent}
+              deger={
+                sonuc.get(benimSatir.no).ort === ''
+                  ? '–'
+                  : D.puanMetni(sonuc.get(benimSatir.no).ort) +
+                    ' · ' +
+                    sonuc.get(benimSatir.no).harf
+              }
+            />
+          ) : (
+            <IstatistikKutusu
+              simge="tamam"
+              ust="Tamamlanan sütun"
+              renk={DO.accent}
+              deger={tamamlanan + ' / ' + kalemler.length}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Araç çubuğu */}
+      <div
+        style={{
+          ...kart,
+          borderRadius: 12,
+          padding: 12,
           display: 'flex',
           gap: 8,
           flexWrap: 'wrap',
           alignItems: 'center',
-          marginBottom: 12,
         }}
       >
-        <input
-          value={arama}
-          onChange={(e) => setArama(e.target.value)}
-          placeholder="Ad, soyad ya da numara ara"
-          data-notlar-ara
+        <label
           style={{
-            flex: '1 1 220px',
-            border: '1px solid ' + DO.border,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 12px',
             borderRadius: 8,
-            padding: '8px 10px',
-            fontSize: 13,
+            background: '#F2F3FF',
+            color: DO.muted,
+            flex: '1 1 220px',
           }}
-        />
+        >
+          <Ikon ad="ara" boyut={16} />
+          <input
+            value={arama}
+            onChange={(e) => setArama(e.target.value)}
+            placeholder={ogrenciMi ? 'Ara…' : 'Ad, soyad ya da numara ara…'}
+            data-notlar-ara
+            aria-label="Öğrenci ara"
+            style={{
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              fontSize: 13,
+              flex: 1,
+              minWidth: 0,
+            }}
+          />
+        </label>
         <select
           value={durum}
           onChange={(e) => setDurum(e.target.value)}
           data-notlar-durum
-          style={{ border: '1px solid ' + DO.border, borderRadius: 8, padding: 7, fontSize: 13 }}
+          style={secim}
+          aria-label="Süzgeç"
         >
-          <option value="hepsi">Tüm öğrenciler</option>
-          <option value="notlu">Bütün notları verilmiş</option>
-          <option value="notsuz">Notu eksik olanlar</option>
-          <option value="teslim">Bütün ödevleri teslim edenler</option>
-          <option value="teslimsiz">Eksik teslimi olanlar</option>
-          <option value="gec">Geç teslimi olanlar</option>
+          <option value="hepsi">Tüm öğrenciler ({veri.ogrenciler.length})</option>
+          <option value="basarili">Başarılı (≥70)</option>
+          <option value="destek">Destek gerekli (&lt;70)</option>
+          <option value="eksik">Eksik notu olanlar</option>
         </select>
         <select
           value={sira}
           onChange={(e) => setSira(e.target.value)}
           data-notlar-sira
-          style={{ border: '1px solid ' + DO.border, borderRadius: 8, padding: 7, fontSize: 13 }}
+          style={secim}
+          aria-label="Sıralama"
         >
-          <option value="soyad">Soyadına göre</option>
-          <option value="ad">Adına göre</option>
-          <option value="no">Numaraya göre</option>
+          {!ogrenciMi && <option value="soyad">Soyadına göre (A-Z)</option>}
+          {!ogrenciMi && <option value="ad">Adına göre (A-Z)</option>}
+          {!ogrenciMi && <option value="no">Öğrenci no (artan)</option>}
+          <option value="yuksek">Not: en yüksekten</option>
+          <option value="dusuk">Not: en düşükten</option>
         </select>
-        <Dugme tur="ana" onClick={excel} disabled={!!mesgul} data-excel-indir>
-          {mesgul === 'excel' ? 'Hazırlanıyor…' : 'Excel indir'}
-        </Dugme>
-        <Dugme onClick={pdf} disabled={!!mesgul} data-pdf-indir>
-          {mesgul === 'pdf' ? 'Hazırlanıyor…' : 'PDF / Yazdır'}
-        </Dugme>
+        <button
+          type="button"
+          onClick={() => setGrafik((x) => !x)}
+          aria-pressed={grafik}
+          style={{ ...ikincilDugme, background: grafik ? '#E2E7FF' : '#EEF2F7' }}
+        >
+          <Ikon ad="grafik" boyut={15} /> Dağılım grafiği
+        </button>
+        {hoca && (
+          <button
+            type="button"
+            data-not-ayari-ac
+            onClick={() => setAyarAcik((x) => !x)}
+            style={{ ...ikincilDugme, background: ayarAcik ? '#E2E7FF' : '#EEF2F7' }}
+          >
+            <Ikon ad="palet" boyut={15} /> Not ayarları
+          </button>
+        )}
+        {!ogrenciMi && (
+          <>
+            <button
+              type="button"
+              onClick={excel}
+              disabled={!!mesgul}
+              data-excel-indir
+              style={{ ...birincilDugme, background: DO.accent }}
+            >
+              <Ikon ad="indir" boyut={15} /> {mesgul === 'excel' ? 'Hazırlanıyor…' : 'Excel indir'}
+            </button>
+            <button
+              type="button"
+              onClick={pdf}
+              disabled={!!mesgul}
+              data-pdf-indir
+              style={{ ...ikincilDugme, background: '#fff', border: '1px solid ' + DO.border }}
+            >
+              <Ikon ad="belge" boyut={15} /> {mesgul === 'pdf' ? 'Hazırlanıyor…' : 'Yazdır / PDF'}
+            </button>
+          </>
+        )}
       </div>
-      {cizelge.uyari && <Uyari tur="bilgi">{cizelge.uyari}</Uyari>}
-      <div style={{ ...kart, overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }} data-not-tablosu>
-          <thead>
-            <tr style={{ background: DO.bg }}>
-              <th style={th}>Öğrenci</th>
-              {odevler.map((o) => (
-                <th key={o.id} style={{ ...th, minWidth: 90 }}>
-                  <button
-                    type="button"
-                    onClick={() => ac(o.id)}
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      color: DO.primary,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      padding: 0,
-                    }}
-                  >
-                    {o.baslik}
-                  </button>
-                  <div style={{ fontSize: 11, color: DO.muted, fontWeight: 400 }}>
-                    {o.puan ? o.puan + ' puan' : 'puansız'}
+
+      {hoca && ayarAcik && (
+        <NotAyariPaneli
+          oda={oda}
+          kalemler={D.notKalemleri(odevler, veri.notAyari || {})}
+          kapat={() => setAyarAcik(false)}
+          kaydedildi={() => {
+            setAyarAcik(false);
+            yukle();
+          }}
+        />
+      )}
+
+      {grafik && tumOrt.length > 0 && (
+        <section data-not-dagilimi style={{ ...kart, borderRadius: 14, padding: 20 }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexWrap: 'wrap',
+              alignItems: 'flex-end',
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: 0.6,
+                  color: DO.muted,
+                  textTransform: 'uppercase',
+                }}
+              >
+                İstatistiksel dağılım
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: DO.primary }}>
+                {oda.dersKod} ağırlıklı ortalama dağılımı
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: DO.muted }}>
+              {tumOrt.length} öğrencinin ortalaması var
+            </div>
+          </div>
+          <div
+            style={{
+              marginTop: 14,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+              gap: 12,
+              alignItems: 'end',
+              height: 150,
+              padding: '12px 12px 0',
+              borderRadius: 10,
+              background: '#F8FAFC',
+            }}
+          >
+            {dagilim.map((d) => (
+              <div
+                key={d.ad}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 4,
+                  height: '100%',
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 700, color: DO.primary }}>{d.sayi}</span>
+                <span
+                  style={{
+                    width: '70%',
+                    height: Math.max(3, (d.sayi / enCok) * 100) + 'px',
+                    borderRadius: '6px 6px 0 0',
+                    background: d.sayi ? d.renk : '#E2E8F0',
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+              gap: 12,
+              padding: '6px 12px 0',
+            }}
+          >
+            {dagilim.map((d) => (
+              <span
+                key={d.ad}
+                style={{ textAlign: 'center', fontSize: 11, fontFamily: monoYazi, color: DO.muted }}
+              >
+                {d.ad}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {cizelge.uyari && !ogrenciMi && <Uyari tur="bilgi">{cizelge.uyari}</Uyari>}
+
+      <section style={{ ...kart, borderRadius: 14, overflow: 'hidden' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            padding: '12px 16px',
+            borderBottom: '1px solid ' + DO.border,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <Ikon ad="tamam" boyut={16} renk={DO.accent} />
+            <b style={{ color: DO.primary }}>Notlandırma çizelgesi</b>
+            <span style={{ color: DO.muted, fontSize: 12 }}>
+              {hoca
+                ? '· Ek sütunlara (vize, final…) hücreye yazarak not girin; ödev notları ödev ekranından verilir.'
+                : ogrenciMi
+                  ? '· Diğer öğrencilerin kimliği gizlidir; yalnız geri verilen notlar görünür.'
+                  : '· Notları dersin akademisyeni girer.'}
+            </span>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              flexWrap: 'wrap',
+              fontFamily: monoYazi,
+              fontSize: 11,
+            }}
+          >
+            <span style={{ color: DO.muted }}>Ağırlıklar:</span>
+            {kalemler.map((k) => (
+              <span
+                key={k.id}
+                title={k.ad}
+                style={{
+                  padding: '2px 6px',
+                  borderRadius: 5,
+                  background: '#EEF2F7',
+                  color: DO.primary,
+                  fontWeight: 600,
+                }}
+              >
+                {k.kisa} %{D.puanMetni(k.agirlik)}
+              </span>
+            ))}
+            {!ogrenciMi && kalemler.length > 0 && toplamAgirlik !== 100 && (
+              <span style={{ color: DO.amber, fontWeight: 700 }}>
+                Σ %{D.puanMetni(toplamAgirlik)}
+              </span>
+            )}
+          </div>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table
+            style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%', fontSize: 13 }}
+            data-not-tablosu
+          >
+            <thead>
+              <tr>
+                <th style={{ ...bth, ...yapisik, textAlign: 'left', minWidth: 200, zIndex: 2 }}>
+                  Öğrenci (ad soyad &amp; no)
+                </th>
+                <th style={{ ...bth, minWidth: 80 }}>
+                  Ortalama
+                  <div style={{ fontSize: 11, fontWeight: 500, color: DO.muted }}>
+                    ağırlıklı / 100
                   </div>
                 </th>
-              ))}
-              <th style={th}>Toplam</th>
-              <th style={th}>Ort. (100)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {liste.map((s, i) => {
-              const r = cizelge.rows[i];
-              return (
-                <tr key={s.no} data-not-satiri={s.no}>
-                  <td style={{ ...td, textAlign: 'left' }}>
-                    <div style={{ fontWeight: 600 }}>{tamAd(s)}</div>
-                    <div style={{ fontSize: 11, color: DO.muted }}>{s.no}</div>
-                  </td>
-                  {odevler.map((o) => {
-                    const t = harita.get(o.id + '|' + s.no);
-                    const d = D.teslimDurumu(o, t, s.no);
-                    return (
-                      <td key={o.id} style={td}>
-                        {t && metin(t.puan) !== '' ? (
+                {kalemler.map((k) => (
+                  <th key={k.id} style={{ ...bth, minWidth: 96 }} data-kalem-basligi={k.id}>
+                    {k.tur === 'odev' ? (
+                      <button
+                        type="button"
+                        onClick={() => ac(k.icerikId)}
+                        title="Ödevi aç"
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          color: DO.primary,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          fontSize: 12,
+                          padding: 0,
+                        }}
+                      >
+                        {k.ad}
+                      </button>
+                    ) : (
+                      <span>
+                        {k.ad}
+                        {hoca && !k.yayinlandi && (
                           <span
-                            style={{ fontWeight: 600, color: t.geriVerildi ? DO.text : DO.amber }}
-                            title={t.geriVerildi ? 'Geri verildi' : 'Taslak (öğrenci görmüyor)'}
+                            title="Öğrenciler henüz görmüyor"
+                            style={{ marginLeft: 4, color: DO.amber }}
                           >
-                            {D.puanMetni(t.puan)}
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: 11, color: (D.DURUMLAR[d] || {}).renk }}>
-                            {(D.DURUMLAR[d] || {}).etiket}
+                            •
                           </span>
                         )}
+                      </span>
+                    )}
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: etkinKalemler.includes(k) ? DO.accent : DO.soft,
+                      }}
+                      title={etkinKalemler.includes(k) ? '' : 'Henüz not yok — ortalamaya girmiyor'}
+                    >
+                      {k.maks} · %{D.puanMetni(k.agirlik)}
+                    </div>
+                  </th>
+                ))}
+                <th style={{ ...bth, minWidth: 60 }}>Harf</th>
+              </tr>
+            </thead>
+            <tbody>
+              {liste.map((s) => {
+                const so = sonuc.get(s.no);
+                const zemin = s.ben ? '#F0FDFA' : '#fff';
+                const [az, ar] = avatarTonu(s.no);
+                return (
+                  <tr key={s.no} data-not-satiri={s.maskeli ? 'gizli' : s.no}>
+                    <td
+                      style={{
+                        ...td,
+                        ...yapisik,
+                        textAlign: 'left',
+                        background: zemin,
+                        borderRight: '1px solid ' + DO.border,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: 32,
+                            height: 32,
+                            flex: '0 0 32px',
+                            borderRadius: '50%',
+                            background: s.maskeli ? '#E2E8F0' : az,
+                            color: s.maskeli ? DO.soft : ar,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 11,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {s.maskeli ? '•' : ogrenciBasHarf(s)}
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              color: s.maskeli ? DO.muted : DO.text,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            {tamAd(s)}
+                            {s.ben && (
+                              <Etiket zemin={DO.accent} renk="#fff">
+                                Siz
+                              </Etiket>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 11, color: DO.muted, fontFamily: monoYazi }}>
+                            {s.maskeli ? D.noMaskele() : s.no}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ ...td, background: '#F8FAFF' }}>
+                      <span
+                        style={{ fontSize: 17, fontWeight: 700, color: ortRengi(so.ort) }}
+                        title={so.eksik ? so.eksik + ' sütunda not yok (0 sayıldı)' : ''}
+                      >
+                        {sayiYaz(so.ort)}
+                      </span>
+                      {so.eksik > 0 && so.ort !== '' && (
+                        <div style={{ fontSize: 10, color: DO.amber }}>{so.eksik} eksik</div>
+                      )}
+                    </td>
+                    {kalemler.map((k) => {
+                      if (k.tur === 'ek' && hoca)
+                        return (
+                          <td key={k.id} style={td}>
+                            <EkNotHucresi
+                              odaId={oda.id}
+                              kalem={k}
+                              ogrenciNo={s.no}
+                              deger={puanAl(k, s.no)}
+                              kaydedildi={yukle}
+                            />
+                          </td>
+                        );
+                      const t = k.tur === 'odev' ? harita.get(k.icerikId + '|' + s.no) : null;
+                      const p = puanAl(k, s.no);
+                      if (k.tur === 'odev' && metin(p) === '' && !ogrenciMi) {
+                        const d = D.teslimDurumu(
+                          odevler.find((o) => o.id === k.icerikId),
+                          t,
+                          s.no
+                        );
+                        return (
+                          <td key={k.id} style={td}>
+                            <span style={{ fontSize: 11, color: (D.DURUMLAR[d] || {}).renk }}>
+                              {(D.DURUMLAR[d] || {}).etiket}
+                            </span>
+                          </td>
+                        );
+                      }
+                      return (
+                        <td key={k.id} style={td}>
+                          {puanRozeti(p, k, k.tur === 'odev' && t && !t.geriVerildi)}
+                        </td>
+                      );
+                    })}
+                    <td style={td}>{harfRozeti(so.harf)}</td>
+                  </tr>
+                );
+              })}
+              {!liste.length && (
+                <tr>
+                  <td colSpan={kalemler.length + 3} style={{ ...td, color: DO.muted }}>
+                    Süzgece uyan öğrenci yok.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {liste.length > 0 && (
+              <tfoot>
+                <tr style={{ background: '#EEF1FF' }}>
+                  <td
+                    style={{
+                      ...td,
+                      ...yapisik,
+                      textAlign: 'left',
+                      background: '#EEF1FF',
+                      fontWeight: 700,
+                      color: DO.primary,
+                      borderRight: '1px solid ' + DO.border,
+                    }}
+                  >
+                    Sınıf ortalaması
+                  </td>
+                  <td style={{ ...td, fontSize: 16, fontWeight: 700, color: DO.accent }}>
+                    {sayiYaz(genelOrt)}
+                  </td>
+                  {kalemler.map((k) => (
+                    <td key={k.id} style={{ ...td, fontWeight: 700 }}>
+                      {sayiYaz(ekOrtalama(k))}
+                    </td>
+                  ))}
+                  <td style={{ ...td, fontWeight: 700, color: DO.accent }}>
+                    {genelOrt === '' ? '–' : D.harfNotu(genelOrt)}
+                  </td>
+                </tr>
+                <tr>
+                  <td
+                    style={{
+                      ...td,
+                      ...yapisik,
+                      textAlign: 'left',
+                      background: '#fff',
+                      fontSize: 11,
+                      color: DO.muted,
+                      borderRight: '1px solid ' + DO.border,
+                    }}
+                  >
+                    Uç değerler (min / maks)
+                  </td>
+                  <td style={{ ...td, fontFamily: monoYazi, fontSize: 11 }}>
+                    {tumOrt.length ? (
+                      <>
+                        <span style={{ color: DO.red }}>{D.puanMetni(Math.min(...tumOrt))}</span> /{' '}
+                        <span style={{ color: DO.accent }}>{D.puanMetni(Math.max(...tumOrt))}</span>
+                      </>
+                    ) : (
+                      '–'
+                    )}
+                  </td>
+                  {kalemler.map((k) => {
+                    const l = kalemPuanlari(k);
+                    return (
+                      <td
+                        key={k.id}
+                        style={{ ...td, fontFamily: monoYazi, fontSize: 11, color: DO.muted }}
+                      >
+                        {l.length
+                          ? D.puanMetni(Math.min(...l)) + ' / ' + D.puanMetni(Math.max(...l))
+                          : '–'}
                       </td>
                     );
                   })}
-                  <td style={{ ...td, fontWeight: 700 }}>{r.toplam}</td>
-                  <td style={td}>{r.ortalama}</td>
+                  <td style={{ ...td, fontFamily: monoYazi, fontSize: 11, color: DO.muted }}>
+                    {tumOrt.length
+                      ? D.harfNotu(Math.min(...tumOrt)) + ' / ' + D.harfNotu(Math.max(...tumOrt))
+                      : '–'}
+                  </td>
                 </tr>
-              );
-            })}
-            {!liste.length && (
-              <tr>
-                <td colSpan={odevler.length + 3} style={{ ...td, color: DO.muted }}>
-                  Süzgece uyan öğrenci yok.
-                </td>
-              </tr>
+              </tfoot>
             )}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ fontSize: 11, color: DO.soft, marginTop: 8 }}>
-        Turuncu notlar taslaktır: öğrenci, akademisyen "Geri Ver" diyene kadar görmez. Çıktıya bütün
-        notlar yazılır.
+          </table>
+        </div>
+      </section>
+      <div style={{ fontSize: 11, color: DO.soft }}>
+        {ogrenciMi
+          ? 'Ödev notu akademisyen geri verdiğinde, sınav notu sütun yayınlandığında görünür. Ortalama görünen notlardan hesaplanır: henüz kimseye not verilmemiş sütun hesaba girmez, notlanmış bir sütunda notunuz yoksa 0 sayılır.'
+          : 'Kesik çizgili turuncu notlar taslaktır: öğrenci, akademisyen "Geri Ver" diyene kadar görmez. Ek sütunu öğrenciler "Not ayarları"nda yayınlandıktan sonra görür. Henüz kimseye not verilmemiş sütun (soluk ağırlık) ortalamaya girmez; notlanmış sütunda eksik not 0 sayılır. Çıktıya bütün notlar yazılır.'}
       </div>
     </div>
   );
