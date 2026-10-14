@@ -23,6 +23,10 @@ import {
   bildirimMetni,
   hatirlatmaZamaniMi,
   tarihSaat,
+  dersProgramiOzeti,
+  guvenliBaglanti,
+  baglantilariAyir,
+  akisZamani,
 } from '../lib/ders-odasi.js';
 
 const MB = 1024 * 1024;
@@ -318,5 +322,62 @@ describe('bildirim ve hatırlatma', () => {
       false
     );
     expect(hatirlatmaZamaniMi({ sonTarih: son }, '2026-11-22T00:00:00Z')).toBe(false);
+  });
+});
+
+describe('ders saati özeti (Akış → Ders bilgisi)', () => {
+  const slotDersleri = (s) => (s && s.courseCode ? [s].concat(s.dersler || []) : []);
+  const etiket = ['08:30-09:15', '09:30-10:15', '10:30-11:15', '11:30-12:15', '13:15-14:00'];
+  const dok = (id, slots) => ({ id, slots });
+  it('art arda saatler tek aralık, derslikler birleşir, dönem süzülür', () => {
+    const d = [
+      dok('bilgisayar_guz_1', {
+        Pazartesi_1: { courseCode: 'BLM 103', classroom: 'D-204' },
+        Pazartesi_2: { courseCode: 'BLM103', classroom: 'D-204' },
+        Pazartesi_3: { courseCode: 'BLM103', classroom: 'Lab-2' },
+        Çarşamba_4: { courseCode: 'FİZ101', dersler: [{ courseCode: 'blm103', classroom: 'A-1' }] },
+        Salı_0: { courseCode: 'MAT101' },
+      }),
+      dok('bilgisayar_bahar_1', { Cuma_0: { courseCode: 'BLM103' } }),
+    ];
+    const r = dersProgramiOzeti(d, {
+      dersKod: 'BLM103',
+      yari: 'guz',
+      slotDersleri,
+      saatler: () => etiket,
+    });
+    expect(r).toEqual([
+      { gun: 'Pazartesi', baslangic: '09:30', bitis: '12:15', derslikler: ['D-204', 'Lab-2'] },
+      { gun: 'Çarşamba', baslangic: '13:15', bitis: '14:00', derslikler: ['A-1'] },
+    ]);
+  });
+  it('arada boşluk varsa iki aralık; program yoksa boş', () => {
+    const d = [dok('b_guz_1', { Salı_0: { courseCode: 'X1' }, Salı_2: { courseCode: 'X1' } })];
+    expect(
+      dersProgramiOzeti(d, { dersKod: 'X1', slotDersleri, saatler: () => etiket })
+    ).toHaveLength(2);
+    expect(dersProgramiOzeti([], { dersKod: 'X1', slotDersleri })).toEqual([]);
+  });
+});
+
+describe('bağlantılar ve akış zamanı', () => {
+  it('yalnız http(s) bağlantı kabul', () => {
+    expect(guvenliBaglanti('https://meet.google.com/abc')).toBe('https://meet.google.com/abc');
+    expect(guvenliBaglanti('javascript:alert(1)')).toBe('');
+    expect(guvenliBaglanti('meet.google.com')).toBe('');
+  });
+  it('metindeki bağlantılar ayrılır, cümle sonu noktası dışarıda', () => {
+    expect(baglantilariAyir('Kayıt: https://ornek.edu.tr/a?b=1. Teşekkürler')).toEqual([
+      { t: 'Kayıt: ' },
+      { url: 'https://ornek.edu.tr/a?b=1' },
+      { t: '. Teşekkürler' },
+    ]);
+    expect(baglantilariAyir('düz metin')).toEqual([{ t: 'düz metin' }]);
+  });
+  it('bugün / dün / tarih (Türkiye saati)', () => {
+    const simdi = '2026-10-14T12:00:00Z';
+    expect(akisZamani('2026-10-14T06:15:00Z', simdi)).toBe('Bugün, 09:15');
+    expect(akisZamani('2026-10-13T15:40:00Z', simdi)).toBe('Dün, 18:40');
+    expect(akisZamani('2026-10-01T11:00:00Z', simdi)).toMatch(/1 Eki 2026 14:00/);
   });
 });

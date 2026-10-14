@@ -3615,8 +3615,12 @@ function AppShell() {
             // değişiyordu. Ekran yeterince genişse rafın yerini boş bırakarak
             // içerik genişliğini tüm rollerde eşitliyoruz; dar ekranda ise
             // sıkıştırmamak için bu telafiyi uygulamıyoruz.
-            paddingRight:
-              !isMobile && !rightRailVisible && windowWidth >= 1500 ? 24 + 240 : undefined,
+            //
+            // Değer HER ZAMAN sayıdır: `undefined` olduğunda React yeniden
+            // çizimde `paddingRight`ı kaldırırken kısa yazımdan gelen sağ
+            // dolguyu da siler (padding + paddingRight karışımı) ve içerik
+            // sağ kenara yapışır — sol 24px, sağ 0px, sayfa simetrisi bozulur.
+            paddingRight: isMobile ? 12 : !rightRailVisible && windowWidth >= 1500 ? 24 + 240 : 24,
             // Kısa modüllerde sayfa yüksekliği sidebar'ın altında kalmasın —
             // sidebar'lı/sidebar'sız her rolde aynı taban yükseklik.
             minHeight: isMobile ? undefined : 'calc(100vh - 64px)',
