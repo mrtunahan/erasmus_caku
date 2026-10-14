@@ -189,7 +189,9 @@ async function donemDersleri(db, no, donem) {
   return [...set];
 }
 
-async function odaOgrencileri(db, oda) {
+// eposta: true → öğrencinin kayıtlı e-postası da döner (yalnız akademisyen ve
+// yetkilinin okuduğu Notlar/Kişiler listesi için; öğrenciye gitmez).
+async function odaOgrencileri(db, oda, secenek) {
   const dersId = metin(oda.kaynakId);
   const donem = metin(oda.donem);
   const kayitlar = await db
@@ -210,12 +212,21 @@ async function odaOgrencileri(db, oda) {
     ? await db
         .collection('students')
         .find({ studentNumber: { $in: liste } })
-        .project({ studentNumber: 1, firstName: 1, lastName: 1, name: 1 })
+        .project({ studentNumber: 1, firstName: 1, lastName: 1, name: 1, email: 1 })
         .toArray()
     : [];
   const K = await kural();
-  const ad = new Map(ogrenciler.map((o) => [metin(o.studentNumber), K.adSoyadAyir(o)]));
-  return liste.map((no) => ({ no, ...(ad.get(no) || { ad: '', soyad: '' }) }));
+  const eposta = !!(secenek && secenek.eposta);
+  const ad = new Map(
+    ogrenciler.map((o) => [
+      metin(o.studentNumber),
+      { ...K.adSoyadAyir(o), ...(eposta ? { email: metin(o.email) } : {}) },
+    ])
+  );
+  return liste.map((no) => ({
+    no,
+    ...(ad.get(no) || { ad: '', soyad: '', ...(eposta ? { email: '' } : {}) }),
+  }));
 }
 
 /**
@@ -1180,7 +1191,7 @@ router.get(
     const teslimler = (await db.collection(TESLIM).find({ odaId: oda._id }).toArray()).map((t) =>
       teslimGorunumu(t, false)
     );
-    const ogrenciler = await odaOgrencileri(db, oda);
+    const ogrenciler = await odaOgrencileri(db, oda, { eposta: true });
     let kunye = { bolumAd: '', fakulteAd: '' };
     try {
       const H = require('../lib/bolum-kimlik');

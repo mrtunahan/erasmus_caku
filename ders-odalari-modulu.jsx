@@ -619,6 +619,8 @@ const DO_STIL = `
 @media (min-width:1024px){.do-calisma-izgara{grid-template-columns:minmax(0,8fr) minmax(0,4fr)}}
 .do-iki-satir{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .do-cip:hover{background:#E2E8F0!important}
+.do-kisi-izgara{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width:900px){.do-kisi-izgara{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .do-kart-hover{transition:box-shadow .15s,border-color .15s}
 .do-kart-hover:hover{border-color:#CBD5E1!important;box-shadow:0 4px 14px rgba(15,23,42,.08)!important}
 `;
@@ -682,6 +684,8 @@ const SIMGE = {
     'M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z',
   sag: 'M9 5l7 7-7 7',
   ok: 'M14 5l7 7m0 0l-7 7m7-7H3',
+  grafik:
+    'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
 };
 function Ikon({ ad, boyut, renk, kalinlik }) {
   return (
@@ -730,11 +734,13 @@ const bantZemini = (renk) =>
   karistir(renk, '#1B2A4A', 0.45) +
   ' 100%)';
 
+// Unvan kelimeleri düşürülür. \b Türkçe harfleri (Ö, Ü, Ş) sözcük karakteri
+// saymadığı için regex yerine kelime kelime karşılaştırılır.
+const UNVANLAR = new Set(['prof', 'doç', 'dr', 'öğr', 'gör', 'üyesi', 'arş', 'uzm', 'okt']);
 const basHarfler = (ad) => {
   const temiz = metin(ad)
-    .replace(/\b(Prof|Doç|Dr|Öğr|Gör|Üyesi|Arş|Uzm|Okt)\.?/gi, ' ')
     .split(/\s+/)
-    .filter(Boolean);
+    .filter((k) => k && !UNVANLAR.has(k.replace(/\./g, '').toLocaleLowerCase('tr-TR')));
   if (!temiz.length) return '?';
   const ilk = temiz[0][0];
   const son = temiz.length > 1 ? temiz[temiz.length - 1][0] : '';
@@ -1266,12 +1272,13 @@ function OdaEkrani({ odaId, icerikId, setIcerikId, sekme, setSekme, ayarlar, cur
       )}
 
       {sekme === 'kisiler' && (
-        <div className="do-kap" style={{ maxWidth: 760 }}>
+        <div className="do-kap">
           <KisilerSekmesi
             oda={oda}
             rol={rol}
             ogrenciSayisi={ogrenciSayisi}
             hocaBilgileri={hocaBilgileri}
+            notlaraGit={ogrenci ? null : () => setSekme('notlar')}
           />
         </div>
       )}
@@ -4837,101 +4844,737 @@ function OgrenciAyrintisi({
 // ══════════════════════════════════════════════════════════════
 // KİŞİLER
 // ══════════════════════════════════════════════════════════════
-function KisilerSekmesi({ oda, rol, ogrenciSayisi, hocaBilgileri }) {
-  const [ogrenciler, setOgrenciler] = useState(null);
-  const [arama, setArama] = useState('');
-  const [sira, setSira] = useState('soyad');
-  useEffect(() => {
-    if (rol === 'ogrenci') return;
-    api('/oda/' + encodeURIComponent(oda.id) + '/notlar')
-      .then((r) => setOgrenciler(r.ogrenciler || []))
-      .catch(() => setOgrenciler([]));
-  }, [oda.id, rol]);
-  const liste = ogrenciler ? K().ogrencileriSuz(ogrenciler, { arama, sira }) : [];
+// Kişiler: akademisyen kartları + öğrenci tablosu. Öğrenci listesini (ad,
+// numara, e-posta) yalnız akademisyen ve yetkili görür; öğrenci sayıyı görür.
+const AVATAR_TONLARI = [
+  ['#E0E7FF', '#3730A3'],
+  ['#CCFBF1', '#0F766E'],
+  ['#FFEDD5', '#9A3412'],
+  ['#E0F2FE', '#075985'],
+  ['#DCFCE7', '#166534'],
+  ['#EDE9FE', '#5B21B6'],
+];
+const avatarTonu = (anahtar) => {
+  let h = 0;
+  const s = metin(anahtar);
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return AVATAR_TONLARI[Math.abs(h) % AVATAR_TONLARI.length];
+};
+const ogrenciBasHarf = (s) => {
+  const a = metin(s.ad);
+  const b = metin(s.soyad);
+  const h = (a ? a[0] : '') + (b ? b[0] : '');
+  return (h || metin(s.no).slice(0, 2) || '?').toLocaleUpperCase('tr-TR');
+};
+const monoYazi = "'JetBrains Mono', ui-monospace, monospace";
+
+function SimgeDugmesi({ simge, baslik, onClick, href, devreDisi }) {
+  const stil = {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    border: 'none',
+    background: 'transparent',
+    color: devreDisi ? '#CBD5E1' : DO.muted,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: devreDisi ? 'not-allowed' : 'pointer',
+    textDecoration: 'none',
+  };
+  if (href && !devreDisi) {
+    return (
+      <a href={href} title={baslik} aria-label={baslik} className="do-satir" style={stil}>
+        <Ikon ad={simge} boyut={18} />
+      </a>
+    );
+  }
   return (
-    <div style={{ maxWidth: 760 }} data-kisiler>
-      <h3
-        style={{
-          fontSize: 20,
-          color: DO.primary,
-          borderBottom: '1px solid ' + DO.border,
-          paddingBottom: 8,
-        }}
+    <button
+      type="button"
+      title={baslik}
+      aria-label={baslik}
+      disabled={devreDisi}
+      onClick={onClick}
+      className={devreDisi ? '' : 'do-satir'}
+      style={stil}
+    >
+      <Ikon ad={simge} boyut={18} />
+    </button>
+  );
+}
+
+function AkademisyenKarti({ ad, bilgi }) {
+  const b = bilgi || {};
+  return (
+    <article
+      data-akademisyen-karti={ad}
+      style={{
+        ...kart,
+        borderRadius: 14,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div
+        style={{ padding: '20px 20px 14px', display: 'flex', gap: 14, alignItems: 'flex-start' }}
       >
-        Akademisyenler
-      </h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '8px 0 16px' }}>
-        {(oda.hocalar || []).map((h) => (
-          <HocaIletisim key={h} ad={h} bilgi={hocaBilgisiBul(hocaBilgileri, h)} />
-        ))}
-      </div>
-      <h3
-        style={{
-          fontSize: 20,
-          color: DO.primary,
-          borderBottom: '1px solid ' + DO.border,
-          paddingBottom: 8,
-          display: 'flex',
-          justifyContent: 'space-between',
-        }}
-      >
-        <span>Öğrenciler</span>
-        <span style={{ fontSize: 13, color: DO.muted, fontWeight: 400 }}>
-          {ogrenciSayisi} öğrenci
-        </span>
-      </h3>
-      {rol === 'ogrenci' ? (
-        <div style={{ fontSize: 13, color: DO.muted }}>
-          Bu dönem dersi seçen {ogrenciSayisi} öğrenci odadadır.
-        </div>
-      ) : (
-        <>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <input
-              value={arama}
-              onChange={(e) => setArama(e.target.value)}
-              placeholder="Ad, soyad ya da numara ara"
+        <span style={{ position: 'relative', flex: '0 0 56px' }}>
+          {b.photoURL ? (
+            <img
+              src={b.photoURL}
+              alt=""
               style={{
-                flex: 1,
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                objectFit: 'cover',
                 border: '1px solid ' + DO.border,
-                borderRadius: 8,
-                padding: '7px 10px',
-                fontSize: 13,
+                display: 'block',
               }}
             />
-            <select
-              value={sira}
-              onChange={(e) => setSira(e.target.value)}
+          ) : (
+            <span
+              aria-hidden="true"
               style={{
-                border: '1px solid ' + DO.border,
-                borderRadius: 8,
-                padding: 6,
-                fontSize: 12,
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                background: DO.accentLight,
+                color: DO.accent,
+                border: '1px solid ' + DO.accentBorder,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 19,
+                fontWeight: 700,
               }}
             >
-              <option value="soyad">Soyadına göre</option>
-              <option value="ad">Adına göre</option>
-              <option value="no">Numaraya göre</option>
-            </select>
+              {basHarfler(ad)}
+            </span>
+          )}
+        </span>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div
+            style={{
+              fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
+              fontSize: 17,
+              fontWeight: 600,
+              color: DO.primary,
+              lineHeight: 1.3,
+            }}
+          >
+            {ad}
           </div>
-          {ogrenciler == null && <div style={{ fontSize: 13, color: DO.muted }}>Yükleniyor…</div>}
-          {liste.map((s) => (
-            <div
-              key={s.no}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '8px 0',
-                borderBottom: '1px solid ' + DO.border,
-                fontSize: 14,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '2px 8px',
+                borderRadius: 999,
+                background: DO.primary,
+                color: '#fff',
               }}
             >
-              <span>{tamAd(s)}</span>
-              <span style={{ color: DO.muted, fontSize: 13 }}>{s.no}</span>
-            </div>
-          ))}
-        </>
+              <Ikon ad="kep" boyut={13} /> Ders Sorumlusu
+            </span>
+            {b.email && (
+              <a
+                href={'mailto:' + b.email}
+                style={{
+                  fontFamily: monoYazi,
+                  fontSize: 12,
+                  color: DO.text,
+                  textDecoration: 'none',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: '100%',
+                }}
+              >
+                {b.email}
+              </a>
+            )}
+          </div>
+        </div>
+        <SimgeDugmesi
+          simge="zarf"
+          baslik={b.email ? 'E-posta gönder' : 'E-posta adresi girilmemiş'}
+          href={b.email ? 'mailto:' + b.email : ''}
+          devreDisi={!b.email}
+        />
+      </div>
+      <div
+        style={{
+          padding: '0 20px 14px',
+          fontSize: 12.5,
+          color: DO.muted,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
+        {b.dahili ? (
+          <>
+            <Ikon ad="telefon" boyut={15} /> Dahili: {b.dahili}
+          </>
+        ) : !b.email ? (
+          'Akademisyen henüz iletişim bilgisi girmemiş.'
+        ) : (
+          'Dersin akademisyeni'
+        )}
+      </div>
+      {b.email && (
+        <div
+          style={{
+            padding: '10px 20px',
+            background: '#F8FAFC',
+            borderTop: '1px solid ' + DO.border,
+          }}
+        >
+          <a
+            href={'mailto:' + b.email}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              color: DO.primary,
+              textDecoration: 'none',
+              padding: '4px 10px',
+              borderRadius: 6,
+              background: '#fff',
+              border: '1px solid ' + DO.border,
+            }}
+          >
+            <Ikon ad="zarf" boyut={14} /> İletişime geç
+          </a>
+        </div>
       )}
+    </article>
+  );
+}
+
+const SAYFA_BOYUTLARI = [20, 50, 100];
+
+function KisilerSekmesi({ oda, rol, ogrenciSayisi, hocaBilgileri, notlaraGit }) {
+  const [veri, setVeri] = useState(null);
+  const [arama, setArama] = useState('');
+  const [sira, setSira] = useState('soyad');
+  const [secili, setSecili] = useState(() => new Set());
+  const [sayfa, setSayfa] = useState(1);
+  const [boyut, setBoyut] = useState(20);
+  const ogrenciGorunumu = rol === 'ogrenci';
+  useEffect(() => {
+    if (ogrenciGorunumu) return;
+    api('/oda/' + encodeURIComponent(oda.id) + '/notlar')
+      .then((r) => setVeri(r))
+      .catch(() => setVeri({ ogrenciler: [], odevler: [], teslimler: [] }));
+  }, [oda.id, ogrenciGorunumu]);
+  useEffect(() => setSayfa(1), [arama, sira, boyut]);
+
+  const ogrenciler = veri ? veri.ogrenciler || [] : null;
+  const liste = ogrenciler ? K().ogrencileriSuz(ogrenciler, { arama, sira }) : [];
+  const odevSayisi = veri ? (veri.odevler || []).length : 0;
+  const teslimSayisi = useMemo(() => {
+    const m = new Map();
+    ((veri && veri.teslimler) || []).forEach((t) => {
+      if (t.teslimEdildi) m.set(t.ogrenciNo, (m.get(t.ogrenciNo) || 0) + 1);
+    });
+    return m;
+  }, [veri]);
+  const sayfaSayisi = Math.max(1, Math.ceil(liste.length / boyut));
+  const gecerliSayfa = Math.min(sayfa, sayfaSayisi);
+  const gorunen = liste.slice((gecerliSayfa - 1) * boyut, gecerliSayfa * boyut);
+  const hepsiSecili = gorunen.length > 0 && gorunen.every((s) => secili.has(s.no));
+  const seciliEpostalar = (ogrenciler || [])
+    .filter((s) => secili.has(s.no) && s.email)
+    .map((s) => s.email);
+  const degistir = (no) =>
+    setSecili((x) => {
+      const y = new Set(x);
+      if (y.has(no)) y.delete(no);
+      else y.add(no);
+      return y;
+    });
+  const sayfayiSec = () =>
+    setSecili((x) => {
+      const y = new Set(x);
+      gorunen.forEach((s) => (hepsiSecili ? y.delete(s.no) : y.add(s.no)));
+      return y;
+    });
+
+  const hocalar = oda.hocalar || [];
+  const kutu = { width: 16, height: 16, accentColor: DO.primary, cursor: 'pointer' };
+  const baslikHucresi = {
+    padding: '12px 16px',
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: DO.muted,
+    textAlign: 'left',
+    whiteSpace: 'nowrap',
+  };
+  const hucre = {
+    padding: '10px 16px',
+    borderTop: '1px solid ' + DO.border,
+    verticalAlign: 'middle',
+  };
+  const sayfaDugmesi = (etiket, hedef, aktif, devreDisi, key) => (
+    <button
+      key={key}
+      type="button"
+      disabled={devreDisi}
+      onClick={() => setSayfa(hedef)}
+      aria-current={aktif ? 'page' : undefined}
+      style={{
+        minWidth: 30,
+        height: 30,
+        borderRadius: 8,
+        border: 'none',
+        background: aktif ? DO.primary : 'transparent',
+        color: aktif ? '#fff' : devreDisi ? '#CBD5E1' : DO.text,
+        fontSize: 12,
+        fontWeight: 600,
+        cursor: devreDisi ? 'default' : 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {etiket}
+    </button>
+  );
+  const sayfaNolari = [];
+  for (let i = 1; i <= sayfaSayisi; i++) {
+    if (i === 1 || i === sayfaSayisi || Math.abs(i - gecerliSayfa) <= 1) sayfaNolari.push(i);
+    else if (sayfaNolari[sayfaNolari.length - 1] !== '…') sayfaNolari.push('…');
+  }
+
+  return (
+    <div data-kisiler style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+      <section>
+        {hocalar.length === 0 ? (
+          <Bos baslik="Bu derse akademisyen atanmamış." />
+        ) : (
+          <div className="do-kisi-izgara">
+            {hocalar.map((h) => (
+              <AkademisyenKarti key={h} ad={h} bilgi={hocaBilgisiBul(hocaBilgileri, h)} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: '#E2E7FF',
+              color: DO.primary,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ikon ad="kep" boyut={20} />
+          </span>
+          <h2
+            style={{
+              margin: 0,
+              fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
+              fontSize: 24,
+              fontWeight: 700,
+              letterSpacing: -0.3,
+              color: DO.primary,
+            }}
+          >
+            Öğrenciler
+          </h2>
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              padding: '3px 10px',
+              borderRadius: 999,
+              background: '#E2E7FF',
+              color: DO.primary,
+            }}
+          >
+            {ogrenciSayisi} öğrenci
+          </span>
+        </div>
+
+        {ogrenciGorunumu ? (
+          <div style={{ ...kart, borderRadius: 12, padding: 18, fontSize: 13, color: DO.muted }}>
+            Bu dönem dersi seçen {ogrenciSayisi} öğrenci odadadır. Öğrenci listesini dersin
+            akademisyeni görür.
+          </div>
+        ) : (
+          <>
+            <div
+              style={{
+                ...kart,
+                borderRadius: 12,
+                padding: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  background: '#F2F3FF',
+                  color: DO.muted,
+                  flex: '1 1 260px',
+                  maxWidth: 460,
+                }}
+              >
+                <Ikon ad="ara" boyut={16} />
+                <input
+                  value={arama}
+                  onChange={(e) => setArama(e.target.value)}
+                  placeholder="Ad, soyad ya da numara ara…"
+                  aria-label="Öğrenci ara"
+                  style={{
+                    border: 'none',
+                    outline: 'none',
+                    background: 'transparent',
+                    fontSize: 13,
+                    color: DO.text,
+                    flex: 1,
+                    minWidth: 0,
+                  }}
+                />
+                {arama && (
+                  <button
+                    type="button"
+                    aria-label="Aramayı temizle"
+                    onClick={() => setArama('')}
+                    style={{
+                      border: 'none',
+                      background: 'none',
+                      color: DO.muted,
+                      cursor: 'pointer',
+                      fontSize: 16,
+                      lineHeight: 1,
+                      padding: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                {secili.size > 0 && (
+                  <>
+                    <span style={{ fontSize: 12, color: DO.muted }}>{secili.size} seçildi</span>
+                    <a
+                      href={
+                        seciliEpostalar.length
+                          ? 'mailto:?bcc=' + seciliEpostalar.map(encodeURIComponent).join(',')
+                          : undefined
+                      }
+                      aria-disabled={!seciliEpostalar.length}
+                      title={
+                        seciliEpostalar.length
+                          ? seciliEpostalar.length + ' adrese e-posta'
+                          : 'Seçilenlerin kayıtlı e-postası yok'
+                      }
+                      style={{
+                        ...ikincilDugme,
+                        textDecoration: 'none',
+                        opacity: seciliEpostalar.length ? 1 : 0.5,
+                        pointerEvents: seciliEpostalar.length ? 'auto' : 'none',
+                      }}
+                    >
+                      <Ikon ad="zarf" boyut={15} /> Seçilenlere e-posta
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setSecili(new Set())}
+                      style={{
+                        border: 'none',
+                        background: 'none',
+                        color: DO.muted,
+                        fontSize: 12,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Seçimi kaldır
+                    </button>
+                  </>
+                )}
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    color: DO.muted,
+                  }}
+                >
+                  Sıralama:
+                  <select
+                    value={sira}
+                    onChange={(e) => setSira(e.target.value)}
+                    style={{
+                      border: '1px solid ' + DO.border,
+                      borderRadius: 8,
+                      padding: '7px 10px',
+                      fontSize: 13,
+                      color: DO.text,
+                      background: '#F2F3FF',
+                    }}
+                  >
+                    <option value="soyad">Soyadına göre</option>
+                    <option value="ad">Adına göre</option>
+                    <option value="no">Numaraya göre</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div style={{ ...kart, borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table
+                  data-ogrenci-tablosu
+                  style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 640 }}
+                >
+                  <thead style={{ background: '#F8FAFC' }}>
+                    <tr>
+                      <th style={{ ...baslikHucresi, width: 1 }}>
+                        <input
+                          type="checkbox"
+                          aria-label="Bu sayfadakileri seç"
+                          checked={hepsiSecili}
+                          onChange={sayfayiSec}
+                          style={kutu}
+                        />
+                      </th>
+                      <th style={baslikHucresi}>Öğrenci adı soyadı</th>
+                      <th style={baslikHucresi}>Öğrenci no</th>
+                      <th style={baslikHucresi}>Kayıt durumu</th>
+                      <th style={{ ...baslikHucresi, textAlign: 'right' }}>İşlemler</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ogrenciler == null && (
+                      <tr>
+                        <td colSpan={5} style={{ ...hucre, color: DO.muted, fontSize: 13 }}>
+                          Yükleniyor…
+                        </td>
+                      </tr>
+                    )}
+                    {ogrenciler != null && liste.length === 0 && (
+                      <tr>
+                        <td colSpan={5} style={{ ...hucre, color: DO.muted, fontSize: 13 }}>
+                          {arama ? 'Aramayla eşleşen öğrenci yok.' : 'Odada öğrenci yok.'}
+                        </td>
+                      </tr>
+                    )}
+                    {gorunen.map((s) => {
+                      const [zemin, renk] = avatarTonu(s.no);
+                      const teslim = teslimSayisi.get(s.no) || 0;
+                      return (
+                        <tr
+                          key={s.no}
+                          data-ogrenci-satiri={s.no}
+                          style={{ background: secili.has(s.no) ? '#F2F3FF' : 'transparent' }}
+                        >
+                          <td style={hucre}>
+                            <input
+                              type="checkbox"
+                              aria-label={tamAd(s) + ' seç'}
+                              checked={secili.has(s.no)}
+                              onChange={() => degistir(s.no)}
+                              style={kutu}
+                            />
+                          </td>
+                          <td style={hucre}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 34,
+                                  height: 34,
+                                  flex: '0 0 34px',
+                                  borderRadius: '50%',
+                                  background: zemin,
+                                  color: renk,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {ogrenciBasHarf(s)}
+                              </span>
+                              <span style={{ fontWeight: 600, color: DO.text }}>{tamAd(s)}</span>
+                            </div>
+                          </td>
+                          <td style={hucre}>
+                            <span
+                              style={{
+                                fontFamily: monoYazi,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                padding: '3px 8px',
+                                borderRadius: 6,
+                                background: '#EEF2F7',
+                                color: DO.primary,
+                              }}
+                            >
+                              {s.no}
+                            </span>
+                          </td>
+                          <td style={hucre}>
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                flexWrap: 'wrap',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 5,
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  padding: '2px 8px',
+                                  borderRadius: 999,
+                                  background: '#CCFBF1',
+                                  color: DO.accent,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: 6,
+                                    height: 6,
+                                    borderRadius: '50%',
+                                    background: DO.accent,
+                                  }}
+                                />
+                                Kayıtlı
+                              </span>
+                              {odevSayisi > 0 && (
+                                <span style={{ fontSize: 12, color: DO.muted }}>
+                                  {teslim}/{odevSayisi} ödev teslim
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ ...hucre, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <SimgeDugmesi
+                              simge="zarf"
+                              baslik={s.email ? 'E-posta: ' + s.email : 'Kayıtlı e-posta yok'}
+                              href={s.email ? 'mailto:' + s.email : ''}
+                              devreDisi={!s.email}
+                            />
+                            {notlaraGit && (
+                              <SimgeDugmesi
+                                simge="grafik"
+                                baslik="Notlara git"
+                                onClick={notlaraGit}
+                              />
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {liste.length > 0 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                    padding: '10px 16px',
+                    borderTop: '1px solid ' + DO.border,
+                    background: '#F8FAFC',
+                    fontSize: 12,
+                    color: DO.muted,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      Sayfada göster:
+                      <select
+                        value={boyut}
+                        onChange={(e) => setBoyut(Number(e.target.value))}
+                        style={{
+                          border: '1px solid ' + DO.border,
+                          borderRadius: 6,
+                          padding: '3px 6px',
+                          fontSize: 12,
+                        }}
+                      >
+                        {SAYFA_BOYUTLARI.map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <span>
+                      · {(gecerliSayfa - 1) * boyut + 1}-
+                      {Math.min(gecerliSayfa * boyut, liste.length)} / {liste.length} öğrenci
+                    </span>
+                  </div>
+                  {sayfaSayisi > 1 && (
+                    <nav
+                      aria-label="Sayfalar"
+                      style={{ display: 'flex', alignItems: 'center', gap: 2 }}
+                    >
+                      {sayfaDugmesi('‹', gecerliSayfa - 1, false, gecerliSayfa === 1, 'onceki')}
+                      {sayfaNolari.map((n, i) =>
+                        n === '…' ? (
+                          <span key={'b' + i} style={{ padding: '0 4px' }}>
+                            …
+                          </span>
+                        ) : (
+                          sayfaDugmesi(n, n, n === gecerliSayfa, false, 's' + n)
+                        )
+                      )}
+                      {sayfaDugmesi(
+                        '›',
+                        gecerliSayfa + 1,
+                        false,
+                        gecerliSayfa === sayfaSayisi,
+                        'sonraki'
+                      )}
+                    </nav>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </section>
     </div>
   );
 }
