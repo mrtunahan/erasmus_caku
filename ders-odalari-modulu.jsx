@@ -577,6 +577,8 @@ const DO_STIL = `
 .do-dosya-kutu{transition:border-color .15s,background .15s}
 .do-dosya-kutu:hover{background:#fff!important;border-color:#99F6E4!important}
 .do-oda-karti{transition:transform .15s,box-shadow .15s}
+.do-oda-karti>*{width:100%;box-sizing:border-box}
+.do-oda-karti:focus-visible{outline:2px solid #0F766E;outline-offset:2px}
 .do-oda-karti:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(15,23,42,.10)!important}
 .do-ayrac{width:1px;align-self:stretch;margin:4px 2px;background:#E2E8F0}
 .do-ust>.do-sol{justify-self:start;display:flex;align-items:center;gap:10px;min-width:0}
@@ -3060,10 +3062,19 @@ function OdaKarti({ o, ac }) {
     </div>
   );
   return (
-    <button
-      type="button"
+    // <button> yerine role="button": uygulamanın genel düğme stili içeriği
+    // ortalayıp daraltıyordu; kart bölümleri her zaman tam genişlikte kalsın.
+    <div
+      role="button"
+      tabIndex={0}
       data-oda-karti={o.id}
       onClick={ac}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          ac();
+        }
+      }}
       className="do-oda-karti"
       style={{
         ...kart,
@@ -3074,6 +3085,10 @@ function OdaKarti({ o, ac }) {
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
+        alignItems: 'stretch',
+        width: '100%',
+        height: '100%',
+        boxSizing: 'border-box',
       }}
     >
       <div
@@ -3084,7 +3099,8 @@ function OdaKarti({ o, ac }) {
             bantZemini(renk),
           color: '#fff',
           padding: '16px 18px 18px',
-          minHeight: 118,
+          height: 132,
+          boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -3168,7 +3184,7 @@ function OdaKarti({ o, ac }) {
       <div
         style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, height: 36 }}>
           <Avatar ad={(o.hocalar || [])[0] || '?'} boyut={28} hoca />
           <div style={{ minWidth: 0 }}>
             <div
@@ -3264,7 +3280,7 @@ function OdaKarti({ o, ac }) {
           Odaya gir <Ikon ad="ok" boyut={14} />
         </span>
       </div>
-    </button>
+    </div>
   );
 }
 
