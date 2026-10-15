@@ -42,6 +42,12 @@ function egitmenKurali() {
   return egitmenSozu;
 }
 
+let akadProgramSozu = null;
+function akademisyenProgramKurali() {
+  if (!akadProgramSozu) akadProgramSozu = import('../../lib/akademisyen-programi.js');
+  return akadProgramSozu;
+}
+
 let programSozu = null;
 function programKurali() {
   if (!programSozu) {
@@ -174,6 +180,60 @@ async function hocaMi(oda, user) {
   if (!oda || !user) return false;
   const E = await egitmenKurali();
   return (oda.hocalar || []).some((h) => E.ayniEgitmen(h, user.identifier));
+}
+
+// ── ODA KARTI ÖZETİ (liste ekranı) ──
+// Kartta: ödev / duyuru / öğrenci sayısı, haftalık ders saatleri, en yakın
+// teslim, son paylaşım; öğrenciye kendi bekleyen ödev sayısı, akademisyene
+// notlanmayı bekleyen teslim sayısı.
+async function odaKartOzeti(db, oda, rol, user) {
+  const K = await kural();
+  const icerikler = await db
+    .collection(ICERIK)
+    .find({ odaId: oda._id })
+    .project({
+      tur: 1,
+      baslik: 1,
+      sonTarih: 1,
+      olusturuldu: 1,
+      ekler: 1,
+      ekSureler: 1,
+      kabulAcik: 1,
+      gecKabul: 1,
+    })
+    .sort({ olusturuldu: -1 })
+    .toArray();
+  const odevler = icerikler.filter((i) => i.tur === 'odev');
+  const simdi = Date.now();
+  const yaklasan = odevler
+    .filter((o) => o.sonTarih && new Date(o.sonTarih).getTime() > simdi)
+    .sort((a, b) => (a.sonTarih < b.sonTarih ? -1 : 1))[0];
+  const son = icerikler[0];
+  const out = {
+    odevSayisi: odevler.length,
+    duyuruSayisi: icerikler.length - odevler.length,
+    dosyaSayisi: icerikler.reduce((t, i) => t + (i.ekler || []).length, 0),
+    ogrenciSayisi: (await odaOgrencileri(db, oda)).length,
+    program: await odaProgrami(db, oda),
+    yaklasan: yaklasan ? { baslik: metin(yaklasan.baslik), sonTarih: yaklasan.sonTarih } : null,
+    sonPaylasim: son
+      ? { tur: son.tur, baslik: metin(son.baslik), tarih: metin(son.olusturuldu) }
+      : null,
+  };
+  const teslimler = await db.collection(TESLIM).find({ odaId: oda._id }).toArray();
+  if (rol === 'ogrenci') {
+    const no = ogrenciNo(user);
+    const benim = new Map(
+      teslimler.filter((t) => metin(t.ogrenciNo) === no).map((t) => [t.icerikId, t])
+    );
+    const durumlar = odevler.map((o) => K.teslimDurumu(o, benim.get(o._id), no));
+    out.bekleyen = durumlar.filter((d) => d === 'atandi' || d === 'iade').length;
+    out.eksik = durumlar.filter((d) => d === 'eksik').length;
+    out.notlanan = durumlar.filter((d) => d === 'notlandi').length;
+  } else {
+    out.notBekleyen = teslimler.filter((t) => t.teslimEdildi && metin(t.puan) === '').length;
+  }
+  return out;
 }
 
 // ── ÜYELİK: DÖNEM DERS SEÇİMİ ──
@@ -461,6 +521,15 @@ function teslimGorunumu(t, ogrenciIcin) {
     gec: !!t.gec,
     geriVerildi: !!t.geriVerildi,
     geriVerilmeZamani: t.geriVerilmeZamani || '',
+    iade: t.iade
+      ? {
+          gorus: metin(t.iade.gorus),
+          zaman: metin(t.iade.zaman),
+          kullanildi: !!t.iade.kullanildi,
+          yenidenGonderim: metin(t.iade.yenidenGonderim),
+        }
+      : null,
+    iadeSayisi: (t.iadeGecmisi || []).length,
   };
   // Öğrenci notu ancak akademisyen "geri ver" dedikten sonra görür.
   if (!ogrenciIcin || t.geriVerildi) {
@@ -556,10 +625,7 @@ router.get(
       const oda = await odaKaydet(db, d, donem);
       const rol = await odaRolu(db, oda, user);
       if (!rol) continue;
-      const odevSayisi = await db
-        .collection(ICERIK)
-        .countDocuments({ odaId: oda._id, tur: 'odev' });
-      odalar.push({ ...oda, id: oda._id, rol, odevSayisi });
+      odalar.push({ ...oda, id: oda._id, rol, ...(await odaKartOzeti(db, oda, rol, user)) });
     }
     odalar.sort((a, b) => metin(a.dersKod).localeCompare(metin(b.dersKod), 'tr'));
     res.json({ donem, odalar });
@@ -919,7 +985,7 @@ router.get(
         out.teslim = teslimGorunumu(t, true);
         out.ogrenciNo = ogrenciNo(req.user);
         const K = await kural();
-        out.kabul = K.teslimKabulKarari(icerik, ogrenciNo(req.user));
+        out.kabul = K.teslimKabulKarari(icerik, ogrenciNo(req.user), null, t);
       } else {
         out.ogrenciler = await odaOgrencileri(db, oda);
         out.teslimler = (await db.collection(TESLIM).find({ icerikId: icerik._id }).toArray()).map(
@@ -1064,9 +1130,9 @@ router.post(
         .findOne({ _id: metin(req.query.icerikId), odaId: oda._id });
       if (!icerik || icerik.tur !== 'odev')
         return res.status(404).json({ error: 'Ödev bulunamadı.' });
-      const kabul = K.teslimKabulKarari(icerik, no);
-      if (!kabul.izin) return res.status(400).json({ error: kabul.sebep });
       teslim = await db.collection(TESLIM).findOne({ _id: icerik._id + '__' + no });
+      const kabul = K.teslimKabulKarari(icerik, no, null, teslim);
+      if (!kabul.izin) return res.status(400).json({ error: kabul.sebep });
       if (teslim && teslim.teslimEdildi) {
         return res
           .status(400)
@@ -1163,13 +1229,15 @@ router.post(
   yazmaLimiti,
   sar((req, res) =>
     teslimIslemi(req, res, async ({ db, oda, icerik, no, teslim, K }) => {
-      const kabul = K.teslimKabulKarari(icerik, no);
+      const kabul = K.teslimKabulKarari(icerik, no, null, teslim);
       if (!kabul.izin) return res.status(400).json({ error: kabul.sebep });
       if (!teslim || !(teslim.dosyalar || []).length) {
         return res.status(400).json({ error: 'Teslim etmeden önce en az bir dosya ekleyin.' });
       }
       const simdi = new Date().toISOString();
       const set = { teslimEdildi: true, teslimZamani: simdi, gec: kabul.gec };
+      // İade sonrası tek yeniden gönderim hakkı burada kullanılır.
+      if (kabul.iade) set.iade = { ...teslim.iade, kullanildi: true, yenidenGonderim: simdi };
       await db.collection(TESLIM).updateOne({ _id: teslim._id }, { $set: set });
       degisti(req);
       res.json({ teslim: teslimGorunumu({ ...teslim, ...set, odaId: oda._id }, true) });
@@ -1186,7 +1254,7 @@ router.post(
       if (!teslim || !teslim.teslimEdildi) return res.status(400).json({ error: 'Teslim yok.' });
       if (teslim.geriVerildi)
         return res.status(400).json({ error: 'Not verilmiş ödev geri alınamaz.' });
-      const kabul = K.teslimKabulKarari(icerik, no);
+      const kabul = K.teslimKabulKarari(icerik, no, null, teslim);
       if (!kabul.izin) {
         return res
           .status(400)
@@ -1242,6 +1310,62 @@ router.post(
     );
     degisti(req);
     res.json({ success: true, puan: karar.deger });
+  })
+);
+
+// ── GÖRÜŞLE İADE ──
+// Akademisyen teslimi görüşüyle öğrenciye geri gönderir: teslim açılır, not
+// ve geri bildirim temizlenir (geçmişte saklanır) ve öğrenci, gönderim kapalı
+// ya da süre dolmuş olsa bile BİR KEZ yeniden gönderebilir.
+router.post(
+  '/icerik/:id/iade',
+  requireAuth,
+  yazmaLimiti,
+  sar(async (req, res) => {
+    const b = await icerikVeRol(req, res, req.params.id);
+    if (!b) return;
+    if (b.rol !== 'hoca')
+      return res.status(403).json({ error: 'Ödevi yalnız dersin akademisyeni iade eder.' });
+    const { db, oda, icerik } = b;
+    if (icerik.tur !== 'odev') return res.status(400).json({ error: 'Bu paylaşım ödev değil.' });
+    const no = metin(req.body.ogrenciNo);
+    const gorus = metin(req.body.gorus).slice(0, 2000);
+    if (!gorus) return res.status(400).json({ error: 'İade için görüşünüzü yazın.' });
+    const teslim = await db.collection(TESLIM).findOne({ _id: icerik._id + '__' + no });
+    if (!teslim || !teslim.teslimEdildi)
+      return res.status(400).json({ error: 'Öğrencinin teslim ettiği bir çalışma yok.' });
+    const simdi = new Date().toISOString();
+    await db.collection(TESLIM).updateOne(
+      { _id: teslim._id },
+      {
+        $set: {
+          teslimEdildi: false,
+          geriVerildi: false,
+          puan: '',
+          geriBildirim: '',
+          iade: { gorus, zaman: simdi, yapan: metin(req.user.identifier), kullanildi: false },
+        },
+        $push: {
+          iadeGecmisi: {
+            gorus,
+            zaman: simdi,
+            yapan: metin(req.user.identifier),
+            oncekiPuan: teslim.puan == null ? '' : teslim.puan,
+            oncekiTeslim: teslim.teslimZamani || '',
+          },
+        },
+      }
+    );
+    const K = await kural();
+    await bildir(
+      req,
+      db,
+      [no],
+      K.bildirimMetni('iade', { dersKod: oda.dersKod, baslik: icerik.baslik || 'Ödev' }),
+      { odaId: oda._id, icerikId: icerik._id }
+    );
+    degisti(req);
+    res.json({ success: true });
   })
 );
 
@@ -1411,6 +1535,72 @@ async function ogrenciNotCizelgesi(db, oda, user) {
     kunye: { bolumAd: '', fakulteAd: '' },
   };
 }
+
+// ── DERSİ VERENLERİN ORTAK HAFTALIK PROGRAMI ──
+// Öğrencinin Ders Programı modülüne (course_schedules) erişimi yok; bu yüzden
+// odadaki herkes için hesap SUNUCUDA yapılır: dersin akademisyenlerinin bu
+// yarıyıldaki bütün ders saatleri, Akademisyen Sayfam ile aynı kuralla
+// (lib/akademisyen-programi.js) birleştirilir. Yalnız ders saati, kodu, adı,
+// dersliği ve bölümü döner.
+router.get(
+  '/oda/:odaId/hoca-programi',
+  requireAuth,
+  sar(async (req, res) => {
+    const b = await odaVeRol(req, res, req.params.odaId);
+    if (!b) return;
+    const { db, oda } = b;
+    const P = await akademisyenProgramKurali();
+    const [, Saat] = await programKurali();
+    const yari = metin(oda.donem).split('_')[1] || '';
+    const kimlik = (d) => metin(d.id || d._docId || (d._id && String(d._id)));
+    const dokumanlar = (await db.collection('course_schedules').find({}).toArray()).map((d) => ({
+      ...d,
+      id: kimlik(d),
+    }));
+    const bolumler = (await db.collection('departments').find({}).toArray()).map((d) => ({
+      ...d,
+      id: kimlik(d),
+      _id: d._id && String(d._id),
+    }));
+    const ayar = new Map();
+    (await db.collection('bolum_program_ayarlari').find({}).toArray()).forEach((k) => {
+      const id = metin(k.id || k._docId || k.departmentId);
+      if (id) ayar.set(id, k);
+    });
+    const bolumSaatleri = {};
+    bolumler.forEach((d) => {
+      const kimlikler = [d.id, d._id, d._docId, d.code].filter(Boolean).map(String);
+      const kayit = kimlikler.map((k) => ayar.get(k)).find(Boolean);
+      const lisans = Saat.bolumSaatleri(kayit, 'lisans');
+      const ustu = Saat.bolumSaatleri(kayit, 'lisansustu');
+      kimlikler.forEach((k) => {
+        bolumSaatleri[k + '|lisans'] = lisans;
+        ['lisansustu', 'yukseklisans', 'doktora'].forEach((sv) => {
+          bolumSaatleri[k + '|' + sv] = ustu;
+        });
+        bolumSaatleri[k] = lisans;
+      });
+    });
+    const hocalar = (oda.hocalar || []).map((ad) => ({
+      ad,
+      kayitlar: P.akademisyenKayitlari(dokumanlar, {
+        ad,
+        donem: yari,
+        bolumler,
+        bolumSaatleri,
+      }).map((k) => ({
+        gun: k.gun,
+        saat: k.saat,
+        dersKodu: k.dersKodu,
+        dersAdi: k.dersAdi,
+        derslik: k.derslik,
+        bolumAdi: k.bolumAdi,
+        sinif: k.sinif,
+      })),
+    }));
+    res.json({ donem: oda.donem, gunler: P.PROGRAM_GUNLERI, hocalar });
+  })
+);
 
 // ── NOT AYARI: ağırlıklar ve ek sütunlar (vize, final, proje…) ──
 router.post(
