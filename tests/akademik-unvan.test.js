@@ -8,6 +8,11 @@ import {
   unvaniAyir,
   unvanKidemi,
   unvansizAd,
+  adBuyukHarf,
+  standartAd,
+  standartUnvan,
+  unvanliAd,
+  UNVAN_SECENEKLERI,
 } from '../lib/akademik-unvan.js';
 
 describe('unvaniAyir', () => {
@@ -243,5 +248,24 @@ describe('girisListesi', () => {
     const kopya = profiller.map((p) => ({ ...p }));
     girisListesi(profiller);
     expect(profiller).toEqual(kopya);
+  });
+});
+
+describe('standart ad biçimi', () => {
+  it('Türkçe büyük harf', () => {
+    expect(adBuyukHarf('  ışık  ilhan ')).toBe('IŞIK İLHAN');
+  });
+  it('unvan varyantları standart yazıma iner', () => {
+    expect(standartAd('Öğrt. Gör. Gökalp Saylam')).toBe('Öğr. Gör. GÖKALP SAYLAM');
+    expect(standartAd('Prof.Dr. ayşe kaya')).toBe('Prof. Dr. AYŞE KAYA');
+    expect(standartAd('Öğr. Üyesi Esra Sivari Resul')).toBe('Dr. Öğr. Üyesi ESRA SİVARİ RESUL');
+    expect(standartAd('Dr. Öğr. Üyesi ESRA SİVARİ RESUL')).toBe('Dr. Öğr. Üyesi ESRA SİVARİ RESUL');
+  });
+  it('unvan tanınmazsa uydurulmaz, yalnız ad büyür', () => {
+    expect(standartAd('Mehmet Yılmaz')).toBe('MEHMET YILMAZ');
+  });
+  it('seçenekler standart karşılığına eşittir', () => {
+    UNVAN_SECENEKLERI.forEach((u) => expect(standartUnvan(u)).toBe(u));
+    expect(unvanliAd('Doçent', 'ali veli')).toBe('Doç. Dr. ALİ VELİ');
   });
 });

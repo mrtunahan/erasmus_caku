@@ -13,6 +13,7 @@ import {
   musaitsizGunler,
   musaitsizlikHaritasi,
   gozetmenMusaitMi,
+  ortakOgrenciSayaci,
 } from '../lib/sinav-cakisma.js';
 
 const sinav = (ek) =>
@@ -338,5 +339,59 @@ describe('gözetmen müsaitliği', () => {
     expect(gozetmenMusaitMi('', '2026-06-01', {})).toBe(true);
     expect(gozetmenMusaitMi('A Hoca', '', {})).toBe(true);
     expect(gozetmenMusaitMi('A Hoca', '2026-06-01', null)).toBe(true);
+  });
+});
+
+describe('fakülte geneli: ad eşleşmesi, hoca ve ortak öğrenci', () => {
+  const t = (id, code, ek) => ({
+    id,
+    code,
+    date: '2026-11-12',
+    timeSlot: '10:00',
+    duration: 60,
+    ...ek,
+  });
+  it('gözetmen adı unvan ve harf farkıyla eşleşir', () => {
+    const l = cakismalariBul([
+      t('a', 'BLM101', { room: 'M1', supervisor: 'Dr. Ali Veli' }),
+      t('b', 'FZK101', { room: 'M2', supervisor: 'ALİ VELİ' }),
+    ]);
+    expect(l.map((c) => [c.tur, c.seviye])).toEqual([['gozetmen', 'engel']]);
+  });
+  it('dersi veren hoca iki farklı dersin sınavında aynı saatte → uyarı', () => {
+    const l = cakismalariBul([
+      t('a', 'BLM101', { professor: 'Prof. Dr. Ayşe Kaya', departmentId: 'bil' }),
+      t('b', 'MAT101', { professor: 'Ayşe KAYA', departmentId: 'mat' }),
+      t('c', 'BLM101', { professor: 'Prof. Dr. Ayşe Kaya' }),
+    ]);
+    expect(l.filter((c) => c.tur === 'hoca').length).toBe(2);
+    expect(l.every((c) => c.seviye === 'uyari')).toBe(true);
+  });
+  it('bölümler arası ortak öğrenci sayılır', () => {
+    const say = ortakOgrenciSayaci({
+      dersler: [],
+      donem: '2026-2027_guz',
+      donemKayitlari: [
+        { studentNumber: '1', termKey: '2026-2027_guz', courseIds: ['d1', 'd2'] },
+        { studentNumber: '2', termKey: '2026-2027_guz', courseIds: ['d1', 'd2'] },
+        { studentNumber: '3', termKey: '2026-2027_guz', courseIds: ['d1'] },
+      ],
+      ogrenciKayitlari: [{ studentNumber: '1' }, { studentNumber: '2' }, { studentNumber: '3' }],
+    });
+    const l = cakismalariBul(
+      [
+        t('a', 'BLM101', { courseId: 'd1', departmentId: 'bil', sinif: 1 }),
+        t('b', 'FZK181', { courseId: 'd2', departmentId: 'fiz', sinif: 1 }),
+      ],
+      { ortakOgrenci: say }
+    );
+    expect(l).toHaveLength(1);
+    expect(l[0]).toMatchObject({ tur: 'ogrenci', seviye: 'uyari' });
+    expect(l[0].baslik).toBe('Bu iki sınavda 2 ortak öğrenci var');
+  });
+  it('aynı yazımlı gözetmende çakışma anahtarı değişmez (eski kabuller geçerli)', () => {
+    const a = t('a', 'X', { room: 'M1', supervisor: 'Ali Veli' });
+    const b = t('b', 'Y', { room: 'M2', supervisor: 'Ali Veli' });
+    expect(cakismalariBul([a, b])[0].anahtar).toBe(cakismaAnahtari('gozetmen', a, b, 'Ali Veli'));
   });
 });

@@ -317,9 +317,12 @@ function FakYonetimiApp({ currentUser }) {
       return;
     }
     try {
-      const fullName = newProfForm.title?.trim()
-        ? `${newProfForm.title.trim()} ${newProfForm.name.trim()}`
-        : newProfForm.name.trim();
+      // Standart biçim: seçilen unvan + BÜYÜK harf ad soyad.
+      const fullName = window.unvanliAd
+        ? window.unvanliAd(newProfForm.title, newProfForm.name)
+        : newProfForm.title?.trim()
+          ? `${newProfForm.title.trim()} ${newProfForm.name.trim()}`
+          : newProfForm.name.trim();
       const data = {
         name: fullName,
         department: newProfForm.deptName || '',
@@ -368,7 +371,8 @@ function FakYonetimiApp({ currentUser }) {
   );
   const [newMemurName, setNewMemurName] = useState('');
   const addMemur = async () => {
-    const name = newMemurName.trim();
+    // Memur adı da BÜYÜK harfle kaydedilir (unvansız).
+    const name = window.adBuyukHarf ? window.adBuyukHarf(newMemurName) : newMemurName.trim();
     if (!name) return;
     const norm = (s) => (s || '').toLocaleLowerCase('tr').replace(/\s+/g, ' ').trim();
     if (professors.some((p) => norm(p.name) === norm(name))) {
@@ -610,8 +614,8 @@ function FakYonetimiApp({ currentUser }) {
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             value={newMemurName}
-            onChange={(e) => setNewMemurName(e.target.value)}
-            placeholder="Yeni memur adı soyadı"
+            onChange={(e) => setNewMemurName(e.target.value.toLocaleUpperCase('tr-TR'))}
+            placeholder="YENİ MEMUR ADI SOYADI"
             style={{ ...fInput, flex: 1 }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') addMemur();
@@ -972,12 +976,11 @@ function FakYonetimiApp({ currentUser }) {
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label style={fLabel}>Unvan (Opsiyonel)</label>
-                <input
-                  value={newProfForm.title}
-                  onChange={(e) => setNewProfForm({ ...newProfForm, title: e.target.value })}
-                  placeholder="Örn: Prof. Dr. / Dr. Öğr. Üyesi / Arş. Gör."
-                  style={fInput}
+                <label style={fLabel}>Unvan</label>
+                <window.UnvanSecici
+                  value={newProfForm.title || ''}
+                  onChange={(u) => setNewProfForm({ ...newProfForm, title: u })}
+                  style={{ width: '100%', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
@@ -985,8 +988,13 @@ function FakYonetimiApp({ currentUser }) {
                 <input
                   autoFocus
                   value={newProfForm.name}
-                  onChange={(e) => setNewProfForm({ ...newProfForm, name: e.target.value })}
-                  placeholder="Örn: A. Tunahan KORKMAZ"
+                  onChange={(e) =>
+                    setNewProfForm({
+                      ...newProfForm,
+                      name: e.target.value.toLocaleUpperCase('tr-TR'),
+                    })
+                  }
+                  placeholder="Örn: A. TUNAHAN KORKMAZ"
                   style={fInput}
                 />
               </div>

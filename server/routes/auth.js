@@ -1,3 +1,4 @@
+const { adBuyukHarf } = require('../lib/ad-bicim');
 const express = require('express');
 const { adayNoMu } = require('../lib/aday-yetki');
 const crypto = require('crypto');
@@ -970,8 +971,9 @@ router.post('/student-register', async (req, res) => {
     const now = new Date();
     await students.insertOne({
       studentNumber: trimmedId,
-      firstName: String(firstName).trim(),
-      lastName: String(lastName).trim(),
+      // Öğrenci adı BÜYÜK harfle saklanır (server/lib/ad-bicim.js).
+      firstName: adBuyukHarf(firstName),
+      lastName: adBuyukHarf(lastName),
       departmentId: departmentId,
       departmentName: String(departmentName || '').trim(),
       erasmusAccess: false,

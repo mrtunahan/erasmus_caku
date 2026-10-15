@@ -550,7 +550,10 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
         } else if (form.newName.trim()) {
           // Yeni profesör oluştur ve gozetmen rolü ver
           await DBWrite.add('professors', {
-            name: form.newName.trim(),
+            // Standart biçim: seçilen unvan + BÜYÜK harf ad soyad.
+            name: window.unvanliAd
+              ? window.unvanliAd(form.newUnvan, form.newName)
+              : form.newName.trim(),
             departmentId: activeDepartment,
             isExternal: false,
             roles: ['gozetmen'],
@@ -1397,12 +1400,24 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
 
             <div style={{ textAlign: 'center', fontSize: 12, color: '#94A3B8' }}>veya</div>
 
-            <FormField label="Yeni Akademisyen Adı (Unvan+Ad+Soyad)">
-              <Input
-                value={form.newName}
-                onChange={(e) => setForm({ ...form, newName: e.target.value, selectedProfId: '' })}
-                placeholder="Örn: Arş. Gör. Ali YILMAZ"
-              />
+            <FormField label="Yeni Akademisyen (Unvan + Ad Soyad)">
+              <div style={{ display: 'flex', gap: 8 }}>
+                <window.UnvanSecici
+                  value={form.newUnvan || ''}
+                  onChange={(u) => setForm({ ...form, newUnvan: u, selectedProfId: '' })}
+                />
+                <Input
+                  value={form.newName}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      newName: e.target.value.toLocaleUpperCase('tr-TR'),
+                      selectedProfId: '',
+                    })
+                  }
+                  placeholder="Ad Soyad (Örn: ALİ YILMAZ)"
+                />
+              </div>
             </FormField>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

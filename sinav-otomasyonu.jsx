@@ -3109,6 +3109,9 @@ function SinavOtomasyonuApp({
   const [tumSinavlar, setTumSinavlar] = useState([]);
   const [tumSalonlar, setTumSalonlar] = useState([]);
   const [cakismaKabulleri, setCakismaKabulleri] = useState([]);
+  // Ortak öğrenci denetimi için dönem ders seçimleri, öğrenci kayıtları ve
+  // bütün dersler (lib/sinav-cakisma.js → ortakOgrenciSayaci).
+  const [ogrenciVerisi, setOgrenciVerisi] = useState(null);
   const [cakismaPaneli, setCakismaPaneli] = useState(false);
   // Gözetmen kuralları (hoca + salon başına gözetmen) — bölüm kaydında durur.
   const [gozetmenKuralAcik, setGozetmenKuralAcik] = useState(false);
@@ -3353,12 +3356,77 @@ function SinavOtomasyonuApp({
     loadFakulteGeneli();
   }, [loadFakulteGeneli, placedExams.length]);
 
+  // ── Anlık güncelleme ──
+  // Başka bölüm sınav yerleştirdiğinde ya da bir çakışmayı kabul ettiğinde
+  // denetim sayfa yenilenmeden güncellenir.
+  useEffect(() => {
+    const h = () => loadFakulteGeneli();
+    const c = ['sinav_programi', 'sinav_cakisma_kabul'];
+    c.forEach((x) => window.addEventListener('realtime:' + x, h));
+    return () => c.forEach((x) => window.removeEventListener('realtime:' + x, h));
+  }, [loadFakulteGeneli]);
+
+  // Ortak öğrenci verisi bir kez okunur (ders seçimleri sınav hazırlığı
+  // sırasında pek değişmez); okunamazsa ortak öğrenci denetimi atlanır.
+  useEffect(() => {
+    let iptal = false;
+    Promise.all([
+      window.apiRead('student_courses').catch(() => []),
+      window.apiRead('students').catch(() => []),
+      window.apiRead('sinav_dersler').catch(() => []),
+    ]).then(([donemKayitlari, ogrenciKayitlari, dersler]) => {
+      if (iptal) return;
+      setOgrenciVerisi({
+        donemKayitlari: Array.isArray(donemKayitlari) ? donemKayitlari : [],
+        ogrenciKayitlari: Array.isArray(ogrenciKayitlari) ? ogrenciKayitlari : [],
+        dersler: Array.isArray(dersler) ? dersler : [],
+      });
+    });
+    return () => {
+      iptal = true;
+    };
+  }, []);
+
   // ── Resmî çıktı kapısı ──
   // Engel varsa çıktı üretilmez: fiziksel imkânsızlık taşıyan bir program
   // dekanlığa gönderilmemeli. Karar bekleyen uyarı varsa da tutulur —
   // yetkili ya düzeltir ya şartlı kabul eder; "görmezden gel" seçeneği yok.
-  const cikisIzniVar = () => {
-    if (programHazir) return true;
+  // ⚠ Çıktıdan hemen önce bütün bölümlerin sınavları ve kabuller YENİDEN
+  // okunur: başka bölümün son yerleştirmesi kaçmasın.
+  const cikisIzniVar = async () => {
+    let tazeHazir = programHazir;
+    try {
+      if (window.apiInvalidate) {
+        window.apiInvalidate('sinav_programi');
+        window.apiInvalidate('sinav_cakisma_kabul');
+      }
+      const [sinavlar, kabuller] = await Promise.all([
+        window.apiRead('sinav_programi'),
+        window.apiRead('sinav_cakisma_kabul').catch(() => []),
+      ]);
+      const taze = Array.isArray(sinavlar) ? sinavlar : [];
+      const tazeKabul = Array.isArray(kabuller) ? kabuller : [];
+      setTumSinavlar(taze);
+      setCakismaKabulleri(tazeKabul);
+      const liste = cakismaHesapla(denetimListesi(taze), tazeKabul, donemGunleri);
+      tazeHazir = window.sinavProgramHazirMi ? window.sinavProgramHazirMi(liste) : true;
+      if (!tazeHazir) {
+        const o = window.sinavCakismaOzeti(liste);
+        setCakismaPaneli(true);
+        alert(
+          o.engel > 0
+            ? o.engel +
+                ' çakışma fiziksel olarak imkânsız. Bunlar düzeltilmeden resmî çıktı alınamaz.\n\nÇakışma panelini açtım.'
+            : o.bekleyen +
+                ' çakışma karar bekliyor (diğer bölümlerin son durumu dahil). Her birini ya düzeltin ya da sebebini yazarak şartlı kabul edin.\n\nÇakışma panelini açtım.'
+        );
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.warn('Çıktı öncesi denetim verisi okunamadı:', e && e.message);
+    }
+    if (tazeHazir) return true;
     setCakismaPaneli(true);
     alert(
       cakismaOzet.engel > 0
@@ -3786,23 +3854,55 @@ function SinavOtomasyonuApp({
     return h;
   }, [tumSalonlar, deptClassrooms]);
 
-  const cakismalar = useMemo(() => {
-    if (!window.sinavCakismalariBul) return [];
-    // Fakülte geneli liste yalnız sınav SAYISI değişince yeniden okunuyor;
-    // birleştirme, ayırma ya da salon/gözetmen düzenlemesi sayıyı değiştirmediği
-    // için denetim bayat veriyle yapılıyordu. Bu bölümün ekrandaki güncel
-    // sınavları listedeki eski kopyalarının yerine geçer.
-    const yerel = new Set(placedExams.map((e) => String(e.id)));
-    const guncel =
-      tumSinavlar.length > 0
-        ? [...tumSinavlar.filter((e) => !yerel.has(String(e.id))), ...placedExams]
-        : periodExams;
-    const kapsam = guncel.filter((e) => e && e.date && donemGunleri.has(e.date));
-    return window.sinavCakismalariBul(kapsam, {
-      salonKapasiteleri,
-      kabuller: cakismaKabulleri,
+  // Sınav döneminin ders seçimi dönemi: 'Güz 2026-2027' → '2026-2027_guz'.
+  const secimDonemi = useMemo(() => {
+    const D = window.DersOdasi || {};
+    const okunan =
+      D.sinavDonemiAnahtari && activePeriod ? D.sinavDonemiAnahtari(activePeriod.semester) : '';
+    return okunan || (D.donemAnahtari ? D.donemAnahtari() : '');
+  }, [activePeriod]);
+
+  const ortakOgrenci = useMemo(() => {
+    if (!ogrenciVerisi || !window.sinavOrtakOgrenciSayaci) return null;
+    const D = window.DersOdasi || {};
+    return window.sinavOrtakOgrenciSayaci({
+      ...ogrenciVerisi,
+      donem: secimDonemi,
+      eskiListe: !!D.donemAnahtari && secimDonemi === D.donemAnahtari(),
     });
-  }, [tumSinavlar, placedExams, periodExams, donemGunleri, salonKapasiteleri, cakismaKabulleri]);
+  }, [ogrenciVerisi, secimDonemi]);
+
+  // Fakülte geneli liste + bu bölümün ekrandaki güncel sınavları. Fakülte
+  // listesi yalnız belirli anlarda yeniden okunuyor; birleştirme, ayırma ya da
+  // salon/gözetmen düzenlemesi sayıyı değiştirmediği için bu bölümün güncel
+  // sınavları listedeki eski kopyalarının yerine geçer.
+  const denetimListesi = useCallback(
+    (fakulte) => {
+      const yerel = new Set(placedExams.map((e) => String(e.id)));
+      return fakulte.length > 0
+        ? [...fakulte.filter((e) => !yerel.has(String(e.id))), ...placedExams]
+        : periodExams;
+    },
+    [placedExams, periodExams]
+  );
+
+  const cakismaHesapla = useCallback(
+    (liste, kabuller, gunler) => {
+      if (!window.sinavCakismalariBul) return [];
+      const kapsam = liste.filter((e) => e && e.date && gunler.has(e.date));
+      return window.sinavCakismalariBul(kapsam, {
+        salonKapasiteleri,
+        kabuller,
+        ortakOgrenci,
+      });
+    },
+    [salonKapasiteleri, ortakOgrenci]
+  );
+
+  const cakismalar = useMemo(
+    () => cakismaHesapla(denetimListesi(tumSinavlar), cakismaKabulleri, donemGunleri),
+    [cakismaHesapla, denetimListesi, tumSinavlar, cakismaKabulleri, donemGunleri]
+  );
 
   const cakismaOzet = window.sinavCakismaOzeti
     ? window.sinavCakismaOzeti(cakismalar)
@@ -3920,10 +4020,35 @@ function SinavOtomasyonuApp({
       ? SB.yerlestirmeSecenekleri(courseData, dateStr, timeSlot, periodExams)
       : { oturumlar: [], ayriEklenebilir: true, engel: '' };
     if (karar.oturumlar.length === 0) {
-      await sinavEkle(yeniSinavVerisi(courseData, dateStr, timeSlot));
+      const aday = yeniSinavVerisi(courseData, dateStr, timeSlot);
+      if (!yerlestirmeOnayi(aday)) return;
+      await sinavEkle(aday);
       return;
     }
     setAyniSaat({ ders: courseData, tarih: dateStr, saat: timeSlot, karar });
+  };
+
+  // ── Bırakma anında fakülte geneli denetim ──
+  // Yerleştirmeden ÖNCE bütün bölümlerin sınavlarıyla (ortak öğrenci, hoca,
+  // salon, gözetmen, sınıf) denenir; çakışma varsa sorulur. Kabul edilirse
+  // sınav yerleşir ve çakışma panelde karar bekler.
+  const yerlestirmeOnayi = (aday) => {
+    if (!window.sinavCakismalariBul) return true;
+    const yeni = { ...aday, id: '__aday__' };
+    const liste = denetimListesi(tumSinavlar).filter((e) => e && e.date === yeni.date);
+    const bulunan = cakismaHesapla([...liste, yeni], [], new Set([yeni.date])).filter((c) =>
+      c.sinavlar.some((x) => x && x.id === '__aday__')
+    );
+    if (!bulunan.length) return true;
+    const satirlar = bulunan
+      .slice(0, 6)
+      .map((c) => (c.seviye === 'engel' ? '⛔ ' : '⚠ ') + c.baslik + ' — ' + c.aciklama);
+    return confirm(
+      'Bu yerleştirme diğer sınavlarla çakışıyor:\n\n' +
+        satirlar.join('\n') +
+        (bulunan.length > 6 ? '\n… ve ' + (bulunan.length - 6) + ' çakışma daha' : '') +
+        '\n\nYine de yerleştirilsin mi? (Çakışma panelinde düzeltebilir ya da şartlı kabul edebilirsiniz.)'
+    );
   };
 
   // Seçilen oturumla ortak sınav: oturumun bağı yoksa kurulur, yeni ders
@@ -3955,8 +4080,9 @@ function SinavOtomasyonuApp({
 
   const ayriEkle = async () => {
     if (!ayniSaat) return;
-    if (await sinavEkle(yeniSinavVerisi(ayniSaat.ders, ayniSaat.tarih, ayniSaat.saat)))
-      setAyniSaat(null);
+    const aday = yeniSinavVerisi(ayniSaat.ders, ayniSaat.tarih, ayniSaat.saat);
+    if (!yerlestirmeOnayi(aday)) return;
+    if (await sinavEkle(aday)) setAyniSaat(null);
   };
 
   // Ortak oturumdan ayırma: kalan tek üye olursa onun bağı da çözülür.
@@ -4704,7 +4830,7 @@ function SinavOtomasyonuApp({
                   <>
                     <GhostBtn
                       onClick={async () =>
-                        cikisIzniVar() &&
+                        (await cikisIzniVar()) &&
                         exportToXLSX(
                           periodExams,
                           activePeriod.label,
@@ -4729,8 +4855,8 @@ function SinavOtomasyonuApp({
                       Dekanlık Çıktısı
                     </GhostBtn>
                     <GhostBtn
-                      onClick={() =>
-                        cikisIzniVar() &&
+                      onClick={async () =>
+                        (await cikisIzniVar()) &&
                         exportDeptPrintable(
                           periodExams,
                           activePeriod.label,

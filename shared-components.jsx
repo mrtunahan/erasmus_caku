@@ -506,7 +506,15 @@ import {
   kitleOzetMetni,
   ogrenciKitlesi,
 } from './lib/anket-hedef-kitle.js';
-import { girisListesi, unvansizAd } from './lib/akademik-unvan.js';
+import {
+  girisListesi,
+  unvansizAd,
+  UNVAN_SECENEKLERI,
+  standartUnvan,
+  standartAd,
+  unvanliAd,
+  adBuyukHarf,
+} from './lib/akademik-unvan.js';
 import {
   acikEtaplar,
   acilisHatalari,
@@ -530,6 +538,7 @@ import {
 import {
   cakismaOzeti,
   cakismalariBul,
+  ortakOgrenciSayaci,
   gozetmenMusaitMi,
   kabulKaydi,
   musaitsizGunler,
@@ -11377,7 +11386,12 @@ const PasswordManagementModal = ({ students, onClose }) => {
     if (!editingProf.name || !editingProf.department) return alert('İsim ve Bölüm zorunludur.');
     setSaving(true);
     try {
-      await DB.saveProfessor(editingProf);
+      // Yeni kayıt: seçilen unvan + BÜYÜK harf ad. Var olan kaydın adı burada
+      // değişmez (ad kimliktir; dönüşüm server/ad-standart-gecis.js ile).
+      const { title: secilenUnvan, ...kayit } = editingProf;
+      await DB.saveProfessor(
+        editingProf.id ? editingProf : { ...kayit, name: unvanliAd(secilenUnvan, kayit.name) }
+      );
       const newProfs = await DB.fetchProfessors();
       setProfessorList(newProfs);
       setEditingProf(null);
@@ -11566,14 +11580,23 @@ const PasswordManagementModal = ({ students, onClose }) => {
                         }}
                       >
                         <td style={{ padding: 12 }}>
-                          <Input
-                            autoFocus
-                            value={editingProf.name}
-                            onChange={(e) =>
-                              setEditingProf({ ...editingProf, name: e.target.value })
-                            }
-                            placeholder="Örn: Dr. Ali Veli"
-                          />
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <UnvanSecici
+                              value={editingProf.title || ''}
+                              onChange={(u) => setEditingProf({ ...editingProf, title: u })}
+                            />
+                            <Input
+                              autoFocus
+                              value={editingProf.name}
+                              onChange={(e) =>
+                                setEditingProf({
+                                  ...editingProf,
+                                  name: e.target.value.toLocaleUpperCase('tr-TR'),
+                                })
+                              }
+                              placeholder="Ad Soyad (Örn: ALİ VELİ)"
+                            />
+                          </div>
                         </td>
                         <td style={{ padding: 12 }}>
                           <Input
@@ -15525,6 +15548,53 @@ window.anketTekHue = TEK_HUE;
 window.anketGrafikMurekkep = GRAFIK_MUREKKEP;
 // Sınav çakışmaları ve şartlı kabul — fakülte geneli denetim.
 window.sinavCakismalariBul = cakismalariBul;
+window.sinavOrtakOgrenciSayaci = ortakOgrenciSayaci;
+
+// ── STANDART AD VE UNVAN (lib/akademik-unvan.js) ──
+// Yeni akademisyen / memur / öğrenci kayıtlarında unvan listeden seçilir,
+// ad soyad Türkçe kurala göre büyük harfle yazılır.
+window.UNVAN_SECENEKLERI = UNVAN_SECENEKLERI;
+window.standartUnvan = standartUnvan;
+window.standartAd = standartAd;
+window.unvanliAd = unvanliAd;
+window.adBuyukHarf = adBuyukHarf;
+
+// Unvan açılır listesi. Değer listede yoksa (eski serbest yazım) standart
+// karşılığı seçili gelir; karşılığı yoksa olduğu gibi ayrı bir seçenek olarak
+// korunur — form açıldı diye kayıt sessizce değişmez.
+function UnvanSecici({ value, onChange, style, bos = 'Unvansız', ...geri }) {
+  const ham = String(value == null ? '' : value).trim();
+  const std = standartUnvan(ham);
+  const secili = std || ham;
+  const ekstra = secili && !UNVAN_SECENEKLERI.includes(secili) ? [secili] : [];
+  return (
+    <select
+      value={secili}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label="Unvan"
+      data-unvan-secici
+      style={{
+        border: '1px solid #CBD5E1',
+        borderRadius: 8,
+        padding: '9px 10px',
+        fontSize: 13,
+        background: '#fff',
+        color: '#1E293B',
+        minWidth: 150,
+        ...(style || {}),
+      }}
+      {...geri}
+    >
+      <option value="">{bos}</option>
+      {UNVAN_SECENEKLERI.concat(ekstra).map((u) => (
+        <option key={u} value={u}>
+          {u}
+        </option>
+      ))}
+    </select>
+  );
+}
+window.UnvanSecici = UnvanSecici;
 window.sinavCakismaOzeti = cakismaOzeti;
 window.sinavProgramHazirMi = programHazirMi;
 window.sinavKabulKaydi = kabulKaydi;
