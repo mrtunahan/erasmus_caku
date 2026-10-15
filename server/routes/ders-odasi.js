@@ -321,6 +321,33 @@ async function odaProgrami(db, oda) {
   }
 }
 
+// Dersin bu dönemki sınavları (Sınav Otomasyonu → sinav_programi). Okunamazsa
+// boş liste: oda yine açılır.
+async function odaSinavlariOku(db, oda) {
+  try {
+    const K = await kural();
+    const idler = K.odaDersKimlikleri(oda);
+    let sinavlar = await db
+      .collection('sinav_programi')
+      .find({ courseId: { $in: idler } })
+      .toArray();
+    // Ders başka bir kayıtla programa konmuşsa ders koduyla bulunur.
+    if (!sinavlar.length) {
+      sinavlar = await db
+        .collection('sinav_programi')
+        .find({ code: { $exists: true } })
+        .project({ courseId: 1, code: 1, date: 1, timeSlot: 1, room: 1, periodId: 1, _docId: 1 })
+        .toArray();
+    }
+    if (!sinavlar.length) return [];
+    const donemler = await db.collection('sinav_donemler').find({}).toArray();
+    return K.odaSinavlari(oda, sinavlar, donemler);
+  } catch (e) {
+    console.warn('[oda] sınav programı okunamadı:', e && e.message);
+    return [];
+  }
+}
+
 async function odaKaydet(db, ders, donem) {
   const K = await kural();
   const dersId = dersKimligi(ders);
@@ -600,6 +627,7 @@ router.get(
       ogrenciSayisi,
       odevOzetleri,
       hocaBilgileri: await hocaIletisimleri(db, oda),
+      sinavlar: await odaSinavlariOku(db, oda),
       ogrenciNo: rol === 'ogrenci' ? ogrenciNo(req.user) : '',
     });
   })
@@ -1267,6 +1295,7 @@ router.get(
       ogrenciler,
       ekNotlar,
       notAyari: oda.notAyari || {},
+      sinavlar: await odaSinavlariOku(db, oda),
       kunye,
     });
   })
@@ -1334,6 +1363,7 @@ async function ogrenciNotCizelgesi(db, oda, user) {
       // sütunların ağırlıklarıyla ölçeklenir.
       ekKalemler: (ayar.ekKalemler || []).filter((k) => k.yayinlandi),
     },
+    sinavlar: await odaSinavlariOku(db, oda),
     kunye: { bolumAd: '', fakulteAd: '' },
   };
 }
@@ -1373,6 +1403,213 @@ router.post(
       );
     degisti(req);
     res.json({ success: true, notAyari: r.ayar });
+  })
+);
+
+// ── KAYNAK KÜTÜPHANESİ BAĞLANTISI ──
+// Oda dosyaları yetkiyle korunan oda klasöründe durur; kütüphane ise
+// genel dosya deposunu (uploads/resources) ve `resources` koleksiyonunu
+// kullanır. Aktarım iki yönde de dosyanın KOPYASIYLA yapılır: oda silinse
+// de kütüphane kaydı yaşar, kütüphane kaydı silinse de odadaki ek kalır.
+// Yalnız akademisyenin paylaşım ekleri arşivlenir — öğrenci teslimleri ASLA.
+const KUTUPHANE = 'resources';
+const KUTUPHANE_KLASORU = 'resources';
+const GENEL_YUKLEME = path.join(__dirname, '..', 'uploads');
+
+function kutuphaneDosyaYolu(fileUrl) {
+  const m = /^\/api\/files\/download\/(.+)$/.exec(metin(fileUrl));
+  if (!m) return '';
+  const tam = path.resolve(GENEL_YUKLEME, decodeURIComponent(m[1]));
+  return tam.startsWith(path.resolve(GENEL_YUKLEME) + path.sep) ? tam : '';
+}
+
+router.post(
+  '/oda/:odaId/arsivle',
+  requireAuth,
+  yazmaLimiti,
+  sar(async (req, res) => {
+    const b = await odaVeRol(req, res, req.params.odaId);
+    if (!b) return;
+    if (b.rol !== 'hoca') return res.status(403).json({ error: 'Yalnız dersin akademisyeni.' });
+    const { db, oda } = b;
+    const K = await kural();
+    const kategori = K.KUTUPHANE_KATEGORILERI[metin(req.body.kategori)]
+      ? metin(req.body.kategori)
+      : '';
+    const idler = (Array.isArray(req.body.dosyaIdleri) ? req.body.dosyaIdleri : [])
+      .map(metin)
+      .filter(Boolean)
+      .slice(0, 100);
+    if (!idler.length) return res.status(400).json({ error: 'Arşivlenecek dosya seçin.' });
+    const dosyalar = await db
+      .collection(DOSYA)
+      .find({ _id: { $in: idler }, odaId: oda._id, amac: 'ek' })
+      .toArray();
+    const icerikler = new Map(
+      (
+        await db
+          .collection(ICERIK)
+          .find({ _id: { $in: dosyalar.map((d) => d.icerikId).filter(Boolean) } })
+          .toArray()
+      ).map((i) => [i._id, i])
+    );
+    const zatenVar = new Set(
+      (
+        await db
+          .collection(KUTUPHANE)
+          .find({ 'kaynak.dosyaId': { $in: dosyalar.map((d) => d._id) } })
+          .project({ 'kaynak.dosyaId': 1 })
+          .toArray()
+      ).map((r) => r.kaynak && r.kaynak.dosyaId)
+    );
+    const klasor = path.join(GENEL_YUKLEME, KUTUPHANE_KLASORU);
+    fs.mkdirSync(klasor, { recursive: true });
+    let eklenen = 0;
+    for (const d of dosyalar) {
+      if (zatenVar.has(d._id)) continue;
+      const kaynakYol = path.join(UPLOAD_DIR, d.yol);
+      if (!fs.existsSync(kaynakYol)) continue;
+      const guvenliAd = metin(d.ad).replace(/[^a-zA-Z0-9._-]/g, '_') || d._id + '.' + d.uzanti;
+      const dosyaAdi = Date.now() + '_' + guvenliAd;
+      fs.copyFileSync(kaynakYol, path.join(klasor, dosyaAdi));
+      const icerik = icerikler.get(d.icerikId) || {};
+      await db.collection(KUTUPHANE).insertOne({
+        title: metin(d.ad).replace(/\.[^.]+$/, '') || 'Ders materyali',
+        description: [metin(icerik.baslik), K.donemEtiketi(oda.donem) + ' ders odasından']
+          .filter(Boolean)
+          .join(' — '),
+        category: kategori || K.onerilenKategori(d.uzanti, icerik.tur),
+        courseCode: metin(oda.dersKod).toLocaleUpperCase('tr-TR'),
+        fileName: d.ad,
+        fileSize: (Number(d.boyut || 0) / (1024 * 1024)).toFixed(2) + ' MB',
+        fileType: d.uzanti,
+        fileUrl: '/api/files/download/' + KUTUPHANE_KLASORU + '/' + dosyaAdi,
+        departmentId: metin(oda.departmentId),
+        downloadCount: 0,
+        ratings: {},
+        averageRating: 0,
+        ratingCount: 0,
+        uploadedBy: metin(req.user.identifier),
+        uploadedByName: metin(req.user.name || req.user.identifier),
+        createdAt: new Date().toISOString(),
+        kaynak: { tur: 'ders-odasi', odaId: oda._id, donem: oda.donem, dosyaId: d._id },
+      });
+      eklenen++;
+    }
+    try {
+      const io = req.app && req.app.get && req.app.get('io');
+      if (io) io.emit('db:write', { collections: [KUTUPHANE], at: new Date().toISOString() });
+    } catch (_) {
+      /* gerçek zamanlı kritik değil */
+    }
+    res.json({ success: true, eklenen, atlanan: dosyalar.length - eklenen });
+  })
+);
+
+// Bu dersin kütüphanedeki kaynakları (ders koduyla, bütün dönemlerden).
+router.get(
+  '/oda/:odaId/kutuphane',
+  requireAuth,
+  sar(async (req, res) => {
+    const b = await odaVeRol(req, res, req.params.odaId);
+    if (!b) return;
+    if (b.rol !== 'hoca') return res.status(403).json({ error: 'Yalnız dersin akademisyeni.' });
+    const K = await kural();
+    const kod = K.dersKodAnahtari(b.oda.dersKod);
+    const tum = await b.db
+      .collection(KUTUPHANE)
+      .find({ courseCode: { $exists: true } })
+      .project({
+        title: 1,
+        fileName: 1,
+        category: 1,
+        fileSize: 1,
+        fileUrl: 1,
+        createdAt: 1,
+        kaynak: 1,
+        _docId: 1,
+      })
+      .toArray();
+    const kaynaklar = tum
+      .filter((r) => kod && K.dersKodAnahtari(r.courseCode) === kod && metin(r.fileUrl))
+      .map((r) => ({
+        id: metin(r._docId || r._id),
+        baslik: metin(r.title),
+        dosyaAdi: metin(r.fileName),
+        kategori: metin(r.category),
+        boyut: metin(r.fileSize),
+        tarih: metin(r.createdAt),
+        donem: metin(r.kaynak && r.kaynak.donem),
+      }))
+      .sort((a, b2) => (a.tarih < b2.tarih ? 1 : -1));
+    res.json({ kaynaklar });
+  })
+);
+
+// Kütüphaneden seçilen kaynakları odaya EK olarak kopyalar; dönen ekler
+// paylaşım formuna eklenir (yayınlanınca öğrenciler görür).
+router.post(
+  '/oda/:odaId/kutuphaneden',
+  requireAuth,
+  yazmaLimiti,
+  sar(async (req, res) => {
+    const b = await odaVeRol(req, res, req.params.odaId);
+    if (!b) return;
+    if (b.rol !== 'hoca') return res.status(403).json({ error: 'Yalnız dersin akademisyeni.' });
+    const { db, oda } = b;
+    const K = await kural();
+    const idler = (Array.isArray(req.body.kaynakIdleri) ? req.body.kaynakIdleri : [])
+      .map(metin)
+      .filter(Boolean)
+      .slice(0, 20);
+    const oidler = idler.filter((x) => /^[0-9a-f]{24}$/i.test(x)).map((x) => new ObjectId(x));
+    const kaynaklar = await db
+      .collection(KUTUPHANE)
+      .find({ $or: [{ _docId: { $in: idler } }, { _id: { $in: oidler } }] })
+      .toArray();
+    const kod = K.dersKodAnahtari(oda.dersKod);
+    const ekler = [];
+    const hatalar = [];
+    for (const r of kaynaklar) {
+      const ad = metin(r.fileName) || metin(r.title);
+      if (K.dersKodAnahtari(r.courseCode) !== kod) {
+        hatalar.push(ad + ': başka dersin kaynağı');
+        continue;
+      }
+      const kaynakYol = kutuphaneDosyaYolu(r.fileUrl);
+      if (!kaynakYol || !fs.existsSync(kaynakYol)) {
+        hatalar.push(ad + ': dosya bulunamadı');
+        continue;
+      }
+      const boyut = fs.statSync(kaynakYol).size;
+      const karar = K.dosyaKarari({ ad, boyut }, DOSYA_MB);
+      if (!karar.izin) {
+        hatalar.push(ad + ': ' + karar.hata);
+        continue;
+      }
+      const id = yeniId();
+      const uzanti = K.dosyaUzantisi(ad);
+      fs.mkdirSync(path.join(UPLOAD_DIR, oda._id), { recursive: true });
+      const yol = path.join(oda._id, id + '.' + uzanti);
+      fs.copyFileSync(kaynakYol, path.join(UPLOAD_DIR, yol));
+      const kayit = {
+        _id: id,
+        odaId: oda._id,
+        icerikId: '',
+        amac: 'ek',
+        ad,
+        boyut,
+        uzanti,
+        yol,
+        mime: '',
+        yukleyen: metin(req.user.identifier),
+        olusturuldu: new Date().toISOString(),
+        kutuphaneKaynagi: metin(r._docId || r._id),
+      };
+      await db.collection(DOSYA).insertOne(kayit);
+      ekler.push(dosyaGorunumu(kayit));
+    }
+    res.json({ success: true, ekler, hatalar });
   })
 );
 
