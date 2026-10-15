@@ -2,6 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const { getDbSafe } = require('../config/database');
+const { ogrenciAdlariniBuyut } = require('../lib/ad-bicim');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const oturumIptal = require('../lib/oturum-iptal');
@@ -3195,6 +3196,10 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
     const decision = writeDecision(op, req.user);
     if (!decision.allow) {
       return res.status(decision.status || 403).json({ error: decision.error });
+    }
+    // Öğrenci adı BÜYÜK harfle saklanır (kimlik numaradır, ad gösterimdir).
+    if (op.collection === 'students' && op.data && op.type !== 'delete') {
+      op.data = ogrenciAdlariniBuyut(op.data);
     }
     // Aday: yalnız kendi başvuru türlerinin kaydı (server/lib/aday-yetki.js).
     if (DB_AUTH_ENFORCED) {

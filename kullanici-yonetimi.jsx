@@ -665,6 +665,12 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
     const dept = DEPARTMENTS.find((d) => d.id === editingProf.departmentId);
     const profData = {
       ...editingProf,
+      // YENİ kayıtta ad standart biçime getirilir. Var olan kaydın adı burada
+      // değiştirilmez: ad bir kimliktir (şifre, atamalar); dönüşüm
+      // server/ad-standart-gecis.js ile bütün atıflarla birlikte yapılır.
+      ...(!editingProf.id && window.standartAd
+        ? { name: window.standartAd(editingProf.name) }
+        : {}),
       department: dept?.name || editingProf.department || '',
       departmentId: editingProf.departmentId,
     };
@@ -1389,20 +1395,22 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                       >
                         <td style={{ padding: 14 }}>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <Input
+                            <window.UnvanSecici
                               value={editingProf.title || ''}
-                              onChange={(e) =>
-                                setEditingProf({ ...editingProf, title: e.target.value })
-                              }
-                              placeholder="Unvan (Prof. Dr., Doç. Dr. vb.)"
+                              onChange={(u) => setEditingProf({ ...editingProf, title: u })}
                             />
                             <Input
                               autoFocus
                               value={editingProf.name}
                               onChange={(e) =>
-                                setEditingProf({ ...editingProf, name: e.target.value })
+                                setEditingProf({
+                                  ...editingProf,
+                                  name: window.adBuyukHarf
+                                    ? e.target.value.toLocaleUpperCase('tr-TR')
+                                    : e.target.value,
+                                })
                               }
-                              placeholder="Ad Soyad (Örn: Ahmet YILMAZ)"
+                              placeholder="Ad Soyad (Örn: AHMET YILMAZ)"
                             />
                           </div>
                         </td>
@@ -1432,9 +1440,12 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                                 }
                                 setSaving(true);
                                 try {
-                                  const fullName = editingProf.title?.trim()
-                                    ? `${editingProf.title.trim()} ${editingProf.name.trim()}`
-                                    : editingProf.name.trim();
+                                  // Standart biçim: seçilen unvan + BÜYÜK harf ad soyad.
+                                  const fullName = window.unvanliAd
+                                    ? window.unvanliAd(editingProf.title, editingProf.name)
+                                    : editingProf.title?.trim()
+                                      ? `${editingProf.title.trim()} ${editingProf.name.trim()}`
+                                      : editingProf.name.trim();
                                   await DB.saveProfessor({
                                     name: fullName,
                                     departmentId: activeDepartment,
@@ -1480,20 +1491,22 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                       >
                         <td style={{ padding: 14 }}>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <Input
+                            <window.UnvanSecici
                               value={editingProf.title || ''}
-                              onChange={(e) =>
-                                setEditingProf({ ...editingProf, title: e.target.value })
-                              }
-                              placeholder="Unvan (Öğr. Gör., Dr. vb.)"
+                              onChange={(u) => setEditingProf({ ...editingProf, title: u })}
                             />
                             <Input
                               autoFocus
                               value={editingProf.name}
                               onChange={(e) =>
-                                setEditingProf({ ...editingProf, name: e.target.value })
+                                setEditingProf({
+                                  ...editingProf,
+                                  name: window.adBuyukHarf
+                                    ? e.target.value.toLocaleUpperCase('tr-TR')
+                                    : e.target.value,
+                                })
                               }
-                              placeholder="Ad Soyad (Örn: Ahmet YILMAZ)"
+                              placeholder="Ad Soyad (Örn: AHMET YILMAZ)"
                             />
                           </div>
                         </td>
@@ -1523,9 +1536,12 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
                                 }
                                 setSaving(true);
                                 try {
-                                  const fullName = editingProf.title?.trim()
-                                    ? `${editingProf.title.trim()} ${editingProf.name.trim()}`
-                                    : editingProf.name.trim();
+                                  // Standart biçim: seçilen unvan + BÜYÜK harf ad soyad.
+                                  const fullName = window.unvanliAd
+                                    ? window.unvanliAd(editingProf.title, editingProf.name)
+                                    : editingProf.title?.trim()
+                                      ? `${editingProf.title.trim()} ${editingProf.name.trim()}`
+                                      : editingProf.name.trim();
                                   await DB.saveProfessor({
                                     name: fullName,
                                     departmentId: '',

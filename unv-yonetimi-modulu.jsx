@@ -310,9 +310,12 @@ function UnvYonetimiApp({ currentUser }) {
       return;
     }
     try {
-      const fullName = newProfForm.title?.trim()
-        ? `${newProfForm.title.trim()} ${newProfForm.name.trim()}`
-        : newProfForm.name.trim();
+      // Standart biçim: seçilen unvan + BÜYÜK harf ad soyad.
+      const fullName = window.unvanliAd
+        ? window.unvanliAd(newProfForm.title, newProfForm.name)
+        : newProfForm.title?.trim()
+          ? `${newProfForm.title.trim()} ${newProfForm.name.trim()}`
+          : newProfForm.name.trim();
       const data = {
         name: fullName,
         facultyId: newProfForm.facultyId,
@@ -798,20 +801,11 @@ function UnvYonetimiApp({ currentUser }) {
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label style={uLabel}>Unvan (Opsiyonel)</label>
-                <input
-                  value={newProfForm.title}
-                  onChange={(e) => setNewProfForm({ ...newProfForm, title: e.target.value })}
-                  placeholder="Örn: Prof. Dr. / Doç. Dr. / Arş. Gör."
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 8,
-                    border: '1px solid ' + UNV.border,
-                    fontSize: 13,
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
+                <label style={uLabel}>Unvan</label>
+                <window.UnvanSecici
+                  value={newProfForm.title || ''}
+                  onChange={(u) => setNewProfForm({ ...newProfForm, title: u })}
+                  style={{ width: '100%', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
@@ -819,8 +813,13 @@ function UnvYonetimiApp({ currentUser }) {
                 <input
                   autoFocus
                   value={newProfForm.name}
-                  onChange={(e) => setNewProfForm({ ...newProfForm, name: e.target.value })}
-                  placeholder="Örn: Ahmet YILMAZ"
+                  onChange={(e) =>
+                    setNewProfForm({
+                      ...newProfForm,
+                      name: e.target.value.toLocaleUpperCase('tr-TR'),
+                    })
+                  }
+                  placeholder="Örn: AHMET YILMAZ"
                   style={{
                     width: '100%',
                     padding: '10px 12px',

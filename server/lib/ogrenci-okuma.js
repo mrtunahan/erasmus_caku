@@ -35,6 +35,16 @@ const metin = (v) => String(v == null ? '' : v).trim();
  * İkinci taraf LİSTE olabilir: çift numaralı ÇAP öğrencisinin iki numarası da
  * kendisidir (bkz. lib/ogrenci-baglanti.js) ve ikisinin kayıtları da onundur.
  */
+// Ad karşılaştırması büyük/küçük harf duyarsızdır (Türkçe kural): öğrenci
+// adları büyük harfe çevrildi; eski anket yanıtlarında ad "Ali Veli" diye
+// yazılı olabilir ve sahibine bağlanmaya devam etmeli.
+function adEsit(a, b) {
+  const k = (v) => metin(v).toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ');
+  const x = k(a);
+  if (!x) return false;
+  return (Array.isArray(b) ? b : [b]).some((y) => !!k(y) && k(y) === x);
+}
+
 function esit(a, b) {
   const x = metin(a);
   if (!x) return false;
@@ -114,7 +124,7 @@ function sahibiMi(kayit, kural, kimlik) {
     const deger = kayit ? kayit[alan] : '';
     if (esit(deger, k.no)) return true;
     // Eski kayıtlarda kimlik AD olarak yazılmış olabilir (bkz. başlık).
-    return !!kural.adKabul && esit(deger, k.ad);
+    return !!kural.adKabul && adEsit(deger, k.ad);
   });
 }
 
@@ -123,7 +133,7 @@ function bildirimBana(kayit, kimlik) {
   const k = kimlik || {};
   const tur = metin(kayit && kayit.recipientType) || 'user';
   const id = kayit ? kayit.recipientId : '';
-  if (tur === 'user') return esit(id, k.no) || esit(id, k.ad);
+  if (tur === 'user') return esit(id, k.no) || adEsit(id, k.ad);
   if (tur === 'department') return esit(id, k.bolum);
   if (tur === 'role') return metin(id) === 'student';
   return false;
