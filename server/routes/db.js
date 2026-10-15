@@ -114,7 +114,7 @@ async function personelYanitSuzgeci(db, user, docs) {
   const suz = yanitSuzgeci({ kapsam, ben, benimAnketlerim });
   return (d) => suz(coz(d));
 }
-const { aramaKapsami, desenKacir, aramaAdlari } = require('../lib/ogrenci-arama');
+const { aramaKapsami, trAramaDeseni, aramaAdlari } = require('../lib/ogrenci-arama');
 const { mukerrerAtlanabilirMi, mukerrerHataMi } = require('../lib/yazma-mukerrer');
 const {
   memurBelgeleriniSuz,
@@ -3396,7 +3396,9 @@ router.get('/student-search', async (req, res) => {
     if (!izin) return res.json({ students: [] });
 
     // Düzenli ifade kaçışı: kullanıcı metni desen olarak yorumlanmasın.
-    const desen = new RegExp(desenKacir(q), 'i');
+    // Türkçe harf duyarlı: "ali" büyük harfli "ALİ"yi, "ışık" "IŞIK"ı bulur
+    // (Mongo'nun 'i' bayrağı i↔İ, ı↔I eşleştirmez).
+    const desen = new RegExp(trAramaDeseni(q), 'i');
     const filtre = { $or: [{ firstName: desen }, { lastName: desen }, { name: desen }] };
     if (kapsamlar.length > 0) {
       filtre.$and = [
@@ -3615,7 +3617,10 @@ router.get('/:collection', async (req, res) => {
     // hiçbir kaydı oturumuna bağlayamıyordu (herkes ✗). Bu koleksiyonlara
     // genel API'den yazılamadığı için saklı `id` güvenilirdir.
     const kendiKimligi = KENDI_KIMLIKLI.has(collection);
-    const result = docs.map((doc) => {
+    const result = docs.map((hamDoc) => {
+      // Öğrenci adı BÜYÜK harf döner — dönüşüm betiği çalıştırılmamış eski
+      // kayıtlar da her ekranda aynı biçimde görünsün (bkz. server/lib/ad-bicim.js).
+      const doc = collection === 'students' ? ogrenciAdlariniBuyut(hamDoc) : hamDoc;
       const { _id: hamId, _docId: hamDocId, ...rest } = doc;
       const _docId = (kendiKimligi && rest.id) || hamDocId;
       const _id = hamId;
@@ -3725,6 +3730,7 @@ router.get('/:collection/:docId', async (req, res) => {
     }
     // Gizli alanlar hiçbir rol için bu kapıdan çıkmaz (bkz. lib/gizli-alanlar.js).
     gizliAlanlariCikar(doc, collection);
+    if (collection === 'students') doc = ogrenciAdlariniBuyut(doc);
 
     // Anket yanıtı tek belge olarak da liste kuralıyla okunur (kapsam + anonim).
     if (DB_AUTH_ENFORCED && user && user.role !== 'student' && collection === 'survey_responses') {

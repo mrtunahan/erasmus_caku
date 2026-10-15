@@ -37,6 +37,32 @@ function ogrenciAdlariniBuyut(veri) {
   return degisti ? out : veri;
 }
 
+// Öğrenci adının BAŞKA kayıtlara kopyalandığı alanlar (geçmiş, başvuru,
+// muafiyet, staj…). Bu adlar yalnız gösterimdir; kimlik numaradır.
+const OGRENCI_AD_KOPYALARI = ['studentName', 'ogrenciAdSoyad', 'ogrenciAdi', 'ogrenciAd'];
+// `adSoyad` genel bir alan adı; yalnız belge bir öğrenci numarası taşıyorsa
+// öğrenci adı sayılır (akademisyen adı kimliktir, ona dokunulmamalı).
+const NUMARA_ALANLARI = ['studentNumber', 'ogrenciNo', 'ogrenciNumarasi'];
+
+/** Belgenin üst düzey öğrenci-adı kopyalarını büyük harfe çevirir (kopya döner). */
+function ogrenciAdKopyalariniBuyut(veri) {
+  if (!veri || typeof veri !== 'object' || Array.isArray(veri)) return veri;
+  const alanlar = OGRENCI_AD_KOPYALARI.slice();
+  if (NUMARA_ALANLARI.some((n) => veri[n])) alanlar.push('adSoyad');
+  let degisti = false;
+  const out = { ...veri };
+  alanlar.forEach((a) => {
+    if (typeof out[a] === 'string' && out[a]) {
+      const y = adBuyukHarf(out[a]);
+      if (y !== out[a]) {
+        out[a] = y;
+        degisti = true;
+      }
+    }
+  });
+  return degisti ? out : veri;
+}
+
 /**
  * Bir değerdeki ESKİ adlara birebir eşit her metni ve her ANAHTARI haritaya
  * göre çevirir — lib/akademisyen-kimlik.js → adAtiflariniCevir'in çok adlı
@@ -117,4 +143,12 @@ function adHaritasiPlanla(adlar, standartAd) {
   return { harita, atlanan, adSayisi: liste.length };
 }
 
-module.exports = { adBuyukHarf, ogrenciAdlariniBuyut, cevir, adHaritasiPlanla, AD_ALANLARI };
+module.exports = {
+  adBuyukHarf,
+  ogrenciAdlariniBuyut,
+  ogrenciAdKopyalariniBuyut,
+  cevir,
+  adHaritasiPlanla,
+  AD_ALANLARI,
+  OGRENCI_AD_KOPYALARI,
+};

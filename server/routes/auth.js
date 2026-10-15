@@ -907,8 +907,8 @@ router.post('/student-lookup', async (req, res) => {
       exists: true,
       hasPassword: !!doc[trimmedId],
       student: {
-        firstName: student.firstName || '',
-        lastName: student.lastName || '',
+        firstName: adBuyukHarf(student.firstName || ''),
+        lastName: adBuyukHarf(student.lastName || ''),
         departmentId: student.departmentId || 'bilgisayar',
         departmentName: student.departmentName || '',
         erasmusAccess: student.erasmusAccess === true,

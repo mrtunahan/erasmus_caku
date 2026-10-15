@@ -65,3 +65,33 @@ describe('akademisyen adı dönüşüm planı', () => {
     expect(s.deger.tarih).toBeInstanceOf(Date);
   });
 });
+
+describe('öğrenci adı kopyaları ve Türkçe arama', () => {
+  const { ogrenciAdKopyalariniBuyut } = require('../server/lib/ad-bicim.js');
+  const { trAramaDeseni } = require('../server/lib/ogrenci-arama.js');
+
+  it('studentName / ogrenciAdSoyad kopyalarını büyütür', () => {
+    const d = { studentName: 'Ali veli', ogrenciAdSoyad: 'ışık su', diger: 'Ali veli' };
+    expect(ogrenciAdKopyalariniBuyut(d)).toEqual({
+      studentName: 'ALİ VELİ',
+      ogrenciAdSoyad: 'IŞIK SU',
+      diger: 'Ali veli',
+    });
+  });
+
+  it('adSoyad yalnız öğrenci numarası olan belgede çevrilir', () => {
+    const hoca = { adSoyad: 'Dr. Ayşe Kaya' };
+    expect(ogrenciAdKopyalariniBuyut(hoca)).toBe(hoca);
+    expect(ogrenciAdKopyalariniBuyut({ adSoyad: 'ayşe kaya', studentNumber: '1' }).adSoyad).toBe(
+      'AYŞE KAYA'
+    );
+  });
+
+  it('arama deseni Türkçe büyük harfi bulur', () => {
+    const t = (q, v) => new RegExp(trAramaDeseni(q), 'i').test(v);
+    expect(t('aliye', 'ALİYE DEMİR')).toBe(true);
+    expect(t('ışık', 'IŞIK')).toBe(true);
+    expect(t('ogrenci', 'ÖĞRENCİ')).toBe(true);
+    expect(t('a.b', 'AXB')).toBe(false);
+  });
+});

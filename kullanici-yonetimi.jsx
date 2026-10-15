@@ -674,6 +674,13 @@ const KullaniciYonetimiApp = ({ currentUser, activeDepartment, departmentInfo })
       department: dept?.name || editingProf.department || '',
       departmentId: editingProf.departmentId,
     };
+    if (
+      !editingProf.id &&
+      window.akademisyenMukerrerOnayi &&
+      !(await window.akademisyenMukerrerOnayi(profData.name))
+    ) {
+      return;
+    }
     // Bölüm değişimini tespit et (kullanıcıya bilgilendirici mesaj göstermek için)
     const originalDeptId = editingProf.id
       ? professors.find((p) => p.id === editingProf.id)?.departmentId || 'bilgisayar'

@@ -48,6 +48,28 @@ function desenKacir(q) {
   return metin(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// Türkçe harf aileleri: Mongo'nun 'i' bayrağı i↔İ ve ı↔I'yı eşleştirmez,
+// ASCII yazan kullanıcı da "s" ile "ş"yi bulmak ister (bkz. lib/tr-metin.js).
+const TR_AILE = [
+  ['i', 'ı', 'I', 'İ'],
+  ['s', 'ş', 'S', 'Ş'],
+  ['c', 'ç', 'C', 'Ç'],
+  ['g', 'ğ', 'G', 'Ğ'],
+  ['o', 'ö', 'O', 'Ö'],
+  ['u', 'ü', 'U', 'Ü'],
+];
+const TR_SINIF = new Map();
+TR_AILE.forEach((aile) => aile.forEach((h) => TR_SINIF.set(h, '[' + aile.join('') + ']')));
+
+/** Arama metnini Türkçe harf duyarsız, kaçırılmış bir düzenli ifade gövdesine çevirir. */
+function trAramaDeseni(q) {
+  let out = '';
+  for (const h of metin(q)) {
+    out += TR_SINIF.get(h) || h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+  return out;
+}
+
 /** Kayıtlardan yinelenmeyen görünen ad listesi üretir. */
 function aramaAdlari(kayitlar) {
   const adlar = [];
@@ -59,4 +81,4 @@ function aramaAdlari(kayitlar) {
   return adlar;
 }
 
-module.exports = { aramaKapsami, desenKacir, aramaAdlari };
+module.exports = { aramaKapsami, desenKacir, trAramaDeseni, aramaAdlari };
