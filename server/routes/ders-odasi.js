@@ -578,9 +578,10 @@ router.get(
       .find({ odaId: oda._id })
       .sort({ olusturuldu: -1 })
       .toArray();
+    // Gizli (öğrenci–akademisyen) yorumlar akış önizlemesine ve sayıya girmez.
     const yorumlar = await db
       .collection(YORUM)
-      .find({ odaId: oda._id })
+      .find({ odaId: oda._id, gizliOgrenci: { $in: [null, ''] } })
       .sort({ olusturuldu: 1 })
       .toArray();
     const yorumSayisi = {};
@@ -889,10 +890,27 @@ router.get(
     const b = await icerikVeRol(req, res, req.params.id);
     if (!b) return;
     const { db, oda, icerik, rol } = b;
-    const yorumlar = (
-      await db.collection(YORUM).find({ icerikId: icerik._id }).sort({ olusturuldu: 1 }).toArray()
-    ).map((y) => yorumGorunumu(y, req.user));
-    const out = { icerik: icerikGorunumu(icerik), oda: { ...oda, id: oda._id }, rol, yorumlar };
+    const tumYorumlar = await db
+      .collection(YORUM)
+      .find({ icerikId: icerik._id })
+      .sort({ olusturuldu: 1 })
+      .toArray();
+    // Gizli yorum (gizliOgrenci dolu) yalnız o öğrenciye ve dersin
+    // akademisyenine / yetkiliye gider; sınıf yorumlarında görünmez.
+    const ben = rol === 'ogrenci' ? ogrenciNo(req.user) : '';
+    const yorumlar = tumYorumlar
+      .filter((y) => !metin(y.gizliOgrenci))
+      .map((y) => yorumGorunumu(y, req.user));
+    const gizliYorumlar = tumYorumlar
+      .filter((y) => metin(y.gizliOgrenci) && (rol !== 'ogrenci' || metin(y.gizliOgrenci) === ben))
+      .map((y) => ({ ...yorumGorunumu(y, req.user), ogrenciNo: metin(y.gizliOgrenci) }));
+    const out = {
+      icerik: icerikGorunumu(icerik),
+      oda: { ...oda, id: oda._id },
+      rol,
+      yorumlar,
+      gizliYorumlar,
+    };
     if (icerik.tur === 'odev') {
       if (rol === 'ogrenci') {
         const t = await db
@@ -923,6 +941,17 @@ router.post(
     const { db, oda, icerik, rol } = b;
     const yazi = metin(req.body.metin).slice(0, 2000);
     if (!yazi) return res.status(400).json({ error: 'Yorum boş olamaz.' });
+    // Gizli yorum: öğrenci kendi adına, akademisyen bir öğrenciye yazar.
+    let gizliOgrenci = '';
+    if (req.body.gizli) {
+      if (rol === 'ogrenci') gizliOgrenci = ogrenciNo(req.user);
+      else if (rol === 'hoca') {
+        gizliOgrenci = metin(req.body.ogrenciNo);
+        const uyeler = await odaOgrencileri(db, oda);
+        if (!uyeler.some((s) => s.no === gizliOgrenci))
+          return res.status(400).json({ error: 'Öğrenci bu derste kayıtlı değil.' });
+      } else return res.status(403).json({ error: 'Gizli yorumu öğrenci ve akademisyen yazar.' });
+    }
     let yazarAd = metin(req.user.identifier);
     if (rol === 'ogrenci') {
       const o = await db.collection('students').findOne({ studentNumber: ogrenciNo(req.user) });
@@ -938,9 +967,24 @@ router.post(
       yazarAd,
       rol,
       metin: yazi,
+      gizliOgrenci,
       olusturuldu: new Date().toISOString(),
     };
     await db.collection(YORUM).insertOne(y);
+    if (gizliOgrenci && rol === 'hoca') {
+      const K = await kural();
+      await bildir(
+        req,
+        db,
+        [gizliOgrenci],
+        K.bildirimMetni('gizli-yorum', {
+          dersKod: oda.dersKod,
+          baslik: icerik.baslik || 'Ödev',
+          yazar: yazarAd,
+        }),
+        { odaId: oda._id, icerikId: icerik._id }
+      );
+    }
     // Öğrenci yorum yazınca dersin hocalarına haber gider.
     if (rol === 'ogrenci') {
       const K = await kural();
@@ -951,13 +995,13 @@ router.post(
         K.bildirimMetni('yorum', {
           dersKod: oda.dersKod,
           baslik: icerik.baslik || 'Duyuru',
-          yazar: yazarAd,
+          yazar: yazarAd + (gizliOgrenci ? ' (gizli)' : ''),
         }),
         { odaId: oda._id, icerikId: icerik._id }
       );
     }
     degisti(req);
-    res.json({ yorum: { ...y, id: y._id, benim: true } });
+    res.json({ yorum: { ...y, id: y._id, benim: true, ogrenciNo: gizliOgrenci } });
   })
 );
 

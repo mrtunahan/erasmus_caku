@@ -615,6 +615,13 @@ const DO_STIL = `
 .do-sekme-sayi{min-width:20px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700;background:#E2E8F0;color:#475569}
 .do-sekme-aktif .do-sekme-sayi{background:rgba(255,255,255,.18);color:#fff}
 @media (max-width:560px){.do-kart-simge{display:none!important}.do-calisma-kart{padding:16px!important}}
+.do-ayrinti-izgara{display:grid;grid-template-columns:minmax(0,1fr);gap:20px 24px;align-items:start;grid-template-areas:"kunye" "yan" "yorum"}
+.do-alan-kunye{grid-area:kunye;min-width:0}.do-alan-yorum{grid-area:yorum;min-width:0}.do-alan-yan{grid-area:yan;min-width:0}
+@media (min-width:1024px){.do-ayrinti-izgara{grid-template-columns:minmax(0,8fr) minmax(0,4fr);grid-template-rows:auto 1fr;grid-template-areas:"kunye yan" "yorum yan"}.do-alan-yan{position:sticky;top:16px}}
+.do-dosya-izgara{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+@media (min-width:640px){.do-dosya-izgara{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.do-dosya-kutu{transition:border-color .15s,background .15s}
+.do-dosya-kutu:hover{background:#fff!important;border-color:#99F6E4!important}
 .do-ayrac{width:1px;align-self:stretch;margin:4px 2px;background:#E2E8F0}
 .do-ust>.do-sol{justify-self:start;display:flex;align-items:center;gap:10px;min-width:0}
 .do-ust>.do-orta{justify-self:center}
@@ -697,6 +704,8 @@ const SIMGE = {
     'M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z',
   sag: 'M9 5l7 7-7 7',
   ok: 'M14 5l7 7m0 0l-7 7m7-7H3',
+  kilit:
+    'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
   grafik:
     'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
 };
@@ -4050,6 +4059,7 @@ function IcerikEkrani({ icerikId, oda, rol, ayarlar, renk, geri, duzenle }) {
   const odev = icerik.tur === 'odev';
   const hoca = rol === 'hoca';
   const gorevli = rol === 'hoca' || rol === 'yetkili';
+  const yanPanel = odev && (rol === 'ogrenci' || gorevli);
 
   const sil = async () => {
     if (
@@ -4075,7 +4085,31 @@ function IcerikEkrani({ icerikId, oda, rol, ayarlar, renk, geri, duzenle }) {
       <UstCubuk
         sol={
           <>
-            <GeriDugmesi onClick={geri} etiket={oda.dersKod} />
+            <GeriDugmesi onClick={geri} etiket="Geri dön" />
+            <span className="do-ayrac" aria-hidden="true" />
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: 3,
+                minWidth: 0,
+              }}
+            >
+              <KodRozeti kod={oda.dersKod} />
+              <span
+                style={{
+                  fontSize: 12,
+                  color: DO.muted,
+                  maxWidth: 280,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {[oda.dersAd, odev ? 'Ödev' : 'Duyuru'].filter(Boolean).join(' · ')}
+              </span>
+            </div>
           </>
         }
         sekmeler={
@@ -4106,75 +4140,167 @@ function IcerikEkrani({ icerikId, oda, rol, ayarlar, renk, geri, duzenle }) {
         {sekme === 'calisma' && odev && gorevli ? (
           <OgrenciCalismasi veri={veri} hoca={hoca} renk={renk} yenile={yukle} />
         ) : (
-          <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 280 }}>
-              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                {odev && <OdevSimgesi renk={renk} />}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <h2 style={{ margin: 0, fontSize: 24, color: renk, fontWeight: 600 }}>
-                    {icerik.baslik || (odev ? 'Ödev' : 'Duyuru')}
-                  </h2>
-                  <div style={{ fontSize: 13, color: DO.muted, marginTop: 4 }}>
-                    {icerik.yazar} · {tarihSaat(icerik.olusturuldu)}
-                    {icerik.duzenlendi ? ' (düzenlendi: ' + tarihSaat(icerik.duzenlendi) + ')' : ''}
-                  </div>
-                  {odev && (
+          <div
+            className={yanPanel ? 'do-ayrinti-izgara' : ''}
+            style={yanPanel ? undefined : { maxWidth: 860, margin: '0 auto' }}
+          >
+            <div className="do-alan-kunye" style={yanPanel ? undefined : { marginBottom: 20 }}>
+              <article
+                className="do-calisma-kart"
+                style={{ ...kart, borderRadius: 16, padding: '24px 26px' }}
+                data-icerik-kunye
+              >
+                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                  <span
+                    className="do-kart-simge"
+                    style={{
+                      width: 50,
+                      height: 50,
+                      flex: '0 0 50px',
+                      borderRadius: 14,
+                      background: DO.primary,
+                      color: '#fff',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 4px 10px rgba(27,42,74,.18)',
+                    }}
+                  >
+                    <Ikon ad={odev ? 'odev' : 'megafon'} boyut={24} />
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
                         display: 'flex',
+                        alignItems: 'center',
                         justifyContent: 'space-between',
-                        gap: 8,
-                        fontSize: 13,
-                        fontWeight: 600,
-                        marginTop: 10,
-                        paddingBottom: 12,
-                        borderBottom: '1px solid ' + renk,
+                        gap: 10,
                         flexWrap: 'wrap',
                       }}
                     >
-                      <span>{icerik.puan ? icerik.puan + ' puan' : 'Puansız'}</span>
-                      <span>
-                        {icerik.sonTarih
-                          ? 'Teslim tarihi: ' + tarihSaat(icerik.sonTarih)
-                          : 'Teslim tarihi yok'}
-                        {icerik.kabulAcik === false ? ' · Gönderim kapalı' : ''}
-                      </span>
+                      <h1
+                        style={{
+                          margin: 0,
+                          fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
+                          fontSize: 26,
+                          fontWeight: 800,
+                          letterSpacing: -0.3,
+                          color: DO.primary,
+                        }}
+                      >
+                        {icerik.baslik || (odev ? 'Ödev' : 'Duyuru')}
+                      </h1>
+                      <Etiket zemin="#EEF4FF" renk="#1E3A8A" kenar="#DBE5FF">
+                        {odev ? 'Bireysel ödev' : 'Duyuru'}
+                      </Etiket>
                     </div>
-                  )}
-                  {icerik.metin && (
+                    <div style={{ fontSize: 13, color: DO.muted, marginTop: 4 }}>
+                      <b style={{ color: '#334155', fontWeight: 600 }}>{icerik.yazar}</b> ·{' '}
+                      {tarihSaat(icerik.olusturuldu)}
+                      {icerik.duzenlendi
+                        ? ' (düzenlendi: ' + tarihSaat(icerik.duzenlendi) + ')'
+                        : ''}
+                    </div>
+                  </div>
+                </div>
+                {odev && (
+                  <div
+                    style={{
+                      marginTop: 20,
+                      padding: '14px 0',
+                      borderTop: '1px solid ' + DO.border,
+                      borderBottom: '1px solid ' + DO.border,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12, color: DO.soft }}>Değerlendirme:</span>
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: DO.text,
+                          background: '#EEF2F7',
+                          padding: '3px 10px',
+                          borderRadius: 7,
+                        }}
+                      >
+                        {icerik.puan ? icerik.puan + ' puan' : 'Puansız'}
+                      </span>
+                    </span>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: 13,
+                        color: DO.muted,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <Ikon ad="saat" boyut={16} renk={DO.amber} />
+                      {icerik.sonTarih ? (
+                        <>
+                          Teslim tarihi:{' '}
+                          <b style={{ color: DO.text }}>{tarihSaat(icerik.sonTarih)}</b>
+                        </>
+                      ) : (
+                        'Teslim tarihi yok'
+                      )}
+                      {icerik.kabulAcik === false && (
+                        <Etiket zemin="#F1F5F9" renk={DO.muted} kenar={DO.border}>
+                          Gönderim kapalı
+                        </Etiket>
+                      )}
+                    </span>
+                  </div>
+                )}
+                {icerik.metin && (
+                  <div style={{ marginTop: 22 }}>
+                    <h2 style={bolumEtiketi}>{odev ? 'Ödev açıklaması' : 'Duyuru'}</h2>
                     <div
                       style={{
                         fontSize: 14,
-                        lineHeight: 1.6,
+                        lineHeight: 1.65,
+                        color: '#334155',
                         whiteSpace: 'pre-wrap',
-                        marginTop: 14,
+                        background: '#F8FAFC',
+                        border: '1px solid ' + DO.border,
+                        borderRadius: 12,
+                        padding: '14px 16px',
                       }}
                     >
-                      {icerik.metin}
+                      <ZenginMetin yazi={icerik.metin} />
                     </div>
-                  )}
-                  {icerik.ekler && icerik.ekler.length > 0 && (
-                    <div style={{ marginTop: 14 }}>
-                      <Ekler ekler={icerik.ekler} />
+                  </div>
+                )}
+                {icerik.ekler && icerik.ekler.length > 0 && (
+                  <div style={{ marginTop: 22 }}>
+                    <h2 style={bolumEtiketi}>Eklenen kaynak ve dokümanlar</h2>
+                    <div className="do-dosya-izgara">
+                      {icerik.ekler.map((d) => (
+                        <DosyaKutucugu key={d.id} d={d} />
+                      ))}
                     </div>
-                  )}
-                  <Yorumlar
-                    icerikId={icerik.id}
-                    yorumlar={veri.yorumlar}
-                    hoca={hoca}
-                    yenile={yukle}
-                  />
-                </div>
-              </div>
+                  </div>
+                )}
+              </article>
             </div>
-            {odev && rol === 'ogrenci' && (
-              <CalismanizPaneli
-                veri={veri}
-                oda={oda}
-                ayarlar={ayarlar}
-                renk={renk}
-                yenile={yukle}
-              />
+            <div className="do-alan-yorum">
+              <Yorumlar icerikId={icerik.id} yorumlar={veri.yorumlar} hoca={hoca} yenile={yukle} />
+            </div>
+            {yanPanel && (
+              <aside className="do-alan-yan">
+                {rol === 'ogrenci' ? (
+                  <CalismanizPaneli veri={veri} oda={oda} ayarlar={ayarlar} yenile={yukle} />
+                ) : (
+                  <OdevDurumPaneli veri={veri} incele={() => setSekme('calisma')} />
+                )}
+              </aside>
             )}
           </div>
         )}
@@ -4183,136 +4309,393 @@ function IcerikEkrani({ icerikId, oda, rol, ayarlar, renk, geri, duzenle }) {
   );
 }
 
-function Yorumlar({ icerikId, yorumlar, hoca, yenile }) {
-  const [yazi, setYazi] = useState('');
-  const [mesgul, setMesgul] = useState(false);
+// ── ÖDEV / DUYURU AYRINTISI ──
+// Solda künye, açıklama, ekler ve sınıf yorumları; sağda öğrenciye
+// "Çalışmanız" (not, teslim, gizli yorumlar), akademisyene "Ödev durumu".
+const DOSYA_TURU = (u) => {
+  const x = metin(u).toLowerCase();
+  if (x === 'pdf') return 'PDF belgesi';
+  if (['doc', 'docx', 'odt', 'rtf'].includes(x)) return 'Word belgesi';
+  if (['ppt', 'pptx', 'odp'].includes(x)) return 'Sunum';
+  if (['xls', 'xlsx', 'csv', 'ods'].includes(x)) return 'Tablo';
+  if (['zip', 'rar', '7z'].includes(x)) return 'Arşiv';
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(x)) return 'Görsel';
+  if (dosyaSimgesi(x) === 'kod') return 'Kod dosyası';
+  return 'Dosya';
+};
+
+function DosyaKutucugu({ d, sil }) {
   return (
     <div
-      style={{ marginTop: 20, borderTop: '1px solid ' + DO.border, paddingTop: 14 }}
-      data-yorumlar
+      className="do-dosya-kutu"
+      data-dosya={d.id}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: 12,
+        borderRadius: 12,
+        border: '1px solid ' + DO.border,
+        background: '#F8FAFC',
+        minWidth: 0,
+      }}
     >
-      <div
+      <span
+        aria-hidden="true"
         style={{
-          fontSize: 14,
-          fontWeight: 600,
-          marginBottom: 10,
-          display: 'flex',
+          width: 40,
+          height: 40,
+          flex: '0 0 40px',
+          borderRadius: 9,
+          background: DO.primary,
+          color: '#fff',
+          display: 'inline-flex',
           alignItems: 'center',
-          gap: 6,
+          justifyContent: 'center',
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: 0.5,
+          textTransform: 'uppercase',
+          borderBottom: '3px solid ' + DOSYA_RENGI(d.uzanti),
         }}
       >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden="true"
-        >
-          <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-        Sınıf yorumları {yorumlar && yorumlar.length ? '(' + yorumlar.length + ')' : ''}
-      </div>
-      {(yorumlar || []).map((y) => (
-        <div key={y.id} style={{ display: 'flex', gap: 10, marginBottom: 10 }} data-yorum={y.id}>
-          <span
-            aria-hidden="true"
-            style={{
-              width: 30,
-              height: 30,
-              flex: '0 0 30px',
-              borderRadius: '50%',
-              background: y.rol === 'hoca' ? DO.primary : DO.accent,
-              color: '#fff',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            {(metin(y.yazarAd)[0] || '?').toLocaleUpperCase('tr')}
-          </span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13 }}>
-              <b>{y.yazarAd}</b>
-              {y.rol === 'hoca' && <span style={{ color: DO.muted }}> · Akademisyen</span>}
-              <span style={{ color: DO.soft, fontSize: 12 }}> · {tarihSaat(y.olusturuldu)}</span>
-              {(y.benim || hoca) && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!confirm('Yorum silinsin mi?')) return;
-                    try {
-                      await api('/yorum/' + encodeURIComponent(y.id) + '/sil', { body: {} });
-                      yenile();
-                    } catch (e) {
-                      alert(e.message);
-                    }
-                  }}
-                  style={{
-                    border: 'none',
-                    background: 'none',
-                    color: DO.red,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    marginLeft: 6,
-                  }}
-                >
-                  Sil
-                </button>
-              )}
-            </div>
-            <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{y.metin}</div>
-          </div>
-        </div>
-      ))}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-        <textarea
-          value={yazi}
-          onChange={(e) => setYazi(e.target.value)}
-          placeholder="Yorum ekle…"
-          rows={1}
-          maxLength={2000}
-          data-yorum-girdi
+        {metin(d.uzanti).slice(0, 4) || 'DOSYA'}
+      </span>
+      <button
+        type="button"
+        onClick={() => dosyaAc(d)}
+        title={d.ad}
+        style={{
+          flex: 1,
+          minWidth: 0,
+          border: 'none',
+          background: 'none',
+          padding: 0,
+          textAlign: 'left',
+          cursor: 'pointer',
+        }}
+      >
+        <span
           style={{
-            flex: 1,
-            border: '1px solid ' + DO.border,
-            borderRadius: 18,
-            padding: '8px 14px',
-            fontSize: 14,
-            fontFamily: 'inherit',
-            resize: 'vertical',
-          }}
-        />
-        <Dugme
-          tur="ana"
-          disabled={mesgul || !yazi.trim()}
-          data-yorum-gonder
-          onClick={async () => {
-            setMesgul(true);
-            try {
-              await api('/icerik/' + encodeURIComponent(icerikId) + '/yorum', {
-                body: { metin: yazi },
-              });
-              setYazi('');
-              yenile();
-            } catch (e) {
-              alert(e.message);
-            }
-            setMesgul(false);
+            display: 'block',
+            fontSize: 13,
+            fontWeight: 600,
+            color: DO.text,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}
         >
-          Gönder
-        </Dugme>
+          {d.ad}
+        </span>
+        <span style={{ fontSize: 11, color: DO.muted }}>
+          {[d.boyut ? boyutMetni(d.boyut) : '', DOSYA_TURU(d.uzanti)].filter(Boolean).join(' · ')}
+        </span>
+      </button>
+      {sil ? (
+        <SimgeDugmesi simge="cop" baslik="Dosyayı kaldır" onClick={() => sil(d)} />
+      ) : (
+        <SimgeDugmesi simge="indir" baslik="Aç / indir" onClick={() => dosyaAc(d)} />
+      )}
+    </div>
+  );
+}
+
+const bolumEtiketi = {
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: 0.6,
+  textTransform: 'uppercase',
+  color: DO.soft,
+  margin: '0 0 10px',
+};
+
+function YorumBalonu({ y, silinebilir, yenile, kucuk }) {
+  const egitmen = y.rol === 'hoca';
+  return (
+    <div
+      data-yorum={y.id}
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        paddingLeft: egitmen && !kucuk ? 24 : 0,
+      }}
+    >
+      <Avatar ad={y.yazarAd} boyut={kucuk ? 26 : 32} hoca={egitmen} />
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          padding: kucuk ? '8px 10px' : '10px 14px',
+          borderRadius: 12,
+          background: egitmen ? '#EEF4FF' : '#F8FAFC',
+          border: '1px solid ' + (egitmen ? '#DBE5FF' : DO.border),
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '2px 8px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <b style={{ fontSize: 12, color: DO.text }}>{y.yazarAd}</b>
+            {egitmen && (
+              <Etiket zemin={DO.primary} renk="#fff">
+                Eğitmen
+              </Etiket>
+            )}
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11, color: DO.soft, whiteSpace: 'nowrap' }}>
+              {tarihSaat(y.olusturuldu)}
+            </span>
+            {silinebilir && (
+              <button
+                type="button"
+                title="Yorumu sil"
+                onClick={async () => {
+                  if (!confirm('Yorum silinsin mi?')) return;
+                  try {
+                    await api('/yorum/' + encodeURIComponent(y.id) + '/sil', { body: {} });
+                    yenile();
+                  } catch (e) {
+                    alert(e.message);
+                  }
+                }}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  color: DO.soft,
+                  cursor: 'pointer',
+                  padding: 0,
+                  display: 'inline-flex',
+                }}
+              >
+                <Ikon ad="cop" boyut={14} />
+              </button>
+            )}
+          </span>
+        </div>
+        <div
+          style={{
+            fontSize: 13,
+            color: '#334155',
+            marginTop: 4,
+            whiteSpace: 'pre-wrap',
+            lineHeight: 1.5,
+          }}
+        >
+          {y.metin}
+        </div>
       </div>
     </div>
   );
 }
 
+// Yuvarlak yorum girişi; gönder düğmesi kutunun içinde.
+function YorumGirdisi({ yer, gonder, kucuk, veri }) {
+  const [yazi, setYazi] = useState('');
+  const [mesgul, setMesgul] = useState(false);
+  const yolla = async () => {
+    if (!yazi.trim()) return;
+    setMesgul(true);
+    try {
+      await gonder(yazi);
+      setYazi('');
+    } catch (e) {
+      alert(e.message);
+    }
+    setMesgul(false);
+  };
+  return (
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+      <input
+        value={yazi}
+        onChange={(e) => setYazi(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), yolla())}
+        placeholder={yer}
+        maxLength={2000}
+        {...(veri || {})}
+        style={{
+          width: '100%',
+          border: '1px solid ' + DO.border,
+          borderRadius: kucuk ? 10 : 999,
+          padding: kucuk ? '8px 40px 8px 12px' : '10px 96px 10px 16px',
+          fontSize: 13,
+          background: kucuk ? '#F8FAFC' : '#fff',
+          color: DO.text,
+          outline: 'none',
+          boxSizing: 'border-box',
+        }}
+      />
+      {kucuk ? (
+        <button
+          type="button"
+          title="Gönder"
+          aria-label="Gönder"
+          disabled={mesgul || !yazi.trim()}
+          onClick={yolla}
+          style={{
+            position: 'absolute',
+            right: 8,
+            border: 'none',
+            background: 'none',
+            color: yazi.trim() ? DO.primary : DO.soft,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            padding: 4,
+          }}
+        >
+          <Ikon ad="gonder" boyut={16} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          data-yorum-gonder
+          disabled={mesgul || !yazi.trim()}
+          onClick={yolla}
+          style={{
+            position: 'absolute',
+            right: 5,
+            top: 5,
+            bottom: 5,
+            padding: '0 16px',
+            border: 'none',
+            borderRadius: 999,
+            background: yazi.trim() ? DO.accent : '#94A3B8',
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: yazi.trim() ? 'pointer' : 'default',
+          }}
+        >
+          Gönder
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Yorumlar({ icerikId, yorumlar, hoca, yenile }) {
+  const liste = yorumlar || [];
+  return (
+    <section style={{ ...kart, borderRadius: 16, padding: 22 }} data-yorumlar>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          flexWrap: 'wrap',
+          paddingBottom: 14,
+          marginBottom: 16,
+          borderBottom: '1px solid ' + DO.border,
+        }}
+      >
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 15,
+            fontWeight: 700,
+            color: DO.primary,
+          }}
+        >
+          <Ikon ad="grup" boyut={18} /> Sınıf yorumları
+          <span style={{ fontSize: 13, fontWeight: 400, color: DO.soft }}>({liste.length})</span>
+        </span>
+        <span style={{ fontSize: 12, color: DO.soft }}>Tüm sınıf tarafından görülebilir</span>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          marginBottom: liste.length ? 18 : 0,
+        }}
+      >
+        {liste.map((y) => (
+          <YorumBalonu key={y.id} y={y} silinebilir={y.benim || hoca} yenile={yenile} />
+        ))}
+      </div>
+      <YorumGirdisi
+        yer="Sınıfa yorum ekle…"
+        veri={{ 'data-yorum-girdi': '' }}
+        gonder={async (m) => {
+          await api('/icerik/' + encodeURIComponent(icerikId) + '/yorum', { body: { metin: m } });
+          yenile();
+        }}
+      />
+    </section>
+  );
+}
+
+// Öğrenci ile dersin akademisyeni arasındaki gizli yorumlar.
+function GizliYorumlar({ icerikId, yorumlar, ogrenciNo, hoca, hocaAdi, yenile }) {
+  const liste = yorumlar || [];
+  return (
+    <div data-gizli-yorumlar>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <Ikon ad="kilit" boyut={15} renk={DO.muted} />
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: DO.text,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}
+        >
+          Gizli yorumlar
+        </span>
+      </div>
+      <div style={{ fontSize: 11, color: DO.soft, marginBottom: 10 }}>
+        {hoca
+          ? 'Yalnız bu öğrenci ve siz görebilirsiniz.'
+          : 'Yalnız siz ve dersin akademisyeni' +
+            (hocaAdi ? ' (' + hocaAdi + ')' : '') +
+            ' görebilir.'}
+      </div>
+      {liste.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+          {liste.map((y) => (
+            <YorumBalonu key={y.id} y={y} kucuk silinebilir={y.benim || hoca} yenile={yenile} />
+          ))}
+        </div>
+      )}
+      <YorumGirdisi
+        kucuk
+        yer={hoca ? 'Öğrenciye gizli yorum…' : 'Akademisyene gizli yorum…'}
+        veri={{ 'data-gizli-yorum-girdi': '' }}
+        gonder={async (m) => {
+          await api('/icerik/' + encodeURIComponent(icerikId) + '/yorum', {
+            body: { metin: m, gizli: true, ogrenciNo },
+          });
+          yenile();
+        }}
+      />
+    </div>
+  );
+}
+
+const panelKart = {
+  ...kart,
+  borderRadius: 16,
+  padding: 20,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 18,
+};
+const ayrac = { height: 1, background: DO.border, margin: 0, border: 'none' };
+
 // ── ÖĞRENCİ: ÇALIŞMANIZ ──
-function CalismanizPaneli({ veri, oda, ayarlar, renk, yenile }) {
+function CalismanizPaneli({ veri, oda, ayarlar, yenile }) {
   const { icerik, kabul } = veri;
   const teslim = veri.teslim || { dosyalar: [], teslimEdildi: false };
   const [mesgul, setMesgul] = useState(false);
@@ -4321,6 +4704,8 @@ function CalismanizPaneli({ veri, oda, ayarlar, renk, yenile }) {
   const durum = K().teslimDurumu ? K().teslimDurumu(icerik, veri.teslim, no) : '';
   const ekSure = no && icerik.ekSureler ? icerik.ekSureler[no] : '';
   const izin = kabul && kabul.izin;
+  const notVar = teslim.geriVerildi && metin(teslim.puan) !== '';
+  const tamPuan = notVar && icerik.puan && Number(teslim.puan) >= Number(icerik.puan);
 
   const islem = async (yol, govde) => {
     setMesgul(true);
@@ -4334,117 +4719,317 @@ function CalismanizPaneli({ veri, oda, ayarlar, renk, yenile }) {
   };
 
   return (
-    <div
-      style={{
-        width: 300,
-        flex: '0 0 300px',
-        maxWidth: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
-      }}
-      data-calismaniz
-    >
-      <div style={{ ...kart, padding: 16 }}>
+    <section style={panelKart} data-calismaniz>
+      <div
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
+      >
+        <span style={{ fontSize: 17, fontWeight: 700, color: DO.primary }}>Çalışmanız</span>
+        {durum && <DurumRozeti durum={durum} />}
+      </div>
+
+      {notVar && (
+        <div
+          data-notum
+          style={{
+            borderRadius: 14,
+            background: DO.accentLight,
+            border: '1px solid ' + DO.accentBorder,
+            padding: 16,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 0.6,
+                textTransform: 'uppercase',
+                color: DO.accent,
+              }}
+            >
+              Notunuz
+            </span>
+            {tamPuan && (
+              <Etiket zemin="#CCFBF1" renk={DO.accent}>
+                Tam puan
+              </Etiket>
+            )}
+          </div>
+          <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 4 }}>
+            <span style={{ fontSize: 34, fontWeight: 800, color: DO.primary, letterSpacing: -0.5 }}>
+              {K().puanMetni(teslim.puan)}
+            </span>
+            {icerik.puan ? (
+              <span style={{ fontSize: 17, fontWeight: 700, color: DO.muted }}>
+                / {icerik.puan}
+              </span>
+            ) : null}
+          </div>
+          {teslim.geriBildirim && (
+            <div
+              style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid ' + DO.accentBorder }}
+            >
+              <div style={{ fontSize: 11, color: DO.muted, marginBottom: 6 }}>
+                Akademisyenin geri bildirimi
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: DO.text,
+                  background: '#fff',
+                  borderRadius: 10,
+                  padding: 10,
+                  border: '1px solid ' + DO.accentBorder,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {teslim.geriBildirim}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div>
         <div
           style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: 12,
-            gap: 8,
+            marginBottom: 10,
           }}
         >
-          <span style={{ fontSize: 16, fontWeight: 600 }}>Çalışmanız</span>
-          {durum && <DurumRozeti durum={durum} />}
-        </div>
-        {teslim.geriVerildi && metin(teslim.puan) !== '' && (
-          <div
-            style={{ background: DO.accentLight, borderRadius: 8, padding: 10, marginBottom: 12 }}
-            data-notum
-          >
-            <div style={{ fontSize: 12, color: DO.muted }}>Notunuz</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: renk }}>
-              {K().puanMetni(teslim.puan)}
-              {icerik.puan ? (
-                <span style={{ fontSize: 14, color: DO.muted }}> / {icerik.puan}</span>
-              ) : null}
-            </div>
-            {teslim.geriBildirim && (
-              <div style={{ fontSize: 13, marginTop: 6, whiteSpace: 'pre-wrap' }}>
-                {teslim.geriBildirim}
-              </div>
-            )}
-          </div>
-        )}
-        {dosyalar.length > 0 && (
-          <div style={{ marginBottom: 12 }}>
-            <Ekler
-              ekler={dosyalar}
-              silinebilir={!teslim.teslimEdildi && izin}
-              onSil={(d) => islem('/dosya-sil', { dosyaId: d.id })}
-            />
-          </div>
-        )}
-        {teslim.teslimEdildi ? (
-          <>
-            <div style={{ fontSize: 12, color: DO.muted, marginBottom: 10 }}>
-              Teslim: {tarihSaat(teslim.teslimZamani)}
-              {teslim.gec ? ' (geç)' : ''}
-            </div>
-            {!teslim.geriVerildi && izin && (
-              <Dugme
-                onClick={() => islem('/geri-al')}
-                disabled={mesgul}
-                style={{ width: '100%' }}
-                data-geri-al
-              >
-                Teslimi geri al
-              </Dugme>
-            )}
-          </>
-        ) : izin ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <DosyaSec
-                ayarlar={ayarlar}
-                mesgul={mesgul}
-                onSec={async (f) => {
-                  setMesgul(true);
-                  try {
-                    await dosyaYukle(oda.id, 'teslim', icerik.id, f);
-                    yenile();
-                  } catch (e) {
-                    alert(e.message);
-                  }
-                  setMesgul(false);
-                }}
-              />
-            </div>
-            <Dugme
-              tur="ana"
-              onClick={() => islem('/gonder')}
-              disabled={mesgul || !dosyalar.length}
-              data-teslim-et
+          <span style={{ ...bolumEtiketi, margin: 0 }}>
+            {teslim.teslimEdildi ? 'Teslim edilen dosya' : 'Dosyalarınız'}
+          </span>
+          {teslim.teslimEdildi && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 11,
+                fontWeight: 600,
+                color: teslim.gec ? DO.amber : DO.green,
+              }}
             >
-              {kabul.gec ? 'Geç teslim et' : 'Teslim et'}
-            </Dugme>
+              <Ikon ad="tamam" boyut={13} /> {teslim.gec ? 'Geç teslim' : 'Zamanında'}
+            </span>
+          )}
+        </div>
+        {dosyalar.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {dosyalar.map((d) => (
+              <DosyaKutucugu
+                key={d.id}
+                d={d}
+                sil={
+                  !teslim.teslimEdildi && izin
+                    ? (x) => islem('/dosya-sil', { dosyaId: x.id })
+                    : null
+                }
+              />
+            ))}
           </div>
         ) : (
-          <Uyari>{(kabul && kabul.sebep) || 'Teslim kapalı.'}</Uyari>
+          <div style={{ fontSize: 12, color: DO.soft }}>Henüz dosya eklemediniz.</div>
         )}
-        {ekSure && (
-          <div style={{ fontSize: 12, color: DO.amber, marginTop: 10 }}>
-            Size tanınan ek süre: {tarihSaat(ekSure)}
-          </div>
-        )}
-        {!teslim.teslimEdildi && kabul && kabul.izin && kabul.gec && (
-          <div style={{ fontSize: 12, color: DO.amber, marginTop: 10 }}>
-            Son tarih geçti; teslim geç olarak işaretlenir.
+        {teslim.teslimEdildi && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              fontSize: 11,
+              color: DO.soft,
+              marginTop: 8,
+            }}
+          >
+            <Ikon ad="saat" boyut={13} /> Teslim: {tarihSaat(teslim.teslimZamani)}
           </div>
         )}
       </div>
+
+      {teslim.teslimEdildi ? (
+        !teslim.geriVerildi && izin ? (
+          <button
+            type="button"
+            data-geri-al
+            disabled={mesgul}
+            onClick={() => islem('/geri-al')}
+            style={{
+              ...ikincilDugme,
+              justifyContent: 'center',
+              width: '100%',
+              background: '#F8FAFC',
+              border: '1px solid ' + DO.border,
+              padding: '10px 14px',
+            }}
+          >
+            Teslimi geri al
+          </button>
+        ) : null
+      ) : izin ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <DosyaSec
+            ayarlar={ayarlar}
+            mesgul={mesgul}
+            onSec={async (f) => {
+              setMesgul(true);
+              try {
+                await dosyaYukle(oda.id, 'teslim', icerik.id, f);
+                yenile();
+              } catch (e) {
+                alert(e.message);
+              }
+              setMesgul(false);
+            }}
+          />
+          <button
+            type="button"
+            data-teslim-et
+            disabled={mesgul || !dosyalar.length}
+            onClick={() => islem('/gonder')}
+            style={{
+              ...birincilDugme,
+              justifyContent: 'center',
+              width: '100%',
+              padding: '11px 14px',
+              opacity: dosyalar.length ? 1 : 0.5,
+            }}
+          >
+            {kabul.gec ? 'Geç teslim et' : 'Teslim et'}
+          </button>
+        </div>
+      ) : (
+        <Uyari>{(kabul && kabul.sebep) || 'Teslim kapalı.'}</Uyari>
+      )}
+      {ekSure && (
+        <div style={{ fontSize: 12, color: DO.amber }}>
+          Size tanınan ek süre: {tarihSaat(ekSure)}
+        </div>
+      )}
+      {!teslim.teslimEdildi && kabul && kabul.izin && kabul.gec && (
+        <div style={{ fontSize: 12, color: DO.amber }}>
+          Son tarih geçti; teslim geç olarak işaretlenir.
+        </div>
+      )}
+
+      <hr style={ayrac} />
+      <GizliYorumlar
+        icerikId={icerik.id}
+        yorumlar={veri.gizliYorumlar}
+        hocaAdi={(oda.hocalar || [])[0]}
+        yenile={yenile}
+      />
+    </section>
+  );
+}
+
+// ── AKADEMİSYEN / YETKİLİ: ÖDEV DURUMU ──
+function OdevDurumPaneli({ veri, incele }) {
+  const { icerik } = veri;
+  const ogrenciler = veri.ogrenciler || [];
+  const ozet = K().odevOzeti
+    ? K().odevOzeti(icerik, ogrenciler, veri.teslimler || [])
+    : { teslim: 0, notlu: 0, atanan: 0 };
+  const oran = ogrenciler.length ? Math.round((ozet.teslim / ogrenciler.length) * 100) : 0;
+  const gizliSayisi = new Set((veri.gizliYorumlar || []).map((y) => y.ogrenciNo)).size;
+  const sayac = (sayi, ad, renk) => (
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: 26, fontWeight: 800, color: renk }}>{sayi}</div>
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: 0.5,
+          textTransform: 'uppercase',
+          color: DO.muted,
+        }}
+      >
+        {ad}
+      </div>
     </div>
+  );
+  return (
+    <section style={panelKart} data-odev-durumu>
+      <div
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}
+      >
+        <span style={{ fontSize: 17, fontWeight: 700, color: DO.primary }}>Ödev durumu</span>
+        {icerik.kabulAcik === false ? (
+          <Etiket zemin="#F1F5F9" renk={DO.muted} kenar={DO.border}>
+            Gönderim kapalı
+          </Etiket>
+        ) : (
+          <Etiket zemin={DO.accentLight} renk={DO.accent} kenar={DO.accentBorder}>
+            Yayında
+          </Etiket>
+        )}
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: 8,
+          padding: '14px 8px',
+          borderRadius: 14,
+          background: '#F2F3FF',
+        }}
+      >
+        {sayac(ozet.teslim, 'Teslim', DO.accent)}
+        {sayac(ozet.atanan, 'Bekleyen', DO.primary)}
+        {sayac(ozet.notlu, 'Notlandı', DO.text)}
+      </div>
+      <div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: 12,
+            color: DO.muted,
+            marginBottom: 6,
+          }}
+        >
+          <span>Teslim oranı</span>
+          <b style={{ color: DO.text }}>%{oran}</b>
+        </div>
+        <div style={{ height: 8, borderRadius: 999, background: '#EEF2F7' }}>
+          <div
+            style={{ width: oran + '%', height: '100%', borderRadius: 999, background: DO.accent }}
+          />
+        </div>
+        <div style={{ fontSize: 11, color: DO.soft, marginTop: 6 }}>
+          {ogrenciler.length} öğrenciye atandı
+        </div>
+      </div>
+      <button
+        type="button"
+        data-calismalari-incele
+        onClick={incele}
+        style={{ ...birincilDugme, justifyContent: 'center', width: '100%', padding: '11px 14px' }}
+      >
+        <Ikon ad="odev" boyut={16} /> Öğrenci çalışmalarını incele
+      </button>
+      <hr style={ayrac} />
+      <div
+        style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: DO.muted }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Ikon ad="saat" boyut={14} />
+          {icerik.gecKabul
+            ? 'Son tarihten sonra geç teslim kabul ediliyor'
+            : 'Son tarihten sonra teslim kapanır'}
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Ikon ad="kilit" boyut={14} />
+          {gizliSayisi
+            ? gizliSayisi + ' öğrenciyle gizli yorumlaşma var (öğrenci ayrıntısında)'
+            : 'Gizli yorum yok'}
+        </span>
+      </div>
+    </section>
   );
 }
 
@@ -4798,6 +5383,7 @@ function OgrenciCalismasi({ veri, hoca, renk, yenile }) {
               ogr={odakOgr}
               icerik={icerik}
               teslim={harita.get(odakOgr.no)}
+              gizliYorumlar={(veri.gizliYorumlar || []).filter((y) => y.ogrenciNo === odakOgr.no)}
               hoca={hoca}
               renk={renk}
               mesgul={mesgul}
@@ -4992,6 +5578,7 @@ function OgrenciAyrintisi({
   ogr,
   icerik,
   teslim,
+  gizliYorumlar,
   hoca,
   renk,
   mesgul,
@@ -5167,6 +5754,15 @@ function OgrenciAyrintisi({
           </div>
         </div>
       )}
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid ' + DO.border }}>
+        <GizliYorumlar
+          icerikId={icerik.id}
+          yorumlar={gizliYorumlar}
+          ogrenciNo={ogr.no}
+          hoca={hoca}
+          yenile={yenile}
+        />
+      </div>
       <div style={{ height: 1, background: renk, opacity: 0.2, marginTop: 14 }} />
     </div>
   );
