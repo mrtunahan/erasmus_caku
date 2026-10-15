@@ -530,6 +530,7 @@ import {
 import {
   cakismaOzeti,
   cakismalariBul,
+  ortakOgrenciSayaci,
   gozetmenMusaitMi,
   kabulKaydi,
   musaitsizGunler,
@@ -15525,6 +15526,7 @@ window.anketTekHue = TEK_HUE;
 window.anketGrafikMurekkep = GRAFIK_MUREKKEP;
 // Sınav çakışmaları ve şartlı kabul — fakülte geneli denetim.
 window.sinavCakismalariBul = cakismalariBul;
+window.sinavOrtakOgrenciSayaci = ortakOgrenciSayaci;
 window.sinavCakismaOzeti = cakismaOzeti;
 window.sinavProgramHazirMi = programHazirMi;
 window.sinavKabulKaydi = kabulKaydi;
