@@ -610,6 +610,11 @@ const DO_STIL = `
 .do-sekme{display:inline-flex;align-items:center;gap:7px;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:#64748B;white-space:nowrap;transition:background .15s,color .15s}
 .do-sekme:hover{background:#E2E8F0;color:#1B2A4A}
 .do-sekme-aktif,.do-sekme-aktif:hover{background:#1B2A4A;color:#fff;box-shadow:0 1px 3px rgba(15,23,42,.2)}
+.do-sekmeler-tam{display:flex;width:100%;box-sizing:border-box}
+.do-sekmeler-tam .do-sekme{flex:1 1 0;justify-content:center;min-width:max-content}
+.do-sekme-sayi{min-width:20px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700;background:#E2E8F0;color:#475569}
+.do-sekme-aktif .do-sekme-sayi{background:rgba(255,255,255,.18);color:#fff}
+@media (max-width:560px){.do-kart-simge{display:none!important}.do-calisma-kart{padding:16px!important}}
 .do-ayrac{width:1px;align-self:stretch;margin:4px 2px;background:#E2E8F0}
 .do-ust>.do-sol{justify-self:start;display:flex;align-items:center;gap:10px;min-width:0}
 .do-ust>.do-orta{justify-self:center}
@@ -2021,6 +2026,7 @@ function Etiket({ children, zemin, renk, kenar }) {
 function CalismaSimgesi({ simge, zemin, renk }) {
   return (
     <span
+      className="do-kart-simge"
       style={{
         width: 44,
         height: 44,
@@ -2170,7 +2176,7 @@ function OdevCalismaKarti({ odev, teslim, durum, ozet, ogrenci, ogrenciSayisi, y
   return (
     <article
       data-odev-satiri={odev.id}
-      className="do-kart-hover"
+      className="do-kart-hover do-calisma-kart"
       style={{ ...kart, borderRadius: 12, padding: 20, display: 'flex', gap: 16 }}
     >
       <CalismaSimgesi simge="odev" zemin="#EEF2F7" renk={DO.primary} />
@@ -2310,7 +2316,7 @@ function MateryalKarti({ icerik, yorum, ac }) {
   return (
     <article
       data-materyal-satiri={icerik.id}
-      className="do-kart-hover"
+      className="do-kart-hover do-calisma-kart"
       style={{ ...kart, borderRadius: 12, padding: 20, display: 'flex', gap: 16 }}
     >
       <CalismaSimgesi simge="belge" zemin="#E0F2FE" renk="#1E3A8A" />
@@ -2354,47 +2360,6 @@ function MateryalKarti({ icerik, yorum, ac }) {
         <CalismaAlti yorum={yorum} ac={ac} etiket="Ayrıntılar" />
       </div>
     </article>
-  );
-}
-
-function BolumBasligi({ sira, baslik, adet }) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'baseline',
-        justifyContent: 'space-between',
-        gap: 12,
-        marginTop: 8,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, minWidth: 0 }}>
-        <span
-          style={{
-            fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: 1,
-            color: DO.accent,
-          }}
-        >
-          BÖLÜM {String(sira).padStart(2, '0')}
-        </span>
-        <h2
-          style={{
-            margin: 0,
-            fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif",
-            fontSize: 22,
-            fontWeight: 700,
-            letterSpacing: -0.3,
-            color: DO.primary,
-          }}
-        >
-          {baslik}
-        </h2>
-      </div>
-      <span style={{ fontSize: 12, color: DO.muted, whiteSpace: 'nowrap' }}>{adet} Öğe</span>
-    </div>
   );
 }
 
@@ -2592,14 +2557,20 @@ function SinifCalismalari({
     !q ||
     [i.baslik, i.metin, ...(i.ekler || []).map((d) => d.ad)].some((v) => kucukHarf(v).includes(q));
 
-  const cipler = [
-    ['hepsi', 'Tüm çalışmalar'],
-    ['odev', 'Ödevler'],
-    ['materyal', 'Ders materyalleri'],
-  ];
-  if (ogrenci) cipler.push(['yapilacak', 'Yapılacaklar'], ['tamam', 'Tamamlananlar']);
-
   const ACIK = ['atandi', 'eksik'];
+  const yapilacakSayisi = odevler.filter((o) => ACIK.includes(durumBul(o))).length;
+  // Ana sekmelerle aynı görünüm: simge, ad ve sayı.
+  const cipler = [
+    ['hepsi', 'Tüm çalışmalar', 'akis', odevler.length + materyaller.length],
+    ['odev', 'Ödevler', 'odev', odevler.length],
+    ['materyal', 'Ders materyalleri', 'belge', materyaller.length],
+  ];
+  if (ogrenci)
+    cipler.push(
+      ['yapilacak', 'Yapılacaklar', 'saat', yapilacakSayisi],
+      ['tamam', 'Tamamlananlar', 'tamam', odevler.length - yapilacakSayisi]
+    );
+
   let gorunenOdevler = odevler.filter(eslesir);
   if (suzgec === 'yapilacak')
     gorunenOdevler = gorunenOdevler.filter((o) => ACIK.includes(durumBul(o)));
@@ -2616,111 +2587,109 @@ function SinifCalismalari({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }} data-sinif-calismalari>
-      <div
-        style={{
-          ...kart,
-          borderRadius: 12,
-          padding: 14,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: DO.primary }}>Sınıf çalışmaları</div>
-          <div style={{ fontSize: 12, color: DO.muted }}>
-            {odevler.length} ödev · {materyaller.length} ders materyali
+      <div style={{ ...kart, borderRadius: 14, overflow: 'hidden' }}>
+        <div
+          style={{
+            padding: '14px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: DO.primary }}>
+              Sınıf çalışmaları
+            </div>
+            <div style={{ fontSize: 12, color: DO.muted }}>
+              {odevler.length} ödev · {materyaller.length} ders materyali
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 8,
+                background: '#F2F3FF',
+                color: DO.muted,
+                minWidth: 220,
+              }}
+            >
+              <Ikon ad="ara" boyut={16} />
+              <input
+                value={arama}
+                onChange={(e) => setArama(e.target.value)}
+                placeholder="Çalışmalarda filtrele…"
+                aria-label="Çalışmalarda filtrele"
+                style={{
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  fontSize: 13,
+                  color: DO.text,
+                  flex: 1,
+                  minWidth: 0,
+                }}
+              />
+            </label>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 12px',
+                borderRadius: 8,
+                background: '#F2F3FF',
+                fontSize: 12,
+                fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                color: DO.text,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: DO.accent }} />
+              {ogrenciSayisi} Öğrenci
+            </span>
+            {hoca && tumDosyalar.length > 0 && (
+              <button
+                type="button"
+                data-kutuphaneye-arsivle
+                onClick={() => setArsiv(true)}
+                title="Paylaşım eklerini Kaynak Kütüphanesi'ne kopyala"
+                style={ikincilDugme}
+              >
+                <Ikon ad="klasor" boyut={15} /> Kütüphaneye arşivle
+              </button>
+            )}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '8px 12px',
-              borderRadius: 8,
-              background: '#F2F3FF',
-              color: DO.muted,
-              minWidth: 220,
-            }}
-          >
-            <Ikon ad="ara" boyut={16} />
-            <input
-              value={arama}
-              onChange={(e) => setArama(e.target.value)}
-              placeholder="Çalışmalarda filtrele…"
-              aria-label="Çalışmalarda filtrele"
-              style={{
-                border: 'none',
-                outline: 'none',
-                background: 'transparent',
-                fontSize: 13,
-                color: DO.text,
-                flex: 1,
-                minWidth: 0,
-              }}
-            />
-          </label>
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '7px 12px',
-              borderRadius: 8,
-              background: '#F2F3FF',
-              fontSize: 12,
-              fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-              color: DO.text,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: DO.accent }} />
-            {ogrenciSayisi} Öğrenci
-          </span>
-          {hoca && tumDosyalar.length > 0 && (
-            <button
-              type="button"
-              data-kutuphaneye-arsivle
-              onClick={() => setArsiv(true)}
-              title="Paylaşım eklerini Kaynak Kütüphanesi'ne kopyala"
-              style={ikincilDugme}
-            >
-              <Ikon ad="klasor" boyut={15} /> Kütüphaneye arşivle
-            </button>
-          )}
+        <div style={{ padding: '0 16px 14px' }}>
+          <nav role="tablist" className="do-sekmeler do-sekmeler-tam" aria-label="Çalışma türü">
+            {cipler.map(([id, ad, simge, adet]) => {
+              const secili = suzgec === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={secili}
+                  data-calisma-suzgec={id}
+                  className={secili ? 'do-sekme do-sekme-aktif' : 'do-sekme'}
+                  onClick={() => setSuzgec(id)}
+                >
+                  <Ikon ad={simge} boyut={16} />
+                  {ad}
+                  <span className="do-sekme-sayi">{adet}</span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
       </div>
       {arsiv && <ArsivPenceresi oda={oda} dosyalar={tumDosyalar} kapat={() => setArsiv(false)} />}
-
-      <div role="tablist" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {cipler.map(([id, ad]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={suzgec === id}
-            data-calisma-suzgec={id}
-            className={suzgec === id ? '' : 'do-cip'}
-            onClick={() => setSuzgec(id)}
-            style={{
-              border: 'none',
-              borderRadius: 999,
-              padding: '8px 16px',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              background: suzgec === id ? DO.primary : '#EEF2F7',
-              color: suzgec === id ? '#fff' : DO.text,
-            }}
-          >
-            {ad}
-          </button>
-        ))}
-      </div>
 
       <div className="do-calisma-izgara">
         <main style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
@@ -2742,13 +2711,12 @@ function SinifCalismalari({
           ) : (
             bolumler
               .filter((b) => b[2].length > 0)
-              .map(([id, baslik, liste], i) => (
+              .map(([id, , liste]) => (
                 <section
                   key={id}
-                  style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
                   data-calisma-bolumu={id}
                 >
-                  <BolumBasligi sira={i + 1} baslik={baslik} adet={liste.length} />
                   {liste.map((x) =>
                     id === 'odev' ? (
                       <OdevCalismaKarti
