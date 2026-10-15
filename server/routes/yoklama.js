@@ -179,9 +179,17 @@ async function grupOturumlari(db, oturum) {
 }
 
 async function dersVeYetki(db, dersId, user) {
-  const ders = await db
-    .collection('sinav_dersler')
-    .findOne({ $or: [{ id: dersId }, { _docId: dersId }] });
+  // `_id` metin (eski sistemden aktarılan ders) ya da ObjectId olabilir; ders
+  // bulunamazsa aşağıdaki eğitmen denetimi hiç yapılmıyordu.
+  const kosul = [{ id: dersId }, { _docId: dersId }, { _id: dersId }];
+  if (/^[0-9a-f]{24}$/i.test(String(dersId || ''))) {
+    try {
+      kosul.push({ _id: new (require('mongodb').ObjectId)(String(dersId)) });
+    } catch (_) {
+      /* geçersiz kimlik */
+    }
+  }
+  const ders = await db.collection('sinav_dersler').findOne({ $or: kosul });
   if (ders && user.role !== 'admin') {
     const E = await egitmenKurali();
     const egitmenler = E.dersEgitmenleri(ders).concat(

@@ -270,13 +270,18 @@ async function donemDersleri(db, no, donem) {
 
 // Ders kayıtlarını kimlik listesiyle bulur — `id`, `_docId` ve Mongo `_id`
 // biçimlerinin hepsiyle (genel "add" ile yazılan derslerin yalnız `_id`'si var).
-function dersSorgusu(idler) {
+// ⚠ `_id` İKİ TÜRDE olabilir: Mongo ObjectId ve METİN (eski sistemden
+// aktarılan dersler; genel yazma ucu da "önce metin _id" der). Genel okuma
+// ucu kimliği `_docId || String(_id)` verir, ders seçimi de bunu yazar. Metin
+// `_id` aranmadığında böyle bir dersi seçen öğrencinin odası listede çıkmıyordu.
+function kimlikSorgusu(idler, alanlar) {
   const ids = [...new Set((idler || []).map(metin).filter(Boolean))];
   const oidler = ids.filter((x) => /^[0-9a-f]{24}$/i.test(x)).map((x) => new ObjectId(x));
-  const kosul = [{ id: { $in: ids } }, { _docId: { $in: ids } }];
-  if (oidler.length) kosul.push({ _id: { $in: oidler } });
+  const kosul = (alanlar || ['id', '_docId']).map((a) => ({ [a]: { $in: ids } }));
+  kosul.push({ _id: { $in: ids.concat(oidler) } });
   return { $or: kosul };
 }
+const dersSorgusu = (idler) => kimlikSorgusu(idler, ['id', '_docId']);
 
 // eposta: true → öğrencinin kayıtlı e-postası da döner (yalnız akademisyen ve
 // yetkilinin okuduğu Notlar/Kişiler listesi için; öğrenciye gitmez).
@@ -1808,10 +1813,9 @@ router.post(
       .map(metin)
       .filter(Boolean)
       .slice(0, 20);
-    const oidler = idler.filter((x) => /^[0-9a-f]{24}$/i.test(x)).map((x) => new ObjectId(x));
     const kaynaklar = await db
       .collection(KUTUPHANE)
-      .find({ $or: [{ _docId: { $in: idler } }, { _id: { $in: oidler } }] })
+      .find(kimlikSorgusu(idler, ['_docId']))
       .toArray();
     const kod = K.dersKodAnahtari(oda.dersKod);
     const ekler = [];
