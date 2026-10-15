@@ -545,3 +545,26 @@ describe('sınav programı eşleşmesi', () => {
     expect(l.map((x) => x.id)).toEqual(['d', 'e']);
   });
 });
+
+describe('görüşle iade', () => {
+  const kapali = { kabulAcik: false, sonTarih: '2026-01-01T00:00:00.000Z', gecKabul: false };
+  const iadeli = { teslimEdildi: false, iade: { gorus: 'Eksik', kullanildi: false } };
+  it('iade edilen öğrenci kapalı ödeve bir kez gönderebilir', () => {
+    expect(teslimKabulKarari(kapali, '1', '2026-06-01T00:00:00.000Z', iadeli)).toMatchObject({
+      izin: true,
+      gec: false,
+      iade: true,
+    });
+    const kullanildi = { ...iadeli, iade: { ...iadeli.iade, kullanildi: true } };
+    expect(teslimKabulKarari(kapali, '1', '2026-06-01T00:00:00.000Z', kullanildi).izin).toBe(false);
+  });
+  it('durum: iade, yeniden gönderilince teslim', () => {
+    expect(teslimDurumu(kapali, iadeli, '1', '2026-06-01T00:00:00.000Z')).toBe('iade');
+    const yeniden = {
+      teslimEdildi: true,
+      teslimZamani: '2026-06-01T00:00:00.000Z',
+      iade: { kullanildi: true },
+    };
+    expect(teslimDurumu(kapali, yeniden, '1')).toBe('teslim');
+  });
+});
