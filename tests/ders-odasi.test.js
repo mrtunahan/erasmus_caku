@@ -40,6 +40,7 @@ import {
   sinavDonemiAnahtari,
   odaSinavlari,
 } from '../lib/ders-odasi.js';
+import { dersinOgrenciNolari } from '../lib/ogrenci-ders-secimi.js';
 
 const MB = 1024 * 1024;
 
@@ -566,5 +567,37 @@ describe('görüşle iade', () => {
       iade: { kullanildi: true },
     };
     expect(teslimDurumu(kapali, yeniden, '1')).toBe('teslim');
+  });
+});
+
+describe('dersin öğrenci listesi (ders odası + yoklama ortak kural)', () => {
+  const ogrenciKayitlari = [
+    { studentNumber: '1' },
+    { studentNumber: '2', myCourseIds: ['d1'] },
+    { studentNumber: '3', myCourseIds: ['d1'] },
+    { studentNumber: '4' },
+  ];
+  const donemKayitlari = [
+    { _docId: '1__2026-2027_guz', courseIds: ['oid-d1'] },
+    { studentNumber: '3', termKey: '2026-2027_guz', courseIds: ['baska'] },
+    { studentNumber: '4', termKey: '2025-2026_guz', courseIds: ['d1'] },
+    { studentNumber: '117529373', termKey: '2026-2027_guz', courseIds: ['d1'] },
+    { studentNumber: 'ADAY-5', termKey: '2026-2027_guz', courseIds: ['d1'] },
+  ];
+  const nolar = (eskiListe) =>
+    dersinOgrenciNolari({
+      dersIdleri: ['d1', 'oid-d1'],
+      donem: '2026-2027_guz',
+      donemKayitlari,
+      ogrenciKayitlari,
+      eskiListe,
+    }).sort();
+  it('kimlik biçimleri, dönem süzgeci, kaydı olmayan numara ve aday düşer', () => {
+    // 1: _id biçimiyle seçmiş; 4: geçen yılın seçimi; 117529373: students kaydı yok.
+    expect(nolar(false)).toEqual(['1']);
+  });
+  it('eski liste yalnız o döneme yeni kaydı olmayan öğrenci için sayılır', () => {
+    // 2: eski listede var, yeni kaydı yok → sayılır; 3: bu dönem başka ders seçmiş → sayılmaz.
+    expect(nolar(true)).toEqual(['1', '2']);
   });
 });
