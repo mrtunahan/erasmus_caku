@@ -24,6 +24,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { ObjectId } = require('mongodb');
 const { rateLimit } = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
@@ -177,6 +178,9 @@ async function hocaMi(oda, user) {
 
 // ── ÜYELİK: DÖNEM DERS SEÇİMİ ──
 // Öğrenci yalnız o dönemin ders seçiminde seçtiği dersin odasına girer.
+// Seçim iki yerde olabilir (bkz. lib/ogrenci-ders-secimi.js): dönem bazlı
+// `student_courses` ve eski `students.myCourseIds`. Eski liste dönemsizdir;
+// yalnız İÇİNDE BULUNULAN dönemde ve o döneme ait yeni kayıt yoksa sayılır.
 async function donemDersleri(db, no, donem) {
   const n = metin(no);
   if (!n) return [];
@@ -188,17 +192,36 @@ async function donemDersleri(db, no, donem) {
     .catch(() => []);
   const set = new Set();
   kayitlar.forEach((k) => (k.courseIds || []).forEach((id) => metin(id) && set.add(metin(id))));
+  const K = await kural();
+  if (!kayitlar.length && donem === K.donemAnahtari()) {
+    const ogr = await db
+      .collection('students')
+      .findOne({ studentNumber: n }, { projection: { myCourseIds: 1 } })
+      .catch(() => null);
+    ((ogr && ogr.myCourseIds) || []).forEach((id) => metin(id) && set.add(metin(id)));
+  }
   return [...set];
+}
+
+// Ders kayıtlarını kimlik listesiyle bulur — `id`, `_docId` ve Mongo `_id`
+// biçimlerinin hepsiyle (genel "add" ile yazılan derslerin yalnız `_id`'si var).
+function dersSorgusu(idler) {
+  const ids = [...new Set((idler || []).map(metin).filter(Boolean))];
+  const oidler = ids.filter((x) => /^[0-9a-f]{24}$/i.test(x)).map((x) => new ObjectId(x));
+  const kosul = [{ id: { $in: ids } }, { _docId: { $in: ids } }];
+  if (oidler.length) kosul.push({ _id: { $in: oidler } });
+  return { $or: kosul };
 }
 
 // eposta: true → öğrencinin kayıtlı e-postası da döner (yalnız akademisyen ve
 // yetkilinin okuduğu Notlar/Kişiler listesi için; öğrenciye gitmez).
 async function odaOgrencileri(db, oda, secenek) {
-  const dersId = metin(oda.kaynakId);
+  const K = await kural();
+  const dersIdleri = K.odaDersKimlikleri(oda);
   const donem = metin(oda.donem);
   const kayitlar = await db
     .collection('student_courses')
-    .find({ courseIds: dersId })
+    .find({ courseIds: { $in: dersIdleri } })
     .toArray()
     .catch(() => []);
   const nolar = new Set();
@@ -209,6 +232,29 @@ async function odaOgrencileri(db, oda, secenek) {
     const no = metin(k.studentNumber) || docId.split('__')[0];
     if (no && !/^ADAY-/i.test(no)) nolar.add(no);
   });
+  // Eski tek-liste seçim (myCourseIds): yalnız içinde bulunulan dönemde ve
+  // öğrencinin o döneme ait yeni kaydı yoksa (donemDersleri ile aynı kural).
+  if (donem === K.donemAnahtari()) {
+    const eskiler = await db
+      .collection('students')
+      .find({ myCourseIds: { $in: dersIdleri } }, { projection: { studentNumber: 1 } })
+      .toArray()
+      .catch(() => []);
+    const adaylar = eskiler.map((o) => metin(o.studentNumber)).filter((n) => n && !nolar.has(n));
+    if (adaylar.length) {
+      const yeniKayitli = new Set(
+        (
+          await db
+            .collection('student_courses')
+            .find({ studentNumber: { $in: adaylar }, termKey: donem })
+            .project({ studentNumber: 1 })
+            .toArray()
+            .catch(() => [])
+        ).map((k) => metin(k.studentNumber))
+      );
+      adaylar.forEach((n) => !yeniKayitli.has(n) && !/^ADAY-/i.test(n) && nolar.add(n));
+    }
+  }
   const liste = [...nolar];
   const ogrenciler = liste.length
     ? await db
@@ -217,7 +263,6 @@ async function odaOgrencileri(db, oda, secenek) {
         .project({ studentNumber: 1, firstName: 1, lastName: 1, name: 1, email: 1 })
         .toArray()
     : [];
-  const K = await kural();
   const eposta = !!(secenek && secenek.eposta);
   const ad = new Map(
     ogrenciler.map((o) => [
@@ -240,7 +285,8 @@ async function odaRolu(db, oda, user) {
   if (!oda || !user || user.aday) return null;
   if (ogrenciMi(user)) {
     const dersler = await donemDersleri(db, ogrenciNo(user), oda.donem);
-    return dersler.includes(metin(oda.kaynakId)) ? 'ogrenci' : null;
+    const K = await kural();
+    return K.dersSeciliMi(oda, dersler) ? 'ogrenci' : null;
   }
   if (!personelMi(user)) return null;
   if (await hocaMi(oda, user)) return 'hoca';
@@ -286,6 +332,7 @@ async function odaKaydet(db, ders, donem) {
       $set: {
         tur: 'ders',
         kaynakId: dersId,
+        kaynakIdleri: K.dersKimlikleri(ders),
         donem,
         dersKod: metin(ders.code || ders.kod),
         dersAd: metin(ders.name || ders.ad),
@@ -448,10 +495,7 @@ router.get(
     if (ogrenciMi(user)) {
       const ids = await donemDersleri(db, ogrenciNo(user), donem);
       if (ids.length) {
-        dersler = await db
-          .collection('sinav_dersler')
-          .find({ $or: [{ id: { $in: ids } }, { _docId: { $in: ids } }] })
-          .toArray();
+        dersler = await db.collection('sinav_dersler').find(dersSorgusu(ids)).toArray();
       }
     } else if (personelMi(user)) {
       const E = await egitmenKurali();

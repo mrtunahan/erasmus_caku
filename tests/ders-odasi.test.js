@@ -34,6 +34,9 @@ import {
   notAyariDogrula,
   adMaskele,
   noMaskele,
+  dersKimlikleri,
+  odaDersKimlikleri,
+  dersSeciliMi,
 } from '../lib/ders-odasi.js';
 
 const MB = 1024 * 1024;
@@ -456,5 +459,31 @@ describe('not defteri: kalemler, ağırlık, harf, maske', () => {
   it('öğrenci kimliği maskelenir', () => {
     expect(adMaskele('Ayşe Nur Yılmaz')).toBe('A*** N** Y*****');
     expect(noMaskele('260905044')).toBe('*********');
+  });
+});
+
+describe('oda üyeliği: ders kimliği biçimleri', () => {
+  const oid = { toString: () => '65f0c0ffee0000000000abcd' };
+  it('bütün kimlik biçimleri toplanır', () => {
+    expect(dersKimlikleri({ _id: oid })).toEqual(['65f0c0ffee0000000000abcd']);
+    expect(dersKimlikleri({ _docId: 'blm103', _id: oid, id: 'eski-1' })).toEqual([
+      'blm103',
+      '65f0c0ffee0000000000abcd',
+      'eski-1',
+    ]);
+  });
+  it('yalnız _id taşıyan dersi seçen öğrenci odaya girer', () => {
+    // Benim Sayfam courseIds'e `_docId || _id` yazar; oda eskiden `id`yi anahtar alıyordu.
+    const oda = {
+      kaynakId: 'eski-1',
+      kaynakIdleri: ['blm103', '65f0c0ffee0000000000abcd', 'eski-1'],
+    };
+    expect(dersSeciliMi(oda, ['65f0c0ffee0000000000abcd'])).toBe(true);
+    expect(dersSeciliMi(oda, ['blm103'])).toBe(true);
+    expect(dersSeciliMi(oda, ['baska'])).toBe(false);
+  });
+  it('kaynakIdleri olmayan eski oda kaynakId ile çalışır', () => {
+    expect(odaDersKimlikleri({ kaynakId: 'x' })).toEqual(['x']);
+    expect(dersSeciliMi({ kaynakId: 'x' }, ['x'])).toBe(true);
   });
 });
