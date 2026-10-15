@@ -751,28 +751,64 @@ function yoklamaBildirimi(oturum, no, durum, duzeltme) {
   };
 }
 
-// Dersin kayıtlı öğrencileri (dönem ders kaydı + öğrencinin ders listesi).
+// Dersin kayıtlı öğrencileri — Ders Odaları ile AYNI kural
+// (lib/ogrenci-ders-secimi.js → dersinOgrenciNolari): içinde bulunulan
+// dönemin seçimi, eski liste yalnız o döneme yeni kaydı olmayan için ve
+// yalnız `students` kaydı olan öğrenci. Eskiden geçmiş dönemlerin seçimi de
+// sayılıyordu (dersi geçen yıl alan öğrenciye devamsızlık bildirimi gidiyordu).
+let secimSozu = null;
 async function dersListesi(db, dersId) {
   const id = metin(dersId);
   if (!id) return [];
-  const nolar = new Set();
-  const donem = await db
+  if (!secimSozu) secimSozu = import('../../lib/ogrenci-ders-secimi.js');
+  if (!donemSozu) donemSozu = import('../../lib/ders-odasi.js');
+  const [S, D] = await Promise.all([secimSozu, donemSozu]);
+  const donem = D.donemAnahtari();
+  const secimler = await db
     .collection('student_courses')
-    .find({ courseIds: id }, { projection: { studentNumber: 1, _docId: 1 } })
+    .find({ courseIds: id })
     .toArray()
     .catch(() => []);
-  donem.forEach((d) => {
-    const no = metin(d.studentNumber) || metin(d._docId).split('__')[0];
-    if (no) nolar.add(no);
-  });
-  const ogr = await db
+  const adaylar = secimler
+    .map((d) => metin(d.studentNumber) || metin(d._docId).split('__')[0])
+    .filter(Boolean);
+  const ogrenciler = await db
     .collection('students')
-    .find({ myCourseIds: id }, { projection: { studentNumber: 1 } })
+    .find(
+      { $or: [{ studentNumber: { $in: adaylar } }, { myCourseIds: id }] },
+      { projection: { studentNumber: 1, myCourseIds: 1 } }
+    )
     .toArray()
     .catch(() => []);
-  ogr.forEach((o) => metin(o.studentNumber) && nolar.add(metin(o.studentNumber)));
-  return [...nolar];
+  const eskiAdaylar = ogrenciler
+    .filter((o) => (o.myCourseIds || []).map(metin).includes(id))
+    .map((o) => metin(o.studentNumber))
+    .filter((n) => n && !adaylar.includes(n));
+  const ekSecimler = eskiAdaylar.length
+    ? await db
+        .collection('student_courses')
+        .find({
+          $or: [
+            { studentNumber: { $in: eskiAdaylar }, termKey: donem },
+            {
+              _docId: {
+                $in: eskiAdaylar.map((n) => n.replace(/[^A-Za-z0-9]/g, '') + '__' + donem),
+              },
+            },
+          ],
+        })
+        .toArray()
+        .catch(() => [])
+    : [];
+  return S.dersinOgrenciNolari({
+    dersIdleri: [id],
+    donem,
+    donemKayitlari: secimler.concat(ekSecimler),
+    ogrenciKayitlari: ogrenciler,
+    eskiListe: true,
+  });
 }
+let donemSozu = null;
 
 async function bildirimleriYaz(req, db, liste) {
   if (!liste.length) return;

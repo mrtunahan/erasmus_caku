@@ -36,6 +36,11 @@ function kural() {
   if (!kuralSozu) kuralSozu = import('../../lib/ders-odasi.js');
   return kuralSozu;
 }
+let secimSozu = null;
+function secimKurali() {
+  if (!secimSozu) secimSozu = import('../../lib/ogrenci-ders-secimi.js');
+  return secimSozu;
+}
 let egitmenSozu = null;
 function egitmenKurali() {
   if (!egitmenSozu) egitmenSozu = import('../../lib/ders-egitmenleri.js');
@@ -277,52 +282,59 @@ function dersSorgusu(idler) {
 // yetkilinin okuduğu Notlar/Kişiler listesi için; öğrenciye gitmez).
 async function odaOgrencileri(db, oda, secenek) {
   const K = await kural();
+  const S = await secimKurali();
   const dersIdleri = K.odaDersKimlikleri(oda);
   const donem = metin(oda.donem);
-  const kayitlar = await db
+  // Eski tek-liste seçim (myCourseIds) yalnız içinde bulunulan dönemde sayılır.
+  const eskiListe = donem === K.donemAnahtari();
+  const secimler = await db
     .collection('student_courses')
     .find({ courseIds: { $in: dersIdleri } })
     .toArray()
     .catch(() => []);
-  const nolar = new Set();
-  kayitlar.forEach((k) => {
-    const docId = metin(k._docId);
-    const kDonem = metin(k.termKey) || docId.split('__')[1] || '';
-    if (kDonem !== donem) return;
-    const no = metin(k.studentNumber) || docId.split('__')[0];
-    if (no && !/^ADAY-/i.test(no)) nolar.add(no);
-  });
-  // Eski tek-liste seçim (myCourseIds): yalnız içinde bulunulan dönemde ve
-  // öğrencinin o döneme ait yeni kaydı yoksa (donemDersleri ile aynı kural).
-  if (donem === K.donemAnahtari()) {
-    const eskiler = await db
-      .collection('students')
-      .find({ myCourseIds: { $in: dersIdleri } }, { projection: { studentNumber: 1 } })
-      .toArray()
-      .catch(() => []);
-    const adaylar = eskiler.map((o) => metin(o.studentNumber)).filter((n) => n && !nolar.has(n));
-    if (adaylar.length) {
-      const yeniKayitli = new Set(
-        (
-          await db
-            .collection('student_courses')
-            .find({ studentNumber: { $in: adaylar }, termKey: donem })
-            .project({ studentNumber: 1 })
-            .toArray()
-            .catch(() => [])
-        ).map((k) => metin(k.studentNumber))
-      );
-      adaylar.forEach((n) => !yeniKayitli.has(n) && !/^ADAY-/i.test(n) && nolar.add(n));
-    }
-  }
-  const liste = [...nolar];
-  const ogrenciler = liste.length
-    ? await db
-        .collection('students')
-        .find({ studentNumber: { $in: liste } })
-        .project({ studentNumber: 1, firstName: 1, lastName: 1, name: 1, email: 1 })
-        .toArray()
+  const secimNo = (k) => metin(k.studentNumber) || metin(k._docId).split('__')[0];
+  const adaylar = [...new Set(secimler.map(secimNo).filter(Boolean))];
+  const ogrenciler = await db
+    .collection('students')
+    .find(
+      eskiListe
+        ? { $or: [{ studentNumber: { $in: adaylar } }, { myCourseIds: { $in: dersIdleri } }] }
+        : { studentNumber: { $in: adaylar } }
+    )
+    .project({ studentNumber: 1, firstName: 1, lastName: 1, name: 1, email: 1, myCourseIds: 1 })
+    .toArray()
+    .catch(() => []);
+  // Eski listede dersi olan öğrencinin bu döneme ait yeni kaydı var mı?
+  const eskiAdaylar = eskiListe
+    ? ogrenciler
+        .filter((o) => (o.myCourseIds || []).some((id) => dersIdleri.includes(metin(id))))
+        .map((o) => metin(o.studentNumber))
+        .filter((n) => n && !adaylar.includes(n))
     : [];
+  const ekSecimler = eskiAdaylar.length
+    ? await db
+        .collection('student_courses')
+        .find({
+          $or: [
+            { studentNumber: { $in: eskiAdaylar }, termKey: donem },
+            {
+              _docId: {
+                $in: eskiAdaylar.map((n) => n.replace(/[^A-Za-z0-9]/g, '') + '__' + donem),
+              },
+            },
+          ],
+        })
+        .toArray()
+        .catch(() => [])
+    : [];
+  // Kural Dijital Yoklama ile ORTAK: lib/ogrenci-ders-secimi.js → dersinOgrenciNolari.
+  const liste = S.dersinOgrenciNolari({
+    dersIdleri,
+    donem,
+    donemKayitlari: secimler.concat(ekSecimler),
+    ogrenciKayitlari: ogrenciler,
+    eskiListe,
+  });
   const eposta = !!(secenek && secenek.eposta);
   const ad = new Map(
     ogrenciler.map((o) => [

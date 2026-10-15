@@ -79,6 +79,7 @@ import {
   kodAnahtari as dersKodAnahtari,
   secilenDersIdleri,
   secilenDersKodlari,
+  dersinOgrenciNolari,
 } from './lib/ogrenci-ders-secimi.js';
 import {
   dersEslestir as belgeDersEslestir,
@@ -14621,6 +14622,7 @@ window.eksikEslesmeSayisi = eksikEslesmeSayisi;
 // Öğrencinin seçtiği dersler İKİ kaynakta olabiliyor (student_courses +
 // eski students.myCourseIds); karar tek yerde (lib/ogrenci-ders-secimi.js).
 window.secilenDersIdleri = secilenDersIdleri;
+window.dersinOgrenciNolari = dersinOgrenciNolari;
 window.secilenDersKodlari = secilenDersKodlari;
 window.dersSecilmisMi = dersSecilmisMi;
 window.dersKodAnahtari = dersKodAnahtari;

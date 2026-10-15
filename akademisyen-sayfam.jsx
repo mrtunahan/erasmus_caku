@@ -1012,9 +1012,32 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           : Array.isArray(o.myCourseIds)
             ? o.myCourseIds.map(String)
             : [];
+      // ⚠ Liste Ders Odaları ile AYNI kuraldan gelir (lib/ogrenci-ders-secimi.js →
+      // dersinOgrenciNolari): yalnız içinde bulunulan dönemin seçimi sayılır,
+      // dersin bütün kimlik biçimleri denenir. Önceki kural geçmiş dönemlerin
+      // seçimini de sayıyordu ve iki modül aynı ders için farklı sayı veriyordu.
+      const ders = (dersler || []).find((d) => metin(d.id) === k);
+      const dersIdleri = [k].concat(
+        ders ? [ders._docId, ders._id, ders.id].map((x) => metin(x)).filter(Boolean) : []
+      );
+      const donemAnahtari =
+        window.DersOdasi && window.DersOdasi.donemAnahtari ? window.DersOdasi.donemAnahtari() : '';
+      const uyeler = window.dersinOgrenciNolari
+        ? new Set(
+            window.dersinOgrenciNolari({
+              dersIdleri,
+              donem: donemAnahtari,
+              donemKayitlari: dersSecimleri || [],
+              ogrenciKayitlari: ogrenciler || [],
+              eskiListe: true,
+            })
+          )
+        : null;
       return (
         (ogrenciler || [])
-          .filter((o) => dersleri(o).map(String).includes(k))
+          .filter((o) =>
+            uyeler ? uyeler.has(metin(o.studentNumber)) : dersleri(o).map(String).includes(k)
+          )
           // ⚠ Devam listesi künyesi ad/soyad/sınıf/cinsiyeti AYRI sütunlarda
           // istiyor (bkz. lib/yoklama-listesi.js); tek "adSoyad" alanı yetmez.
           // Sınıf öğrenci kaydında çoğu zaman boştur — numaradan türetilir.
@@ -1041,7 +1064,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           )
       );
     },
-    [ogrenciler, dersSecimleri]
+    [ogrenciler, dersSecimleri, dersler]
   );
 
   // ── Devamsızlık tablosu (ders başına) ──
