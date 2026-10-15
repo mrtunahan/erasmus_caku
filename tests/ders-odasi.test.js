@@ -34,6 +34,11 @@ import {
   notAyariDogrula,
   adMaskele,
   noMaskele,
+  dersKimlikleri,
+  odaDersKimlikleri,
+  dersSeciliMi,
+  sinavDonemiAnahtari,
+  odaSinavlari,
 } from '../lib/ders-odasi.js';
 
 const MB = 1024 * 1024;
@@ -456,5 +461,87 @@ describe('not defteri: kalemler, ağırlık, harf, maske', () => {
   it('öğrenci kimliği maskelenir', () => {
     expect(adMaskele('Ayşe Nur Yılmaz')).toBe('A*** N** Y*****');
     expect(noMaskele('260905044')).toBe('*********');
+  });
+});
+
+describe('oda üyeliği: ders kimliği biçimleri', () => {
+  const oid = { toString: () => '65f0c0ffee0000000000abcd' };
+  it('bütün kimlik biçimleri toplanır', () => {
+    expect(dersKimlikleri({ _id: oid })).toEqual(['65f0c0ffee0000000000abcd']);
+    expect(dersKimlikleri({ _docId: 'blm103', _id: oid, id: 'eski-1' })).toEqual([
+      'blm103',
+      '65f0c0ffee0000000000abcd',
+      'eski-1',
+    ]);
+  });
+  it('yalnız _id taşıyan dersi seçen öğrenci odaya girer', () => {
+    // Benim Sayfam courseIds'e `_docId || _id` yazar; oda eskiden `id`yi anahtar alıyordu.
+    const oda = {
+      kaynakId: 'eski-1',
+      kaynakIdleri: ['blm103', '65f0c0ffee0000000000abcd', 'eski-1'],
+    };
+    expect(dersSeciliMi(oda, ['65f0c0ffee0000000000abcd'])).toBe(true);
+    expect(dersSeciliMi(oda, ['blm103'])).toBe(true);
+    expect(dersSeciliMi(oda, ['baska'])).toBe(false);
+  });
+  it('kaynakIdleri olmayan eski oda kaynakId ile çalışır', () => {
+    expect(odaDersKimlikleri({ kaynakId: 'x' })).toEqual(['x']);
+    expect(dersSeciliMi({ kaynakId: 'x' }, ['x'])).toBe(true);
+  });
+});
+
+describe('sınav programı eşleşmesi', () => {
+  const oda = { dersKod: 'BLM 103', donem: '2026-2027_guz', kaynakIdleri: ['d1'] };
+  const donemler = [
+    { id: 'p1', examType: 'vize', semester: 'Güz 2026-2027' },
+    { id: 'p2', examType: 'final', semester: 'Güz 2026-2027' },
+    { id: 'p3', examType: 'vize', semester: 'Bahar 2026-2027' },
+  ];
+  it('dönem adı okunur', () => {
+    expect(sinavDonemiAnahtari('Güz 2026-2027')).toBe('2026-2027_guz');
+    expect(sinavDonemiAnahtari('2025-2026 Bahar')).toBe('2025-2026_bahar');
+    expect(sinavDonemiAnahtari('?')).toBe('');
+  });
+  it('courseId ile eşleşir, başka dönem düşer, tarihe göre sıralanır', () => {
+    const l = odaSinavlari(
+      oda,
+      [
+        {
+          id: 'a',
+          courseId: 'd1',
+          date: '2027-01-10',
+          timeSlot: '10:00',
+          room: 'D-304',
+          periodId: 'p2',
+        },
+        {
+          id: 'b',
+          courseId: 'd1',
+          date: '2026-11-12',
+          timeSlot: '09:00',
+          room: 'TBD',
+          periodId: 'p1',
+        },
+        { id: 'c', courseId: 'd1', date: '2027-04-01', timeSlot: '09:00', periodId: 'p3' },
+        { id: 'd', courseId: 'baska', code: 'BLM103', date: '2026-11-13', periodId: 'p1' },
+      ],
+      donemler
+    );
+    expect(l.map((x) => [x.id, x.tur, x.derslik])).toEqual([
+      ['b', 'vize', ''],
+      ['a', 'final', 'D-304'],
+    ]);
+  });
+  it('kimlik tutmazsa ders koduyla eşleşir; dönemsiz kayıt tarihe bakılır', () => {
+    const l = odaSinavlari(
+      oda,
+      [
+        { id: 'd', courseId: 'baska', code: 'blm103', date: '2026-11-13', periodId: 'p1' },
+        { id: 'e', courseId: 'baska', code: 'BLM103', date: '2026-12-01', periodId: 'yok' },
+        { id: 'f', courseId: 'baska', code: 'BLM103', date: '2027-05-01', periodId: 'yok' },
+      ],
+      donemler
+    );
+    expect(l.map((x) => x.id)).toEqual(['d', 'e']);
   });
 });

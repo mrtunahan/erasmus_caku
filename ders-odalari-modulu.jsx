@@ -1268,6 +1268,9 @@ function OdaEkrani({ odaId, icerikId, setIcerikId, sekme, setSekme, ayarlar, cur
             yorumSayisi={yorumSayisi}
             odevOzetleri={veri.odevOzetleri || {}}
             ogrenciSayisi={ogrenciSayisi}
+            sinavlar={veri.sinavlar || []}
+            hoca={hoca}
+            oda={oda}
             ac={setIcerikId}
           />
         </div>
@@ -2395,36 +2398,63 @@ function BolumBasligi({ sira, baslik, adet }) {
   );
 }
 
-function TeslimTakvimiKarti({ odevler, ac }) {
+// Sınav programındaki bir sınavın yerel zamanı ve okunur metni.
+const sinavZamani = (x) => new Date(x.tarih + 'T' + (x.saat || '09:00'));
+const sinavMetni = (x) =>
+  sinavZamani(x).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) +
+  (x.saat ? ' ' + x.saat : '') +
+  (x.derslik ? ' · ' + x.derslik : '');
+
+// Teslim takvimi: yaklaşan ödev son tarihleri ve sınav programındaki
+// sınavlar (vize / final / bütünleme) tek listede, zamana göre.
+function TeslimTakvimiKarti({ odevler, sinavlar, ac }) {
   const simdi = Date.now();
-  const liste = odevler
+  const ogeler = odevler
     .filter((o) => o.sonTarih && new Date(o.sonTarih).getTime() > simdi)
-    .sort((a, b) => (a.sonTarih < b.sonTarih ? -1 : 1))
-    .slice(0, 5);
+    .map((o) => ({
+      id: o.id,
+      baslik: o.baslik,
+      zaman: new Date(o.sonTarih).getTime(),
+      alt: tarihSaat(o.sonTarih) + ' · ' + kalanMetni(o.sonTarih),
+      ac: () => ac(o.id),
+    }))
+    .concat(
+      (sinavlar || [])
+        .filter((x) => sinavZamani(x).getTime() > simdi - 3 * 3600 * 1000)
+        .map((x) => ({
+          id: 'sinav-' + x.id,
+          baslik: x.etiket + ' sınavı',
+          sinav: x.etiket,
+          zaman: sinavZamani(x).getTime(),
+          alt: sinavMetni(x),
+        }))
+    )
+    .sort((a, b) => a.zaman - b.zaman)
+    .slice(0, 6);
   return (
     <section style={yanKart} data-teslim-takvimi>
-      {kartBasligi('takvim', 'Teslim takvimi')}
-      {liste.length === 0 ? (
-        <div style={{ fontSize: 12, color: DO.muted }}>Yaklaşan bir teslim tarihi yok.</div>
+      {kartBasligi('takvim', 'Teslim ve sınav takvimi')}
+      {ogeler.length === 0 ? (
+        <div style={{ fontSize: 12, color: DO.muted }}>Yaklaşan bir teslim ya da sınav yok.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {liste.map((o) => {
-            const acil = new Date(o.sonTarih).getTime() - simdi < 3 * GUN_MS;
+          {ogeler.map((o) => {
+            const acil = o.zaman - simdi < 3 * GUN_MS;
+            const Kap = o.ac ? 'button' : 'div';
             return (
-              <button
+              <Kap
                 key={o.id}
-                type="button"
-                onClick={() => ac(o.id)}
-                className="do-satir"
+                {...(o.ac ? { type: 'button', onClick: o.ac, className: 'do-satir' } : {})}
+                data-takvim-ogesi={o.sinav ? 'sinav' : 'odev'}
                 style={{
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: 10,
                   padding: '10px 12px',
                   borderRadius: 10,
-                  border: 'none',
-                  background: '#F2F3FF',
-                  cursor: 'pointer',
+                  border: o.sinav ? '1px solid ' + DO.accentBorder : 'none',
+                  background: o.sinav ? DO.accentLight : '#F2F3FF',
+                  cursor: o.ac ? 'pointer' : 'default',
                   textAlign: 'left',
                 }}
               >
@@ -2435,7 +2465,7 @@ function TeslimTakvimiKarti({ odevler, ac }) {
                     flex: '0 0 8px',
                     marginTop: 5,
                     borderRadius: '50%',
-                    background: acil ? DO.red : '#CBD5E1',
+                    background: acil ? DO.red : o.sinav ? DO.accent : '#CBD5E1',
                   }}
                 />
                 <div style={{ minWidth: 0 }}>
@@ -2451,11 +2481,9 @@ function TeslimTakvimiKarti({ odevler, ac }) {
                   >
                     {o.baslik}
                   </div>
-                  <div style={{ fontSize: 12, color: DO.muted }}>
-                    {tarihSaat(o.sonTarih)} · {kalanMetni(o.sonTarih)}
-                  </div>
+                  <div style={{ fontSize: 12, color: DO.muted }}>{o.alt}</div>
                 </div>
-              </button>
+              </Kap>
             );
           })}
         </div>
@@ -2538,9 +2566,22 @@ function SinifCalismalari({
   yorumSayisi,
   odevOzetleri,
   ogrenciSayisi,
+  sinavlar,
+  hoca,
+  oda,
   ac,
 }) {
   const [suzgec, setSuzgec] = useState('hepsi');
+  const [arsiv, setArsiv] = useState(false);
+  const tumDosyalar = [];
+  icerikler.forEach((i) =>
+    (i.ekler || []).forEach((d) =>
+      tumDosyalar.push({
+        ...d,
+        kaynak: (i.tur === 'odev' ? 'Ödev: ' : '') + (i.baslik || 'Duyuru'),
+      })
+    )
+  );
   const [arama, setArama] = useState('');
   const odevler = icerikler.filter((i) => i.tur === 'odev');
   const materyaller = icerikler.filter((i) => i.tur !== 'odev' && (i.ekler || []).length > 0);
@@ -2640,8 +2681,20 @@ function SinifCalismalari({
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: DO.accent }} />
             {ogrenciSayisi} Öğrenci
           </span>
+          {hoca && tumDosyalar.length > 0 && (
+            <button
+              type="button"
+              data-kutuphaneye-arsivle
+              onClick={() => setArsiv(true)}
+              title="Paylaşım eklerini Kaynak Kütüphanesi'ne kopyala"
+              style={ikincilDugme}
+            >
+              <Ikon ad="klasor" boyut={15} /> Kütüphaneye arşivle
+            </button>
+          )}
         </div>
       </div>
+      {arsiv && <ArsivPenceresi oda={oda} dosyalar={tumDosyalar} kapat={() => setArsiv(false)} />}
 
       <div role="tablist" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {cipler.map(([id, ad]) => (
@@ -2723,7 +2776,7 @@ function SinifCalismalari({
           )}
         </main>
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-          <TeslimTakvimiKarti odevler={odevler} ac={ac} />
+          <TeslimTakvimiKarti odevler={odevler} sinavlar={sinavlar} ac={ac} />
           <PuanDagilimiKarti odevler={odevler} />
         </aside>
       </div>
@@ -2731,8 +2784,307 @@ function SinifCalismalari({
   );
 }
 
+// ── KAYNAK KÜTÜPHANESİ PENCERELERİ ──
+// Arşivle: odadaki paylaşım eklerini Kaynak Kütüphanesi'ne kopyalar (ders
+// koduyla). Kütüphaneden ekle: bu dersin kütüphanedeki kaynaklarını (önceki
+// dönemlerden de) yeni paylaşıma ek olarak kopyalar.
+function Pencere({ baslik, alt, kapat, children, ayak, veri }) {
+  useEffect(() => {
+    const h = (e) => e.key === 'Escape' && kapat();
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [kapat]);
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={baslik}
+      {...(veri || {})}
+      onClick={(e) => e.target === e.currentTarget && kapat()}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        background: 'rgba(15,23,42,.45)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        style={{
+          ...kart,
+          borderRadius: 14,
+          width: '100%',
+          maxWidth: 620,
+          maxHeight: '86vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid ' + DO.border }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: DO.primary }}>{baslik}</div>
+          {alt && <div style={{ fontSize: 12, color: DO.muted, marginTop: 2 }}>{alt}</div>}
+        </div>
+        <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>{children}</div>
+        <div
+          style={{
+            padding: '12px 20px',
+            borderTop: '1px solid ' + DO.border,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 8,
+            flexWrap: 'wrap',
+            alignItems: 'center',
+          }}
+        >
+          {ayak}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const secimSatiri = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  padding: '8px 10px',
+  borderRadius: 8,
+  cursor: 'pointer',
+  fontSize: 13,
+};
+
+function ArsivPenceresi({ oda, dosyalar, kapat }) {
+  const [secili, setSecili] = useState(() => new Set(dosyalar.map((d) => d.id)));
+  const [kategori, setKategori] = useState('');
+  const [mesgul, setMesgul] = useState(false);
+  const [sonuc, setSonuc] = useState(null);
+  const kategoriler = K().KUTUPHANE_KATEGORILERI || {};
+  const gonder = async () => {
+    setMesgul(true);
+    try {
+      const r = await api('/oda/' + encodeURIComponent(oda.id) + '/arsivle', {
+        body: { dosyaIdleri: [...secili], kategori },
+      });
+      setSonuc(r);
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setMesgul(false);
+    }
+  };
+  return (
+    <Pencere
+      baslik="Kaynak Kütüphanesi'ne arşivle"
+      alt={
+        'Seçilen dosyalar ' +
+        oda.dersKod +
+        ' ders koduyla kütüphaneye kopyalanır; sonraki dönemin odasında "Kütüphaneden ekle" ile yeniden paylaşılabilir. Öğrenci teslimleri arşivlenmez.'
+      }
+      kapat={kapat}
+      veri={{ 'data-arsiv-penceresi': '' }}
+      ayak={
+        sonuc ? (
+          <>
+            <span style={{ fontSize: 13, color: DO.accent, marginRight: 'auto' }} data-arsiv-sonucu>
+              {sonuc.eklenen} dosya arşivlendi
+              {sonuc.atlanan ? ' · ' + sonuc.atlanan + ' dosya zaten kütüphanedeydi' : ''}.
+            </span>
+            <button type="button" onClick={kapat} style={birincilDugme}>
+              Tamam
+            </button>
+          </>
+        ) : (
+          <>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 12,
+                color: DO.muted,
+                marginRight: 'auto',
+              }}
+            >
+              Kategori:
+              <select
+                value={kategori}
+                onChange={(e) => setKategori(e.target.value)}
+                style={{
+                  border: '1px solid ' + DO.border,
+                  borderRadius: 8,
+                  padding: '6px 8px',
+                  fontSize: 13,
+                }}
+              >
+                <option value="">Otomatik (sunum / ödev / ders notu)</option>
+                {Object.entries(kategoriler).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Dugme onClick={kapat} disabled={mesgul}>
+              Vazgeç
+            </Dugme>
+            <button
+              type="button"
+              data-arsivle-gonder
+              onClick={gonder}
+              disabled={mesgul || !secili.size}
+              style={{ ...birincilDugme, opacity: secili.size ? 1 : 0.5 }}
+            >
+              {mesgul ? 'Arşivleniyor…' : secili.size + ' dosyayı arşivle'}
+            </button>
+          </>
+        )
+      }
+    >
+      {dosyalar.length === 0 ? (
+        <div style={{ fontSize: 13, color: DO.muted }}>Bu odada paylaşılmış dosya yok.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {dosyalar.map((d) => (
+            <label key={d.id} className="do-satir" style={secimSatiri}>
+              <input
+                type="checkbox"
+                checked={secili.has(d.id)}
+                onChange={() =>
+                  setSecili((x) => {
+                    const y = new Set(x);
+                    if (y.has(d.id)) y.delete(d.id);
+                    else y.add(d.id);
+                    return y;
+                  })
+                }
+                style={{ width: 16, height: 16, accentColor: DO.primary }}
+              />
+              <Ikon ad={dosyaSimgesi(d.uzanti)} boyut={18} renk={DOSYA_RENGI(d.uzanti)} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ fontWeight: 600, color: DO.text }}>{d.ad}</span>
+                <span style={{ display: 'block', fontSize: 11, color: DO.muted }}>{d.kaynak}</span>
+              </span>
+              {d.boyut ? (
+                <span style={{ fontSize: 11, color: DO.soft }}>{boyutMetni(d.boyut)}</span>
+              ) : null}
+            </label>
+          ))}
+        </div>
+      )}
+    </Pencere>
+  );
+}
+
+function KutuphanePenceresi({ oda, kapat, eklendi }) {
+  const [liste, setListe] = useState(null);
+  const [hata, setHata] = useState('');
+  const [secili, setSecili] = useState(() => new Set());
+  const [mesgul, setMesgul] = useState(false);
+  const kategoriler = K().KUTUPHANE_KATEGORILERI || {};
+  useEffect(() => {
+    api('/oda/' + encodeURIComponent(oda.id) + '/kutuphane')
+      .then((r) => setListe(r.kaynaklar || []))
+      .catch((e) => setHata(e.message));
+  }, [oda.id]);
+  const ekle = async () => {
+    setMesgul(true);
+    try {
+      const r = await api('/oda/' + encodeURIComponent(oda.id) + '/kutuphaneden', {
+        body: { kaynakIdleri: [...secili] },
+      });
+      if (r.hatalar && r.hatalar.length) alert('Eklenemeyenler:\n' + r.hatalar.join('\n'));
+      eklendi(r.ekler || []);
+      kapat();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setMesgul(false);
+    }
+  };
+  return (
+    <Pencere
+      baslik="Kaynak Kütüphanesi'nden ekle"
+      alt={
+        oda.dersKod +
+        ' ders koduyla kütüphanedeki kaynaklar (önceki dönemler dahil). Seçilenler bu paylaşıma ek olarak kopyalanır.'
+      }
+      kapat={kapat}
+      veri={{ 'data-kutuphane-penceresi': '' }}
+      ayak={
+        <>
+          <Dugme onClick={kapat} disabled={mesgul}>
+            Vazgeç
+          </Dugme>
+          <button
+            type="button"
+            data-kutuphaneden-ekle
+            onClick={ekle}
+            disabled={mesgul || !secili.size}
+            style={{ ...birincilDugme, opacity: secili.size ? 1 : 0.5 }}
+          >
+            {mesgul ? 'Ekleniyor…' : secili.size + ' kaynağı ekle'}
+          </button>
+        </>
+      }
+    >
+      {hata && <Uyari>{hata}</Uyari>}
+      {!hata && liste == null && <div style={{ fontSize: 13, color: DO.muted }}>Yükleniyor…</div>}
+      {liste && liste.length === 0 && (
+        <div style={{ fontSize: 13, color: DO.muted }}>
+          Kütüphanede bu derse ait kaynak yok. Önceki dönemin odasında Sınıf çalışmaları →
+          "Kütüphaneye arşivle" ile materyalleri buraya aktarabilirsiniz.
+        </div>
+      )}
+      {liste && liste.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {liste.map((r) => (
+            <label key={r.id} className="do-satir" style={secimSatiri}>
+              <input
+                type="checkbox"
+                checked={secili.has(r.id)}
+                onChange={() =>
+                  setSecili((x) => {
+                    const y = new Set(x);
+                    if (y.has(r.id)) y.delete(r.id);
+                    else if (y.size < 20) y.add(r.id);
+                    return y;
+                  })
+                }
+                style={{ width: 16, height: 16, accentColor: DO.primary }}
+              />
+              <Ikon
+                ad={dosyaSimgesi(K().dosyaUzantisi ? K().dosyaUzantisi(r.dosyaAdi) : '')}
+                boyut={18}
+                renk={DOSYA_RENGI(K().dosyaUzantisi ? K().dosyaUzantisi(r.dosyaAdi) : '')}
+              />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ fontWeight: 600, color: DO.text }}>{r.baslik || r.dosyaAdi}</span>
+                <span style={{ display: 'block', fontSize: 11, color: DO.muted }}>
+                  {[
+                    kategoriler[r.kategori],
+                    r.donem && K().donemEtiketi ? K().donemEtiketi(r.donem) : '',
+                    r.dosyaAdi,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+              </span>
+              {r.boyut && <span style={{ fontSize: 11, color: DO.soft }}>{r.boyut}</span>}
+            </label>
+          ))}
+        </div>
+      )}
+    </Pencere>
+  );
+}
+
 // ── DUYURU YAZICI (akışın başında, satır içi) ──
 function DuyuruYazici({ oda, ayarlar, benimAd, girdiRef, oneri, yayinlandi }) {
+  const [kutuphane, setKutuphane] = useState(false);
   const [yazi, setYazi] = useState('');
   const [ekler, setEkler] = useState([]);
   const [acik, setAcik] = useState(false);
@@ -2871,6 +3223,16 @@ function DuyuruYazici({ oda, ayarlar, benimAd, girdiRef, oneri, yayinlandi }) {
                   'ataç',
                   'Dosya ekle (en fazla ' + sinir + ' MB)',
                   () => dosyaRef.current && dosyaRef.current.click()
+                )}
+                {aracDugmesi('klasor', "Kaynak Kütüphanesi'nden ekle", () => setKutuphane(true), {
+                  'data-kutuphaneden': '',
+                })}
+                {kutuphane && (
+                  <KutuphanePenceresi
+                    oda={oda}
+                    kapat={() => setKutuphane(false)}
+                    eklendi={(l) => setEkler((x) => x.concat(l))}
+                  />
                 )}
                 {aracDugmesi('baglanti', 'Bağlantı ekle', () => {
                   const u = window.prompt('Bağlantı adresi (https://…)');
@@ -3526,6 +3888,7 @@ function IcerikFormu({ oda, tur, mevcut, ayarlar, iptal, kaydedildi }) {
   const [son, setSon] = useState(yerelGirdi(mevcut && mevcut.sonTarih));
   const [gecKabul, setGecKabul] = useState(mevcut ? !!mevcut.gecKabul : true);
   const [ekler, setEkler] = useState((mevcut && mevcut.ekler) || []);
+  const [kutuphane, setKutuphane] = useState(false);
   const [yukleniyor, setYukleniyor] = useState(false);
   const [mesgul, setMesgul] = useState(false);
   const [hata, setHata] = useState('');
@@ -3657,6 +4020,16 @@ function IcerikFormu({ oda, tur, mevcut, ayarlar, iptal, kaydedildi }) {
             setYukleniyor(false);
           }}
         />
+        <Dugme onClick={() => setKutuphane(true)} data-kutuphaneden>
+          Kütüphaneden ekle
+        </Dugme>
+        {kutuphane && (
+          <KutuphanePenceresi
+            oda={oda}
+            kapat={() => setKutuphane(false)}
+            eklendi={(l) => setEkler((e) => e.concat(l))}
+          />
+        )}
         <span style={{ flex: 1 }} />
         <Dugme onClick={iptal}>İptal</Dugme>
         <Dugme tur="ana" onClick={kaydet} disabled={mesgul || yukleniyor} data-kaydet>
@@ -5667,7 +6040,7 @@ function EkNotHucresi({ odaId, kalem, ogrenciNo, deger, kaydedildi }) {
   );
 }
 
-function NotAyariPaneli({ oda, kalemler, kapat, kaydedildi }) {
+function NotAyariPaneli({ oda, kalemler, sinavlar, kapat, kaydedildi }) {
   const [satirlar, setSatirlar] = useState(() =>
     kalemler.map((k) => ({
       id: k.id,
@@ -5677,8 +6050,14 @@ function NotAyariPaneli({ oda, kalemler, kapat, kaydedildi }) {
       maks: String(k.maks),
       agirlik: String(k.agirlik),
       yayinlandi: k.yayinlandi,
+      sinavTuru: k.sinavTuru || '',
     }))
   );
+  // Sınav programındaki her sınav türünden ilki (sütun başlığında tarihi görünür).
+  const sinavTurleri = [];
+  (sinavlar || []).forEach((x) => {
+    if (!sinavTurleri.some((y) => y.tur === x.tur)) sinavTurleri.push(x);
+  });
   const [mesgul, setMesgul] = useState(false);
   const [hata, setHata] = useState('');
   const toplam =
@@ -5686,7 +6065,7 @@ function NotAyariPaneli({ oda, kalemler, kapat, kaydedildi }) {
     100;
   const guncelle = (id, alan, deger) =>
     setSatirlar((l) => l.map((r) => (r.id === id ? { ...r, [alan]: deger } : r)));
-  const ekle = (ad) =>
+  const ekle = (ad, sinavTuru) =>
     setSatirlar((l) =>
       l.concat({
         id: 'ek:' + Math.random().toString(36).slice(2, 10),
@@ -5696,8 +6075,10 @@ function NotAyariPaneli({ oda, kalemler, kapat, kaydedildi }) {
         maks: '100',
         agirlik: '0',
         yayinlandi: false,
+        sinavTuru: sinavTuru || '',
       })
     );
+  const sinavEklendi = (tur) => satirlar.some((r) => r.sinavTuru === tur);
   const esitDagit = () => {
     const n = satirlar.length;
     if (!n) return;
@@ -5726,6 +6107,7 @@ function NotAyariPaneli({ oda, kalemler, kapat, kaydedildi }) {
               kisa: r.kisa,
               maks: r.maks.replace(',', '.'),
               yayinlandi: r.yayinlandi,
+              sinavTuru: r.sinavTuru,
             })),
         },
       });
@@ -5790,6 +6172,34 @@ function NotAyariPaneli({ oda, kalemler, kapat, kaydedildi }) {
         </span>
       </div>
       {hata && <Uyari>{hata}</Uyari>}
+      {sinavTurleri.length > 0 && (
+        <div
+          data-sinav-programi-bilgisi
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
+            padding: '10px 12px',
+            borderRadius: 10,
+            background: DO.accentLight,
+            border: '1px solid ' + DO.accentBorder,
+            fontSize: 12,
+            color: DO.text,
+          }}
+        >
+          <Ikon ad="takvim" boyut={16} renk={DO.accent} />
+          <b style={{ color: DO.accent }}>Sınav programında:</b>
+          {sinavTurleri.map((x) => (
+            <span key={x.tur}>
+              {x.etiket} — {sinavMetni(x)}
+            </span>
+          ))}
+          <span style={{ color: DO.muted }}>
+            Aşağıdaki düğmeyle sınava bağlı not sütunu ekleyebilirsiniz.
+          </span>
+        </div>
+      )}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 620 }}>
           <thead>
@@ -5813,12 +6223,20 @@ function NotAyariPaneli({ oda, kalemler, kapat, kaydedildi }) {
                       {r.ad}
                     </span>
                   ) : (
-                    <input
-                      value={r.ad}
-                      onChange={(e) => guncelle(r.id, 'ad', e.target.value)}
-                      aria-label="Sütun adı"
-                      style={{ ...girdi, width: '100%' }}
-                    />
+                    <>
+                      <input
+                        value={r.ad}
+                        onChange={(e) => guncelle(r.id, 'ad', e.target.value)}
+                        aria-label="Sütun adı"
+                        style={{ ...girdi, width: '100%' }}
+                      />
+                      {r.sinavTuru && sinavTurleri.find((x) => x.tur === r.sinavTuru) && (
+                        <div style={{ fontSize: 11, color: DO.accent, marginTop: 3 }}>
+                          Sınav programı:{' '}
+                          {sinavMetni(sinavTurleri.find((x) => x.tur === r.sinavTuru))}
+                        </div>
+                      )}
+                    </>
                   )}
                 </td>
                 <td style={{ ...td, textAlign: 'left' }}>
@@ -5894,17 +6312,54 @@ function NotAyariPaneli({ oda, kalemler, kapat, kaydedildi }) {
         }}
       >
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {['Vize', 'Final', 'Proje'].map((ad) => (
-            <button
-              key={ad}
-              type="button"
-              data-ek-kalem-ekle={ad}
-              onClick={() => ekle(ad)}
-              style={ikincilDugme}
-            >
-              <Ikon ad="arti" boyut={15} /> {ad}
-            </button>
-          ))}
+          {[
+            ['vize', 'Vize'],
+            ['final', 'Final'],
+          ]
+            .concat(sinavTurleri.some((x) => x.tur === 'but') ? [['but', 'Bütünleme']] : [])
+            .map(([tur, ad]) => {
+              const sinav = sinavTurleri.find((x) => x.tur === tur);
+              return (
+                <button
+                  key={tur}
+                  type="button"
+                  data-ek-kalem-ekle={ad}
+                  disabled={!!sinav && sinavEklendi(tur)}
+                  title={
+                    sinav
+                      ? 'Sınav programından: ' + sinavMetni(sinav)
+                      : 'Sınav programında bu dersin ' +
+                        ad.toLocaleLowerCase('tr-TR') +
+                        ' sınavı yok'
+                  }
+                  onClick={() => ekle(ad, sinav ? tur : '')}
+                  style={{
+                    ...ikincilDugme,
+                    opacity: sinav && sinavEklendi(tur) ? 0.5 : 1,
+                    ...(sinav ? { background: DO.accentLight, color: DO.accent } : {}),
+                  }}
+                >
+                  <Ikon ad={sinav ? 'takvim' : 'arti'} boyut={15} /> {ad}
+                  {sinav && (
+                    <span style={{ fontWeight: 500, fontSize: 11 }}>
+                      ·{' '}
+                      {sinavZamani(sinav).toLocaleDateString('tr-TR', {
+                        day: 'numeric',
+                        month: 'short',
+                      })}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          <button
+            type="button"
+            data-ek-kalem-ekle="Proje"
+            onClick={() => ekle('Proje')}
+            style={ikincilDugme}
+          >
+            <Ikon ad="arti" boyut={15} /> Proje
+          </button>
           <button type="button" onClick={() => ekle('Yeni sütun')} style={ikincilDugme}>
             <Ikon ad="arti" boyut={15} /> Başka sütun
           </button>
@@ -6567,6 +7022,7 @@ function NotlarSekmesi({ oda, rol, ac }) {
         <NotAyariPaneli
           oda={oda}
           kalemler={D.notKalemleri(odevler, veri.notAyari || {})}
+          sinavlar={veri.sinavlar || []}
           kapat={() => setAyarAcik(false)}
           kaydedildi={() => {
             setAyarAcik(false);
@@ -6766,6 +7222,21 @@ function NotlarSekmesi({ oda, rol, ac }) {
                     ) : (
                       <span>
                         {k.ad}
+                        {k.sinavTuru &&
+                          (veri.sinavlar || []).find((x) => x.tur === k.sinavTuru) && (
+                            <span
+                              style={{
+                                display: 'block',
+                                fontSize: 10,
+                                fontWeight: 500,
+                                color: DO.muted,
+                              }}
+                            >
+                              {sinavZamani(
+                                (veri.sinavlar || []).find((x) => x.tur === k.sinavTuru)
+                              ).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
+                            </span>
+                          )}
                         {hoca && !k.yayinlandi && (
                           <span
                             title="Öğrenciler henüz görmüyor"
