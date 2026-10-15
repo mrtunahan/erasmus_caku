@@ -34,7 +34,12 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { ogrenciAdlariniBuyut, cevir, adHaritasiPlanla } = require('./lib/ad-bicim');
+const {
+  ogrenciAdlariniBuyut,
+  ogrenciAdKopyalariniBuyut,
+  cevir,
+  adHaritasiPlanla,
+} = require('./lib/ad-bicim');
 
 const DOKUNULMAZ = new Set(['audit_logs']);
 
@@ -87,22 +92,38 @@ const DOKUNULMAZ = new Set(['audit_logs']);
     atlanan.forEach((a) => console.log('  ⚠ ATLANDI: ' + a));
   }
 
-  // Atıf taşıyan belgeler (bütün koleksiyonlar; audit_logs hariç)
+  // Atıf taşıyan belgeler (bütün koleksiyonlar; audit_logs hariç):
+  //   • akademisyen/memur adı atıfları (harita)
+  //   • öğrenci adının başka kayıtlardaki kopyaları (studentName, ogrenciAdSoyad…)
+  // İkisi aynı belgede olabilir; tek geçişte birlikte uygulanır ki biri
+  // ötekinin üstüne eski hâli yazmasın.
   const atiflar = [];
-  if (harita.size) {
+  const ogrenciKopyasi = kapsam === 'hepsi' || kapsam === 'ogrenci';
+  if (harita.size || ogrenciKopyasi) {
     const koleksiyonlar = (await db.listCollections().toArray()).map((c) => c.name);
     for (const ad of koleksiyonlar) {
       if (DOKUNULMAZ.has(ad)) continue;
       const dokumanlar = await db.collection(ad).find({}).toArray();
       for (const d of dokumanlar) {
         const { _id, ...govde } = d;
-        const s = cevir(govde, harita);
-        if (s.degisti) atiflar.push({ koleksiyon: ad, _id, oncesi: govde, sonrasi: s.deger });
+        let sonrasi = govde;
+        if (harita.size) {
+          const s = cevir(govde, harita);
+          if (s.degisti) sonrasi = s.deger;
+        }
+        if (ad === 'students') {
+          // Yalnız adı değişen öğrenci 1. adımda $set ile yazılır; akademisyen
+          // atfı da taşıyorsa tek belgede ikisi birlikte uygulanır.
+          if (sonrasi !== govde && ogrenciKopyasi) sonrasi = ogrenciAdlariniBuyut(sonrasi);
+        } else if (ogrenciKopyasi) {
+          sonrasi = ogrenciAdKopyalariniBuyut(sonrasi);
+        }
+        if (sonrasi !== govde) atiflar.push({ koleksiyon: ad, _id, oncesi: govde, sonrasi });
       }
     }
     const ozet = {};
     atiflar.forEach((a) => (ozet[a.koleksiyon] = (ozet[a.koleksiyon] || 0) + 1));
-    console.log(`\nAd atfı taşıyan belge: ${atiflar.length}`);
+    console.log(`\nAd atfı / öğrenci adı kopyası taşıyan belge: ${atiflar.length}`);
     Object.entries(ozet).forEach(([k, n]) => console.log(`  • ${k}: ${n}`));
   }
 
@@ -112,6 +133,13 @@ const DOKUNULMAZ = new Set(['audit_logs']);
     );
     process.exit(0);
   }
+
+  // Hem akademisyen atfı hem ad değişikliği olan öğrenci kaydı tek seferde
+  // (replaceOne ile) yazılır; ayrıca $set edilmez ki eski hâl geri gelmesin.
+  const tumdenYazilan = new Set(
+    atiflar.filter((a) => a.koleksiyon === 'students').map((a) => String(a._id))
+  );
+  const ogrenciSet = ogrenciGuncelle.filter((g) => !tumdenYazilan.has(String(g._id)));
 
   // ── 3) YEDEK ──
   yedek.ogrenciler = ogrenciGuncelle.map((g) => ({ _id: g._id, oncesi: g.oncesi }));
@@ -129,7 +157,7 @@ const DOKUNULMAZ = new Set(['audit_logs']);
   }
 
   // ── 4) YAZ ──
-  for (const g of ogrenciGuncelle) {
+  for (const g of ogrenciSet) {
     await db.collection('students').updateOne({ _id: g._id }, { $set: g.set });
   }
   for (const a of atiflar) {

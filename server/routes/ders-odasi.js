@@ -28,6 +28,7 @@ const { ObjectId } = require('mongodb');
 const { rateLimit } = require('express-rate-limit');
 const { getDbSafe } = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
+const { ogrenciAdlariniBuyut } = require('../lib/ad-bicim');
 
 const router = express.Router();
 
@@ -308,6 +309,7 @@ async function odaOgrencileri(db, oda, secenek) {
     )
     .project({ studentNumber: 1, firstName: 1, lastName: 1, name: 1, email: 1, myCourseIds: 1 })
     .toArray()
+    .then((l) => l.map(ogrenciAdlariniBuyut))
     .catch(() => []);
   // Eski listede dersi olan öğrencinin bu döneme ait yeni kaydı var mı?
   const eskiAdaylar = eskiListe

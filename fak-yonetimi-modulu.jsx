@@ -323,6 +323,9 @@ function FakYonetimiApp({ currentUser }) {
         : newProfForm.title?.trim()
           ? `${newProfForm.title.trim()} ${newProfForm.name.trim()}`
           : newProfForm.name.trim();
+      if (window.akademisyenMukerrerOnayi && !(await window.akademisyenMukerrerOnayi(fullName))) {
+        return;
+      }
       const data = {
         name: fullName,
         department: newProfForm.deptName || '',

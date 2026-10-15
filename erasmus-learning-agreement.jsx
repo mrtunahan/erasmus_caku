@@ -37,8 +37,9 @@ const titleCaseTr = (s) =>
     .toLocaleLowerCase('tr')
     .replace(/(^|[\s\-/.(])([\p{L}])/gu, (m, sep, ch) => sep + ch.toLocaleUpperCase('tr'));
 const upperTr = (s) => String(s == null ? '' : s).toLocaleUpperCase('tr');
-// Görüntüleme yardımcıları: ad → Title, soyad → BÜYÜK
-const dispAd = (s) => titleCaseTr(s);
+// Görüntüleme yardımcıları: ad ve soyad TAMAMI BÜYÜK (sistem geneli ad
+// standardı — bkz. lib/akademik-unvan.js → adBuyukHarf).
+const dispAd = (s) => upperTr(s);
 const dispSoyad = (s) => upperTr(s);
 
 // ── Ortak buton stilleri (sade, tek ton) ──
@@ -3928,7 +3929,7 @@ const StudentDetailModal = ({
             <Input
               value={readOnly ? dispAd(editedStudent.firstName) : editedStudent.firstName}
               onChange={(e) => updateStudent('firstName', e.target.value)}
-              onBlur={(e) => updateStudent('firstName', titleCaseTr(e.target.value))}
+              onBlur={(e) => updateStudent('firstName', upperTr(e.target.value))}
               disabled={readOnly}
             />
           </FormField>
@@ -4743,12 +4744,12 @@ const StudentDetailModal = ({
 // ── Word Document Generators (same logic as before) ──
 // ── Erasmus ders eşleştirmelerini şablon motoru satır verisine çevir ──
 // match'ler çok-a-çok olabilir; her (host, home) çiftini ayrı satıra açar.
-// Öğrenci soyadını BÜYÜK harfe çevir (yerel karakterler dahil), ad-soyadı birleştir
+// Öğrenci adı ve soyadı BÜYÜK harf (yerel karakterler dahil), ad-soyadı birleştir
 function erasmusUpperSurname(s) {
   return String(s || '').toLocaleUpperCase('tr-TR');
 }
 function erasmusAdSoyad(student) {
-  const ad = student.firstName || '';
+  const ad = erasmusUpperSurname(student.firstName || '');
   const soyad = erasmusUpperSurname(student.lastName || '');
   return `${ad} ${soyad}`.trim();
 }
@@ -5557,7 +5558,7 @@ function ErasmusLearningAgreementApp({
       // eşleştirmeye vurulur (bkz. lib/erasmus-onay.js).
       const stamp = (arr, tur) =>
         window.onayDamgasi(arr, oncekiIdler, savingAsStudent, window.onayaTabiMi(tur));
-      // Elle girilen metinleri normalize et: ad → Title, soyad → BÜYÜK,
+      // Elle girilen metinleri normalize et: ad ve soyad → BÜYÜK,
       // ders adları → Title. Ders KODLARI ve KURUM ADI (katalog anahtarı)
       // dokunulmadan bırakılır.
       const normCourses = (arr) =>
@@ -5569,7 +5570,7 @@ function ErasmusLearningAgreementApp({
       });
       updatedStudent = {
         ...updatedStudent,
-        firstName: titleCaseTr(updatedStudent.firstName),
+        firstName: upperTr(updatedStudent.firstName),
         lastName: upperTr(updatedStudent.lastName),
         outgoingMatches: stamp(updatedStudent.outgoingMatches, 'outgoing').map(normMatch),
         returnMatches: stamp(updatedStudent.returnMatches, 'return').map(normMatch),

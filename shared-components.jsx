@@ -514,6 +514,7 @@ import {
   standartAd,
   unvanliAd,
   adBuyukHarf,
+  ayniKisiMi,
 } from './lib/akademik-unvan.js';
 import {
   acikEtaplar,
@@ -7865,6 +7866,17 @@ window.audit = audit;
 // NOT: Eski uyumluluk katmanı kaldırıldı.
 // Tüm modüller artık doğrudan apiRead, apiReadDoc ve DBWrite kullanır.
 
+// Öğrenci adı BÜYÜK harf (sunucu da yazımda çevirir — server/lib/ad-bicim.js);
+// istemcide de çevrilir ki kaydedilen kart yeniden yüklemeden doğru görünsün.
+function ogrenciAdBuyut(ogr) {
+  if (!ogr || typeof ogr !== 'object') return ogr;
+  const out = { ...ogr };
+  ['firstName', 'lastName', 'name'].forEach((a) => {
+    if (typeof out[a] === 'string' && out[a]) out[a] = adBuyukHarf(out[a]);
+  });
+  return out;
+}
+
 const DB = {
   isReady: () => true,
 
@@ -7960,9 +7972,9 @@ const DB = {
   },
   async addStudent(student) {
     try {
-      const { id: _id, ...data } = student;
+      const { id: _id, ...data } = ogrenciAdBuyut(student);
       const result = await DBWrite.add('students', data);
-      return { ...student, id: result.id };
+      return { ...ogrenciAdBuyut(student), id: result.id };
     } catch (error) {
       console.error('Error adding student:', error);
       throw error;
@@ -7970,9 +7982,9 @@ const DB = {
   },
   async updateStudent(id, student) {
     try {
-      const { id: _id, ...data } = student;
+      const { id: _id, ...data } = ogrenciAdBuyut(student);
       await DBWrite.update('students', String(id), data);
-      return student;
+      return ogrenciAdBuyut(student);
     } catch (error) {
       console.error('Error updating student:', error);
       throw error;
@@ -10352,7 +10364,7 @@ const LoginModal = ({ onLogin }) => {
                         <input
                           type="text"
                           value={firstName}
-                          onChange={(e) => setFirstName(e.target.value)}
+                          onChange={(e) => setFirstName(e.target.value.toLocaleUpperCase('tr-TR'))}
                           placeholder="Adınız"
                           autoFocus
                           className="lg-input"
@@ -10363,7 +10375,7 @@ const LoginModal = ({ onLogin }) => {
                         <input
                           type="text"
                           value={lastName}
-                          onChange={(e) => setLastName(e.target.value)}
+                          onChange={(e) => setLastName(e.target.value.toLocaleUpperCase('tr-TR'))}
                           placeholder="Soyadınız"
                           className="lg-input"
                         />
@@ -11389,6 +11401,12 @@ const PasswordManagementModal = ({ students, onClose }) => {
       // Yeni kayıt: seçilen unvan + BÜYÜK harf ad. Var olan kaydın adı burada
       // değişmez (ad kimliktir; dönüşüm server/ad-standart-gecis.js ile).
       const { title: secilenUnvan, ...kayit } = editingProf;
+      if (
+        !editingProf.id &&
+        !(await akademisyenMukerrerOnayi(unvanliAd(secilenUnvan, kayit.name)))
+      ) {
+        return;
+      }
       await DB.saveProfessor(
         editingProf.id ? editingProf : { ...kayit, name: unvanliAd(secilenUnvan, kayit.name) }
       );
@@ -15595,6 +15613,30 @@ function UnvanSecici({ value, onChange, style, bos = 'Unvansız', ...geri }) {
   );
 }
 window.UnvanSecici = UnvanSecici;
+
+// YENİ AKADEMİSYEN EKLENMEDEN ÖNCE: aynı kişi farklı yazımla (unvan, büyük/
+// küçük harf) zaten kayıtlı mı? Ad kimlik olduğu için mükerrer kayıt iki ayrı
+// hesap demektir. Eşleşme varsa kullanıcıya sorulur; okuma başarısızsa
+// ekleme engellenmez. true → eklemeye devam.
+async function akademisyenMukerrerOnayi(yeniAd) {
+  let liste = [];
+  try {
+    liste = await DB.fetchProfessors();
+  } catch (_) {
+    return true;
+  }
+  const ayni = (liste || []).filter((p) => p && p.name && ayniKisiMi(p.name, yeniAd));
+  if (ayni.length === 0) return true;
+  return window.confirm(
+    'Bu kişi zaten kayıtlı görünüyor:\n\n' +
+      ayni.map((p) => '• ' + p.name).join('\n') +
+      '\n\nYine de "' +
+      yeniAd +
+      '" adıyla YENİ bir akademisyen eklensin mi?\n' +
+      '(Aynı kişiyse İptal deyip mevcut kaydı kullanın.)'
+  );
+}
+window.akademisyenMukerrerOnayi = akademisyenMukerrerOnayi;
 window.sinavCakismaOzeti = cakismaOzeti;
 window.sinavProgramHazirMi = programHazirMi;
 window.sinavKabulKaydi = kabulKaydi;

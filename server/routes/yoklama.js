@@ -29,6 +29,7 @@ const { getDbSafe } = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
 const { profilBul: _profilBul } = require('../lib/akademisyen-kimlik');
 const { kapsamNumaralari } = require('../lib/ogrenci-baglanti');
+const { adBuyukHarf } = require('../lib/ad-bicim');
 
 // Kural dosyası ESM; Node 22 tür algılamasıyla dinamik import sorunsuz.
 let kuralSozu = null;
@@ -603,7 +604,7 @@ router.post('/imzala', requireAuth, async (req, res) => {
       dersSaati: Number(oturum.dersSaati) > 0 ? Number(oturum.dersSaati) : 1,
       tarih: metin(oturum.tarih),
       studentNumber: ogrNo,
-      adSoyad: metin(
+      adSoyad: adBuyukHarf(
         (ogrenci && [ogrenci.firstName, ogrenci.lastName].filter(Boolean).join(' ')) || ''
       ),
       departmentId: metin(oturum.departmentId),

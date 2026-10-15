@@ -548,12 +548,17 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
           const prof = tumAkademisyenler.find((p) => p.id === form.selectedProfId);
           if (prof) await gozetmenlikYaz(prof, true);
         } else if (form.newName.trim()) {
+          // Standart biçim: seçilen unvan + BÜYÜK harf ad soyad.
+          const yeniAd = window.unvanliAd
+            ? window.unvanliAd(form.newUnvan, form.newName)
+            : form.newName.trim();
+          if (window.akademisyenMukerrerOnayi && !(await window.akademisyenMukerrerOnayi(yeniAd))) {
+            setSaving(false);
+            return;
+          }
           // Yeni profesör oluştur ve gozetmen rolü ver
           await DBWrite.add('professors', {
-            // Standart biçim: seçilen unvan + BÜYÜK harf ad soyad.
-            name: window.unvanliAd
-              ? window.unvanliAd(form.newUnvan, form.newName)
-              : form.newName.trim(),
+            name: yeniAd,
             departmentId: activeDepartment,
             isExternal: false,
             roles: ['gozetmen'],
