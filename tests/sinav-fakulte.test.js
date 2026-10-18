@@ -76,6 +76,9 @@ describe('saat dilimleri ve dönem', () => {
       },
     ]);
     expect(g).toHaveLength(2);
+    expect(donemGrubu({ examType: 'final', semester: 'Bahar', seviye: 'yukseklisans' })).not.toBe(
+      donemGrubu({ examType: 'final', semester: 'Bahar' })
+    );
     expect(g[0].donemler.map((d) => d.id)).toEqual(['a', 'b']);
   });
 });

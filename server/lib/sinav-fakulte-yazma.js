@@ -43,10 +43,20 @@ function gonderimKarari(op, mevcut, alan) {
   if (alan.tur === 'universite') return IZIN;
   if (op.type === 'delete') return ret('Gönderim kaydı silinemez; geri çekin.');
   const veri = op.data && typeof op.data === 'object' ? op.data : {};
+  // Belgeyi baştan yazan işlem (ekleme ya da birleştirmesiz set) bölümü
+  // AÇIKÇA taşımalı: yoksa bölüm alanı silinir ve kayıt sahipsiz kalır.
+  const tumdenYazim = op.type === 'add' || (op.type === 'set' && !op.merge);
+  if (tumdenYazim && !metin(veri.bolumId)) return ret('Gönderim kaydında bölüm yok.');
   const bolumId = metin((mevcut && mevcut.bolumId) || veri.bolumId);
   if (!bolumId) return ret('Gönderim kaydında bölüm yok.');
   if (mevcut && metin(veri.bolumId) && metin(veri.bolumId) !== metin(mevcut.bolumId)) {
     return ret('Gönderim kaydının bölümü değiştirilemez.');
+  }
+  // Kayıt kimliği bölümün kendisiyle başlar (bölüm__dönem): başka bölümün
+  // kimliğine kendi bölümüyle yazıp onun gönderim yerini kapatmak engellenir.
+  const kimlikBolumu = metin(op.docId).split('__')[0];
+  if (!metin(op.docId) || kimlikBolumu !== metin(veri.bolumId || bolumId)) {
+    return ret('Gönderim kaydının kimliği bölümüyle uyuşmuyor.');
   }
 
   if (alan.tur === 'bolum') {
@@ -72,6 +82,10 @@ function gonderimKarari(op, mevcut, alan) {
       return IZIN;
     }
     if (!mevcut) return ret('Gönderilmemiş program iade edilemez.');
+    // İade belgeyi baştan yazamaz (gönderen, tarih, parmak izi korunur).
+    if (!(op.type === 'update' || (op.type === 'set' && op.merge))) {
+      return ret('İade yalnız güncelleme olarak yazılır.');
+    }
     const fazla = Object.keys(veri).filter((k) => !IADE_ALANLARI.has(k));
     if (fazla.length > 0)
       return ret('Fakülte yetkilisi gönderim kaydında yalnız iade bilgisi yazar.');

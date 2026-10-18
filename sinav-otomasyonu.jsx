@@ -2867,8 +2867,13 @@ async function exportFakulteXLSX(kitap, dosyaAdi) {
   }
   wk['!cols'] = [{ wch: 5 }, { wch: 10 }, { wch: 40 }, { wch: 13 }];
   XLSX.utils.book_append_sheet(wb, wk, 'Kısaltmalar');
+  const adlar = new Set();
   kitap.gunler.forEach((g) => {
-    XLSX.utils.book_append_sheet(wb, gunSayfasi(XLSX, g.tablo, { renkli: true }), g.kisa);
+    // Gün.ay iki farklı yılda tekrar ederse sayfa adı çakışmasın.
+    let ad = g.kisa;
+    if (adlar.has(ad)) ad = g.kisa + '.' + g.tarih.slice(2, 4);
+    adlar.add(ad);
+    XLSX.utils.book_append_sheet(wb, gunSayfasi(XLSX, g.tablo, { renkli: true }), ad);
   });
   XLSX.writeFile(wb, (dosyaAdi || 'Fakulte_Sinav_Programi') + '.xlsx');
 }
@@ -3146,6 +3151,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
   const [secilen, setSecilen] = useState(null);
   const [ayarTaslak, setAyarTaslak] = useState(null);
   const [kaydediliyor, setKaydediliyor] = useState(false);
+  // onClose her üst çizimde yeni fonksiyon; etkiye bağımlılık olsaydı her
+  // çizimde bütün veri yeniden okunurdu.
+  const kapatRef = _useRef(onClose);
+  kapatRef.current = onClose;
 
   const oku = useCallback(async () => {
     ['sinav_programi', 'sinav_gonderimleri', 'sinav_fakulte_ayarlari', 'sinav_donemler'].forEach(
@@ -3173,13 +3182,13 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
     const h = () => oku();
     const c = ['sinav_programi', 'sinav_gonderimleri', 'sinav_fakulte_ayarlari'];
     c.forEach((x) => window.addEventListener('realtime:' + x, h));
-    const esc = (e) => e.key === 'Escape' && onClose();
+    const esc = (e) => e.key === 'Escape' && kapatRef.current();
     window.addEventListener('keydown', esc);
     return () => {
       c.forEach((x) => window.removeEventListener('realtime:' + x, h));
       window.removeEventListener('keydown', esc);
     };
-  }, [oku, onClose]);
+  }, [oku]);
 
   const tumBolumler = useMemo(
     () =>
@@ -5172,8 +5181,16 @@ function SinavOtomasyonuApp({
           ? SB.grupUyeleri(updatedExam, periodExams).filter((e) => e.id !== id)
           : [];
       const ortak = { room: updatedExam.room || '', supervisor: updatedExam.supervisor || '' };
+      // Elle değişen alan oturumun bütün üyelerinde artık otomatik sayılmaz.
+      if (updatedExam.otomatikSalon === false) ortak.otomatikSalon = false;
+      if (updatedExam.otomatikGozetmen === false) ortak.otomatikGozetmen = false;
       for (const u of digerleri) {
-        if ((u.room || '') !== ortak.room || (u.supervisor || '') !== ortak.supervisor)
+        if (
+          (u.room || '') !== ortak.room ||
+          (u.supervisor || '') !== ortak.supervisor ||
+          (ortak.otomatikSalon === false && u.otomatikSalon) ||
+          (ortak.otomatikGozetmen === false && u.otomatikGozetmen)
+        )
           await DBWrite.update('sinav_programi', u.id, ortak);
       }
       const digerIdleri = new Set(digerleri.map((u) => u.id));

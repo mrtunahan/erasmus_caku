@@ -83,6 +83,34 @@ describe('sinav_gonderimleri', () => {
   });
 });
 
+describe('gönderim kaydının sahipliği', () => {
+  it('başka bölümün kimliğine kendi bölümüyle yazılamaz', () => {
+    const op = { ...gonder('bilgisayar'), docId: 'insaat__final|bahar' };
+    expect(sinavFakulteYazmaKarari(op, null, bolumYetkilisi).izin).toBe(false);
+  });
+  it('birleştirmesiz set bölümü taşımalı', () => {
+    const op = {
+      collection: 'sinav_gonderimleri',
+      type: 'set',
+      docId: 'bilgisayar__x',
+      data: { durum: 'gonderildi' },
+    };
+    expect(sinavFakulteYazmaKarari(op, { bolumId: 'bilgisayar' }, bolumYetkilisi).izin).toBe(false);
+  });
+  it('iade belgeyi baştan yazamaz', () => {
+    const op = {
+      collection: 'sinav_gonderimleri',
+      type: 'set',
+      docId: 'bilgisayar__x',
+      data: { durum: 'iade', iadeNotu: 'n' },
+    };
+    expect(
+      sinavFakulteYazmaKarari(op, { bolumId: 'bilgisayar', durum: 'gonderildi' }, fakulteYetkilisi)
+        .izin
+    ).toBe(false);
+  });
+});
+
 describe('sinav_fakulte_ayarlari', () => {
   const ayar = (docId) => ({
     collection: 'sinav_fakulte_ayarlari',
