@@ -3145,7 +3145,6 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
   const SF = window.SinavFakulte;
   const [veri, setVeri] = useState(null);
   const [fakulteId, setFakulteId] = useState(currentUser?.facultyId || '');
-  const [grupAnahtari, setGrupAnahtari] = useState('');
   const [sekme, setSekme] = useState('gun:0');
   const [taslakDahil, setTaslakDahil] = useState(true);
   const [secilen, setSecilen] = useState(null);
@@ -3198,39 +3197,64 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
       })),
     []
   );
-  const fakulteSecenekleri = [...new Set(tumBolumler.map((d) => d.facultyId))];
-  const fakId = fakulteId || fakulteSecenekleri[0] || '';
-  const fakulteAdi =
-    ((veri && veri.fakulteler) || []).find((f) => f && (f.id === fakId || f._docId === fakId))
-      ?.name || fakId;
+  // Fakülte / MYO listesi: adıyla (Türkçe karakterleriyle), bölümü olmayan
+  // birimler dahil; slug ve veritabanı kimliği aynı birimde birleşir.
+  const fakulteler = useMemo(
+    () => (SF ? SF.fakulteListesi((veri && veri.fakulteler) || [], tumBolumler) : []),
+    [SF, veri, tumBolumler]
+  );
+  const fakulte =
+    fakulteler.find((f) => f.kimlikler.includes(fakulteId)) ||
+    fakulteler.find((f) => f.bolumSayisi > 0) ||
+    fakulteler[0] ||
+    null;
+  const fakKimlikleri = useMemo(() => new Set(fakulte ? fakulte.kimlikler : []), [fakulte]);
+  // Ayar belgesinin kimliği: yetkilinin kendi fakülte kimliği (sunucu yetki
+  // alanını bununla denetler), yoksa birimin ilk kimliği.
+  const fakId =
+    fakulte && currentUser?.facultyId && fakulte.kimlikler.includes(currentUser.facultyId)
+      ? currentUser.facultyId
+      : fakulte
+        ? fakulte.anahtar
+        : '';
+  const fakulteAdi = fakulte ? fakulte.ad : '';
   const yetkili =
     currentUser?.role === 'admin' ||
     !!currentUser?.isUniversityAdmin ||
-    (!!currentUser?.isFacultyManager && (currentUser?.facultyId || '') === fakId);
+    (!!currentUser?.isFacultyManager && fakKimlikleri.has(currentUser?.facultyId || ''));
 
   const bolumler = useMemo(
-    () => tumBolumler.filter((d) => d.facultyId === fakId),
-    [fakId, tumBolumler]
+    () => tumBolumler.filter((d) => fakKimlikleri.has(d.facultyId)),
+    [fakKimlikleri, tumBolumler]
   );
   const bolumIdleri = useMemo(() => new Set(bolumler.map((d) => d.id)), [bolumler]);
 
   const ayar = useMemo(() => {
-    const a = ((veri && veri.ayarlar) || []).find((x) => x && x.id === fakId) || {};
+    const a =
+      ((veri && veri.ayarlar) || []).find(
+        (x) =>
+          x &&
+          (fakKimlikleri.has(x.id) ||
+            (Array.isArray(x.kimlikler) && x.kimlikler.some((k) => fakKimlikleri.has(k))))
+      ) || {};
     return {
       ...a,
       bolumler: ayarHaritasi(a.bolumler, 'id'),
       kisaltmalar: ayarHaritasi(a.kisaltmalar, 'ad', (x) => x.kisaltma),
     };
-  }, [veri, fakId]);
+  }, [veri, fakKimlikleri]);
 
-  const gruplar = useMemo(
-    () =>
-      SF && veri
-        ? SF.donemGruplari(veri.donemler.filter((d) => d && bolumIdleri.has(d.departmentId)))
-        : [],
-    [SF, veri, bolumIdleri]
-  );
-  const grup = gruplar.find((g) => g.anahtar === grupAnahtari) || gruplar[0] || null;
+  // Yalnız ŞU ANKİ sınav dönemi (lisans): bugünü kapsayan, yoksa en yakın
+  // gelecek, o da yoksa en son biten dönem.
+  const grup = useMemo(() => {
+    if (!SF || !veri) return null;
+    const gruplar = SF.donemGruplari(
+      veri.donemler.filter(
+        (d) => d && bolumIdleri.has(d.departmentId) && (d.seviye || 'lisans') === 'lisans'
+      )
+    );
+    return SF.aktifDonemGrubu(gruplar, formatDateISO(new Date()));
+  }, [SF, veri, bolumIdleri]);
 
   const bolumDurumlari = useMemo(() => {
     if (!SF || !veri || !grup) return [];
@@ -3250,6 +3274,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
       };
     });
   }, [SF, veri, grup, bolumler]);
+
+  const gonderenSayisi = bolumDurumlari.filter(
+    (x) => x.durum === 'gonderildi' || x.durum === 'degisti'
+  ).length;
 
   const kitap = useMemo(() => {
     if (!SF || !grup) return null;
@@ -3297,6 +3325,8 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         fakId,
         {
           facultyId: fakId,
+          // Bölümler fakülteye slug ya da veritabanı kimliğiyle bağlı olabilir.
+          kimlikler: fakulte ? fakulte.kimlikler : [fakId],
           salonlar,
           bolumler: Object.entries(ayarTaslak.bolumler).map(([id, v]) => ({
             id,
@@ -3525,124 +3555,391 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
     const a = ayarTaslak;
     if (!a) return null;
     const giris = {
-      padding: '5px 8px',
+      height: 32,
+      padding: '0 10px',
       border: '1px solid #CBD5E1',
-      borderRadius: 6,
+      borderRadius: 7,
       fontSize: 13,
+      background: '#fff',
+      boxSizing: 'border-box',
+      minWidth: 0,
     };
-    const baslik = { fontSize: 14, fontWeight: 700, color: '#0F172A', margin: '4px 0 8px' };
-    return (
-      <div
+    const kart = {
+      background: '#fff',
+      border: '1px solid #E2E8F0',
+      borderRadius: 12,
+      padding: 16,
+      alignSelf: 'start',
+      boxShadow: '0 1px 2px rgba(15,23,42,.04)',
+    };
+    const kartBaslik = (baslik, aciklama, sayi) => (
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: '#0F172A' }}>{baslik}</div>
+          <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{aciklama}</div>
+        </div>
+        {sayi != null && (
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#0F766E',
+              background: '#F0FDFA',
+              border: '1px solid #99F6E4',
+              borderRadius: 999,
+              padding: '1px 9px',
+            }}
+          >
+            {sayi}
+          </span>
+        )}
+      </div>
+    );
+    const silDugmesi = (onClick, etiket) => (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={etiket}
+        title={etiket}
         style={{
-          overflow: 'auto',
-          height: '100%',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: 20,
+          width: 28,
+          height: 28,
+          border: '1px solid #FECACA',
+          background: '#FEF2F2',
+          color: '#B91C1C',
+          borderRadius: 7,
+          cursor: 'pointer',
+          fontSize: 15,
+          lineHeight: 1,
         }}
       >
-        <div>
-          <div style={baslik}>Fakültenin ortak salonları</div>
-          {a.salonlar.map((x, i) => (
-            <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-              <input
-                value={x.name}
-                placeholder="Salon"
-                style={{ ...giris, flex: 1 }}
-                onChange={(e) => {
-                  const l = [...a.salonlar];
-                  l[i] = { ...l[i], name: e.target.value };
-                  setAyarTaslak({ ...a, salonlar: l });
-                }}
-              />
-              <input
-                value={x.capacity}
-                placeholder="Kapasite"
-                type="number"
-                style={{ ...giris, width: 90 }}
-                onChange={(e) => {
-                  const l = [...a.salonlar];
-                  l[i] = { ...l[i], capacity: e.target.value };
-                  setAyarTaslak({ ...a, salonlar: l });
-                }}
-              />
-              <GhostBtn
-                onClick={() =>
-                  setAyarTaslak({ ...a, salonlar: a.salonlar.filter((_, j) => j !== i) })
-                }
-              >
-                Sil
-              </GhostBtn>
+        ×
+      </button>
+    );
+    const sutunBaslik = {
+      fontSize: 11.5,
+      fontWeight: 600,
+      color: '#64748B',
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    };
+    const toplamKapasite = a.salonlar.reduce((t, x) => t + (Number(x.capacity) || 0), 0);
+    const kisaltmaAdlari = Object.keys(a.kisaltmalar).sort((x, y) => x.localeCompare(y, 'tr'));
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: 'auto',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))',
+            gap: 16,
+            padding: 2,
+            background: '#F8FAFC',
+            borderRadius: 12,
+          }}
+        >
+          <div style={kart}>
+            {kartBaslik(
+              'Ortak salonlar',
+              'Fakülte tablosunun sütunları ve otomatik salon seçimi bu listeden yapılır.',
+              a.salonlar.length + ' salon'
+            )}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 96px 28px',
+                gap: 6,
+                alignItems: 'center',
+              }}
+            >
+              <span style={sutunBaslik}>Salon</span>
+              <span style={sutunBaslik}>Kapasite</span>
+              <span />
+              {a.salonlar.map((x, i) => (
+                <React.Fragment key={i}>
+                  <input
+                    value={x.name}
+                    placeholder="Ör. M10Z04"
+                    aria-label="Salon adı"
+                    style={giris}
+                    onChange={(e) => {
+                      const l = [...a.salonlar];
+                      l[i] = { ...l[i], name: e.target.value };
+                      setAyarTaslak({ ...a, salonlar: l });
+                    }}
+                  />
+                  <input
+                    value={x.capacity}
+                    placeholder="—"
+                    type="number"
+                    min="0"
+                    aria-label="Kapasite"
+                    style={giris}
+                    onChange={(e) => {
+                      const l = [...a.salonlar];
+                      l[i] = { ...l[i], capacity: e.target.value };
+                      setAyarTaslak({ ...a, salonlar: l });
+                    }}
+                  />
+                  {silDugmesi(
+                    () => setAyarTaslak({ ...a, salonlar: a.salonlar.filter((_, j) => j !== i) }),
+                    (x.name || 'Salon') + ' sil'
+                  )}
+                </React.Fragment>
+              ))}
             </div>
-          ))}
-          <GhostBtn
-            onClick={() =>
-              setAyarTaslak({ ...a, salonlar: [...a.salonlar, { name: '', capacity: '' }] })
-            }
-          >
-            + Salon ekle
-          </GhostBtn>
-        </div>
-        <div>
-          <div style={baslik}>Bölüm kısa adı ve rengi</div>
-          {bolumler.map((b) => {
-            const v = a.bolumler[b.id] || { kisaAd: '', renk: '#FFFFFF' };
-            const yaz = (alan, deger) =>
-              setAyarTaslak({ ...a, bolumler: { ...a.bolumler, [b.id]: { ...v, [alan]: deger } } });
-            return (
-              <div
-                key={b.id}
-                style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}
+            <div style={{ display: 'flex', alignItems: 'center', marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={() =>
+                  setAyarTaslak({ ...a, salonlar: [...a.salonlar, { name: '', capacity: '' }] })
+                }
+                style={{
+                  border: '1px dashed #5EEAD4',
+                  background: '#F0FDFA',
+                  color: '#0F766E',
+                  borderRadius: 7,
+                  padding: '6px 12px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
               >
-                <span style={{ flex: 1, fontSize: 13 }}>{b.name}</span>
-                <input
-                  value={v.kisaAd}
-                  style={{ ...giris, width: 70 }}
-                  onChange={(e) => yaz('kisaAd', e.target.value)}
-                />
-                <input type="color" value={v.renk} onChange={(e) => yaz('renk', e.target.value)} />
+                + Salon ekle
+              </button>
+              <span style={{ marginLeft: 'auto', fontSize: 12, color: '#64748B' }}>
+                Toplam kapasite: <b style={{ color: '#0F172A' }}>{toplamKapasite}</b>
+              </span>
+            </div>
+          </div>
+
+          <div style={kart}>
+            {kartBaslik(
+              'Bölüm kısa adı ve rengi',
+              'Tabloda hücre rengi ve ortak sınav etiketi ("İNŞ-MAK Ortak") buradan gelir.',
+              bolumler.length + ' bölüm'
+            )}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 78px 44px',
+                gap: 6,
+                alignItems: 'center',
+              }}
+            >
+              <span style={sutunBaslik}>Bölüm</span>
+              <span style={sutunBaslik}>Kısa ad</span>
+              <span style={sutunBaslik}>Renk</span>
+              {bolumler.map((b) => {
+                const v = a.bolumler[b.id] || { kisaAd: '', renk: '#FFFFFF' };
+                const yaz = (alan, deger) =>
+                  setAyarTaslak({
+                    ...a,
+                    bolumler: { ...a.bolumler, [b.id]: { ...v, [alan]: deger } },
+                  });
+                return (
+                  <React.Fragment key={b.id}>
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontSize: 13,
+                        minWidth: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          flex: '0 0 auto',
+                          minWidth: 38,
+                          textAlign: 'center',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '2px 6px',
+                          borderRadius: 5,
+                          background: v.renk,
+                          border: '1px solid rgba(0,0,0,.12)',
+                        }}
+                      >
+                        {v.kisaAd || '—'}
+                      </span>
+                      <span
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {b.name}
+                      </span>
+                    </span>
+                    <input
+                      value={v.kisaAd}
+                      aria-label={b.name + ' kısa adı'}
+                      style={{ ...giris, textAlign: 'center', fontWeight: 600 }}
+                      onChange={(e) => yaz('kisaAd', e.target.value.toLocaleUpperCase('tr-TR'))}
+                    />
+                    <input
+                      type="color"
+                      value={v.renk}
+                      aria-label={b.name + ' rengi'}
+                      onChange={(e) => yaz('renk', e.target.value)}
+                      style={{
+                        width: 44,
+                        height: 32,
+                        padding: 2,
+                        border: '1px solid #CBD5E1',
+                        borderRadius: 7,
+                        background: '#fff',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  </React.Fragment>
+                );
+              })}
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginTop: 12,
+                fontSize: 12,
+                color: '#64748B',
+              }}
+            >
+              <span
+                style={{
+                  width: 38,
+                  height: 18,
+                  borderRadius: 5,
+                  background: '#FFFF00',
+                  border: '1px solid rgba(0,0,0,.12)',
+                }}
+              />
+              Birden çok bölümün ortak sınavı sarı gösterilir.
+            </div>
+          </div>
+
+          <div style={kart}>
+            {kartBaslik(
+              'Gözetmen kısaltmaları',
+              'Addan otomatik üretilir (Mehmet Emin ÖZDEMİR → MEÖ); gerekirse değiştirin.',
+              kisaltmaAdlari.length + ' kişi'
+            )}
+            {kisaltmaAdlari.length === 0 ? (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: '#64748B',
+                  padding: '18px 12px',
+                  textAlign: 'center',
+                  background: '#F8FAFC',
+                  borderRadius: 8,
+                }}
+              >
+                Bu dönemde henüz gözetmen atanmamış. Bölümler &quot;Salon ve Gözetmen Ata&quot;
+                kullandığında kişiler burada listelenir.
               </div>
-            );
-          })}
-          <div style={{ fontSize: 12, color: '#64748B' }}>
-            Birden çok bölümün ortak sınavı sarı gösterilir.
+            ) : (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 86px',
+                  gap: 6,
+                  alignItems: 'center',
+                }}
+              >
+                <span style={sutunBaslik}>Ad Soyad</span>
+                <span style={sutunBaslik}>Kısaltma</span>
+                {kisaltmaAdlari.map((ad) => (
+                  <React.Fragment key={ad}>
+                    <span
+                      style={{
+                        fontSize: 13,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {ad}
+                    </span>
+                    <input
+                      value={a.kisaltmalar[ad]}
+                      aria-label={ad + ' kısaltması'}
+                      style={{ ...giris, textAlign: 'center', fontWeight: 600 }}
+                      onChange={(e) =>
+                        setAyarTaslak({
+                          ...a,
+                          kisaltmalar: {
+                            ...a.kisaltmalar,
+                            [ad]: e.target.value.toLocaleUpperCase('tr-TR'),
+                          },
+                        })
+                      }
+                    />
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-        <div>
-          <div style={baslik}>Gözetmen kısaltmaları</div>
-          {Object.keys(a.kisaltmalar).length === 0 && (
-            <div style={{ fontSize: 13, color: '#64748B' }}>Bu dönemde atanmış gözetmen yok.</div>
-          )}
-          {Object.keys(a.kisaltmalar)
-            .sort((x, y) => x.localeCompare(y, 'tr'))
-            .map((ad) => (
-              <div
-                key={ad}
-                style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}
-              >
-                <span style={{ flex: 1, fontSize: 13 }}>{ad}</span>
-                <input
-                  value={a.kisaltmalar[ad]}
-                  style={{ ...giris, width: 80 }}
-                  onChange={(e) =>
-                    setAyarTaslak({ ...a, kisaltmalar: { ...a.kisaltmalar, [ad]: e.target.value } })
-                  }
-                />
-              </div>
-            ))}
-        </div>
-        <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8 }}>
-          <Btn onClick={ayarKaydet} disabled={kaydediliyor}>
-            {kaydediliyor ? 'Kaydediliyor…' : 'Ayarları kaydet'}
-          </Btn>
-          <GhostBtn
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 14px',
+            border: '1px solid #E2E8F0',
+            borderRadius: 10,
+            background: '#fff',
+          }}
+        >
+          <span style={{ fontSize: 12.5, color: '#64748B', marginRight: 'auto' }}>
+            {fakulteAdi} için geçerlidir; kaydedilene kadar tabloya ve Excel&apos;e yansımaz.
+          </span>
+          <button
+            type="button"
             onClick={() => {
               setAyarTaslak(null);
               setSekme('gun:0');
             }}
+            style={{
+              height: 34,
+              padding: '0 14px',
+              borderRadius: 8,
+              border: '1px solid #CBD5E1',
+              background: '#fff',
+              color: '#334155',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
           >
             Vazgeç
-          </GhostBtn>
+          </button>
+          <button
+            type="button"
+            onClick={ayarKaydet}
+            disabled={kaydediliyor}
+            style={{
+              height: 34,
+              padding: '0 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#0F766E',
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: kaydediliyor ? 'default' : 'pointer',
+              opacity: kaydediliyor ? 0.7 : 1,
+            }}
+          >
+            {kaydediliyor ? 'Kaydediliyor…' : 'Ayarları kaydet'}
+          </button>
         </div>
       </div>
     );
@@ -3774,43 +4071,79 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         >
           <div style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', marginRight: 'auto' }}>
             Fakülte Sınav Programı
-            <span style={{ fontWeight: 500, color: '#64748B', fontSize: 14 }}> — {fakulteAdi}</span>
+            {!(
+              (currentUser?.role === 'admin' || currentUser?.isUniversityAdmin) &&
+              fakulteler.length > 1
+            ) && (
+              <span style={{ fontWeight: 500, color: '#64748B', fontSize: 14 }}>
+                {' '}
+                — {fakulteAdi}
+              </span>
+            )}
           </div>
           {(currentUser?.role === 'admin' || currentUser?.isUniversityAdmin) &&
-            fakulteSecenekleri.length > 1 && (
+            fakulteler.length > 1 && (
               <select
-                value={fakId}
-                onChange={(e) => setFakulteId(e.target.value)}
-                style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #CBD5E1' }}
+                value={fakulte ? fakulte.anahtar : ''}
+                onChange={(e) => {
+                  setFakulteId(e.target.value);
+                  setSekme('gun:0');
+                  setAyarTaslak(null);
+                }}
+                aria-label="Fakülte / MYO"
+                style={{
+                  padding: '7px 10px',
+                  borderRadius: 8,
+                  border: '1px solid #CBD5E1',
+                  fontSize: 13,
+                  maxWidth: 320,
+                }}
               >
-                {fakulteSecenekleri.map((f) => (
-                  <option key={f} value={f}>
-                    {f}
+                {fakulteler.map((f) => (
+                  <option key={f.anahtar} value={f.anahtar}>
+                    {f.ad}
+                    {f.bolumSayisi ? ' (' + f.bolumSayisi + ' bölüm)' : ''}
                   </option>
                 ))}
               </select>
             )}
-          <select
-            value={grup ? grup.anahtar : ''}
-            onChange={(e) => {
-              setGrupAnahtari(e.target.value);
-              setSekme('gun:0');
-            }}
+          <div
+            title="Şu anki sınav dönemi: bugünü kapsayan, yoksa en yakın dönem"
             style={{
-              padding: '6px 8px',
-              borderRadius: 6,
-              border: '1px solid #CBD5E1',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '6px 12px',
+              borderRadius: 8,
+              background: '#F0FDFA',
+              border: '1px solid #99F6E4',
               fontSize: 13,
+              color: '#115E59',
             }}
           >
-            {gruplar.length === 0 && <option value="">Sınav dönemi yok</option>}
-            {gruplar.map((g) => (
-              <option key={g.anahtar} value={g.anahtar}>
-                {g.etiket} · {g.donemler.length} bölüm
-              </option>
-            ))}
-          </select>
+            <b>{grup ? grup.etiket : 'Açık sınav dönemi yok'}</b>
+            {grup && grup.bas && (
+              <span style={{ color: '#0F766E' }}>
+                {formatDate(parseDateISO(grup.bas))}
+                {grup.bit ? ' – ' + formatDate(parseDateISO(grup.bit)) : ''}
+              </span>
+            )}
+            {grup && (
+              <span
+                style={{
+                  background: '#fff',
+                  border: '1px solid #99F6E4',
+                  borderRadius: 999,
+                  padding: '1px 9px',
+                  fontWeight: 700,
+                }}
+              >
+                {gonderenSayisi} / {bolumler.length} bölüm gönderdi
+              </span>
+            )}
+          </div>
           <label
+            title="Programını henüz göndermemiş bölümlerin sınavlarını da tabloda göster"
             style={{
               fontSize: 13,
               color: '#334155',
@@ -3824,13 +4157,30 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
               checked={taslakDahil}
               onChange={(e) => setTaslakDahil(e.target.checked)}
             />
-            Göndermemiş bölümleri de göster (taslak)
+            Taslakları göster
           </label>
           {yetkili && <GhostBtn onClick={ayarAc}>Ayarlar</GhostBtn>}
           <Btn onClick={excel} disabled={!kitap || kitap.gunler.length === 0}>
             Excel indir
           </Btn>
-          <GhostBtn onClick={onClose}>Kapat</GhostBtn>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Kapat"
+            title="Kapat (Esc)"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              border: '1px solid #CBD5E1',
+              background: '#fff',
+              color: '#334155',
+              fontSize: 18,
+              cursor: 'pointer',
+            }}
+          >
+            ✕
+          </button>
         </div>
 
         {!veri || !SF ? (
@@ -4811,7 +5161,13 @@ function SinavOtomasyonuApp({
     ((window.DEPARTMENTS || []).find((d) => d.id === selectedDeptId) || {}).facultyId ||
     currentUser?.facultyId ||
     'muhendislik';
-  const fakulteAyari = fakulteAyarlari.find((a) => a && a.id === bolumFakultesi) || null;
+  const fakulteAyari =
+    fakulteAyarlari.find(
+      (a) =>
+        a &&
+        (a.id === bolumFakultesi ||
+          (Array.isArray(a.kimlikler) && a.kimlikler.includes(bolumFakultesi)))
+    ) || null;
   const salonListesi = fakulteSalonListesi(fakulteAyari);
   // Bu dönemin günlerinde BAŞKA bölümlerin sınavları (salon/gözetmen doluluğu).
   const digerSinavlar = useMemo(

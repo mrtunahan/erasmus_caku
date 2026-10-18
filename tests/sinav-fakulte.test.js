@@ -317,3 +317,56 @@ describe('fakülte geneli doluluk', () => {
     expect(atamalar.k).toEqual(['Veli SARI']);
   });
 });
+
+describe('aktif dönem ve fakülte listesi', () => {
+  it('bugünü kapsayan dönem; yoksa en yakın gelecek; yoksa son biten', async () => {
+    const { donemGruplari: dg, aktifDonemGrubu } = await import('../lib/sinav-fakulte.js');
+    const g = dg([
+      {
+        id: 'v',
+        examType: 'vize',
+        semester: 'Güz',
+        label: 'Vize - Güz',
+        startDate: '2026-11-02',
+        weeks: 1,
+      },
+      {
+        id: 'f',
+        examType: 'final',
+        semester: 'Güz',
+        label: 'Final - Güz',
+        startDate: '2027-01-04',
+        weeks: 2,
+      },
+    ]);
+    expect(g.find((x) => x.anahtar.startsWith('final')).bit).toBe('2027-01-17');
+    expect(aktifDonemGrubu(g, '2026-11-04').etiket).toBe('Vize - Güz');
+    expect(aktifDonemGrubu(g, '2026-12-01').etiket).toBe('Final - Güz');
+    expect(aktifDonemGrubu(g, '2027-03-01').etiket).toBe('Final - Güz');
+    expect(aktifDonemGrubu(g, '2026-01-01').etiket).toBe('Vize - Güz');
+  });
+
+  it('slug ve ObjectId aynı birimde birleşir, bölümsüz MYO da listelenir', async () => {
+    const { fakulteListesi } = await import('../lib/sinav-fakulte.js');
+    const l = fakulteListesi(
+      [
+        { id: '6a2ef9cb45b65d403456660c', name: 'Mühendislik Fakültesi' },
+        { id: 'fen', name: 'Fen Edebiyat Fakültesi' },
+        { id: '6ab18cfad3bcb88d3e185766', name: 'Teknik Bilimler Meslek Yüksekokulu' },
+      ],
+      [
+        { id: 'bilgisayar', facultyId: 'muhendislik' },
+        { id: 'x', facultyId: '6a2ef9cb45b65d403456660c' },
+        { id: 'y', facultyId: 'fen' },
+      ]
+    );
+    expect(l.map((f) => f.ad)).toEqual([
+      'Fen Edebiyat Fakültesi',
+      'Mühendislik Fakültesi',
+      'Teknik Bilimler Meslek Yüksekokulu',
+    ]);
+    const muh = l.find((f) => f.ad === 'Mühendislik Fakültesi');
+    expect(muh.kimlikler.sort()).toEqual(['6a2ef9cb45b65d403456660c', 'muhendislik']);
+    expect(muh.bolumSayisi).toBe(2);
+  });
+});
