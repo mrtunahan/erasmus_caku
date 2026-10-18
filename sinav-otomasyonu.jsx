@@ -2685,20 +2685,8 @@ async function exportDeptPrintable(
   }
 }
 
-async function exportToXLSX(
-  placedExams,
-  periodLabel,
-  period,
-  customClassrooms,
-  customSupervisors,
-  deptName,
-  // { hocaKurali, sayiKurali } — bölüm kaydındaki gözetmen kuralları
-  gozetmenKurallari,
-  // Gözetmenin izinli/görevli olduğu günler — { 'Ad Soyad': ['2026-06-01'] }.
-  // Dekanlık çıktısı da canlı ekranla AYNI atamayı üretmeli.
-  musaitsizlik
-) {
-  // Load xlsx-js-style for cell styling support (colors, bold, borders)
+// xlsx-js-style (hücre rengi, kalın, kenarlık, birleştirme) bir kez yüklenir.
+async function xlsxYukle() {
   if (!window._XLSX_STYLE_LOADED) {
     try {
       delete window.XLSX;
@@ -2712,11 +2700,203 @@ async function exportToXLSX(
       window._XLSX_STYLE_LOADED = true;
     } catch (e) {
       alert(e.message);
-      return;
+      return null;
     }
   }
+  return window.XLSX;
+}
 
-  const XLSX = window.XLSX;
+// Fakültenin ortak salonları: fakülte ayarında tanımlıysa o, yoksa yerleşik liste.
+function fakulteSalonListesi(ayar) {
+  const l = ayar && Array.isArray(ayar.salonlar) ? ayar.salonlar.filter((s) => s && s.name) : [];
+  return l.length > 0 ? l : ALL_FACULTY_CLASSROOMS;
+}
+
+// ── OTOMATİK SALON + GÖZETMEN ATAMASI ──
+// Dekanlık çıktısı ile "Salon ve gözetmen ata" düğmesi AYNI hesabı kullanır.
+// Elle girilmiş salon/gözetmen esastır. Fakülte geneli: başka bölümlerin o
+// saatte kullandığı salon ve görevlendirdiği gözetmen dolu sayılır.
+// Dönüş: { oneri: { sinavAnahtari: { room, supervisor } }, uyarilar }
+function otomatikAtamaHesapla({
+  sinavlar,
+  salonlar,
+  gozetmenAdlari,
+  kurallar,
+  musaitsizlik,
+  digerSinavlar,
+}) {
+  const rooms = salonlar && salonlar.length > 0 ? salonlar : DEPT_CLASSROOMS;
+  const diger = Array.isArray(digerSinavlar) ? digerSinavlar : [];
+  const salonBul = (n) => assignClassroomFromList(rooms, n);
+  const anahtar = (e) => e.id || e.code + e.date + e.timeSlot;
+  const oturumSalonu = window.SinavBirlesim
+    ? window.SinavBirlesim.oturumSalonlari(
+        sinavlar,
+        (n, dolu) =>
+          assignClassroomFromList(
+            rooms.filter((r) => !(dolu || []).includes(r.name)),
+            n
+          ),
+        diger
+      )
+    : {};
+  const { atamalar, uyarilar } = gozetmenleriDagit(
+    gozetmenAdlari || [],
+    sinavlar.map((e) => ({ ...e, room: oturumSalonu[anahtar(e)] || e.room })),
+    salonBul,
+    { ...(kurallar || {}), musaitsizlik: musaitsizlik || {}, digerGorevler: diger }
+  );
+  const oneri = {};
+  sinavlar.forEach((e) => {
+    const k = anahtar(e);
+    oneri[k] = {
+      room: oturumSalonu[k] || e.room || salonBul(e.studentCount),
+      supervisor: (atamalar[k] || []).join(', '),
+    };
+  });
+  return { oneri, uyarilar };
+}
+
+// Bir günün tablo modelinden (SinavFakulte.gunTablosu) Excel sayfası:
+// 1. satır DERSLİKLER, 2. satır kapasite, 3. satır salon adları, sonra
+// 30 dakikalık satırlar; sınav hücresi süresince dikey birleşir.
+function gunSayfasi(XLSX, tablo, secenek) {
+  const renkli = !secenek || secenek.renkli !== false;
+  const ince = { style: 'thin', color: { rgb: '000000' } };
+  const kenar = { top: ince, bottom: ince, left: ince, right: ince };
+  const salonlar = tablo.salonlar || [];
+  const n = salonlar.length + 1;
+  const veri = [
+    ['', 'DERSLİKLER', ...new Array(Math.max(0, salonlar.length - 1)).fill('')],
+    [
+      'Kapasite',
+      ...salonlar.map((x) =>
+        x.capacity === '' || x.capacity == null ? '' : Number(x.capacity) || x.capacity
+      ),
+    ],
+    ['Saatler', ...salonlar.map((x) => x.name)],
+    ...(tablo.satirlar || []).map((r) => [
+      r.etiket,
+      ...r.hucreler.map((h) => (h && !h.gizli ? h.metin || '' : '')),
+    ]),
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(veri);
+  const birlesim = [{ s: { r: 0, c: 1 }, e: { r: 0, c: Math.max(1, salonlar.length) } }];
+  const stil = (r, c, s) => {
+    const a = XLSX.utils.encode_cell({ r, c });
+    if (!ws[a]) ws[a] = { v: '', t: 's' };
+    ws[a].s = s;
+  };
+  for (let c = 0; c < n; c++) {
+    stil(0, c, {
+      fill: c > 0 ? { patternType: 'solid', fgColor: { rgb: 'FFFF00' } } : undefined,
+      font: { bold: true, sz: 12, name: 'Times New Roman' },
+      border: c > 0 ? kenar : undefined,
+      alignment: { horizontal: 'center', vertical: 'center' },
+    });
+    [1, 2].forEach((r) =>
+      stil(r, c, {
+        font: { bold: true, name: 'Times New Roman' },
+        border: kenar,
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      })
+    );
+  }
+  (tablo.satirlar || []).forEach((satir, i) => {
+    const r = i + 3;
+    stil(r, 0, {
+      font: { bold: true, name: 'Times New Roman' },
+      border: kenar,
+      alignment: { horizontal: 'center', vertical: 'center' },
+    });
+    satir.hucreler.forEach((h, j) => {
+      const dolu = h && !h.gizli && h.metin;
+      stil(r, j + 1, {
+        font: {
+          name: 'Times New Roman',
+          sz: 9,
+          bold: !!dolu,
+          color: h && h.cakisma ? { rgb: 'C00000' } : undefined,
+        },
+        fill:
+          renkli && h && !h.gizli && h.renk
+            ? { patternType: 'solid', fgColor: { rgb: h.renk } }
+            : undefined,
+        border: kenar,
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      });
+      if (h && !h.gizli && h.satirSayisi > 1) {
+        birlesim.push({ s: { r, c: j + 1 }, e: { r: r + h.satirSayisi - 1, c: j + 1 } });
+      }
+    });
+  });
+  ws['!merges'] = birlesim;
+  ws['!cols'] = [{ wch: 13 }, ...salonlar.map(() => ({ wch: 18 }))];
+  ws['!rows'] = [
+    { hpt: 18 },
+    { hpt: 18 },
+    { hpt: 18 },
+    ...(tablo.satirlar || []).map(() => ({ hpt: 30 })),
+  ];
+  return ws;
+}
+
+// FAKÜLTE ÇIKTISI — fakülte yetkilisinin Excel'i: "Kısaltmalar" + gün başına
+// bir sayfa ("08.06"). Model lib/sinav-fakulte.js → fakulteKitabi.
+async function exportFakulteXLSX(kitap, dosyaAdi) {
+  const XLSX = await xlsxYukle();
+  if (!XLSX) return;
+  const wb = XLSX.utils.book_new();
+  const ince = { style: 'thin', color: { rgb: '000000' } };
+  const kenar = { top: ince, bottom: ince, left: ince, right: ince };
+  const k = [
+    ['', '', '', 'Sınav Sayısı'],
+    ...kitap.kisaltmaSatirlari.map((x, i) => [i + 1, x.kisaltma, x.ad, x.sayi]),
+  ];
+  const wk = XLSX.utils.aoa_to_sheet(k);
+  for (let r = 0; r < k.length; r++) {
+    for (let c = 0; c < 4; c++) {
+      const a = XLSX.utils.encode_cell({ r, c });
+      if (!wk[a]) wk[a] = { v: '', t: 's' };
+      wk[a].s = {
+        font: { name: 'Times New Roman', bold: r === 0 || c === 1 },
+        border: r === 0 && c < 3 ? undefined : kenar,
+        alignment: { horizontal: c === 2 ? 'left' : 'center', vertical: 'center' },
+      };
+    }
+  }
+  wk['!cols'] = [{ wch: 5 }, { wch: 10 }, { wch: 40 }, { wch: 13 }];
+  XLSX.utils.book_append_sheet(wb, wk, 'Kısaltmalar');
+  const adlar = new Set();
+  kitap.gunler.forEach((g) => {
+    // Gün.ay iki farklı yılda tekrar ederse sayfa adı çakışmasın.
+    let ad = g.kisa;
+    if (adlar.has(ad)) ad = g.kisa + '.' + g.tarih.slice(2, 4);
+    adlar.add(ad);
+    XLSX.utils.book_append_sheet(wb, gunSayfasi(XLSX, g.tablo, { renkli: true }), ad);
+  });
+  XLSX.writeFile(wb, (dosyaAdi || 'Fakulte_Sinav_Programi') + '.xlsx');
+}
+
+async function exportToXLSX(
+  placedExams,
+  periodLabel,
+  period,
+  customClassrooms,
+  customSupervisors,
+  deptName,
+  // { hocaKurali, sayiKurali } — bölüm kaydındaki gözetmen kuralları
+  gozetmenKurallari,
+  // Gözetmenin izinli/görevli olduğu günler — { 'Ad Soyad': ['2026-06-01'] }.
+  // Dekanlık çıktısı da canlı ekranla AYNI atamayı üretmeli.
+  musaitsizlik,
+  // { digerSinavlar, salonListesi, sinavAdi } — fakülte geneli doluluk,
+  // gün sayfalarının salon sütunları, Liste'deki "Sınavın Adı".
+  ekSecenek
+) {
+  const ek = ekSecenek || {};
+  const XLSX = await xlsxYukle();
+  if (!XLSX) return;
   const wb = XLSX.utils.book_new();
 
   // ── Style definitions ──
@@ -2726,8 +2906,6 @@ async function exportToXLSX(
     left: { style: 'thin', color: { rgb: '000000' } },
     right: { style: 'thin', color: { rgb: '000000' } },
   };
-  const yellowFill = { patternType: 'solid', fgColor: { rgb: 'FFFF00' } };
-  const _navyFill = { patternType: 'solid', fgColor: { rgb: '1B2A4A' } };
 
   // ── Sort and enrich exams ──
   const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
@@ -2735,34 +2913,17 @@ async function exportToXLSX(
     return a.timeSlot.localeCompare(b.timeSlot);
   });
 
-  // Use custom supervisors/classrooms if provided, otherwise use defaults
-  const exportClassrooms = customClassrooms || DEPT_CLASSROOMS;
-  const exportSupervisorNames = customSupervisors || [];
-
-  // Supervisor assignment for export (süre bazlı dengeli dağıtım)
-  function exportAssignClassroom(studentCount) {
-    return assignClassroomFromList(exportClassrooms, studentCount);
-  }
-
-  // Salon OTURUM başına: ortak sınavda toplam öğrenciye göre bir kez seçilir
-  // ve bütün derslere yazılır; aynı saatte dolu salonlar atlanır
-  // (lib/sinav-birlesim.js). Elle salon esastır.
-  const oturumSalonu = window.SinavBirlesim
-    ? window.SinavBirlesim.oturumSalonlari(sorted, (n, dolu) =>
-        assignClassroomFromList(
-          exportClassrooms.filter((r) => !(dolu || []).includes(r.name)),
-          n
-        )
-      )
-    : {};
-  const salonAnahtari = (e) => e.id || e.code + e.date + e.timeSlot;
-  // Gözetmen sayısı GERÇEKTE seçilen salonlara göre hesaplansın.
-  const { atamalar: exportSupervisorMap, uyarilar: gozetmenUyarilari } = gozetmenleriDagit(
-    exportSupervisorNames,
-    sorted.map((e) => ({ ...e, room: oturumSalonu[salonAnahtari(e)] || e.room })),
-    exportAssignClassroom,
-    { ...(gozetmenKurallari || {}), musaitsizlik: musaitsizlik || {} }
-  );
+  // Salon + gözetmen: "Salon ve gözetmen ata" düğmesiyle AYNI hesap
+  // (otomatikAtamaHesapla). Elle girilen esastır; fakülte geneli doluluk
+  // (başka bölümlerin salon ve gözetmenleri) gözetilir.
+  const { oneri, uyarilar: gozetmenUyarilari } = otomatikAtamaHesapla({
+    sinavlar: sorted,
+    salonlar: customClassrooms,
+    gozetmenAdlari: customSupervisors || [],
+    kurallar: gozetmenKurallari,
+    musaitsizlik,
+    digerSinavlar: ek.digerSinavlar,
+  });
   // Eksik atama sessiz geçmesin: çıktı yine üretilebilir ama yetkili bilerek
   // üretir (gözetmen yetmedi, zorunlu hoca müsait değil, havuz boş…).
   if (gozetmenUyarilari.length > 0) {
@@ -2778,9 +2939,9 @@ async function exportToXLSX(
 
   const enriched = sorted.map((exam) => {
     const key = exam.id || exam.code + exam.date + exam.timeSlot;
-    // Elle atanmış salon/gözetmene saygı duy; yoksa otomatik (Y1)
-    const room = oturumSalonu[key] || exam.room || exportAssignClassroom(exam.studentCount);
-    const supervisors = (exportSupervisorMap[key] || []).join(', ');
+    const room = (oneri[key] && oneri[key].room) || exam.room || '';
+    // Elle girilmiş gözetmen her zaman esastır.
+    const supervisors = (exam.supervisor || (oneri[key] && oneri[key].supervisor) || '').trim();
     const [sh, sm] = exam.timeSlot.split(':').map(Number);
     const totalMin = sh * 60 + sm + (exam.duration || 60);
     const eh = String(Math.floor(totalMin / 60)).padStart(2, '0');
@@ -2798,9 +2959,11 @@ async function exportToXLSX(
   });
 
   // ══════ Sheet 1: Liste (Tarihe göre sıralı) ══════
+  // Şablondaki düzen: 1. satır başlık (bölüm — dönem), sütun başlıkları 2. satırda.
   const listHeader = [
     'Dersin Adı',
     'Dersin Kodu',
+    'Sınavın Adı',
     'Sınava Girecek Toplam Öğrenci Sayısı',
     'Sınavın Başlama Tarihi ve Saati',
     'Sınavın Bitiş Tarihi ve Saati',
@@ -2814,11 +2977,14 @@ async function exportToXLSX(
     window.SinavBirlesim && window.SinavBirlesim.ciktiSatirlariniBirlestir
       ? window.SinavBirlesim.ciktiSatirlariniBirlestir(enriched)
       : enriched;
+  const sinavAdiMetni = ek.sinavAdi || '';
   const listData = [
+    [[deptName, periodLabel].filter(Boolean).join(' — ')],
     listHeader,
     ...listeSatirlari.map((e) => [
       e.name,
       e.code,
+      sinavAdiMetni,
       e.studentCount || '',
       e.startStr,
       e.endStr,
@@ -2830,9 +2996,11 @@ async function exportToXLSX(
 
   const ws1 = XLSX.utils.aoa_to_sheet(listData);
 
+  if (ws1.A1) ws1.A1.s = { font: { bold: true, sz: 12, name: 'Times New Roman' } };
+  ws1['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: listHeader.length - 1 } }];
   // Style Liste header row - bold, centered, borders, no background
   for (var C = 0; C < listHeader.length; C++) {
-    var addr = XLSX.utils.encode_cell({ r: 0, c: C });
+    var addr = XLSX.utils.encode_cell({ r: 1, c: C });
     if (ws1[addr]) {
       ws1[addr].s = {
         font: { bold: true, name: 'Times New Roman' },
@@ -2843,7 +3011,7 @@ async function exportToXLSX(
   }
 
   // Style Liste data rows - borders, centered, no background
-  for (var R = 1; R < listData.length; R++) {
+  for (var R = 2; R < listData.length; R++) {
     for (var C2 = 0; C2 < listHeader.length; C2++) {
       var addr2 = XLSX.utils.encode_cell({ r: R, c: C2 });
       if (!ws1[addr2]) ws1[addr2] = { v: '', t: 's' };
@@ -2858,6 +3026,7 @@ async function exportToXLSX(
   ws1['!cols'] = [
     { wch: 35 },
     { wch: 18 },
+    { wch: 12 },
     { wch: 35 },
     { wch: 28 },
     { wch: 28 },
@@ -2913,157 +3082,863 @@ async function exportToXLSX(
     }
   }
 
-  // Group exams by date
-  var examsByDate = {};
-  enriched.forEach(function (e) {
-    if (!examsByDate[e.date]) examsByDate[e.date] = [];
-    examsByDate[e.date].push(e);
-  });
-
-  // Day time slots
-  var dayTimeSlots = [];
-  for (var h = 8; h <= 17; h++) {
-    // End at 17:30
-    for (var m = 0; m < 60; m += 30) {
-      if (h === 8 && m === 0) continue;
-      // if (h === 12) continue; // Skip lunch - REVERTED
-      var sH = String(h).padStart(2, '0');
-      var sM = String(m).padStart(2, '0');
-      var eMin = h * 60 + m + 30;
-      var eH2 = String(Math.floor(eMin / 60)).padStart(2, '0');
-      var eM2 = String(eMin % 60).padStart(2, '0');
-      dayTimeSlots.push(sH + ':' + sM + '-' + eH2 + ':' + eM2);
-    }
-  }
-
-  var exportAllClassrooms = ALL_FACULTY_CLASSROOMS;
-  var numCols = exportAllClassrooms.length + 1; // +1 for column A (time)
-
-  // ══════ Create day sheet for EACH weekday ══════
+  // ══════ Gün sayfaları ══════
+  // Fakülte çıktısıyla aynı tablo modeli (lib/sinav-fakulte.js → gunTablosu):
+  // sütunlar fakültenin ortak salonları, 08:30–18:30, sınav süresince
+  // birleşen hücre. Bölüm sayfasında hücrede yalnız ders kodları yazar.
+  var SF = window.SinavFakulte;
+  var salonListesi = ek.salonListesi || ALL_FACULTY_CLASSROOMS;
+  var oturumlarListesi = SF
+    ? SF.fakulteOturumlari(
+        enriched.map(function (e) {
+          return { ...e, room: e.assignedRoom, supervisor: e.assignedSupervisors };
+        })
+      )
+    : [];
   allWeekdays.forEach(function (dateObj) {
-    var dayName = getDayName(dateObj);
-    var dd = String(dateObj.getDate()).padStart(2, '0');
-    var mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-    var sheetName = dd + '.' + mm + '-' + dayName;
     var dateISO = formatDateISO(dateObj);
-    var dayExams = examsByDate[dateISO] || [];
-
-    var data = [];
-
-    // Row 0: DERSLİKLER header
-    var row0 = new Array(numCols).fill('');
-    row0[1] = 'DERSLİKLER';
-    data.push(row0);
-
-    // Row 1: Kapasite
-    var row1 = ['Kapasite'];
-    exportAllClassrooms.forEach(function (c) {
-      row1.push(c.capacity === '' ? '' : c.capacity);
-    });
-    data.push(row1);
-
-    // Row 2: Saatler / Room names
-    var row2 = ['Saatler'];
-    exportAllClassrooms.forEach(function (c) {
-      row2.push(c.name);
-    });
-    data.push(row2);
-
-    // Time slot rows
-    dayTimeSlots.forEach(function (slot) {
-      var row = [slot];
-      var slotStart = slot.split('-')[0];
-      var parts = slotStart.split(':');
-      var slotMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-
-      exportAllClassrooms.forEach(function (classroom) {
-        // Salonda aynı saatte birden çok ders olabilir (ortak sınav, şubeler):
-        // hepsinin kodu yazılır — eskiden yalnız ilki görünüyordu.
-        var kodlar = [];
-        dayExams.forEach(function (e) {
-          var rooms = e.assignedRoom.split(' - ').map(function (r) {
-            return r.trim();
-          });
-          if (rooms.indexOf(classroom.name) === -1) return;
-          var eParts = e.timeSlot.split(':');
-          var examStart = parseInt(eParts[0]) * 60 + parseInt(eParts[1]);
-          var examEnd = examStart + (e.duration || 60);
-          if (slotMin >= examStart && slotMin < examEnd && kodlar.indexOf(e.code) === -1)
-            kodlar.push(e.code);
-        });
-        row.push(kodlar.join(' / '));
-      });
-
-      data.push(row);
-    });
-
-    var ws = XLSX.utils.aoa_to_sheet(data);
-
-    // ── Apply cell styles ──
-
-    // Row 0: DERSLİKLER - yellow background, bold, centered, merged
-    for (var c0 = 0; c0 < numCols; c0++) {
-      var a0 = XLSX.utils.encode_cell({ r: 0, c: c0 });
-      if (!ws[a0]) ws[a0] = { v: '', t: 's' };
-      ws[a0].s = {
-        fill: yellowFill,
-        font: { bold: true, sz: 12, name: 'Times New Roman' },
-        border: border,
-        alignment: { horizontal: 'center', vertical: 'center' },
-      };
-    }
-    // Merge DERSLİKLER across classroom columns
-    ws['!merges'] = [{ s: { r: 0, c: 1 }, e: { r: 0, c: exportAllClassrooms.length } }];
-
-    // Row 1: Kapasite - bold, centered, borders
-    for (var c1 = 0; c1 < numCols; c1++) {
-      var a1 = XLSX.utils.encode_cell({ r: 1, c: c1 });
-      if (!ws[a1]) ws[a1] = { v: '', t: 's' };
-      ws[a1].s = {
-        font: { bold: true, name: 'Times New Roman' },
-        border: border,
-        alignment: { horizontal: 'center', vertical: 'center' },
-      };
-    }
-
-    // Row 2: Saatler - bold, centered, borders
-    for (var c2 = 0; c2 < numCols; c2++) {
-      var a2 = XLSX.utils.encode_cell({ r: 2, c: c2 });
-      if (!ws[a2]) ws[a2] = { v: '', t: 's' };
-      ws[a2].s = {
-        font: { bold: true, name: 'Times New Roman' },
-        border: border,
-        alignment: { horizontal: 'center', vertical: 'center' },
-      };
-    }
-
-    // Time slot rows (row 3 onwards) - borders, centered, no fill
-    for (var ri = 3; ri < data.length; ri++) {
-      for (var ci = 0; ci < numCols; ci++) {
-        var ai = XLSX.utils.encode_cell({ r: ri, c: ci });
-        if (!ws[ai]) ws[ai] = { v: '', t: 's' };
-        ws[ai].s = {
-          font: { name: 'Times New Roman' },
-          border: border,
-          alignment: { horizontal: 'center', vertical: 'center' },
-        };
-      }
-    }
-
-    // Column widths
-    var cols = [{ wch: 14 }];
-    exportAllClassrooms.forEach(function () {
-      cols.push({ wch: 12 });
-    });
-    ws['!cols'] = cols;
-
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    var sheetName =
+      dateObj.getDate() +
+      '.' +
+      String(dateObj.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      getDayName(dateObj);
+    var tablo = SF
+      ? SF.gunTablosu(
+          oturumlarListesi.filter(function (o) {
+            return o.date === dateISO;
+          }),
+          salonListesi,
+          { metinAlani: 'kodSatiri' }
+        )
+      : { salonlar: salonListesi, satirlar: [] };
+    XLSX.utils.book_append_sheet(wb, gunSayfasi(XLSX, tablo, { renkli: false }), sheetName);
   });
 
   // Download
   var safeName = (periodLabel || 'export').replace(/[^a-zA-Z0-9_ğüşıöçĞÜŞİÖÇ ]/g, '_');
   XLSX.writeFile(wb, 'sinav_programi_' + safeName + '.xlsx');
 }
+
+// ══════════════════════════════════════════════════════════════
+// FAKÜLTE PROGRAMI — TAM EKRAN GÖRÜNÜM (fakülte yetkilisi)
+// Fakültenin bütün bölümlerinin sınavları, Excel'deki düzenle: alt kısımda
+// gün sekmeleri (sayfa sayfa), "Kısaltmalar" sayfası, bölüm gönderim
+// durumu ve fakülte ayarları. Ekran ile indirilen Excel aynı modelden
+// çizilir (lib/sinav-fakulte.js → fakulteKitabi).
+// ══════════════════════════════════════════════════════════════
+const ayarHaritasi = (liste, anahtar, deger) => {
+  const h = {};
+  (Array.isArray(liste) ? liste : []).forEach((x) => {
+    if (x && x[anahtar]) h[x[anahtar]] = deger ? deger(x) : x;
+  });
+  return h;
+};
+const FAKULTE_DURUM_RENGI = {
+  bekliyor: { bg: '#F1F5F9', fg: '#475569' },
+  gonderildi: { bg: '#DCFCE7', fg: '#166534' },
+  degisti: { bg: '#FEF3C7', fg: '#92400E' },
+  iade: { bg: '#FEE2E2', fg: '#991B1B' },
+};
+
+const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
+  const SF = window.SinavFakulte;
+  const [veri, setVeri] = useState(null);
+  const [fakulteId, setFakulteId] = useState(currentUser?.facultyId || '');
+  const [grupAnahtari, setGrupAnahtari] = useState('');
+  const [sekme, setSekme] = useState('gun:0');
+  const [taslakDahil, setTaslakDahil] = useState(true);
+  const [secilen, setSecilen] = useState(null);
+  const [ayarTaslak, setAyarTaslak] = useState(null);
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+  // onClose her üst çizimde yeni fonksiyon; etkiye bağımlılık olsaydı her
+  // çizimde bütün veri yeniden okunurdu.
+  const kapatRef = _useRef(onClose);
+  kapatRef.current = onClose;
+
+  const oku = useCallback(async () => {
+    ['sinav_programi', 'sinav_gonderimleri', 'sinav_fakulte_ayarlari', 'sinav_donemler'].forEach(
+      (k) => window.apiInvalidate && window.apiInvalidate(k)
+    );
+    const [donemler, sinavlar, gonderimler, ayarlar, fakulteler] = await Promise.all([
+      window.apiRead('sinav_donemler').catch(() => []),
+      window.apiRead('sinav_programi').catch(() => []),
+      window.apiRead('sinav_gonderimleri').catch(() => []),
+      window.apiRead('sinav_fakulte_ayarlari').catch(() => []),
+      window.apiRead('faculties').catch(() => []),
+    ]);
+    const dizi = (x) => (Array.isArray(x) ? x : []);
+    setVeri({
+      donemler: dizi(donemler),
+      sinavlar: dizi(sinavlar),
+      gonderimler: dizi(gonderimler),
+      ayarlar: dizi(ayarlar),
+      fakulteler: dizi(fakulteler),
+    });
+  }, []);
+
+  useEffect(() => {
+    oku();
+    const h = () => oku();
+    const c = ['sinav_programi', 'sinav_gonderimleri', 'sinav_fakulte_ayarlari'];
+    c.forEach((x) => window.addEventListener('realtime:' + x, h));
+    const esc = (e) => e.key === 'Escape' && kapatRef.current();
+    window.addEventListener('keydown', esc);
+    return () => {
+      c.forEach((x) => window.removeEventListener('realtime:' + x, h));
+      window.removeEventListener('keydown', esc);
+    };
+  }, [oku]);
+
+  const tumBolumler = useMemo(
+    () =>
+      (window.DEPARTMENTS || []).map((d) => ({
+        ...d,
+        facultyId: d.facultyId || 'muhendislik',
+      })),
+    []
+  );
+  const fakulteSecenekleri = [...new Set(tumBolumler.map((d) => d.facultyId))];
+  const fakId = fakulteId || fakulteSecenekleri[0] || '';
+  const fakulteAdi =
+    ((veri && veri.fakulteler) || []).find((f) => f && (f.id === fakId || f._docId === fakId))
+      ?.name || fakId;
+  const yetkili =
+    currentUser?.role === 'admin' ||
+    !!currentUser?.isUniversityAdmin ||
+    (!!currentUser?.isFacultyManager && (currentUser?.facultyId || '') === fakId);
+
+  const bolumler = useMemo(
+    () => tumBolumler.filter((d) => d.facultyId === fakId),
+    [fakId, tumBolumler]
+  );
+  const bolumIdleri = useMemo(() => new Set(bolumler.map((d) => d.id)), [bolumler]);
+
+  const ayar = useMemo(() => {
+    const a = ((veri && veri.ayarlar) || []).find((x) => x && x.id === fakId) || {};
+    return {
+      ...a,
+      bolumler: ayarHaritasi(a.bolumler, 'id'),
+      kisaltmalar: ayarHaritasi(a.kisaltmalar, 'ad', (x) => x.kisaltma),
+    };
+  }, [veri, fakId]);
+
+  const gruplar = useMemo(
+    () =>
+      SF && veri
+        ? SF.donemGruplari(veri.donemler.filter((d) => d && bolumIdleri.has(d.departmentId)))
+        : [],
+    [SF, veri, bolumIdleri]
+  );
+  const grup = gruplar.find((g) => g.anahtar === grupAnahtari) || gruplar[0] || null;
+
+  const bolumDurumlari = useMemo(() => {
+    if (!SF || !veri || !grup) return [];
+    const donemIdleri = new Set(grup.donemler.map((d) => d.id));
+    return bolumler.map((b) => {
+      const sinavlar = veri.sinavlar.filter(
+        (e) => e && e.departmentId === b.id && donemIdleri.has(e.periodId)
+      );
+      const kimlik = SF.gonderimKimligi(b.id, grup.anahtar);
+      const kayit = veri.gonderimler.find((g) => g && g.id === kimlik) || null;
+      return {
+        bolum: b,
+        sinavlar,
+        kimlik,
+        kayit,
+        durum: sinavlar.length ? SF.gonderimDurumu(kayit, SF.programImzasi(sinavlar)) : 'bekliyor',
+      };
+    });
+  }, [SF, veri, grup, bolumler]);
+
+  const kitap = useMemo(() => {
+    if (!SF || !grup) return null;
+    const dahil = bolumDurumlari
+      .filter((x) => taslakDahil || x.durum === 'gonderildi' || x.durum === 'degisti')
+      .flatMap((x) => x.sinavlar);
+    return SF.fakulteKitabi({
+      sinavlar: dahil,
+      salonlar: fakulteSalonListesi(ayar),
+      bolumler,
+      ayar,
+    });
+  }, [SF, grup, bolumDurumlari, taslakDahil, ayar, bolumler]);
+
+  const iadeEt = async (x) => {
+    const not = window.prompt(
+      x.bolum.name + ' programını iade ediyorsunuz. Bölüme iletilecek not (zorunlu):'
+    );
+    if (!not || !not.trim()) return;
+    try {
+      await DBWrite.update('sinav_gonderimleri', x.kimlik, {
+        durum: 'iade',
+        iadeNotu: not.trim(),
+        iadeEden: currentUser?.name || '',
+        iadeTarihi: new Date().toISOString(),
+      });
+      await oku();
+    } catch (e) {
+      alert('İade edilemedi: ' + e.message);
+    }
+  };
+
+  const ayarKaydet = async () => {
+    if (!ayarTaslak || !fakId) return;
+    setKaydediliyor(true);
+    try {
+      const salonlar = ayarTaslak.salonlar
+        .map((x) => ({
+          name: String(x.name || '').trim(),
+          capacity: x.capacity === '' ? '' : Number(x.capacity) || '',
+        }))
+        .filter((x) => x.name);
+      await DBWrite.set(
+        'sinav_fakulte_ayarlari',
+        fakId,
+        {
+          facultyId: fakId,
+          salonlar,
+          bolumler: Object.entries(ayarTaslak.bolumler).map(([id, v]) => ({
+            id,
+            kisaAd: String(v.kisaAd || '').trim(),
+            renk: String(v.renk || '').replace('#', ''),
+          })),
+          kisaltmalar: Object.entries(ayarTaslak.kisaltmalar)
+            .filter(([, k]) => String(k || '').trim())
+            .map(([ad, k]) => ({ ad, kisaltma: String(k).trim() })),
+          guncelleyen: currentUser?.name || '',
+        },
+        true
+      );
+      await oku();
+      setAyarTaslak(null);
+      alert('Fakülte sınav ayarları kaydedildi.');
+    } catch (e) {
+      alert('Kaydedilemedi: ' + e.message);
+    } finally {
+      setKaydediliyor(false);
+    }
+  };
+
+  const ayarAc = () => {
+    const bb = SF ? SF.bolumBilgileri(bolumler, ayar.bolumler) : {};
+    setAyarTaslak({
+      salonlar: fakulteSalonListesi(ayar).map((x) => ({ ...x })),
+      bolumler: Object.fromEntries(
+        Object.entries(bb).map(([id, v]) => [id, { kisaAd: v.kisaAd, renk: '#' + v.renk }])
+      ),
+      kisaltmalar: { ...((kitap && kitap.kisaltmalar) || {}), ...ayar.kisaltmalar },
+    });
+    setSekme('ayar');
+  };
+
+  const excel = () => {
+    if (!kitap) return;
+    exportFakulteXLSX(
+      kitap,
+      ('Fakulte_' + (grup ? grup.etiket : 'Sinav') + '_Programi').replace(
+        /[^\wğüşıöçĞÜŞİÖÇ-]+/g,
+        '_'
+      )
+    );
+  };
+
+  // ── Görünüm parçaları ──
+  const hucreStili = {
+    border: '1px solid #CBD5E1',
+    padding: '2px 4px',
+    fontSize: 11,
+    lineHeight: 1.25,
+    textAlign: 'center',
+    verticalAlign: 'middle',
+    whiteSpace: 'pre-line',
+  };
+  const sabitBas = {
+    position: 'sticky',
+    background: '#F8FAFC',
+    zIndex: 2,
+    fontWeight: 700,
+  };
+
+  const gunTablosuCiz = (g) => {
+    const t = g.tablo;
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        {g.salonsuz.length > 0 && (
+          <div
+            style={{
+              margin: '0 0 8px',
+              padding: '8px 12px',
+              background: '#FEF3C7',
+              border: '1px solid #FCD34D',
+              borderRadius: 8,
+              fontSize: 12.5,
+              color: '#92400E',
+            }}
+          >
+            <b>Salonu kayıtlı olmayan {g.salonsuz.length} oturum tabloda görünmüyor:</b>{' '}
+            {g.salonsuz.map((o) => o.kodSatiri + ' (' + o.timeSlot + ')').join(', ')} — bölümün
+            &quot;Salon ve gözetmen ata&quot; adımıyla kaydedilir.
+          </div>
+        )}
+        <div
+          style={{
+            overflow: 'auto',
+            border: '1px solid #CBD5E1',
+            borderRadius: 8,
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <table style={{ borderCollapse: 'separate', borderSpacing: 0, minWidth: '100%' }}>
+            <thead>
+              <tr>
+                <th
+                  style={{ ...hucreStili, ...sabitBas, top: 0, left: 0, zIndex: 4, minWidth: 92 }}
+                >
+                  {g.kisa} {g.gun}
+                </th>
+                <th
+                  colSpan={t.salonlar.length}
+                  style={{
+                    ...hucreStili,
+                    ...sabitBas,
+                    top: 0,
+                    background: '#FFFF00',
+                    fontSize: 12,
+                  }}
+                >
+                  DERSLİKLER
+                </th>
+              </tr>
+              <tr>
+                <th style={{ ...hucreStili, ...sabitBas, top: 22, left: 0, zIndex: 4 }}>
+                  Kapasite
+                </th>
+                {t.salonlar.map((x) => (
+                  <th key={'k' + x.name} style={{ ...hucreStili, ...sabitBas, top: 22 }}>
+                    {x.capacity}
+                  </th>
+                ))}
+              </tr>
+              <tr>
+                <th style={{ ...hucreStili, ...sabitBas, top: 44, left: 0, zIndex: 4 }}>Saatler</th>
+                {t.salonlar.map((x) => (
+                  <th
+                    key={'s' + x.name}
+                    style={{ ...hucreStili, ...sabitBas, top: 44, minWidth: 128 }}
+                  >
+                    {x.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {t.satirlar.map((r) => (
+                <tr key={r.etiket} style={{ height: 34 }}>
+                  <td
+                    style={{
+                      ...hucreStili,
+                      position: 'sticky',
+                      left: 0,
+                      background: '#F8FAFC',
+                      fontWeight: 600,
+                      zIndex: 1,
+                    }}
+                  >
+                    {r.etiket}
+                  </td>
+                  {r.hucreler.map((h, j) => {
+                    if (h && h.gizli) return null;
+                    if (!h) return <td key={j} style={hucreStili} />;
+                    return (
+                      <td
+                        key={j}
+                        rowSpan={h.satirSayisi}
+                        onClick={() =>
+                          setSecilen({ hucre: h, salon: t.salonlar[j].name, saat: r.etiket })
+                        }
+                        title="Ayrıntı için tıklayın"
+                        style={{
+                          ...hucreStili,
+                          background: '#' + (h.renk || 'FFFFFF'),
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          outline: h.cakisma ? '3px solid #DC2626' : 'none',
+                          outlineOffset: -3,
+                        }}
+                      >
+                        {h.metin}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const kisaltmaCiz = () => (
+    <div style={{ overflow: 'auto', height: '100%' }}>
+      <table style={{ borderCollapse: 'collapse', fontSize: 13, minWidth: 520 }}>
+        <thead>
+          <tr>
+            {['#', 'Kısaltma', 'Ad Soyad', 'Sınav Sayısı'].map((x) => (
+              <th
+                key={x}
+                style={{
+                  ...hucreStili,
+                  fontSize: 12.5,
+                  background: '#F1F5F9',
+                  padding: '6px 10px',
+                }}
+              >
+                {x}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {kitap.kisaltmaSatirlari.map((x, i) => (
+            <tr key={x.ad}>
+              <td style={{ ...hucreStili, fontSize: 12.5 }}>{i + 1}</td>
+              <td style={{ ...hucreStili, fontSize: 12.5, fontWeight: 700 }}>{x.kisaltma}</td>
+              <td style={{ ...hucreStili, fontSize: 12.5, textAlign: 'left', padding: '6px 10px' }}>
+                {x.ad}
+              </td>
+              <td style={{ ...hucreStili, fontSize: 12.5 }}>{x.sayi}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ fontSize: 12, color: '#64748B', marginTop: 8 }}>
+        Kısaltmalar addan otomatik üretilir; &quot;Ayarlar&quot; sekmesinden değiştirilebilir.
+        Dersin hocası kendi sınavında &quot;Dersin Öğr. Elemanı&quot; olarak yazılır ve sayılmaz.
+      </div>
+    </div>
+  );
+
+  const ayarCiz = () => {
+    const a = ayarTaslak;
+    if (!a) return null;
+    const giris = {
+      padding: '5px 8px',
+      border: '1px solid #CBD5E1',
+      borderRadius: 6,
+      fontSize: 13,
+    };
+    const baslik = { fontSize: 14, fontWeight: 700, color: '#0F172A', margin: '4px 0 8px' };
+    return (
+      <div
+        style={{
+          overflow: 'auto',
+          height: '100%',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gap: 20,
+        }}
+      >
+        <div>
+          <div style={baslik}>Fakültenin ortak salonları</div>
+          {a.salonlar.map((x, i) => (
+            <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+              <input
+                value={x.name}
+                placeholder="Salon"
+                style={{ ...giris, flex: 1 }}
+                onChange={(e) => {
+                  const l = [...a.salonlar];
+                  l[i] = { ...l[i], name: e.target.value };
+                  setAyarTaslak({ ...a, salonlar: l });
+                }}
+              />
+              <input
+                value={x.capacity}
+                placeholder="Kapasite"
+                type="number"
+                style={{ ...giris, width: 90 }}
+                onChange={(e) => {
+                  const l = [...a.salonlar];
+                  l[i] = { ...l[i], capacity: e.target.value };
+                  setAyarTaslak({ ...a, salonlar: l });
+                }}
+              />
+              <GhostBtn
+                onClick={() =>
+                  setAyarTaslak({ ...a, salonlar: a.salonlar.filter((_, j) => j !== i) })
+                }
+              >
+                Sil
+              </GhostBtn>
+            </div>
+          ))}
+          <GhostBtn
+            onClick={() =>
+              setAyarTaslak({ ...a, salonlar: [...a.salonlar, { name: '', capacity: '' }] })
+            }
+          >
+            + Salon ekle
+          </GhostBtn>
+        </div>
+        <div>
+          <div style={baslik}>Bölüm kısa adı ve rengi</div>
+          {bolumler.map((b) => {
+            const v = a.bolumler[b.id] || { kisaAd: '', renk: '#FFFFFF' };
+            const yaz = (alan, deger) =>
+              setAyarTaslak({ ...a, bolumler: { ...a.bolumler, [b.id]: { ...v, [alan]: deger } } });
+            return (
+              <div
+                key={b.id}
+                style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}
+              >
+                <span style={{ flex: 1, fontSize: 13 }}>{b.name}</span>
+                <input
+                  value={v.kisaAd}
+                  style={{ ...giris, width: 70 }}
+                  onChange={(e) => yaz('kisaAd', e.target.value)}
+                />
+                <input type="color" value={v.renk} onChange={(e) => yaz('renk', e.target.value)} />
+              </div>
+            );
+          })}
+          <div style={{ fontSize: 12, color: '#64748B' }}>
+            Birden çok bölümün ortak sınavı sarı gösterilir.
+          </div>
+        </div>
+        <div>
+          <div style={baslik}>Gözetmen kısaltmaları</div>
+          {Object.keys(a.kisaltmalar).length === 0 && (
+            <div style={{ fontSize: 13, color: '#64748B' }}>Bu dönemde atanmış gözetmen yok.</div>
+          )}
+          {Object.keys(a.kisaltmalar)
+            .sort((x, y) => x.localeCompare(y, 'tr'))
+            .map((ad) => (
+              <div
+                key={ad}
+                style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}
+              >
+                <span style={{ flex: 1, fontSize: 13 }}>{ad}</span>
+                <input
+                  value={a.kisaltmalar[ad]}
+                  style={{ ...giris, width: 80 }}
+                  onChange={(e) =>
+                    setAyarTaslak({ ...a, kisaltmalar: { ...a.kisaltmalar, [ad]: e.target.value } })
+                  }
+                />
+              </div>
+            ))}
+        </div>
+        <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8 }}>
+          <Btn onClick={ayarKaydet} disabled={kaydediliyor}>
+            {kaydediliyor ? 'Kaydediliyor…' : 'Ayarları kaydet'}
+          </Btn>
+          <GhostBtn
+            onClick={() => {
+              setAyarTaslak(null);
+              setSekme('gun:0');
+            }}
+          >
+            Vazgeç
+          </GhostBtn>
+        </div>
+      </div>
+    );
+  };
+
+  const durumCiz = () => (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {bolumDurumlari.map((x) => {
+        const r = FAKULTE_DURUM_RENGI[x.durum];
+        const bb = kitap && kitap.bolumBilgisi[x.bolum.id];
+        return (
+          <div
+            key={x.bolum.id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '5px 10px',
+              borderRadius: 8,
+              background: r.bg,
+              color: r.fg,
+              fontSize: 12.5,
+              border: '1px solid rgba(0,0,0,.06)',
+            }}
+            title={
+              x.kayit
+                ? (x.kayit.gonderen ? 'Gönderen: ' + x.kayit.gonderen : '') +
+                  (x.kayit.iadeNotu ? '\nİade notu: ' + x.kayit.iadeNotu : '')
+                : ''
+            }
+          >
+            <span
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: 3,
+                background: '#' + (bb ? bb.renk : 'FFFFFF'),
+                border: '1px solid rgba(0,0,0,.2)',
+              }}
+            />
+            <b>{(bb && bb.kisaAd) || x.bolum.id}</b>
+            <span>{SF.GONDERIM_ETIKETI[x.durum]}</span>
+            <span style={{ opacity: 0.7 }}>· {x.sinavlar.length} sınav</span>
+            {yetkili && (x.durum === 'gonderildi' || x.durum === 'degisti') && (
+              <button
+                type="button"
+                onClick={() => iadeEt(x)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#991B1B',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  textDecoration: 'underline',
+                }}
+              >
+                İade et
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const aktifGun =
+    kitap && sekme.startsWith('gun:') ? kitap.gunler[Number(sekme.slice(4))] || null : null;
+
+  const sekmeDugmesi = (anahtar, etiket, ek) => (
+    <button
+      key={anahtar}
+      type="button"
+      onClick={() => setSekme(anahtar)}
+      style={{
+        padding: '6px 12px',
+        border: '1px solid #CBD5E1',
+        borderTop: sekme === anahtar ? '3px solid #0F766E' : '1px solid #CBD5E1',
+        background: sekme === anahtar ? '#fff' : '#F1F5F9',
+        color: sekme === anahtar ? '#0F766E' : '#334155',
+        fontWeight: sekme === anahtar ? 700 : 500,
+        fontSize: 12.5,
+        cursor: 'pointer',
+        borderRadius: '0 0 6px 6px',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {etiket}
+      {ek ? <span style={{ marginLeft: 4, opacity: 0.6 }}>({ek})</span> : null}
+    </button>
+  );
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Fakülte sınav programı"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,23,42,.55)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        style={{
+          width: 'min(98vw, 1900px)',
+          height: '94vh',
+          background: '#fff',
+          borderRadius: 12,
+          boxShadow: '0 20px 60px rgba(0,0,0,.35)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '12px 16px',
+            borderBottom: '1px solid #E2E8F0',
+            display: 'flex',
+            gap: 12,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', marginRight: 'auto' }}>
+            Fakülte Sınav Programı
+            <span style={{ fontWeight: 500, color: '#64748B', fontSize: 14 }}> — {fakulteAdi}</span>
+          </div>
+          {(currentUser?.role === 'admin' || currentUser?.isUniversityAdmin) &&
+            fakulteSecenekleri.length > 1 && (
+              <select
+                value={fakId}
+                onChange={(e) => setFakulteId(e.target.value)}
+                style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #CBD5E1' }}
+              >
+                {fakulteSecenekleri.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+            )}
+          <select
+            value={grup ? grup.anahtar : ''}
+            onChange={(e) => {
+              setGrupAnahtari(e.target.value);
+              setSekme('gun:0');
+            }}
+            style={{
+              padding: '6px 8px',
+              borderRadius: 6,
+              border: '1px solid #CBD5E1',
+              fontSize: 13,
+            }}
+          >
+            {gruplar.length === 0 && <option value="">Sınav dönemi yok</option>}
+            {gruplar.map((g) => (
+              <option key={g.anahtar} value={g.anahtar}>
+                {g.etiket} · {g.donemler.length} bölüm
+              </option>
+            ))}
+          </select>
+          <label
+            style={{
+              fontSize: 13,
+              color: '#334155',
+              display: 'flex',
+              gap: 6,
+              alignItems: 'center',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={taslakDahil}
+              onChange={(e) => setTaslakDahil(e.target.checked)}
+            />
+            Göndermemiş bölümleri de göster (taslak)
+          </label>
+          {yetkili && <GhostBtn onClick={ayarAc}>Ayarlar</GhostBtn>}
+          <Btn onClick={excel} disabled={!kitap || kitap.gunler.length === 0}>
+            Excel indir
+          </Btn>
+          <GhostBtn onClick={onClose}>Kapat</GhostBtn>
+        </div>
+
+        {!veri || !SF ? (
+          <div style={{ padding: 60, textAlign: 'center', color: '#94A3B8' }}>Yükleniyor…</div>
+        ) : (
+          <>
+            <div style={{ padding: '10px 16px', borderBottom: '1px solid #F1F5F9' }}>
+              {durumCiz()}
+            </div>
+            <div style={{ flex: 1, minHeight: 0, padding: '10px 16px', overflow: 'hidden' }}>
+              {sekme === 'ayar' && ayarCiz()}
+              {sekme === 'kisaltma' && kitap && kisaltmaCiz()}
+              {sekme.startsWith('gun:') &&
+                (aktifGun ? (
+                  gunTablosuCiz(aktifGun)
+                ) : (
+                  <div style={{ padding: 50, textAlign: 'center', color: '#94A3B8' }}>
+                    {grup
+                      ? 'Bu dönemde gösterilecek sınav yok' +
+                        (taslakDahil ? '.' : ' (yalnız gönderen bölümler gösteriliyor).')
+                      : 'Fakültenin bölümlerinde açılmış sınav dönemi yok.'}
+                  </div>
+                ))}
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                gap: 2,
+                padding: '0 16px 10px',
+                overflowX: 'auto',
+                borderTop: '1px solid #E2E8F0',
+                background: '#F8FAFC',
+              }}
+            >
+              {kitap && sekmeDugmesi('kisaltma', 'Kısaltmalar')}
+              {kitap &&
+                kitap.gunler.map((g, i) =>
+                  sekmeDugmesi('gun:' + i, g.kisa + ' ' + g.kisaGun, g.oturumSayisi || null)
+                )}
+              {yetkili && ayarTaslak && sekmeDugmesi('ayar', 'Ayarlar')}
+            </div>
+          </>
+        )}
+      </div>
+
+      {secilen && (
+        <div
+          onMouseDown={(e) => e.target === e.currentTarget && setSecilen(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1001,
+            background: 'rgba(15,23,42,.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 12,
+              padding: 20,
+              width: 'min(560px, 94vw)',
+              maxHeight: '80vh',
+              overflow: 'auto',
+            }}
+          >
+            <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>
+              {secilen.salon} · {secilen.saat}
+            </div>
+            {secilen.hucre.cakisma && (
+              <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 8 }}>
+                Bu salonda aynı saatte birden çok oturum var.
+              </div>
+            )}
+            {secilen.hucre.oturumlar.map((o) => (
+              <div
+                key={o.anahtar}
+                style={{ borderTop: '1px solid #E2E8F0', paddingTop: 8, marginTop: 8 }}
+              >
+                <div style={{ fontSize: 13, color: '#334155', marginBottom: 4 }}>
+                  {o.timeSlot} · {o.sure} dk · {o.ogrenci} öğrenci · Salon:{' '}
+                  {o.salonlar.join(', ') || '—'}
+                </div>
+                {o.uyeler.map((u) => (
+                  <div key={u.id} style={{ fontSize: 13, padding: '2px 0' }}>
+                    <b>{u.code}</b> {u.name} —{' '}
+                    {(kitap.bolumBilgisi[u.departmentId] &&
+                      kitap.bolumBilgisi[u.departmentId].ad) ||
+                      u.departmentId}
+                    {u.professor ? ' · ' + u.professor : ''}
+                  </div>
+                ))}
+                <div style={{ fontSize: 13, marginTop: 4 }}>
+                  <b>Gözetmen:</b> {o.gozetmenler.join(', ') || '—'}
+                </div>
+              </div>
+            ))}
+            <div style={{ marginTop: 14, textAlign: 'right' }}>
+              <GhostBtn onClick={() => setSecilen(null)}>Kapat</GhostBtn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ══════════════════════════════════════════════════════════════
 // MAIN: SinavOtomasyonuApp
@@ -3116,6 +3991,14 @@ function SinavOtomasyonuApp({
   // Gözetmen kuralları (hoca + salon başına gözetmen) — bölüm kaydında durur.
   const [gozetmenKuralAcik, setGozetmenKuralAcik] = useState(false);
   const [kabulEdilen, setKabulEdilen] = useState(null); // şartlı kabul modalı
+  // ── Fakülte programı ──
+  // Fakülte ayarı (ortak salonlar, bölüm kısa ad/renk, kısaltmalar) ve
+  // bölümlerin programı fakülteye gönderme kayıtları (lib/sinav-fakulte.js).
+  const [fakulteAyarlari, setFakulteAyarlari] = useState([]);
+  const [gonderimler, setGonderimler] = useState([]);
+  const [fakultePenceresi, setFakultePenceresi] = useState(false);
+  const fakulteYetkili =
+    isAdmin || !!currentUser?.isFacultyManager || !!currentUser?.isUniversityAdmin;
 
   // State
   const [courses, setCourses] = useState([]);
@@ -3339,14 +4222,18 @@ function SinavOtomasyonuApp({
   // eder.
   const loadFakulteGeneli = useCallback(async () => {
     try {
-      const [sinavlar, salonlar, kabuller] = await Promise.all([
+      const [sinavlar, salonlar, kabuller, ayarlar, gonderimKayitlari] = await Promise.all([
         window.apiRead('sinav_programi').catch(() => []),
         window.apiRead('department_classrooms').catch(() => []),
         window.apiRead('sinav_cakisma_kabul').catch(() => []),
+        window.apiRead('sinav_fakulte_ayarlari').catch(() => []),
+        window.apiRead('sinav_gonderimleri').catch(() => []),
       ]);
       setTumSinavlar(Array.isArray(sinavlar) ? sinavlar : []);
       setTumSalonlar(Array.isArray(salonlar) ? salonlar : []);
       setCakismaKabulleri(Array.isArray(kabuller) ? kabuller : []);
+      setFakulteAyarlari(Array.isArray(ayarlar) ? ayarlar : []);
+      setGonderimler(Array.isArray(gonderimKayitlari) ? gonderimKayitlari : []);
     } catch (e) {
       console.warn('Fakülte geneli veri okunamadı:', e && e.message);
     }
@@ -3361,7 +4248,12 @@ function SinavOtomasyonuApp({
   // denetim sayfa yenilenmeden güncellenir.
   useEffect(() => {
     const h = () => loadFakulteGeneli();
-    const c = ['sinav_programi', 'sinav_cakisma_kabul'];
+    const c = [
+      'sinav_programi',
+      'sinav_cakisma_kabul',
+      'sinav_gonderimleri',
+      'sinav_fakulte_ayarlari',
+    ];
     c.forEach((x) => window.addEventListener('realtime:' + x, h));
     return () => c.forEach((x) => window.removeEventListener('realtime:' + x, h));
   }, [loadFakulteGeneli]);
@@ -3615,6 +4507,9 @@ function SinavOtomasyonuApp({
   useEffect(() => {
     const init = async () => {
       const depts = await loadDepartments();
+      // Bölümü olmayan kullanıcı (ör. dersi olmayan fakülte yetkilisi) için
+      // yükleme hiç bitmiyordu: veri yalnız bölüm seçilince okunuyor.
+      if (depts.length === 0 && !selectedDeptId) setLoading(false);
 
       // ── Veri-bazlı migration: departmentId normalize + mükerrer silme ──
       // Sadece bir kez çalışır (tarayıcı başına), her sayfa yüklemesinde çalışmaz
@@ -3909,6 +4804,32 @@ function SinavOtomasyonuApp({
     : { toplam: 0, engel: 0, bekleyen: 0, kabul: 0 };
   const programHazir = window.sinavProgramHazirMi ? window.sinavProgramHazirMi(cakismalar) : true;
 
+  // ── Fakülte: ortak salonlar, başka bölümlerin doluluğu, gönderim ──
+  const SF = window.SinavFakulte;
+  const bolumFakultesi =
+    selectedDept?.facultyId ||
+    ((window.DEPARTMENTS || []).find((d) => d.id === selectedDeptId) || {}).facultyId ||
+    currentUser?.facultyId ||
+    'muhendislik';
+  const fakulteAyari = fakulteAyarlari.find((a) => a && a.id === bolumFakultesi) || null;
+  const salonListesi = fakulteSalonListesi(fakulteAyari);
+  // Bu dönemin günlerinde BAŞKA bölümlerin sınavları (salon/gözetmen doluluğu).
+  const digerSinavlar = useMemo(
+    () =>
+      tumSinavlar.filter(
+        (e) => e && e.departmentId !== selectedDeptId && e.date && donemGunleri.has(e.date)
+      ),
+    [tumSinavlar, selectedDeptId, donemGunleri]
+  );
+  const grupAnahtari = activePeriod && SF ? SF.donemGrubu(activePeriod) : '';
+  const gonderimId =
+    SF && selectedDeptId && grupAnahtari ? SF.gonderimKimligi(selectedDeptId, grupAnahtari) : '';
+  const gonderimKaydi = gonderimler.find((g) => g && g.id === gonderimId) || null;
+  const gonderimDurumu =
+    SF && periodExams.length > 0
+      ? SF.gonderimDurumu(gonderimKaydi, SF.programImzasi(periodExams))
+      : 'bekliyor';
+
   // ── SEÇİM YOKKEN KAPANMAZ ──
   // Panel varsayılan kapalıdır, ama hiç dönem seçilmemişken kapalı açılış
   // kullanıcıyı boş bir sayfayla baş başa bırakırdı: seçecek kart görünmez.
@@ -4099,6 +5020,144 @@ function SinavOtomasyonuApp({
     }
   };
 
+  // ── SALON VE GÖZETMEN ATA (KAYDET) ──
+  // Dekanlık çıktısındaki otomatik atama artık sınav kayıtlarına yazılabilir:
+  // böylece fakülte tablosu, kısaltma sayıları ve fakülte geneli çakışma
+  // denetimi aynı veriyi görür. Yalnız BOŞ alanlar doldurulur; elle girilen
+  // salon/gözetmen değişmez. Otomatik yazılanlar işaretlenir ve tek
+  // düğmeyle geri alınabilir.
+  const salonGozetmenAta = async () => {
+    if (periodExams.length === 0) return;
+    if (!periodExams.some((e) => !e.room || !e.supervisor)) {
+      alert('Bu dönemdeki bütün sınavların salonu ve gözetmeni zaten girilmiş.');
+      return;
+    }
+    const { hocaKurali, sayiKurali } = await bolumGozetmenKurallari(selectedDeptId);
+    const { oneri, uyarilar } = otomatikAtamaHesapla({
+      sinavlar: periodExams,
+      salonlar: deptClassrooms.length > 0 ? deptClassrooms : null,
+      gozetmenAdlari: deptSupervisors.map((x) => x.name),
+      kurallar: { hocaKurali, sayiKurali },
+      musaitsizlik: window.gozetmenMusaitsizlikHaritasi
+        ? window.gozetmenMusaitsizlikHaritasi(deptSupervisors)
+        : {},
+      digerSinavlar,
+    });
+    const ops = [];
+    const yamalar = {};
+    periodExams.forEach((e) => {
+      const o = oneri[e.id];
+      if (!o) return;
+      const data = {};
+      if (!e.room && o.room && o.room !== 'TBD') {
+        data.room = o.room;
+        data.otomatikSalon = true;
+      }
+      if (!e.supervisor && o.supervisor) {
+        data.supervisor = o.supervisor;
+        data.otomatikGozetmen = true;
+      }
+      if (Object.keys(data).length > 0) {
+        ops.push({ collection: 'sinav_programi', type: 'update', docId: e.id, data });
+        yamalar[e.id] = data;
+      }
+    });
+    if (ops.length === 0) {
+      alert(
+        'Otomatik atama yapılamadı.' +
+          (uyarilar.length ? '\n\n' + window.Gozetmen.uyariMetni(uyarilar) : '')
+      );
+      return;
+    }
+    const tamam = window.confirm(
+      ops.length +
+        ' sınava salon ve/veya gözetmen yazılacak (elle girilenler değişmez; başka bölümlerin ' +
+        'aynı saatteki salon ve gözetmenleri dolu sayıldı).' +
+        (uyarilar.length
+          ? '\n\n' + uyarilar.length + ' uyarı:\n' + window.Gozetmen.uyariMetni(uyarilar)
+          : '') +
+        '\n\nKaydedilsin mi?'
+    );
+    if (!tamam) return;
+    try {
+      for (let i = 0; i < ops.length; i += 50) await DBWrite.batch(ops.slice(i, i + 50));
+      setPlacedExams((prev) => prev.map((e) => (yamalar[e.id] ? { ...e, ...yamalar[e.id] } : e)));
+      loadFakulteGeneli();
+    } catch (e) {
+      alert('Atama kaydedilemedi: ' + e.message);
+    }
+  };
+
+  const otomatikAtamayiTemizle = async () => {
+    const hedef = periodExams.filter((e) => e.otomatikSalon || e.otomatikGozetmen);
+    if (hedef.length === 0) {
+      alert('Otomatik yazılmış salon/gözetmen yok.');
+      return;
+    }
+    if (
+      !window.confirm(
+        hedef.length + ' sınavdaki OTOMATİK salon/gözetmen silinecek (elle girilenler kalır).'
+      )
+    )
+      return;
+    const yamalar = {};
+    const ops = hedef.map((e) => {
+      const data = {};
+      if (e.otomatikSalon) Object.assign(data, { room: '', otomatikSalon: false });
+      if (e.otomatikGozetmen) Object.assign(data, { supervisor: '', otomatikGozetmen: false });
+      yamalar[e.id] = data;
+      return { collection: 'sinav_programi', type: 'update', docId: e.id, data };
+    });
+    try {
+      for (let i = 0; i < ops.length; i += 50) await DBWrite.batch(ops.slice(i, i + 50));
+      setPlacedExams((prev) => prev.map((e) => (yamalar[e.id] ? { ...e, ...yamalar[e.id] } : e)));
+      loadFakulteGeneli();
+    } catch (e) {
+      alert('Temizlenemedi: ' + e.message);
+    }
+  };
+
+  // ── FAKÜLTEYE GÖNDER ──
+  // Çakışma kapısından geçen program fakülteye gönderilir; gönderimden sonra
+  // değişirse durum "değişti" olur ve yeniden gönderilmesi gerekir.
+  const fakulteyeGonder = async () => {
+    if (!SF || !gonderimId || !activePeriod) return;
+    if (!(await cikisIzniVar())) return;
+    const salonsuz = periodExams.filter((e) => !e.room).length;
+    const gozetmensiz = periodExams.filter((e) => !e.supervisor).length;
+    if (
+      (salonsuz || gozetmensiz) &&
+      !window.confirm(
+        (salonsuz ? salonsuz + ' sınavın salonu' : '') +
+          (salonsuz && gozetmensiz ? ', ' : '') +
+          (gozetmensiz ? gozetmensiz + ' sınavın gözetmeni' : '') +
+          ' kayıtlı değil. Fakülte tablosunda salonsuz sınav görünmez, gözetmensiz sınav ' +
+          'gözetmensiz görünür. Önce "Salon ve Gözetmen Ata" kullanmanız önerilir.\n\n' +
+          'Yine de gönderilsin mi?'
+      )
+    )
+      return;
+    try {
+      await DBWrite.set('sinav_gonderimleri', gonderimId, {
+        bolumId: selectedDeptId,
+        bolumAdi: selectedDept?.name || '',
+        facultyId: bolumFakultesi,
+        donemGrubu: grupAnahtari,
+        donemEtiketi: activePeriod.label || '',
+        periodId: activePeriod.id,
+        durum: 'gonderildi',
+        imza: SF.programImzasi(periodExams),
+        sinavSayisi: periodExams.length,
+        gonderen: currentUser?.name || '',
+        gonderimTarihi: new Date().toISOString(),
+      });
+      await loadFakulteGeneli();
+      alert('Program fakülteye gönderildi.');
+    } catch (e) {
+      alert('Gönderilemedi: ' + e.message);
+    }
+  };
+
   const handleUpdateExam = async (updatedExam) => {
     // Akademisyen sadece kendi derslerini düzenleyebilir
     if (isProfessor && updatedExam.professor !== currentUser?.name) {
@@ -4106,6 +5165,13 @@ function SinavOtomasyonuApp({
       return;
     }
     try {
+      // Elle değiştirilen salon/gözetmen artık otomatik sayılmaz ("otomatik
+      // atamayı temizle" onu silmesin).
+      const onceki = placedExams.find((e) => e.id === updatedExam.id) || {};
+      if (onceki.otomatikSalon && (updatedExam.room || '') !== (onceki.room || ''))
+        updatedExam = { ...updatedExam, otomatikSalon: false };
+      if (onceki.otomatikGozetmen && (updatedExam.supervisor || '') !== (onceki.supervisor || ''))
+        updatedExam = { ...updatedExam, otomatikGozetmen: false };
       const { id, ...data } = updatedExam;
       await DBWrite.update('sinav_programi', id, data);
       // Ortak sınav tek oturumdur: salon ve gözetmen bütün üyelerde aynı olmalı.
@@ -4115,8 +5181,16 @@ function SinavOtomasyonuApp({
           ? SB.grupUyeleri(updatedExam, periodExams).filter((e) => e.id !== id)
           : [];
       const ortak = { room: updatedExam.room || '', supervisor: updatedExam.supervisor || '' };
+      // Elle değişen alan oturumun bütün üyelerinde artık otomatik sayılmaz.
+      if (updatedExam.otomatikSalon === false) ortak.otomatikSalon = false;
+      if (updatedExam.otomatikGozetmen === false) ortak.otomatikGozetmen = false;
       for (const u of digerleri) {
-        if ((u.room || '') !== ortak.room || (u.supervisor || '') !== ortak.supervisor)
+        if (
+          (u.room || '') !== ortak.room ||
+          (u.supervisor || '') !== ortak.supervisor ||
+          (ortak.otomatikSalon === false && u.otomatikSalon) ||
+          (ortak.otomatikGozetmen === false && u.otomatikGozetmen)
+        )
           await DBWrite.update('sinav_programi', u.id, ortak);
       }
       const digerIdleri = new Set(digerleri.map((u) => u.id));
@@ -4366,6 +5440,12 @@ function SinavOtomasyonuApp({
 
   return (
     <div>
+      {fakultePenceresi && (
+        <FakulteProgramPenceresi
+          currentUser={currentUser}
+          onClose={() => setFakultePenceresi(false)}
+        />
+      )}
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
         {/* Başlık — ortak banner (embedded modda gizli) */}
         {!embedded &&
@@ -4391,6 +5471,9 @@ function SinavOtomasyonuApp({
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {fakulteYetkili && seviye === 'lisans' && (
+              <Btn onClick={() => setFakultePenceresi(true)}>Fakülte Programı (geniş görünüm)</Btn>
+            )}
             {seviye === 'lisans' &&
               isAdmin &&
               courses.length === 0 &&
@@ -4841,7 +5924,12 @@ function SinavOtomasyonuApp({
                           await bolumGozetmenKurallari(selectedDeptId),
                           window.gozetmenMusaitsizlikHaritasi
                             ? window.gozetmenMusaitsizlikHaritasi(deptSupervisors)
-                            : {}
+                            : {},
+                          {
+                            digerSinavlar,
+                            salonListesi,
+                            sinavAdi: SF ? SF.sinavAdi(activePeriod) : '',
+                          }
                         )
                       }
                       style={{
@@ -4851,9 +5939,63 @@ function SinavOtomasyonuApp({
                         color: 'white',
                         border: 'none',
                       }}
+                      title="Bölümün fakülteye gönderdiği Excel: Liste + gün sayfaları"
                     >
-                      Dekanlık Çıktısı
+                      Excel Çıktısı
                     </GhostBtn>
+                    <GhostBtn
+                      onClick={salonGozetmenAta}
+                      style={{ fontSize: 12, padding: '4px 10px' }}
+                    >
+                      Salon ve Gözetmen Ata
+                    </GhostBtn>
+                    {periodExams.some((e) => e.otomatikSalon || e.otomatikGozetmen) && (
+                      <GhostBtn
+                        onClick={otomatikAtamayiTemizle}
+                        style={{ fontSize: 12, padding: '4px 10px' }}
+                      >
+                        Otomatik Atamayı Temizle
+                      </GhostBtn>
+                    )}
+                    <GhostBtn
+                      onClick={fakulteyeGonder}
+                      style={{
+                        fontSize: 12,
+                        padding: '4px 10px',
+                        background: '#7C3AED',
+                        color: 'white',
+                        border: 'none',
+                      }}
+                    >
+                      {gonderimDurumu === 'gonderildi' ? 'Yeniden Gönder' : 'Fakülteye Gönder'}
+                    </GhostBtn>
+                    {SF && (
+                      <span
+                        title={
+                          gonderimKaydi
+                            ? (gonderimKaydi.gonderen
+                                ? 'Gönderen: ' + gonderimKaydi.gonderen
+                                : '') +
+                              (gonderimKaydi.iadeNotu
+                                ? '\nİade notu: ' + gonderimKaydi.iadeNotu
+                                : '')
+                            : 'Program fakülteye gönderilmedi'
+                        }
+                        style={{
+                          fontSize: 12,
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          fontWeight: 600,
+                          background: FAKULTE_DURUM_RENGI[gonderimDurumu].bg,
+                          color: FAKULTE_DURUM_RENGI[gonderimDurumu].fg,
+                        }}
+                      >
+                        Fakülte: {SF.GONDERIM_ETIKETI[gonderimDurumu]}
+                        {gonderimDurumu === 'iade' && gonderimKaydi && gonderimKaydi.iadeNotu
+                          ? ' — ' + gonderimKaydi.iadeNotu
+                          : ''}
+                      </span>
+                    )}
                     <GhostBtn
                       onClick={async () =>
                         (await cikisIzniVar()) &&
@@ -4872,8 +6014,9 @@ function SinavOtomasyonuApp({
                         color: 'white',
                         border: 'none',
                       }}
+                      title="Şablonlar modülündeki şablonla Word ya da yazdırılabilir tablo"
                     >
-                      Bölüm Çıktısı
+                      Yazdırılabilir Çıktı
                     </GhostBtn>
                   </>
                 )}
@@ -4894,7 +6037,7 @@ function SinavOtomasyonuApp({
                         opacity: 0.5,
                       }}
                     >
-                      Dekanlık Çıktısı
+                      Excel Çıktısı
                     </GhostBtn>
                   </>
                 )}

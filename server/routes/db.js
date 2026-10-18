@@ -3,6 +3,10 @@ const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const { getDbSafe } = require('../config/database');
 const { ogrenciAdlariniBuyut } = require('../lib/ad-bicim');
+const {
+  SINAV_FAKULTE_KOLEKSIYONLARI,
+  sinavFakulteYazmaKarari,
+} = require('../lib/sinav-fakulte-yazma');
 const { ObjectId } = require('mongodb');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const oturumIptal = require('../lib/oturum-iptal');
@@ -280,6 +284,12 @@ const ALLOWED_COLLECTIONS = [
   // durur ki iki taraf da aynı kararı görsün. Yalnız bölüm yetkilisi ve
   // üstü yazar — kabul, sorumluluğu üstlenen bir imzadır.
   'sinav_cakisma_kabul',
+  // FAKÜLTE SINAV PROGRAMI — fakültenin ortak salonları, bölüm kısa adı/rengi,
+  // gözetmen kısaltmaları (belge = fakülte) ve bölümlerin programı fakülteye
+  // gönderme kayıtları (belge = bölüm__dönem). Yazma kuralları:
+  // server/lib/sinav-fakulte-yazma.js.
+  'sinav_fakulte_ayarlari',
+  'sinav_gonderimleri',
   // STAJ ETABI ACİL DURUM AÇILIŞLARI — süresi dolmuş bir etabın, gerekçeyle
   // ve belirli öğrenciler için yeniden açılması. Etabın kendi tarihlerine
   // DOKUNULMAZ; bu ayrı kayıt yalnız kayıt kapısını aralar. Öğrenci kendi
@@ -699,6 +709,9 @@ const STUDENT_DELETE_OWNED = new Set(['portal_posts', 'portal_posts_comments']);
 
 // Öğrencilerin hiç okuyamayacağı koleksiyonlar (personel modülleri)
 const STUDENT_READ_DENY = new Set([
+  // Fakülte sınav programı hazırlığı personelin işidir.
+  'sinav_fakulte_ayarlari',
+  'sinav_gonderimleri',
   // TTO talepleri personelin kurumsal/ticari başvurularıdır (firma, bütçe,
   // vergi bilgisi); öğrenci ekranı yoktur.
   'tto_talepleri',
@@ -1252,6 +1265,25 @@ async function enforceWritePolicies(db, op, user) {
         error: `Bu koleksiyonu yalnız bölüm yetkilisi düzenleyebilir: ${op.collection}`,
       };
     }
+  }
+
+  // a2-sınav) FAKÜLTE SINAV PROGRAMI: ayar yalnız fakülte yetkilisinin, gönderim
+  // bölüm yetkilisinin, iade fakültenin (server/lib/sinav-fakulte-yazma.js).
+  if (
+    SINAV_FAKULTE_KOLEKSIYONLARI.has(op.collection) &&
+    (user.role === 'professor' || user.role === 'bolum_yetkilisi')
+  ) {
+    const alan = await kullaniciAlani(db, user);
+    let mevcut = null;
+    if (op.type !== 'add' && op.docId) {
+      try {
+        mevcut = await findExistingDoc(db, op);
+      } catch (_) {
+        mevcut = null;
+      }
+    }
+    const karar = sinavFakulteYazmaKarari(op, mevcut, alan);
+    if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
   }
 
   // a2-alan) YETKİ ALANI: rol kapısı "kim" sorusunu cevapladı; burada "NEREYE"
