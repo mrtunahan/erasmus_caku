@@ -104,6 +104,7 @@ import {
 } from './lib/muafiyet-belge-notu.js';
 import * as GozetmenKurallari from './lib/gozetmen.js';
 import * as SinavBirlesim from './lib/sinav-birlesim.js';
+import * as SinavFakulte from './lib/sinav-fakulte.js';
 import { GozetmenKurallariPaneli } from './gozetmen-kurallari.jsx';
 import {
   DUZENLENEBILIR_ALANLAR as MUAFIYET_DUZENLENEBILIR_ALANLAR,
@@ -15651,6 +15652,7 @@ window.Gozetmen = GozetmenKurallari;
 // Ders odaları kural dosyası (lib/ders-odasi.js) — modül ve şablon motoru okur.
 window.DersOdasi = DersOdasi;
 window.SinavBirlesim = SinavBirlesim;
+window.SinavFakulte = SinavFakulte;
 window.GozetmenKurallariPaneli = GozetmenKurallariPaneli;
 window.belgeGonderimHataMetni = gonderimHataMetni;
 window.belgeGonderimBilgiMetni = gonderimBilgiMetni;
