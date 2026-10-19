@@ -5930,13 +5930,17 @@ function SinavOtomasyonuApp({
 
         // Akademisyen için: derslerinin olduğu bölümleri bul
         if (currentUser?.role === 'professor' && !fakulteYetkili && currentUser?.name) {
+          // Ad birebir aranmaz (unvan/harf farkı, çok hocalı dersler): bütün
+          // dersler okunup "hocalarından biri mi" kuralıyla süzülür.
           const cRef = getCoursesRef();
           if (cRef) {
-            const coursesSnap = await cRef.where('professor', '==', currentUser.name).get();
+            const coursesSnap = await cRef.get();
+            const f = window.dersEgitmeniMi;
             const profDeptIds = new Set();
             coursesSnap.docs.forEach((d) => {
-              const deptId = d.data().departmentId;
-              if (deptId) profDeptIds.add(deptId);
+              const c = d.data();
+              const benim = f ? f(c, currentUser.name) : c.professor === currentUser.name;
+              if (benim && c.departmentId) profDeptIds.add(c.departmentId);
             });
             depts = depts.filter((d) => profDeptIds.has(d.id));
           }
@@ -5950,8 +5954,19 @@ function SinavOtomasyonuApp({
             (d) => d.id === currentUser.departmentId || d.name === currentUser.departmentName
           );
           setSelectedDeptId(matchedDept ? matchedDept.id : currentUser.departmentId);
-        } else if (isProfessor && depts.length > 0 && !selectedDeptId) {
-          setSelectedDeptId(depts[0].id);
+        } else if (
+          currentUser?.role === 'professor' &&
+          !fakulteYetkili &&
+          depts.length > 0 &&
+          (!selectedDeptId || !depts.some((d) => d.id === selectedDeptId))
+        ) {
+          // Akademisyenin kendi bölümü (ör. Matematik) dersini verdiği bölümden
+          // (Bilgisayar) farklı olabilir: dersi olan bir bölüm seçilir.
+          setSelectedDeptId(
+            activeDepartment && depts.some((d) => d.id === activeDepartment)
+              ? activeDepartment
+              : depts[0].id
+          );
         } else if (
           fakulteYetkili &&
           depts.length > 0 &&
@@ -6761,6 +6776,9 @@ function SinavOtomasyonuApp({
     sinif: courseData.sinif,
     duration: courseData.duration,
     professor: courseData.professor,
+    ...(Array.isArray(courseData.professors) && courseData.professors.length
+      ? { professors: courseData.professors }
+      : {}),
     date: dateStr,
     timeSlot: timeSlot,
     periodId: activePeriodId,
@@ -6787,9 +6805,24 @@ function SinavOtomasyonuApp({
 
   const [ayniSaat, setAyniSaat] = useState(null); // { ders, tarih, saat, karar }
 
+  // ── "Kendi dersim mi?" ──
+  // Ad BİREBİR karşılaştırılmaz: ders kaydındaki ad ile giriş adı unvan ya
+  // da büyük/küçük harf farkıyla yazılmış olabilir (ad standardı sonrası
+  // "CELALETTİN KAYA" ↔ "Celalettin KAYA"), ders çok hocalı olabilir
+  // (`professors` listesi; `professor` yalnız ilk hoca). Görünüm için
+  // değiştirilmiş ad (turkishify) yerine ders kaydının kendisine de bakılır.
+  const kendiDersiMi = (kayit) => {
+    const ad = currentUser?.name;
+    if (!kayit || !ad) return false;
+    const f = window.dersEgitmeniMi;
+    const kaynak = kayit.courseId ? courses.find((c) => c.id === kayit.courseId) : null;
+    const asil = kayit.id ? courses.find((c) => c.id === kayit.id) : null;
+    return [kayit, kaynak, asil].filter(Boolean).some((x) => (f ? f(x, ad) : x.professor === ad));
+  };
+
   const handleDrop = async (courseData, dateStr, timeSlot) => {
     // Akademisyen sadece kendi derslerini yerleştirebilir
-    if (isProfessor && courseData.professor !== currentUser?.name) {
+    if (isProfessor && !kendiDersiMi(courseData)) {
       alert('Sadece kendi derslerinizi programa ekleyebilirsiniz.');
       return;
     }
@@ -7053,7 +7086,7 @@ function SinavOtomasyonuApp({
 
   const handleUpdateExam = async (updatedExam) => {
     // Akademisyen sadece kendi derslerini düzenleyebilir
-    if (isProfessor && updatedExam.professor !== currentUser?.name) {
+    if (isProfessor && !kendiDersiMi(updatedExam)) {
       alert('Sadece kendi derslerinizi düzenleyebilirsiniz.');
       return;
     }
@@ -7100,7 +7133,7 @@ function SinavOtomasyonuApp({
 
   const handleRemoveExam = async (exam) => {
     // Akademisyen sadece kendi derslerini kaldırabilir
-    if (isProfessor && exam.professor !== currentUser?.name) {
+    if (isProfessor && !kendiDersiMi(exam)) {
       alert('Sadece kendi derslerinizi takvimden kaldırabilirsiniz.');
       return;
     }
@@ -7426,6 +7459,28 @@ function SinavOtomasyonuApp({
               </svg>
               <div>
                 <span style={{ fontWeight: 600, color: '#0F766E' }}>{currentUser?.name}</span>
+                {departments.length > 1 && (
+                  <select
+                    value={selectedDeptId || ''}
+                    onChange={(e) => setSelectedDeptId(e.target.value)}
+                    aria-label="Dersinizin olduğu bölüm"
+                    style={{
+                      marginLeft: 10,
+                      height: 30,
+                      padding: '0 8px',
+                      border: '1px solid #5EEAD4',
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: '#fff',
+                    }}
+                  >
+                    {departments.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <span style={{ color: '#64748B', fontSize: 13, marginLeft: 8 }}>
                   Akademisyen - Sadece kendi derslerinizi programa ekleyebilirsiniz
                 </span>
@@ -8061,7 +8116,7 @@ function SinavOtomasyonuApp({
                           course={c}
                           isPlaced={false}
                           placedCount={c.placedCount}
-                          canDrag={canManage || (isProfessor && c.professor === currentUser?.name)}
+                          canDrag={canManage || (isProfessor && kendiDersiMi(c))}
                         />
                       ))}
                     </div>
@@ -8094,9 +8149,7 @@ function SinavOtomasyonuApp({
                                 course={c}
                                 isPlaced={false}
                                 placedCount={c.placedCount}
-                                canDrag={
-                                  canManage || (isProfessor && c.professor === currentUser?.name)
-                                }
+                                canDrag={canManage || (isProfessor && kendiDersiMi(c))}
                               />
                             ))}
                           </div>
@@ -8237,7 +8290,7 @@ function SinavOtomasyonuApp({
             onSave={handleUpdateExam}
             onRemove={handleRemoveExam}
             onClose={() => setEditingExam(null)}
-            readOnly={isProfessor && editingExam?.professor !== currentUser?.name}
+            readOnly={isProfessor && !kendiDersiMi(editingExam)}
             salonSecenekleri={salonSecenekleri}
             gozetmenSecenekleri={gozetmenSecenekleri}
           />
