@@ -370,3 +370,120 @@ describe('aktif dönem ve fakülte listesi', () => {
     expect(muh.bolumSayisi).toBe(2);
   });
 });
+
+describe('özel renkler ve bölümler arası birleştirme', () => {
+  it('OSD/OZD ve ortak renkleri ayardan', async () => {
+    const SFm = await import('../lib/sinav-fakulte.js');
+    expect(SFm.ortakDersTuru('OZD 101')).toBe('ozd');
+    expect(SFm.ortakDersTuru('osd202')).toBe('osd');
+    expect(SFm.ortakDersTuru('BİL101')).toBe('');
+    const ayar = { ozelRenkler: { ozd: '#112233', ortak: 'abcdef' } };
+    const k = SFm.fakulteKitabi({
+      sinavlar: [
+        {
+          id: '1',
+          code: 'OZD101',
+          date: '2026-06-08',
+          timeSlot: '10:00',
+          room: 'M10Z04',
+          departmentId: 'bilgisayar',
+        },
+        {
+          id: '2',
+          code: 'MAT1',
+          name: 'Mat',
+          date: '2026-06-08',
+          timeSlot: '12:00',
+          room: 'M10Z04',
+          departmentId: 'insaat',
+          birlesimId: 'B',
+        },
+        {
+          id: '3',
+          code: 'MAT2',
+          name: 'Mat',
+          date: '2026-06-08',
+          timeSlot: '12:00',
+          room: 'M10Z04',
+          departmentId: 'makine',
+          birlesimId: 'B',
+        },
+      ],
+      salonlar: SALONLAR,
+      bolumler: BOLUMLER,
+      ayar,
+    });
+    const renkler = k.oturumlar.map((o) => o.renk);
+    expect(renkler).toContain('112233');
+    expect(renkler).toContain('ABCDEF');
+  });
+
+  it('aynı saatte farklı bölümlerde aynı ders/hoca önerilir ve birleştirilir', async () => {
+    const SFm = await import('../lib/sinav-fakulte.js');
+    const l = [
+      {
+        id: 'a',
+        code: 'MAT162',
+        name: 'Matematik II',
+        professor: 'Dr. Ali KAYA',
+        date: '2026-06-08',
+        timeSlot: '10:00',
+        departmentId: 'insaat',
+        room: 'M11101',
+        supervisor: 'X',
+      },
+      {
+        id: 'b',
+        code: 'MAT164',
+        name: 'Matematik II',
+        professor: 'Ali Kaya',
+        date: '2026-06-08',
+        timeSlot: '10:00',
+        departmentId: 'makine',
+        room: 'M11103',
+        supervisor: 'Y, X',
+      },
+      {
+        id: 'c',
+        code: 'BİL101',
+        name: 'Prog',
+        professor: 'Z',
+        date: '2026-06-08',
+        timeSlot: '10:00',
+        departmentId: 'bilgisayar',
+      },
+      {
+        id: 'd',
+        code: 'MAT162',
+        name: 'Matematik II',
+        date: '2026-06-08',
+        timeSlot: '13:00',
+        departmentId: 'kimya',
+      },
+    ];
+    const o = SFm.birlestirmeOnerileri(l);
+    expect(o).toHaveLength(1);
+    expect(o[0].sinavlar.map((s) => s.id).sort()).toEqual(['a', 'b']);
+    const y = SFm.birlestirmeYamalari(o[0].sinavlar, 'BYENI');
+    expect(y[0].data).toEqual({ birlesimId: 'BYENI', room: 'M11101 - M11103', supervisor: 'X, Y' });
+    const birlesik = l.map((s) =>
+      s.id === 'a' || s.id === 'b' ? { ...s, birlesimId: 'BYENI' } : s
+    );
+    expect(SFm.birlestirmeOnerileri(birlesik)).toHaveLength(0);
+  });
+
+  it('basit docx: yatay A4, tablo ve Türkçe metin', async () => {
+    const { docxParcalari } = await import('../lib/basit-docx.js');
+    const p = docxParcalari({
+      baslik: 'BİLGİSAYAR — FİNAL',
+      sutunlar: ['Ders', 'Salon'],
+      satirlar: [{ hucreler: ['Şube & <1>', 'M1'], renk: '#B2EBF2' }],
+    });
+    expect(Object.keys(p)).toEqual(['[Content_Types].xml', '_rels/.rels', 'word/document.xml']);
+    const x = p['word/document.xml'];
+    expect(x).toContain('w:orient="landscape"');
+    expect(x).toContain('Şube &amp; &lt;1&gt;');
+    expect(x).toContain('w:fill="B2EBF2"');
+    expect(x).toContain('BİLGİSAYAR — FİNAL');
+  });
+});
