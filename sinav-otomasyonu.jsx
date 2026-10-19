@@ -712,9 +712,16 @@ function getWeekDays(startDate, weeks) {
   return days;
 }
 
+// Saat, takvimdeki 30 dakikalık satırlardan hangisine düşer? Başlangıç
+// serbest girilebildiği için (ör. 09:15) tam eşleşme aranmaz: içine düştüğü
+// satır döner. Takvim 08:30'dan başlar ve satırlar kesintisiz 30 dakikadır.
 function timeToSlotIndex(timeStr) {
   const idx = TIME_SLOTS.indexOf(timeStr);
-  return idx >= 0 ? idx : 0;
+  if (idx >= 0) return idx;
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(timeStr || ''));
+  if (!m) return 0;
+  const dk = Number(m[1]) * 60 + Number(m[2]);
+  return Math.max(0, Math.min(TIME_SLOTS.length - 1, Math.floor((dk - (8 * 60 + 30)) / 30)));
 }
 
 function slotSpan(durationMinutes) {
@@ -1269,7 +1276,7 @@ const EditExamModal = ({
         studentCount: parseInt(studentCount) || 0,
         supervisor,
         room,
-        duration: parseInt(duration) || 30,
+        duration: Math.min(480, Math.max(5, parseInt(duration) || 30)),
         professor,
       });
       onClose();
@@ -1372,18 +1379,23 @@ const EditExamModal = ({
           </FormField>
         )}
         <FormField label="Sınav Süresi (dk)">
-          <Select
+          {/* Süre serbest girilir (ör. 40, 50, 70); liste yalnız öneridir. */}
+          <Input
+            type="number"
+            min="5"
+            max="480"
+            list="sinav-sure-onerileri"
             value={duration}
             onChange={(e) => !readOnly && setDuration(e.target.value)}
-            disabled={readOnly}
+            readOnly={readOnly}
+            placeholder="Örn: 50"
             style={readOnly ? { background: '#F1F5F9' } : {}}
-          >
-            {[30, 45, 60, 75, 90, 105, 120, 150].map((d) => (
-              <option key={d} value={d}>
-                {d} dakika
-              </option>
+          />
+          <datalist id="sinav-sure-onerileri">
+            {[30, 40, 45, 50, 60, 75, 90, 120].map((d) => (
+              <option key={d} value={d} />
             ))}
-          </Select>
+          </datalist>
         </FormField>
         <FormField label={readOnly ? 'Öğrenci Sayısı' : 'Öğrenci Sayısı *'}>
           <Input
@@ -1817,7 +1829,11 @@ function gunBloklari(gununSinavlari) {
   const l = [...gununSinavlari]
     .map((e) => {
       const bas = timeToSlotIndex(e.timeSlot);
-      return { e, bas, bit: bas + Math.max(1, slotSpan(Number(e.duration) || 60)) };
+      // Bitiş: başlangıç dilimin içinde kaydıysa (09:15) süre bir dilim daha taşabilir.
+      const m = /^(\d{1,2}):(\d{2})/.exec(String(e.timeSlot || ''));
+      const kayma = m ? (Number(m[1]) * 60 + Number(m[2]) - (8 * 60 + 30)) % 30 : 0;
+      const sure = (Number(e.duration) || 60) + (kayma > 0 ? kayma : 0);
+      return { e, bas, bit: bas + Math.max(1, slotSpan(sure)) };
     })
     .sort((a, b) => a.bas - b.bas || a.bit - b.bit);
   const bloklar = [];
@@ -2907,93 +2923,190 @@ function otomatikAtamaHesapla({
   return { oneri, uyarilar };
 }
 
-// Bir günün tablo modelinden (SinavFakulte.gunTablosu) Excel sayfası:
-// 1. satır DERSLİKLER, 2. satır kapasite, 3. satır salon adları, sonra
-// 30 dakikalık satırlar; sınav hücresi süresince dikey birleşir.
-function gunSayfasi(XLSX, tablo, secenek) {
-  const renkli = !secenek || secenek.renkli !== false;
+// Program sayfası: tek gün ya da bütün hafta (günler alt alta, gün adı solda
+// dikey ve birleşik). 1. satır DERSLİKLER, 2. kapasite, 3. salon adları, sonra
+// saat dilimleri; sınav hücresi süresince birleşir. İsteğe bağlı olarak altta
+// renk açıklaması. Ekrandaki tabloyla aynı model (SinavFakulte.gunTablosu).
+function programSayfasi(XLSX, gunListesi, secenek) {
+  const o = secenek || {};
+  const renkli = o.renkli !== false;
+  const haftalik = !!o.haftalik;
+  const sol = haftalik ? 2 : 1;
   const ince = { style: 'thin', color: { rgb: '000000' } };
+  const kalin = { style: 'medium', color: { rgb: '000000' } };
+  const kesik = { style: 'dashed', color: { rgb: '475569' } };
   const kenar = { top: ince, bottom: ince, left: ince, right: ince };
-  const salonlar = tablo.salonlar || [];
-  const n = salonlar.length + 1;
+  const salonlar = [];
+  gunListesi.forEach((g) =>
+    g.tablo.salonlar.forEach((x) => {
+      if (!salonlar.some((y) => y.name === x.name)) salonlar.push(x);
+    })
+  );
+  const n = salonlar.length + sol;
+  const bos = (k) => new Array(Math.max(0, k)).fill('');
   const veri = [
-    ['', 'DERSLİKLER', ...new Array(Math.max(0, salonlar.length - 1)).fill('')],
+    [...bos(sol), 'DERSLİKLER', ...bos(salonlar.length - 1)],
     [
       'Kapasite',
+      ...bos(sol - 1),
       ...salonlar.map((x) =>
         x.capacity === '' || x.capacity == null ? '' : Number(x.capacity) || x.capacity
       ),
     ],
-    ['Saatler', ...salonlar.map((x) => x.name)],
-    ...(tablo.satirlar || []).map((r) => [
-      r.etiket,
-      ...r.hucreler.map((h) => (h && !h.gizli ? h.metin || '' : '')),
-    ]),
+    [...(haftalik ? ['Gün', 'Saat'] : ['Saatler']), ...salonlar.map((x) => x.name)],
   ];
+  const stiller = []; // [r, c, stil]
+  const birlesim = [
+    { s: { r: 0, c: sol }, e: { r: 0, c: Math.max(sol, n - 1) } },
+    ...(haftalik
+      ? [
+          { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
+          { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
+        ]
+      : []),
+  ];
+  const satirYukseklik = [{ hpt: 18 }, { hpt: 18 }, { hpt: 18 }];
+  gunListesi.forEach((g, gi) => {
+    const ilkSatir = veri.length;
+    const satirlar = g.tablo.satirlar;
+    satirlar.forEach((r, ri) => {
+      const satir = haftalik
+        ? [ri === 0 ? g.gun + ' ' + g.kisa : '', r.ara ? 'Öğle arası' : r.etiket]
+        : [r.ara ? 'Öğle arası ' + r.etiket : r.etiket];
+      salonlar.forEach((sutun, ci) => {
+        const j = g.tablo.salonlar.findIndex((x) => x.name === sutun.name);
+        const h = j >= 0 ? r.hucreler[j] : null;
+        satir.push(h && !h.gizli ? h.metin || '' : '');
+        const rr = veri.length;
+        const cc = ci + sol;
+        const ustKalin = haftalik && ri === 0 && gi > 0;
+        stiller.push([
+          rr,
+          cc,
+          {
+            font: {
+              name: 'Times New Roman',
+              sz: 9,
+              bold: !!(h && !h.gizli && h.metin),
+              italic: !!(h && h.taslak),
+              color:
+                h && h.cakisma ? { rgb: 'C00000' } : h && h.taslak ? { rgb: '475569' } : undefined,
+            },
+            fill:
+              renkli && h && !h.gizli && h.renk
+                ? { patternType: 'solid', fgColor: { rgb: h.renk } }
+                : r.ara
+                  ? { patternType: 'solid', fgColor: { rgb: 'E2EFDA' } }
+                  : undefined,
+            border:
+              h && (h.taslak || h.degisti)
+                ? { top: kesik, bottom: kesik, left: kesik, right: kesik }
+                : { ...kenar, ...(ustKalin ? { top: kalin } : {}) },
+            alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+          },
+        ]);
+        if (h && !h.gizli && h.satirSayisi > 1) {
+          birlesim.push({ s: { r: rr, c: cc }, e: { r: rr + h.satirSayisi - 1, c: cc } });
+        }
+      });
+      for (let c = 0; c < sol; c++) {
+        stiller.push([
+          veri.length,
+          c,
+          {
+            font: { name: 'Times New Roman', bold: true, sz: haftalik && c === 0 ? 11 : 9 },
+            fill:
+              r.ara && !(haftalik && c === 0)
+                ? { patternType: 'solid', fgColor: { rgb: 'E2EFDA' } }
+                : undefined,
+            border: { ...kenar, ...(haftalik && ri === 0 && gi > 0 ? { top: kalin } : {}) },
+            alignment: {
+              horizontal: 'center',
+              vertical: 'center',
+              wrapText: true,
+              ...(haftalik && c === 0 ? { textRotation: 90 } : {}),
+            },
+          },
+        ]);
+      }
+      veri.push(satir);
+      satirYukseklik.push({ hpt: r.ara ? 15 : 30 });
+    });
+    if (haftalik && satirlar.length > 1) {
+      birlesim.push({ s: { r: ilkSatir, c: 0 }, e: { r: ilkSatir + satirlar.length - 1, c: 0 } });
+    }
+  });
+  // Renk açıklaması: tablonun altında renkli kutu + açıklama.
+  const aciklama = Array.isArray(o.aciklama) ? o.aciklama : [];
+  if (aciklama.length) {
+    veri.push(bos(n));
+    satirYukseklik.push({ hpt: 10 });
+    const r1 = veri.length;
+    veri.push(bos(n));
+    veri.push(bos(n));
+    satirYukseklik.push({ hpt: 14 }, { hpt: 28 });
+    aciklama.forEach((x, k) => {
+      const c = sol + k;
+      if (c >= n) return;
+      stiller.push([
+        r1,
+        c,
+        { fill: { patternType: 'solid', fgColor: { rgb: x.renk } }, border: kenar },
+      ]);
+      veri[r1 + 1][c] = x.etiket;
+      stiller.push([
+        r1 + 1,
+        c,
+        {
+          font: { name: 'Times New Roman', sz: 9 },
+          alignment: { horizontal: 'center', vertical: 'top', wrapText: true },
+        },
+      ]);
+    });
+  }
   const ws = XLSX.utils.aoa_to_sheet(veri);
-  const birlesim = [{ s: { r: 0, c: 1 }, e: { r: 0, c: Math.max(1, salonlar.length) } }];
-  const stil = (r, c, s) => {
+  const stilVer = (r, c, st) => {
     const a = XLSX.utils.encode_cell({ r, c });
     if (!ws[a]) ws[a] = { v: '', t: 's' };
-    ws[a].s = s;
+    ws[a].s = st;
   };
   for (let c = 0; c < n; c++) {
-    stil(0, c, {
-      fill: c > 0 ? { patternType: 'solid', fgColor: { rgb: 'FFFF00' } } : undefined,
+    stilVer(0, c, {
+      fill: c >= sol ? { patternType: 'solid', fgColor: { rgb: 'FFFF00' } } : undefined,
       font: { bold: true, sz: 12, name: 'Times New Roman' },
-      border: c > 0 ? kenar : undefined,
+      border: c >= sol ? kenar : undefined,
       alignment: { horizontal: 'center', vertical: 'center' },
     });
     [1, 2].forEach((r) =>
-      stil(r, c, {
+      stilVer(r, c, {
         font: { bold: true, name: 'Times New Roman' },
         border: kenar,
         alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
       })
     );
   }
-  (tablo.satirlar || []).forEach((satir, i) => {
-    const r = i + 3;
-    stil(r, 0, {
-      font: { bold: true, name: 'Times New Roman' },
-      border: kenar,
-      alignment: { horizontal: 'center', vertical: 'center' },
-    });
-    satir.hucreler.forEach((h, j) => {
-      const dolu = h && !h.gizli && h.metin;
-      stil(r, j + 1, {
-        font: {
-          name: 'Times New Roman',
-          sz: 9,
-          bold: !!dolu,
-          color: h && h.cakisma ? { rgb: 'C00000' } : undefined,
-        },
-        fill:
-          renkli && h && !h.gizli && h.renk
-            ? { patternType: 'solid', fgColor: { rgb: h.renk } }
-            : undefined,
-        border: kenar,
-        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-      });
-      if (h && !h.gizli && h.satirSayisi > 1) {
-        birlesim.push({ s: { r, c: j + 1 }, e: { r: r + h.satirSayisi - 1, c: j + 1 } });
-      }
-    });
-  });
+  stiller.forEach(([r, c, st]) => stilVer(r, c, st));
   ws['!merges'] = birlesim;
-  ws['!cols'] = [{ wch: 13 }, ...salonlar.map(() => ({ wch: 18 }))];
-  ws['!rows'] = [
-    { hpt: 18 },
-    { hpt: 18 },
-    { hpt: 18 },
-    ...(tablo.satirlar || []).map(() => ({ hpt: 30 })),
+  ws['!cols'] = [
+    ...(haftalik ? [{ wch: 6 }, { wch: 12 }] : [{ wch: 13 }]),
+    ...salonlar.map(() => ({ wch: 18 })),
   ];
+  ws['!rows'] = satirYukseklik;
   return ws;
+}
+
+// Bir günün sayfası (bölüm çıktısı ve gün gün fakülte çıktısı).
+function gunSayfasi(XLSX, tablo, secenek) {
+  return programSayfasi(XLSX, [{ tablo, gun: '', kisa: '', tarih: '' }], {
+    ...(secenek || {}),
+    haftalik: false,
+  });
 }
 
 // FAKÜLTE ÇIKTISI — fakülte yetkilisinin Excel'i: "Kısaltmalar" + gün başına
 // bir sayfa ("08.06"). Model lib/sinav-fakulte.js → fakulteKitabi.
-async function exportFakulteXLSX(kitap, dosyaAdi) {
+async function exportFakulteXLSX(kitap, dosyaAdi, secenek) {
+  const haftalik = !!(secenek && secenek.haftalik);
   const XLSX = await xlsxYukle();
   if (!XLSX) return;
   const wb = XLSX.utils.book_new();
@@ -3018,13 +3131,31 @@ async function exportFakulteXLSX(kitap, dosyaAdi) {
   wk['!cols'] = [{ wch: 5 }, { wch: 10 }, { wch: 40 }, { wch: 13 }];
   XLSX.utils.book_append_sheet(wb, wk, 'Kısaltmalar');
   const adlar = new Set();
-  kitap.gunler.forEach((g) => {
+  const benzersiz = (ad, yedek) => {
     // Gün.ay iki farklı yılda tekrar ederse sayfa adı çakışmasın.
-    let ad = g.kisa;
-    if (adlar.has(ad)) ad = g.kisa + '.' + g.tarih.slice(2, 4);
-    adlar.add(ad);
-    XLSX.utils.book_append_sheet(wb, gunSayfasi(XLSX, g.tablo, { renkli: true }), ad);
-  });
+    const sonuc = adlar.has(ad) ? yedek : ad;
+    adlar.add(sonuc);
+    return sonuc.slice(0, 31);
+  };
+  const aciklama = kitap.renkAciklamasi || [];
+  if (haftalik) {
+    // Bütün hafta tek sayfada: günler alt alta, gün adı solda dikey.
+    kitap.haftalar.forEach((h) => {
+      XLSX.utils.book_append_sheet(
+        wb,
+        programSayfasi(XLSX, h.gunler, { renkli: true, haftalik: true, aciklama }),
+        benzersiz(h.no + '. Hafta', h.no + '. Hafta ' + h.anahtar)
+      );
+    });
+  } else {
+    kitap.gunler.forEach((g) => {
+      XLSX.utils.book_append_sheet(
+        wb,
+        programSayfasi(XLSX, [g], { renkli: true, aciklama }),
+        benzersiz(g.kisa, g.kisa + '.' + g.tarih.slice(2, 4))
+      );
+    });
+  }
   XLSX.writeFile(wb, (dosyaAdi || 'Fakulte_Sinav_Programi') + '.xlsx');
 }
 
@@ -3259,7 +3390,7 @@ async function exportToXLSX(
             return o.date === dateISO;
           }),
           salonListesi,
-          { metinAlani: 'kodSatiri' }
+          { metinAlani: 'kodSatiri', dilimler: ek.dilimler }
         )
       : { salonlar: salonListesi, satirlar: [] };
     XLSX.utils.book_append_sheet(wb, gunSayfasi(XLSX, tablo, { renkli: false }), sheetName);
@@ -3587,13 +3718,19 @@ const OturumDuzenle = ({
             </div>
             <div>
               <div style={etiket}>Başlangıç saati</div>
-              <select value={saat} onChange={(e) => setSaat(e.target.value)} style={secim}>
+              {/* Saat serbest girilir (ör. 09:15, 13:50); liste yalnız öneridir. */}
+              <input
+                type="time"
+                value={saat}
+                list="fakulte-saat-onerileri"
+                onChange={(e) => e.target.value && setSaat(e.target.value)}
+                style={secim}
+              />
+              <datalist id="fakulte-saat-onerileri">
                 {saatSecenekleri.map((x) => (
-                  <option key={x} value={x}>
-                    {x}
-                  </option>
+                  <option key={x} value={x} />
                 ))}
-              </select>
+              </datalist>
             </div>
           </div>
           <div style={{ marginBottom: 10 }}>
@@ -3708,7 +3845,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
   const SF = window.SinavFakulte;
   const [veri, setVeri] = useState(null);
   const [fakulteId, setFakulteId] = useState(currentUser?.facultyId || '');
-  const [sekme, setSekme] = useState('gun:0');
+  const [sekme, setSekme] = useState('tab:0');
+  // Görünüm: 'hafta' — bütün hafta tek tabloda (gün adı solda dikey);
+  // 'gun' — her gün ayrı sekme. Excel çıktısı da seçili görünümü izler.
+  const [gorunum, setGorunum] = useState('hafta');
   const [taslakDahil, setTaslakDahil] = useState(true);
   const [secilen, setSecilen] = useState(null);
   const [ayarTaslak, setAyarTaslak] = useState(null);
@@ -3855,6 +3995,12 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
       salonlar: fakulteSalonListesi(ayar),
       bolumler,
       ayar,
+      // Canlı görünüm: göndermemiş (ya da iade edilmiş) bölümün sınavı taslak,
+      // gönderimden sonra değişmiş olanı ayrı işaretlenir.
+      taslakBolumler: bolumDurumlari
+        .filter((x) => x.durum === 'bekliyor' || x.durum === 'iade')
+        .map((x) => x.bolum.id),
+      degisenBolumler: bolumDurumlari.filter((x) => x.durum === 'degisti').map((x) => x.bolum.id),
     });
   }, [SF, grup, bolumDurumlari, taslakDahil, ayar, bolumler]);
 
@@ -3898,7 +4044,8 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         : [],
     [SF, grup, bolumDurumlari]
   );
-  const saatSecenekleri = TIME_SLOTS.slice(0, LISANS_TIME_SLOT_COUNT);
+  // Önerilen başlangıç saatleri: fakültenin çizelgesindeki dilimler.
+  const saatSecenekleri = (kitap ? kitap.dilimler : []).filter((d) => !d.ara).map((d) => d.bas);
   const oneriler = useMemo(
     () => (SF ? SF.birlestirmeOnerileri(bolumDurumlari.flatMap((x) => x.sinavlar)) : []),
     [SF, bolumDurumlari]
@@ -4065,6 +4212,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
               String(v || '').replace('#', ''),
             ])
           ),
+          cizelge: SF ? SF.cizelgeOku(ayarTaslak.cizelge) : ayarTaslak.cizelge,
           guncelleyen: currentUser?.name || '',
         },
         true
@@ -4090,18 +4238,52 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
       ozelRenkler: Object.fromEntries(
         Object.entries(SF ? SF.ozelRenkler(ayar.ozelRenkler) : {}).map(([k, v]) => [k, '#' + v])
       ),
+      cizelge: SF ? { ...SF.cizelgeOku(ayar.cizelge) } : {},
     });
     setSekme('ayar');
   };
 
-  const excel = () => {
-    if (!kitap) return;
+  // Resmî Excel varsayılan olarak YALNIZ gönderilmiş programlardan üretilir;
+  // taslakları da içeren çıktı ayrıca seçilir (taslak hücreler kesik çizgili).
+  const excel = (taslakDahilExcel) => {
+    if (!SF || !grup) return;
+    const gonderilen = (x) => x.durum === 'gonderildi' || x.durum === 'degisti';
+    const eksik = bolumDurumlari.filter((x) => x.sinavlar.length > 0 && !gonderilen(x));
+    if (!taslakDahilExcel && eksik.length > 0) {
+      const devam = window.confirm(
+        'Şu bölümler programını henüz göndermedi:\n\n' +
+          eksik.map((x) => '• ' + x.bolum.name + ' (' + x.sinavlar.length + ' sınav)').join('\n') +
+          '\n\nExcel yalnız gönderilmiş programlarla üretilecek. Devam edilsin mi?\n' +
+          '(Taslakları da görmek için "Taslak dahil" seçeneğini kullanın.)'
+      );
+      if (!devam) return;
+    }
+    const sinavlar = bolumDurumlari
+      .filter((x) => taslakDahilExcel || gonderilen(x))
+      .flatMap((x) => x.sinavlar);
+    if (sinavlar.length === 0) {
+      alert("Excel'e alınacak gönderilmiş program yok.");
+      return;
+    }
+    const k = SF.fakulteKitabi({
+      sinavlar,
+      salonlar: fakulteSalonListesi(ayar),
+      bolumler,
+      ayar,
+      taslakBolumler: taslakDahilExcel
+        ? bolumDurumlari.filter((x) => !gonderilen(x)).map((x) => x.bolum.id)
+        : [],
+      degisenBolumler: bolumDurumlari.filter((x) => x.durum === 'degisti').map((x) => x.bolum.id),
+    });
     exportFakulteXLSX(
-      kitap,
-      ('Fakulte_' + (grup ? grup.etiket : 'Sinav') + '_Programi').replace(
-        /[^\wğüşıöçĞÜŞİÖÇ-]+/g,
-        '_'
-      )
+      k,
+      (
+        'Fakulte_' +
+        (grup ? grup.etiket : 'Sinav') +
+        '_Programi' +
+        (taslakDahilExcel ? '_TASLAK' : '')
+      ).replace(/[^\wğüşıöçĞÜŞİÖÇ-]+/g, '_'),
+      { haftalik: gorunum === 'hafta' }
     );
   };
 
@@ -4122,14 +4304,47 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
     fontWeight: 700,
   };
 
-  const gunTablosuCiz = (g) => {
-    const t = g.tablo;
+  // Tablo: tek gün ya da bütün hafta (günler alt alta, gün adı solda dikey).
+  // Her günün kendi tablo modeli (gunTablosu) salon adına göre ortak
+  // sütunlara yerleştirilir.
+  const tabloCiz = (gunListesi, haftalik) => {
+    const sutunlar = [];
+    gunListesi.forEach((g) =>
+      g.tablo.salonlar.forEach((x) => {
+        if (!sutunlar.some((y) => y.name === x.name)) sutunlar.push(x);
+      })
+    );
+    const salonsuz = gunListesi.flatMap((g) => g.salonsuz.map((o) => ({ ...o, gun: g.kisa })));
+    const sol = haftalik ? 2 : 1;
+    const GUN_G = 46;
+    const solStil = (k) => ({
+      ...hucreStili,
+      position: 'sticky',
+      left: k === 0 ? 0 : haftalik ? GUN_G : 0,
+      background: '#F8FAFC',
+      fontWeight: 600,
+      zIndex: 1,
+    });
+    const hucreGorunumu = (h) => {
+      const st = {
+        ...hucreStili,
+        background: '#' + (h.renk || 'FFFFFF'),
+        fontWeight: 600,
+        cursor: 'pointer',
+        outlineOffset: -3,
+      };
+      if (h.cakisma) st.outline = '3px solid #DC2626';
+      else if (h.taslak) {
+        st.outline = '2px dashed #475569';
+        st.opacity = 0.62;
+      } else if (h.degisti) st.outline = '2px dashed #D97706';
+      return st;
+    };
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        {g.salonsuz.length > 0 && (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {salonsuz.length > 0 && (
           <div
             style={{
-              margin: '0 0 8px',
               padding: '8px 12px',
               background: '#FEF3C7',
               border: '1px solid #FCD34D',
@@ -4138,9 +4353,11 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
               color: '#92400E',
             }}
           >
-            <b>Salonu kayıtlı olmayan {g.salonsuz.length} oturum tabloda görünmüyor:</b>{' '}
-            {g.salonsuz.map((o) => o.kodSatiri + ' (' + o.timeSlot + ')').join(', ')} — bölümün
-            &quot;Salon ve gözetmen ata&quot; adımıyla kaydedilir.
+            <b>Salonu kayıtlı olmayan {salonsuz.length} oturum tabloda görünmüyor:</b>{' '}
+            {salonsuz
+              .map((o) => o.kodSatiri + ' (' + (haftalik ? o.gun + ' ' : '') + o.timeSlot + ')')
+              .join(', ')}{' '}
+            — bölümün &quot;Salon ve gözetmen ata&quot; adımıyla kaydedilir.
           </div>
         )}
         <div
@@ -4156,12 +4373,13 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             <thead>
               <tr>
                 <th
+                  colSpan={sol}
                   style={{ ...hucreStili, ...sabitBas, top: 0, left: 0, zIndex: 4, minWidth: 92 }}
                 >
-                  {g.kisa} {g.gun}
+                  {haftalik ? '' : gunListesi[0].kisa + ' ' + gunListesi[0].gun}
                 </th>
                 <th
-                  colSpan={t.salonlar.length}
+                  colSpan={sutunlar.length}
                   style={{
                     ...hucreStili,
                     ...sabitBas,
@@ -4174,18 +4392,47 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
                 </th>
               </tr>
               <tr>
-                <th style={{ ...hucreStili, ...sabitBas, top: 22, left: 0, zIndex: 4 }}>
+                <th
+                  colSpan={sol}
+                  style={{ ...hucreStili, ...sabitBas, top: 22, left: 0, zIndex: 4 }}
+                >
                   Kapasite
                 </th>
-                {t.salonlar.map((x) => (
+                {sutunlar.map((x) => (
                   <th key={'k' + x.name} style={{ ...hucreStili, ...sabitBas, top: 22 }}>
                     {x.capacity}
                   </th>
                 ))}
               </tr>
               <tr>
-                <th style={{ ...hucreStili, ...sabitBas, top: 44, left: 0, zIndex: 4 }}>Saatler</th>
-                {t.salonlar.map((x) => (
+                {haftalik && (
+                  <th
+                    style={{
+                      ...hucreStili,
+                      ...sabitBas,
+                      top: 44,
+                      left: 0,
+                      zIndex: 4,
+                      minWidth: GUN_G,
+                      width: GUN_G,
+                    }}
+                  >
+                    Gün
+                  </th>
+                )}
+                <th
+                  style={{
+                    ...hucreStili,
+                    ...sabitBas,
+                    top: 44,
+                    left: haftalik ? GUN_G : 0,
+                    zIndex: 4,
+                    minWidth: 92,
+                  }}
+                >
+                  {haftalik ? 'Saat' : 'Saatler'}
+                </th>
+                {sutunlar.map((x) => (
                   <th
                     key={'s' + x.name}
                     style={{ ...hucreStili, ...sabitBas, top: 44, minWidth: 128 }}
@@ -4196,52 +4443,149 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
               </tr>
             </thead>
             <tbody>
-              {t.satirlar.map((r) => (
-                <tr key={r.etiket} style={{ height: 34 }}>
-                  <td
-                    style={{
-                      ...hucreStili,
-                      position: 'sticky',
-                      left: 0,
-                      background: '#F8FAFC',
-                      fontWeight: 600,
-                      zIndex: 1,
-                    }}
-                  >
-                    {r.etiket}
-                  </td>
-                  {r.hucreler.map((h, j) => {
-                    if (h && h.gizli) return null;
-                    if (!h) return <td key={j} style={hucreStili} />;
-                    return (
+              {gunListesi.map((g, gi) =>
+                g.tablo.satirlar.map((r, ri) => {
+                  const ust = haftalik && ri === 0 && gi > 0 ? '3px solid #334155' : undefined;
+                  return (
+                    <tr key={g.tarih + r.etiket} style={{ height: r.ara ? 22 : 34 }}>
+                      {haftalik && ri === 0 && (
+                        <td
+                          rowSpan={g.tablo.satirlar.length}
+                          style={{
+                            ...solStil(0),
+                            borderTop: ust,
+                            width: GUN_G,
+                            minWidth: GUN_G,
+                            padding: 0,
+                            zIndex: 2,
+                          }}
+                        >
+                          <div
+                            style={{
+                              writingMode: 'vertical-rl',
+                              transform: 'rotate(180deg)',
+                              margin: '0 auto',
+                              fontWeight: 800,
+                              fontSize: 12.5,
+                              letterSpacing: 0.5,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {g.gun} · {g.kisa}
+                          </div>
+                        </td>
+                      )}
                       <td
-                        key={j}
-                        rowSpan={h.satirSayisi}
-                        onClick={() =>
-                          setSecilen({ hucre: h, salon: t.salonlar[j].name, saat: r.etiket })
-                        }
-                        title="Ayrıntı için tıklayın"
                         style={{
-                          ...hucreStili,
-                          background: '#' + (h.renk || 'FFFFFF'),
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          outline: h.cakisma ? '3px solid #DC2626' : 'none',
-                          outlineOffset: -3,
+                          ...solStil(1),
+                          borderTop: ust,
+                          background: r.ara ? '#DCFCE7' : '#F8FAFC',
+                          fontSize: r.ara ? 10.5 : 11,
                         }}
                       >
-                        {h.metin}
+                        {r.ara ? 'Öğle arası ' + r.etiket : r.etiket}
                       </td>
-                    );
-                  })}
-                </tr>
-              ))}
+                      {sutunlar.map((sutun) => {
+                        const j = g.tablo.salonlar.findIndex((x) => x.name === sutun.name);
+                        const h = j >= 0 ? r.hucreler[j] : null;
+                        if (h && h.gizli) return null;
+                        if (!h)
+                          return (
+                            <td
+                              key={sutun.name}
+                              style={{
+                                ...hucreStili,
+                                borderTop: ust,
+                                background: r.ara ? '#F0FDF4' : undefined,
+                              }}
+                            />
+                          );
+                        return (
+                          <td
+                            key={sutun.name}
+                            rowSpan={h.satirSayisi}
+                            onClick={() =>
+                              setSecilen({
+                                hucre: h,
+                                salon: sutun.name,
+                                saat: (haftalik ? g.kisa + ' ' : '') + r.etiket,
+                              })
+                            }
+                            title={
+                              h.taslak
+                                ? 'Taslak — bölüm programını henüz göndermedi. Ayrıntı için tıklayın.'
+                                : h.degisti
+                                  ? 'Gönderimden sonra değişti. Ayrıntı için tıklayın.'
+                                  : 'Ayrıntı için tıklayın'
+                            }
+                            style={{ ...hucreGorunumu(h), borderTop: ust }}
+                          >
+                            {h.metin}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
+        {renkAciklamasiCiz()}
       </div>
     );
   };
+
+  // Tablonun altındaki renk açıklaması (Excel'de de aynısı yazılır).
+  const renkAciklamasiCiz = () =>
+    kitap && (
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '6px 14px',
+          alignItems: 'center',
+          fontSize: 12,
+          color: '#334155',
+          padding: '2px 2px 0',
+        }}
+      >
+        {kitap.renkAciklamasi.map((x) => (
+          <span key={x.etiket} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span
+              style={{
+                width: 28,
+                height: 14,
+                borderRadius: 3,
+                background: '#' + x.renk,
+                border: '1px solid rgba(0,0,0,.18)',
+              }}
+            />
+            {x.etiket}
+          </span>
+        ))}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span
+            style={{
+              width: 28,
+              height: 14,
+              borderRadius: 3,
+              border: '2px dashed #475569',
+              opacity: 0.7,
+            }}
+          />
+          Taslak (bölüm henüz göndermedi)
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 28, height: 14, borderRadius: 3, border: '2px dashed #D97706' }} />
+          Gönderimden sonra değişti
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 28, height: 14, borderRadius: 3, border: '3px solid #DC2626' }} />
+          Aynı salonda çakışma
+        </span>
+      </div>
+    );
 
   const kisaltmaCiz = () => (
     <div style={{ overflow: 'auto', height: '100%' }}>
@@ -4594,6 +4938,123 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
 
           <div style={kart}>
             {kartBaslik(
+              'Saat çizelgesi',
+              'Tablonun satırları. Dilim süresi serbest (ör. 30, 45, 50 dk); öğle arası isteğe bağlı.',
+              null
+            )}
+            {(() => {
+              const c = a.cizelge || {};
+              const yaz = (alan, deger) =>
+                setAyarTaslak({ ...a, cizelge: { ...c, [alan]: deger } });
+              const onizleme = SF ? SF.saatDilimleri(c) : [];
+              const alan = (etiket, icerik) => (
+                <label style={{ display: 'grid', gap: 4, fontSize: 12, color: '#64748B' }}>
+                  <span style={sutunBaslik}>{etiket}</span>
+                  {icerik}
+                </label>
+              );
+              return (
+                <>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                      gap: 8,
+                    }}
+                  >
+                    {alan(
+                      'Başlangıç',
+                      <input
+                        type="time"
+                        value={c.baslangic || ''}
+                        onChange={(e) => yaz('baslangic', e.target.value)}
+                        style={giris}
+                      />
+                    )}
+                    {alan(
+                      'Bitiş',
+                      <input
+                        type="time"
+                        value={c.bitis || ''}
+                        onChange={(e) => yaz('bitis', e.target.value)}
+                        style={giris}
+                      />
+                    )}
+                    {alan(
+                      'Dilim (dk)',
+                      <input
+                        type="number"
+                        min="5"
+                        max="240"
+                        value={c.dilim ?? ''}
+                        onChange={(e) => yaz('dilim', e.target.value)}
+                        style={giris}
+                      />
+                    )}
+                    {alan(
+                      'Öğle arası başı',
+                      <input
+                        type="time"
+                        value={c.ogleBaslangic || ''}
+                        onChange={(e) => yaz('ogleBaslangic', e.target.value)}
+                        style={giris}
+                      />
+                    )}
+                    {alan(
+                      'Öğle arası sonu',
+                      <input
+                        type="time"
+                        value={c.ogleBitis || ''}
+                        onChange={(e) => yaz('ogleBitis', e.target.value)}
+                        style={giris}
+                      />
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAyarTaslak({
+                            ...a,
+                            cizelge: { ...c, ogleBaslangic: '', ogleBitis: '' },
+                          })
+                        }
+                        style={{
+                          height: 32,
+                          width: '100%',
+                          border: '1px solid #CBD5E1',
+                          borderRadius: 7,
+                          background: '#fff',
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Öğle arası yok
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: 11.5,
+                      color: '#475569',
+                      background: '#F8FAFC',
+                      borderRadius: 8,
+                      padding: '8px 10px',
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <b>{onizleme.length} satır:</b>{' '}
+                    {onizleme
+                      .map((d) => (d.ara ? '[Öğle ' + d.etiket + ']' : d.etiket))
+                      .join(' · ')}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+
+          <div style={kart}>
+            {kartBaslik(
               'Gözetmen kısaltmaları',
               'Addan otomatik üretilir (Mehmet Emin ÖZDEMİR → MEÖ); gerekirse değiştirin.',
               kisaltmaAdlari.length + ' kişi'
@@ -4674,7 +5135,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             type="button"
             onClick={() => {
               setAyarTaslak(null);
-              setSekme('gun:0');
+              setSekme('tab:0');
             }}
             style={{
               height: 34,
@@ -4774,8 +5235,14 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
     </div>
   );
 
-  const aktifGun =
-    kitap && sekme.startsWith('gun:') ? kitap.gunler[Number(sekme.slice(4))] || null : null;
+  const sekmeNo = sekme.startsWith('tab:') ? Number(sekme.slice(4)) : -1;
+  const aktifGunler = !kitap
+    ? null
+    : gorunum === 'hafta'
+      ? (kitap.haftalar[sekmeNo] || {}).gunler || null
+      : kitap.gunler[sekmeNo]
+        ? [kitap.gunler[sekmeNo]]
+        : null;
 
   const sekmeDugmesi = (anahtar, etiket, ek) => (
     <button
@@ -4856,7 +5323,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
                 value={fakulte ? fakulte.anahtar : ''}
                 onChange={(e) => {
                   setFakulteId(e.target.value);
-                  setSekme('gun:0');
+                  setSekme('tab:0');
                   setAyarTaslak(null);
                 }}
                 aria-label="Fakülte / MYO"
@@ -4929,9 +5396,69 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             Taslakları göster
           </label>
           {yetkili && <GhostBtn onClick={ayarAc}>Ayarlar</GhostBtn>}
-          <Btn onClick={excel} disabled={!kitap || kitap.gunler.length === 0}>
+          <div
+            role="group"
+            aria-label="Görünüm"
+            style={{
+              display: 'inline-flex',
+              border: '1px solid #CBD5E1',
+              borderRadius: 8,
+              overflow: 'hidden',
+            }}
+          >
+            {[
+              ['hafta', 'Haftalık'],
+              ['gun', 'Gün gün'],
+            ].map(([k, ad]) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={gorunum === k}
+                onClick={() => {
+                  setGorunum(k);
+                  if (sekme.startsWith('tab:')) setSekme('tab:0');
+                }}
+                style={{
+                  height: 34,
+                  padding: '0 12px',
+                  border: 'none',
+                  background: gorunum === k ? '#0F766E' : '#fff',
+                  color: gorunum === k ? '#fff' : '#334155',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {ad}
+              </button>
+            ))}
+          </div>
+          <Btn
+            onClick={() => excel(false)}
+            disabled={!kitap || kitap.gunler.length === 0}
+            title="Yalnız fakülteye gönderilmiş programlar"
+          >
             Excel indir
           </Btn>
+          <button
+            type="button"
+            onClick={() => excel(true)}
+            disabled={!kitap || kitap.gunler.length === 0}
+            title="Göndermemiş bölümlerin taslakları da (kesik çizgili) dahil"
+            style={{
+              height: 34,
+              padding: '0 10px',
+              border: '1px dashed #64748B',
+              borderRadius: 8,
+              background: '#fff',
+              color: '#334155',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Taslak dahil
+          </button>
           <button
             type="button"
             onClick={onClose}
@@ -5055,9 +5582,9 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             <div style={{ flex: 1, minHeight: 0, padding: '10px 16px', overflow: 'hidden' }}>
               {sekme === 'ayar' && ayarCiz()}
               {sekme === 'kisaltma' && kitap && kisaltmaCiz()}
-              {sekme.startsWith('gun:') &&
-                (aktifGun ? (
-                  gunTablosuCiz(aktifGun)
+              {sekme.startsWith('tab:') &&
+                (aktifGunler && aktifGunler.length ? (
+                  tabloCiz(aktifGunler, gorunum === 'hafta')
                 ) : (
                   <div style={{ padding: 50, textAlign: 'center', color: '#94A3B8' }}>
                     {grup
@@ -5079,9 +5606,17 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             >
               {kitap && sekmeDugmesi('kisaltma', 'Kısaltmalar')}
               {kitap &&
-                kitap.gunler.map((g, i) =>
-                  sekmeDugmesi('gun:' + i, g.kisa + ' ' + g.kisaGun, g.oturumSayisi || null)
-                )}
+                (gorunum === 'hafta'
+                  ? kitap.haftalar.map((h, i) =>
+                      sekmeDugmesi(
+                        'tab:' + i,
+                        h.etiket,
+                        h.gunler.reduce((t, g) => t + g.oturumSayisi, 0) || null
+                      )
+                    )
+                  : kitap.gunler.map((g, i) =>
+                      sekmeDugmesi('tab:' + i, g.kisa + ' ' + g.kisaGun, g.oturumSayisi || null)
+                    ))}
               {yetkili && ayarTaslak && sekmeDugmesi('ayar', 'Ayarlar')}
             </div>
           </>
@@ -6495,7 +7030,13 @@ function SinavOtomasyonuApp({
       window.gozetmenMusaitsizlikHaritasi
         ? window.gozetmenMusaitsizlikHaritasi(deptSupervisors)
         : {},
-      { digerSinavlar, salonListesi, sinavAdi: SF ? SF.sinavAdi(activePeriod) : '' }
+      {
+        digerSinavlar,
+        salonListesi,
+        sinavAdi: SF ? SF.sinavAdi(activePeriod) : '',
+        // Fakültenin saat çizelgesi (dilim süresi, öğle arası).
+        dilimler: SF ? SF.saatDilimleri(fakulteAyari && fakulteAyari.cizelge) : undefined,
+      }
     );
   };
   const bolumCiktisi = async () => {
