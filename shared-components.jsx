@@ -312,6 +312,7 @@ import {
   ogrenciBolumleri as capOgrenciBolumleri,
   ekBolumdeMi as capEkBolumdeMi,
   caprazKisitli,
+  caprazModulleri,
   capSatiriMi,
   capBolumundenCikar,
   capSilinebilirMi,
@@ -15696,6 +15697,9 @@ window.capOgrenciBolumleri = capOgrenciBolumleri;
 window.ogrenciAktifBolumu = ogrenciAktifBolumu;
 window.capEkBolumdeMi = capEkBolumdeMi;
 window.caprazKisitli = caprazKisitli;
+// Ek bölümde açık modüller (yetkili başka fakültede: Ders Odaları kapalı).
+window.caprazModulleri = (kullanici, aktifBolum) =>
+  caprazModulleri(kullanici, aktifBolum, DEPARTMENTS);
 window.capSatiriMi = capSatiriMi;
 window.capBolumundenCikar = capBolumundenCikar;
 window.capSilinebilirMi = capSilinebilirMi;

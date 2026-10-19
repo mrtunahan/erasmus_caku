@@ -647,7 +647,10 @@ const Sidebar = ({
     // sadece DERSE BAĞLI 3 modül: kendi dersini ders programına ekler, sınav
     // programına yerleştirir, proje modülünde kendi dersi için işlem yapar.
     if (isOnExtraDept) {
-      const crossAllowed = ['dersprogrami', 'sinav', 'projeler', 'dersodalari'];
+      // Bölüm/fakülte yetkilisi BAŞKA FAKÜLTENİN bölümünde: Ders Odaları yok.
+      const crossAllowed = window.caprazModulleri
+        ? window.caprazModulleri(currentUser, activeDepartment)
+        : ['dersprogrami', 'sinav', 'projeler', 'dersodalari'];
       return DEPARTMENT_MODULES.filter((m) => crossAllowed.includes(m.id));
     }
 
@@ -3037,7 +3040,9 @@ function AppShell() {
     //   • Saf akademisyen → eski set
     //   • Öğrenci → eski set
     const allowedDeptModules = isOnExtraDept
-      ? ['dersprogrami', 'sinav', 'projeler', 'dersodalari']
+      ? window.caprazModulleri
+        ? window.caprazModulleri(currentUser, activeDepartment)
+        : ['dersprogrami', 'sinav', 'projeler', 'dersodalari']
       : isDeptManager || isAdmin || isHierarchyManager
         ? DEPARTMENT_MODULES.filter((m) => m.id !== 'benim').map((m) => m.id)
         : isProfessor
