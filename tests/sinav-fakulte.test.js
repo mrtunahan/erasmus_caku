@@ -469,6 +469,25 @@ describe('özel renkler ve bölümler arası birleştirme', () => {
     const birlesik = l.map((s) =>
       s.id === 'a' || s.id === 'b' ? { ...s, birlesimId: 'BYENI' } : s
     );
+    // mevcut oturumların bütün üyeleri dahil edilir, saat hedefe taşınır
+    const t = [
+      { id: 'x1', code: 'A', birlesimId: 'B1', room: 'M1', timeSlot: '10:00' },
+      { id: 'x2', code: 'A2', birlesimId: 'B1', room: 'M2', timeSlot: '10:00' },
+      { id: 'y1', code: 'C', birlesimId: 'B2', room: 'M3', timeSlot: '10:30' },
+      { id: 'y2', code: 'C2', birlesimId: 'B2', timeSlot: '10:30' },
+    ];
+    const y2 = SFm.birlestirmeYamalari([t[0], t[2]], 'BN', {
+      tumSinavlar: t,
+      date: '2026-06-08',
+      timeSlot: '10:00',
+    });
+    expect(y2.map((x) => x.id).sort()).toEqual(['x1', 'x2', 'y1', 'y2']);
+    expect(new Set(y2.map((x) => x.data.birlesimId)).size).toBe(1);
+    expect(y2[0].data).toMatchObject({
+      room: 'M1 - M3 - M2',
+      timeSlot: '10:00',
+      date: '2026-06-08',
+    });
     expect(SFm.birlestirmeOnerileri(birlesik)).toHaveLength(0);
   });
 
@@ -486,4 +505,12 @@ describe('özel renkler ve bölümler arası birleştirme', () => {
     expect(x).toContain('w:fill="B2EBF2"');
     expect(x).toContain('BİLGİSAYAR — FİNAL');
   });
+});
+
+it('basit docx: şema sırası, oransız ızgara, yasak karakter', async () => {
+  const { belgeXml } = await import('../lib/basit-docx.js');
+  const x = belgeXml({ sutunlar: ['A', 'B'], satirlar: [{ hucreler: ['a\u0001b', 'c'] }] });
+  expect(x.indexOf('<w:spacing')).toBeLessThan(x.indexOf('<w:jc w:val="center"/></w:pPr>'));
+  expect(x).toContain('<w:tblGrid><w:gridCol w:w="7699"/><w:gridCol w:w="7699"/></w:tblGrid>');
+  expect(x).toContain('>ab<');
 });
