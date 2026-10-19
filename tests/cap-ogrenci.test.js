@@ -14,6 +14,7 @@ import {
   ogrenciBolumleri,
   ekBolumdeMi,
   caprazKisitli,
+  caprazModulleri,
   capSatiriMi,
   capBolumundenCikar,
   capSilinebilirMi,
@@ -273,5 +274,51 @@ describe('ogrenciAktifBolumu', () => {
 
   it('boş girdi çökmez', () => {
     expect(ogrenciAktifBolumu(null, '')).toBe('');
+  });
+});
+
+describe('caprazModulleri — yetkili başka fakültede ders veriyorsa Ders Odaları kapalı', () => {
+  const bolumler = [
+    { id: 'bilgisayar', facultyId: 'muh' },
+    { id: 'insaat', facultyId: 'muh' },
+    { id: 'matematik', facultyId: 'fen', kimlikler: ['matematik', '6a2ef9'] },
+  ];
+  it('bölüm yetkilisi başka fakültede: dersodalari yok', () => {
+    const k = { role: 'bolum_yetkilisi', departmentId: 'bilgisayar' };
+    expect(caprazModulleri(k, 'matematik', bolumler)).not.toContain('dersodalari');
+    expect(caprazModulleri(k, '6a2ef9', bolumler)).not.toContain('dersodalari');
+  });
+  it('fakülte yetkilisi (akademisyen girişi) başka fakültede: dersodalari yok', () => {
+    const k = { role: 'professor', isFacultyManager: true, departmentId: 'insaat' };
+    expect(caprazModulleri(k, 'matematik', bolumler)).toEqual([
+      'dersprogrami',
+      'sinav',
+      'projeler',
+    ]);
+  });
+  it('aynı fakültede, sade akademisyende ve üniversite yetkilisinde kısıt yok', () => {
+    expect(
+      caprazModulleri({ role: 'bolum_yetkilisi', departmentId: 'bilgisayar' }, 'insaat', bolumler)
+    ).toContain('dersodalari');
+    expect(
+      caprazModulleri({ role: 'professor', departmentId: 'bilgisayar' }, 'matematik', bolumler)
+    ).toContain('dersodalari');
+    expect(
+      caprazModulleri(
+        {
+          role: 'professor',
+          isUniversityAdmin: true,
+          isFacultyManager: true,
+          departmentId: 'bilgisayar',
+        },
+        'matematik',
+        bolumler
+      )
+    ).toContain('dersodalari');
+  });
+  it('fakülte bilinmiyorsa kısıt konmaz', () => {
+    expect(
+      caprazModulleri({ role: 'bolum_yetkilisi', departmentId: 'yok' }, 'matematik', bolumler)
+    ).toContain('dersodalari');
   });
 });
