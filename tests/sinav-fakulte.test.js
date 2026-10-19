@@ -18,6 +18,7 @@ import {
   programImzasi,
   gonderimDurumu,
   HOCA_ETIKETI,
+  SALONSUZ_ETIKETI,
   ORTAK_RENK,
 } from '../lib/sinav-fakulte.js';
 
@@ -582,5 +583,44 @@ describe('saat çizelgesi, hafta ve renk açıklaması', () => {
     expect(t.taslak).toBe(true);
     expect(k.renkAciklamasi.map((x) => x.etiket)).toContain('OZD (ortak zorunlu)');
     expect(k.renkAciklamasi.map((x) => x.etiket)).not.toContain('OSD (ortak seçmeli)');
+  });
+});
+
+describe('salonu girilmemiş oturumlar', () => {
+  const sinav = (id, saat, room) => ({
+    id,
+    code: 'K' + id,
+    name: 'Ders ' + id,
+    date: '2026-06-15',
+    timeSlot: saat,
+    duration: 60,
+    room,
+    departmentId: 'bilgisayar',
+  });
+
+  it('fakülte kitabında en sağdaki sanal sütunda görünür, çakışma sayılmaz', () => {
+    const k = fakulteKitabi({
+      sinavlar: [sinav('1', '09:00', 'M10Z04'), sinav('2', '09:00', ''), sinav('3', '09:00', '')],
+      salonlar: SALONLAR,
+      bolumler: BOLUMLER,
+    });
+    const g = k.gunler[0];
+    expect(g.salonsuz).toHaveLength(2);
+    const son = g.tablo.salonlar[g.tablo.salonlar.length - 1];
+    expect(son).toMatchObject({ name: SALONSUZ_ETIKETI, sanal: true });
+    const ci = g.tablo.salonlar.length - 1;
+    const h = g.tablo.satirlar.map((r) => r.hucreler[ci]).find((x) => x && !x.gizli);
+    expect(h.salonsuz).toBe(true);
+    expect(h.cakisma).toBe(false);
+    expect(h.oturumlar).toHaveLength(2);
+  });
+
+  it('salonsuz oturum yoksa sanal sütun açılmaz', () => {
+    const k = fakulteKitabi({
+      sinavlar: [sinav('1', '09:00', 'M10Z04')],
+      salonlar: SALONLAR,
+      bolumler: BOLUMLER,
+    });
+    expect(k.gunler[0].tablo.salonlar.some((x) => x.sanal)).toBe(false);
   });
 });

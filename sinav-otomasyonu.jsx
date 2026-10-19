@@ -2924,7 +2924,8 @@ function otomatikAtamaHesapla({
 }
 
 // Program sayfası: tek gün ya da bütün hafta (günler alt alta, gün adı solda
-// dikey ve birleşik). 1. satır DERSLİKLER, 2. kapasite, 3. salon adları, sonra
+// dikey ve birleşik). Başlık satırları üstte (haftalıkta dönem başlığı + tek
+// başlık satırı, gün sayfasında DERSLİKLER/Kapasite/Saatler), sonra
 // saat dilimleri; sınav hücresi süresince birleşir. İsteğe bağlı olarak altta
 // renk açıklaması. Ekrandaki tabloyla aynı model (SinavFakulte.gunTablosu).
 function programSayfasi(XLSX, gunListesi, secenek) {
@@ -2942,36 +2943,45 @@ function programSayfasi(XLSX, gunListesi, secenek) {
       if (!salonlar.some((y) => y.name === x.name)) salonlar.push(x);
     })
   );
+  // Sanal "Salonu girilmemiş" sütunu her zaman en sağda.
+  salonlar.sort((x, y) => Number(!!x.sanal) - Number(!!y.sanal));
   const n = salonlar.length + sol;
   const bos = (k) => new Array(Math.max(0, k)).fill('');
-  const veri = [
-    [...bos(sol), 'DERSLİKLER', ...bos(salonlar.length - 1)],
-    [
-      'Kapasite',
-      ...bos(sol - 1),
-      ...salonlar.map((x) =>
-        x.capacity === '' || x.capacity == null ? '' : Number(x.capacity) || x.capacity
-      ),
-    ],
-    [...(haftalik ? ['Gün', 'Saat'] : ['Saatler']), ...salonlar.map((x) => x.name)],
-  ];
+  const kapasite = (x) =>
+    x.capacity === '' || x.capacity == null ? '' : Number(x.capacity) || x.capacity;
+  // Haftalık sayfa fakültenin haftalık programı düzenindedir: 1. satır dönem
+  // başlığı, 2. satır "Gün | Ders Saati | SALON (kapasite)". Gün sayfası
+  // dekanlık şablonunu korur: DERSLİKLER / Kapasite / Saatler + salonlar.
+  const veri = haftalik
+    ? [
+        [o.baslik || '', ...bos(n - 1)],
+        [
+          'Gün',
+          'Ders Saati',
+          ...salonlar.map((x) =>
+            kapasite(x) === '' ? x.name : x.name + '\n(' + kapasite(x) + ')'
+          ),
+        ],
+      ]
+    : [
+        [...bos(sol), 'DERSLİKLER', ...bos(salonlar.length - 1)],
+        ['Kapasite', ...bos(sol - 1), ...salonlar.map(kapasite)],
+        ['Saatler', ...salonlar.map((x) => x.name)],
+      ];
+  const basSatir = veri.length;
   const stiller = []; // [r, c, stil]
-  const birlesim = [
-    { s: { r: 0, c: sol }, e: { r: 0, c: Math.max(sol, n - 1) } },
-    ...(haftalik
-      ? [
-          { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
-          { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
-        ]
-      : []),
-  ];
-  const satirYukseklik = [{ hpt: 18 }, { hpt: 18 }, { hpt: 18 }];
+  const birlesim = haftalik
+    ? [{ s: { r: 0, c: 0 }, e: { r: 0, c: Math.max(0, n - 1) } }]
+    : [{ s: { r: 0, c: sol }, e: { r: 0, c: Math.max(sol, n - 1) } }];
+  const satirYukseklik = haftalik
+    ? [{ hpt: 22 }, { hpt: 30 }]
+    : [{ hpt: 18 }, { hpt: 18 }, { hpt: 18 }];
   gunListesi.forEach((g, gi) => {
     const ilkSatir = veri.length;
     const satirlar = g.tablo.satirlar;
     satirlar.forEach((r, ri) => {
       const satir = haftalik
-        ? [ri === 0 ? g.gun + ' ' + g.kisa : '', r.ara ? 'Öğle arası' : r.etiket]
+        ? [ri === 0 ? g.gun + ' ' + g.kisa : '', r.etiket]
         : [r.ara ? 'Öğle arası ' + r.etiket : r.etiket];
       salonlar.forEach((sutun, ci) => {
         const j = g.tablo.salonlar.findIndex((x) => x.name === sutun.name);
@@ -2996,8 +3006,10 @@ function programSayfasi(XLSX, gunListesi, secenek) {
               renkli && h && !h.gizli && h.renk
                 ? { patternType: 'solid', fgColor: { rgb: h.renk } }
                 : r.ara
-                  ? { patternType: 'solid', fgColor: { rgb: 'E2EFDA' } }
-                  : undefined,
+                  ? { patternType: 'solid', fgColor: { rgb: 'C6EFCE' } }
+                  : sutun.sanal && !h
+                    ? { patternType: 'solid', fgColor: { rgb: 'FFF2CC' } }
+                    : undefined,
             border:
               h && (h.taslak || h.degisti)
                 ? { top: kesik, bottom: kesik, left: kesik, right: kesik }
@@ -3017,7 +3029,7 @@ function programSayfasi(XLSX, gunListesi, secenek) {
             font: { name: 'Times New Roman', bold: true, sz: haftalik && c === 0 ? 11 : 9 },
             fill:
               r.ara && !(haftalik && c === 0)
-                ? { patternType: 'solid', fgColor: { rgb: 'E2EFDA' } }
+                ? { patternType: 'solid', fgColor: { rgb: 'C6EFCE' } }
                 : undefined,
             border: { ...kenar, ...(haftalik && ri === 0 && gi > 0 ? { top: kalin } : {}) },
             alignment: {
@@ -3071,19 +3083,30 @@ function programSayfasi(XLSX, gunListesi, secenek) {
     ws[a].s = st;
   };
   for (let c = 0; c < n; c++) {
-    stilVer(0, c, {
-      fill: c >= sol ? { patternType: 'solid', fgColor: { rgb: 'FFFF00' } } : undefined,
-      font: { bold: true, sz: 12, name: 'Times New Roman' },
-      border: c >= sol ? kenar : undefined,
-      alignment: { horizontal: 'center', vertical: 'center' },
-    });
-    [1, 2].forEach((r) =>
+    stilVer(
+      0,
+      c,
+      haftalik
+        ? {
+            font: { bold: true, sz: 14, name: 'Times New Roman' },
+            alignment: { horizontal: 'center', vertical: 'center' },
+          }
+        : {
+            fill: c >= sol ? { patternType: 'solid', fgColor: { rgb: 'FFFF00' } } : undefined,
+            font: { bold: true, sz: 12, name: 'Times New Roman' },
+            border: c >= sol ? kenar : undefined,
+            alignment: { horizontal: 'center', vertical: 'center' },
+          }
+    );
+    for (let r = 1; r < basSatir; r++) {
+      const sanal = c >= sol && salonlar[c - sol] && salonlar[c - sol].sanal;
       stilVer(r, c, {
-        font: { bold: true, name: 'Times New Roman' },
+        font: { bold: true, name: 'Times New Roman', sz: haftalik ? 10 : 11 },
+        fill: sanal ? { patternType: 'solid', fgColor: { rgb: 'FFE699' } } : undefined,
         border: kenar,
         alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-      })
-    );
+      });
+    }
   }
   stiller.forEach(([r, c, st]) => stilVer(r, c, st));
   ws['!merges'] = birlesim;
@@ -3143,7 +3166,12 @@ async function exportFakulteXLSX(kitap, dosyaAdi, secenek) {
     kitap.haftalar.forEach((h) => {
       XLSX.utils.book_append_sheet(
         wb,
-        programSayfasi(XLSX, h.gunler, { renkli: true, haftalik: true, aciklama }),
+        programSayfasi(XLSX, h.gunler, {
+          renkli: true,
+          haftalik: true,
+          aciklama,
+          baslik: secenek && secenek.baslik,
+        }),
         benzersiz(h.no + '. Hafta', h.no + '. Hafta ' + h.anahtar)
       );
     });
@@ -4283,7 +4311,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         '_Programi' +
         (taslakDahilExcel ? '_TASLAK' : '')
       ).replace(/[^\wğüşıöçĞÜŞİÖÇ-]+/g, '_'),
-      { haftalik: gorunum === 'hafta' }
+      {
+        haftalik: gorunum === 'hafta',
+        baslik: (fakulteAdi ? fakulteAdi + ' — ' : '') + (grup ? grup.etiket : 'Sınav Programı'),
+      }
     );
   };
 
@@ -4304,9 +4335,12 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
     fontWeight: 700,
   };
 
-  // Tablo: tek gün ya da bütün hafta (günler alt alta, gün adı solda dikey).
+  // Tablo, fakültenin haftalık Excel'iyle aynı düzende: en üstte dönem
+  // başlığı, tek başlık satırı (Gün | Ders Saati | salon (kapasite)), en
+  // solda dikey gün adı, yanında saat sütunu, öğle arası açık yeşil şerit.
   // Her günün kendi tablo modeli (gunTablosu) salon adına göre ortak
-  // sütunlara yerleştirilir.
+  // sütunlara yerleştirilir; salonu girilmemiş oturumlar en sağdaki
+  // "Salonu girilmemiş" sütununda görünür.
   const tabloCiz = (gunListesi, haftalik) => {
     const sutunlar = [];
     gunListesi.forEach((g) =>
@@ -4314,13 +4348,16 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         if (!sutunlar.some((y) => y.name === x.name)) sutunlar.push(x);
       })
     );
-    const salonsuz = gunListesi.flatMap((g) => g.salonsuz.map((o) => ({ ...o, gun: g.kisa })));
-    const sol = haftalik ? 2 : 1;
+    // Sanal sütun her zaman en sağda.
+    sutunlar.sort((x, y) => Number(!!x.sanal) - Number(!!y.sanal));
+    const salonsuzSayisi = gunListesi.reduce((t, g) => t + g.salonsuz.length, 0);
     const GUN_G = 46;
+    const SAAT_G = 96;
+    const BASLIK_Y = 30;
     const solStil = (k) => ({
       ...hucreStili,
       position: 'sticky',
-      left: k === 0 ? 0 : haftalik ? GUN_G : 0,
+      left: k === 0 ? 0 : GUN_G,
       background: '#F8FAFC',
       fontWeight: 600,
       zIndex: 1,
@@ -4340,26 +4377,12 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
       } else if (h.degisti) st.outline = '2px dashed #D97706';
       return st;
     };
+    const baslik =
+      (fakulteAdi ? fakulteAdi + ' — ' : '') +
+      (grup ? grup.etiket : 'Sınav Programı') +
+      (haftalik ? '' : ' — ' + gunListesi[0].kisa + ' ' + gunListesi[0].gun);
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {salonsuz.length > 0 && (
-          <div
-            style={{
-              padding: '8px 12px',
-              background: '#FEF3C7',
-              border: '1px solid #FCD34D',
-              borderRadius: 8,
-              fontSize: 12.5,
-              color: '#92400E',
-            }}
-          >
-            <b>Salonu kayıtlı olmayan {salonsuz.length} oturum tabloda görünmüyor:</b>{' '}
-            {salonsuz
-              .map((o) => o.kodSatiri + ' (' + (haftalik ? o.gun + ' ' : '') + o.timeSlot + ')')
-              .join(', ')}{' '}
-            — bölümün &quot;Salon ve gözetmen ata&quot; adımıyla kaydedilir.
-          </div>
-        )}
         <div
           style={{
             overflow: 'auto',
@@ -4373,71 +4396,68 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             <thead>
               <tr>
                 <th
-                  colSpan={sol}
-                  style={{ ...hucreStili, ...sabitBas, top: 0, left: 0, zIndex: 4, minWidth: 92 }}
-                >
-                  {haftalik ? '' : gunListesi[0].kisa + ' ' + gunListesi[0].gun}
-                </th>
-                <th
-                  colSpan={sutunlar.length}
+                  colSpan={2 + sutunlar.length}
                   style={{
                     ...hucreStili,
                     ...sabitBas,
                     top: 0,
-                    background: '#FFFF00',
-                    fontSize: 12,
+                    height: BASLIK_Y,
+                    background: '#FFFFFF',
+                    fontSize: 14,
+                    fontWeight: 800,
+                    textAlign: 'left',
                   }}
                 >
-                  DERSLİKLER
+                  <span style={{ position: 'sticky', left: 8 }}>{baslik}</span>
                 </th>
               </tr>
               <tr>
-                <th
-                  colSpan={sol}
-                  style={{ ...hucreStili, ...sabitBas, top: 22, left: 0, zIndex: 4 }}
-                >
-                  Kapasite
-                </th>
-                {sutunlar.map((x) => (
-                  <th key={'k' + x.name} style={{ ...hucreStili, ...sabitBas, top: 22 }}>
-                    {x.capacity}
-                  </th>
-                ))}
-              </tr>
-              <tr>
-                {haftalik && (
-                  <th
-                    style={{
-                      ...hucreStili,
-                      ...sabitBas,
-                      top: 44,
-                      left: 0,
-                      zIndex: 4,
-                      minWidth: GUN_G,
-                      width: GUN_G,
-                    }}
-                  >
-                    Gün
-                  </th>
-                )}
                 <th
                   style={{
                     ...hucreStili,
                     ...sabitBas,
-                    top: 44,
-                    left: haftalik ? GUN_G : 0,
+                    top: BASLIK_Y,
+                    left: 0,
                     zIndex: 4,
-                    minWidth: 92,
+                    minWidth: GUN_G,
+                    width: GUN_G,
                   }}
                 >
-                  {haftalik ? 'Saat' : 'Saatler'}
+                  Gün
+                </th>
+                <th
+                  style={{
+                    ...hucreStili,
+                    ...sabitBas,
+                    top: BASLIK_Y,
+                    left: GUN_G,
+                    zIndex: 4,
+                    minWidth: SAAT_G,
+                  }}
+                >
+                  Ders Saati
                 </th>
                 {sutunlar.map((x) => (
                   <th
                     key={'s' + x.name}
-                    style={{ ...hucreStili, ...sabitBas, top: 44, minWidth: 128 }}
+                    title={
+                      x.sanal
+                        ? salonsuzSayisi +
+                          ' oturumun salonu girilmemiş — bölümün "Salon ve gözetmen ata" adımıyla ya da hücreye tıklayıp atanır.'
+                        : undefined
+                    }
+                    style={{
+                      ...hucreStili,
+                      ...sabitBas,
+                      top: BASLIK_Y,
+                      minWidth: 128,
+                      whiteSpace: 'pre-line',
+                      ...(x.sanal ? { background: '#FEF3C7', color: '#92400E' } : {}),
+                    }}
                   >
-                    {x.name}
+                    {x.sanal
+                      ? x.name + '\n(' + salonsuzSayisi + ' oturum)'
+                      : x.name + (x.capacity ? '\n(' + x.capacity + ')' : '')}
                   </th>
                 ))}
               </tr>
@@ -4445,10 +4465,12 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             <tbody>
               {gunListesi.map((g, gi) =>
                 g.tablo.satirlar.map((r, ri) => {
-                  const ust = haftalik && ri === 0 && gi > 0 ? '3px solid #334155' : undefined;
+                  const ust = ri === 0 && gi > 0 ? '3px solid #334155' : undefined;
+                  // Öğleye taşan sınav yoksa öğle arası tek şerit olur.
+                  const araSeridi = r.ara && sutunlar.length > 0 && r.hucreler.every((h) => !h);
                   return (
                     <tr key={g.tarih + r.etiket} style={{ height: r.ara ? 22 : 34 }}>
-                      {haftalik && ri === 0 && (
+                      {ri === 0 && (
                         <td
                           rowSpan={g.tablo.satirlar.length}
                           style={{
@@ -4479,51 +4501,74 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
                         style={{
                           ...solStil(1),
                           borderTop: ust,
-                          background: r.ara ? '#DCFCE7' : '#F8FAFC',
+                          background: r.ara ? '#C6EFCE' : '#F8FAFC',
                           fontSize: r.ara ? 10.5 : 11,
+                          minWidth: SAAT_G,
                         }}
                       >
-                        {r.ara ? 'Öğle arası ' + r.etiket : r.etiket}
+                        {r.etiket}
                       </td>
-                      {sutunlar.map((sutun) => {
-                        const j = g.tablo.salonlar.findIndex((x) => x.name === sutun.name);
-                        const h = j >= 0 ? r.hucreler[j] : null;
-                        if (h && h.gizli) return null;
-                        if (!h)
+                      {araSeridi ? (
+                        <td
+                          colSpan={sutunlar.length}
+                          style={{
+                            ...hucreStili,
+                            borderTop: ust,
+                            background: '#C6EFCE',
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                            color: '#166534',
+                          }}
+                        >
+                          Öğle arası
+                        </td>
+                      ) : (
+                        sutunlar.map((sutun) => {
+                          const j = g.tablo.salonlar.findIndex((x) => x.name === sutun.name);
+                          const h = j >= 0 ? r.hucreler[j] : null;
+                          if (h && h.gizli) return null;
+                          if (!h)
+                            return (
+                              <td
+                                key={sutun.name}
+                                style={{
+                                  ...hucreStili,
+                                  borderTop: ust,
+                                  background: r.ara
+                                    ? '#C6EFCE'
+                                    : sutun.sanal
+                                      ? '#FFFBEB'
+                                      : undefined,
+                                }}
+                              />
+                            );
                           return (
                             <td
                               key={sutun.name}
-                              style={{
-                                ...hucreStili,
-                                borderTop: ust,
-                                background: r.ara ? '#F0FDF4' : undefined,
-                              }}
-                            />
+                              rowSpan={h.satirSayisi}
+                              onClick={() =>
+                                setSecilen({
+                                  hucre: h,
+                                  salon: sutun.sanal ? 'Salonu girilmemiş' : sutun.name,
+                                  saat: (haftalik ? g.kisa + ' ' : '') + r.etiket,
+                                })
+                              }
+                              title={
+                                h.salonsuz
+                                  ? 'Salonu girilmemiş — tıklayıp salon atayın.'
+                                  : h.taslak
+                                    ? 'Taslak — bölüm programını henüz göndermedi. Ayrıntı için tıklayın.'
+                                    : h.degisti
+                                      ? 'Gönderimden sonra değişti. Ayrıntı için tıklayın.'
+                                      : 'Ayrıntı için tıklayın'
+                              }
+                              style={{ ...hucreGorunumu(h), borderTop: ust }}
+                            >
+                              {h.metin}
+                            </td>
                           );
-                        return (
-                          <td
-                            key={sutun.name}
-                            rowSpan={h.satirSayisi}
-                            onClick={() =>
-                              setSecilen({
-                                hucre: h,
-                                salon: sutun.name,
-                                saat: (haftalik ? g.kisa + ' ' : '') + r.etiket,
-                              })
-                            }
-                            title={
-                              h.taslak
-                                ? 'Taslak — bölüm programını henüz göndermedi. Ayrıntı için tıklayın.'
-                                : h.degisti
-                                  ? 'Gönderimden sonra değişti. Ayrıntı için tıklayın.'
-                                  : 'Ayrıntı için tıklayın'
-                            }
-                            style={{ ...hucreGorunumu(h), borderTop: ust }}
-                          >
-                            {h.metin}
-                          </td>
-                        );
-                      })}
+                        })
+                      )}
                     </tr>
                   );
                 })
@@ -7021,7 +7066,7 @@ function SinavOtomasyonuApp({
         (salonsuz ? salonsuz + ' sınavın salonu' : '') +
           (salonsuz && gozetmensiz ? ', ' : '') +
           (gozetmensiz ? gozetmensiz + ' sınavın gözetmeni' : '') +
-          ' kayıtlı değil. Fakülte tablosunda salonsuz sınav görünmez, gözetmensiz sınav ' +
+          ' kayıtlı değil. Fakülte tablosunda salonsuz sınav "Salonu girilmemiş" sütununda, gözetmensiz sınav ' +
           'gözetmensiz görünür. Önce "Salon ve Gözetmen Ata" kullanmanız önerilir.\n\n' +
           'Yine de gönderilsin mi?'
       )
