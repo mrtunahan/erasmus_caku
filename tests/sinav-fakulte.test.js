@@ -514,3 +514,73 @@ it('basit docx: şema sırası, oransız ızgara, yasak karakter', async () => {
   expect(x).toContain('<w:tblGrid><w:gridCol w:w="7699"/><w:gridCol w:w="7699"/></w:tblGrid>');
   expect(x).toContain('>ab<');
 });
+
+describe('saat çizelgesi, hafta ve renk açıklaması', () => {
+  it('serbest dilim süresi ve öğle arası', async () => {
+    const SFm = await import('../lib/sinav-fakulte.js');
+    const d = SFm.saatDilimleri({
+      baslangic: '08:30',
+      bitis: '13:00',
+      dilim: 45,
+      ogleBaslangic: '11:45',
+      ogleBitis: '12:15',
+    });
+    expect(d.map((x) => x.etiket)).toEqual([
+      '08:30-09:15',
+      '09:15-10:00',
+      '10:00-10:45',
+      '10:45-11:30',
+      '11:30-11:45',
+      '11:45-12:15',
+      '12:15-13:00',
+    ]);
+    expect(d[5].ara).toBe(true);
+    expect(SFm.cizelgeOku({ dilim: 2, bitis: '07:00' })).toMatchObject({
+      dilim: 30,
+      bitis: '18:30',
+    });
+  });
+
+  it('50 dakikalık dilimde 90 dakikalık sınav doğru satırlara yayılır', async () => {
+    const SFm = await import('../lib/sinav-fakulte.js');
+    const dilimler = SFm.saatDilimleri({ baslangic: '08:30', bitis: '12:30', dilim: 50 });
+    const o = SFm.fakulteOturumlari([
+      { id: '1', code: 'A', date: '2026-06-08', timeSlot: '09:00', duration: 90, room: 'M1' },
+    ]);
+    const t = SFm.gunTablosu(o, [{ name: 'M1' }], { dilimler });
+    // 09:00–10:30 → 08:30-09:20, 09:20-10:10, 10:10-11:00
+    expect(t.satirlar[0].hucreler[0].satirSayisi).toBe(3);
+  });
+
+  it('haftalara bölme, taslak işareti ve renk açıklaması', async () => {
+    const SFm = await import('../lib/sinav-fakulte.js');
+    const k = SFm.fakulteKitabi({
+      sinavlar: [
+        {
+          id: '1',
+          code: 'OZD101',
+          date: '2026-06-12',
+          timeSlot: '10:00',
+          room: 'M10Z04',
+          departmentId: 'insaat',
+        },
+        {
+          id: '2',
+          code: 'B',
+          date: '2026-06-15',
+          timeSlot: '10:00',
+          room: 'M10Z04',
+          departmentId: 'bilgisayar',
+        },
+      ],
+      salonlar: SALONLAR,
+      bolumler: BOLUMLER,
+      taslakBolumler: ['insaat'],
+    });
+    expect(k.haftalar.map((h) => h.etiket)).toEqual(['1. Hafta (12.06)', '2. Hafta (15.06)']);
+    const t = k.gunler[0].tablo.satirlar.flatMap((r) => r.hucreler).find((h) => h && !h.gizli);
+    expect(t.taslak).toBe(true);
+    expect(k.renkAciklamasi.map((x) => x.etiket)).toContain('OZD (ortak zorunlu)');
+    expect(k.renkAciklamasi.map((x) => x.etiket)).not.toContain('OSD (ortak seçmeli)');
+  });
+});
