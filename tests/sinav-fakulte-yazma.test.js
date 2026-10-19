@@ -132,3 +132,17 @@ it('diğer koleksiyonlara karışmaz', () => {
     true
   );
 });
+
+it('fakülte düzenlemesinden sonra gönderim parmak izini tazeleyebilir (merge)', () => {
+  const op = {
+    collection: 'sinav_gonderimleri',
+    type: 'set',
+    merge: true,
+    docId: 'bilgisayar__final|bahar',
+    data: { durum: 'gonderildi', imza: 'yeni', fakulteDuzenleyen: 'X' },
+  };
+  expect(
+    sinavFakulteYazmaKarari(op, { bolumId: 'bilgisayar', durum: 'gonderildi' }, fakulteYetkilisi)
+      .izin
+  ).toBe(true);
+});
