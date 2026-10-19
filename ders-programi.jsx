@@ -1967,7 +1967,10 @@ function DersProgramiApp({
           roomList.push(r);
         });
         roomList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        setClassrooms(roomList);
+        // Yalnız ders programında kullanılan salonlar (Bölüm Yönetimi →
+        // Sınıf / Salon → Kullanım); "yalnız sınav" salonları listelenmez.
+        const SK = window.SalonKullanim;
+        setClassrooms(SK ? roomList.filter(SK.dersSalonuMu) : roomList);
       } catch (e) {
         console.error('Paylaşılan veriler yüklenirken hata:', e);
       }
@@ -3744,6 +3747,12 @@ function DersProgramiApp({
                                       }}
                                     >
                                       <option value="">Derslik seç...</option>
+                                      {/* Kayıtlı derslik listede yoksa (ör. sonradan "yalnız
+                                          sınav" yapıldı) seçim kaybolmasın. */}
+                                      {ders.classroom &&
+                                        !classrooms.some((r) => r.name === ders.classroom) && (
+                                          <option value={ders.classroom}>{ders.classroom}</option>
+                                        )}
                                       {classrooms.map((r) => (
                                         <option key={r.id} value={r.name}>
                                           {r.name}
@@ -4277,6 +4286,9 @@ function DersProgramiApp({
                     onBlur={(e) => (e.target.style.borderColor = DP.border)}
                   >
                     <option value="">Derslik seçin...</option>
+                    {modalClassroom && !classrooms.some((r) => r.name === modalClassroom) && (
+                      <option value={modalClassroom}>{modalClassroom}</option>
+                    )}
                     {classrooms.map((r) => (
                       <option key={r.id} value={r.name}>
                         {r.name} ({r.capacity} kişi)

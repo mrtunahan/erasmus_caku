@@ -20,6 +20,10 @@ import {
   HOCA_ETIKETI,
   SALONSUZ_ETIKETI,
   fakulteAkademisyeniMi,
+  fakulteArastirmaGorevlileri,
+  gozetmenSecenekListesi,
+  sinavHocalari,
+  DERS_HOCASI_GRUBU,
   ORTAK_RENK,
 } from '../lib/sinav-fakulte.js';
 
@@ -666,5 +670,53 @@ describe('fakülte görünümü: gözetmen, günler, otomatik yerleşim', () => 
     });
     const h = k.gunler[0].tablo.satirlar.flatMap((r) => r.hucreler).find((x) => x && !x.gizli);
     expect(h.otomatik).toBe(true);
+  });
+});
+
+describe('gözetmen seçenekleri: dersin hocası + fakültenin araştırma görevlileri', () => {
+  const fak = [
+    { id: 'bilgisayar', name: 'Bilgisayar Mühendisliği', kimlikler: ['6a1'] },
+    { id: 'makine', name: 'Makine Mühendisliği' },
+  ];
+  const kisiler = [
+    { name: 'Arş. Gör. Ali VELİ', departmentId: 'bilgisayar' },
+    { name: 'Arş. Gör. Dr. Ayşe KAYA', departmentId: '6a1' },
+    { name: 'Arş. Gör. Can DEMİR', departmentId: 'makine' },
+    { name: 'Arş. Gör. Eski KAYIT', department: 'Makine Mühendisliği' },
+    { name: 'Dr. Öğr. Üyesi Hoca BİR', departmentId: 'bilgisayar' },
+    { name: 'Prof. Dr. Profesör İKİ', departmentId: 'makine' },
+    {
+      name: 'Arş. Gör. Başka FAKÜLTE',
+      departmentId: 'matematik',
+      additionalDepartments: ['bilgisayar'],
+    },
+    { name: 'Arş. Gör. Memur', departmentId: 'bilgisayar', isMemur: true },
+  ];
+
+  it('yalnız fakültede kadrolu Arş. Gör. ve Arş. Gör. Dr.; bölümlerine göre gruplu', () => {
+    const l = fakulteArastirmaGorevlileri(kisiler, fak);
+    expect(l.map((x) => x.deger)).toEqual([
+      'Arş. Gör. Ali VELİ',
+      'Arş. Gör. Dr. Ayşe KAYA',
+      'Arş. Gör. Can DEMİR',
+      'Arş. Gör. Eski KAYIT',
+    ]);
+    expect(l[0].grup).toBe('Bilgisayar Mühendisliği');
+    expect(l[2].grup).toBe('Makine Mühendisliği');
+  });
+
+  it('dersin hocası en başta; araştırma görevlisi de hocaysa tekrar yazılmaz', () => {
+    const arGor = fakulteArastirmaGorevlileri(kisiler, fak);
+    const hocalar = sinavHocalari([
+      { professor: 'Dr. Öğr. Üyesi Hoca BİR' },
+      { professors: ['Arş. Gör. Dr. AYŞE KAYA', 'Dr. Öğr. Üyesi Hoca BİR'] },
+    ]);
+    const l = gozetmenSecenekListesi(hocalar, arGor);
+    expect(l.slice(0, 2).map((x) => [x.deger, x.grup])).toEqual([
+      ['Dr. Öğr. Üyesi Hoca BİR', DERS_HOCASI_GRUBU],
+      ['Arş. Gör. Dr. AYŞE KAYA', DERS_HOCASI_GRUBU],
+    ]);
+    expect(l.filter((x) => /kaya/i.test(x.deger))).toHaveLength(1);
+    expect(l).toHaveLength(5);
   });
 });
