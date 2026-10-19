@@ -2923,130 +2923,127 @@ function otomatikAtamaHesapla({
   return { oneri, uyarilar };
 }
 
-// Program sayfası: tek gün ya da bütün hafta (günler alt alta, gün adı solda
-// dikey ve birleşik). Başlık satırları üstte (haftalıkta dönem başlığı + tek
-// başlık satırı, gün sayfasında DERSLİKLER/Kapasite/Saatler), sonra
-// saat dilimleri; sınav hücresi süresince birleşir. İsteğe bağlı olarak altta
-// renk açıklaması. Ekrandaki tabloyla aynı model (SinavFakulte.gunTablosu).
-function programSayfasi(XLSX, gunListesi, secenek) {
+// FAKÜLTE GÖRÜNÜMÜ — salonu ya da gözetmeni girilmemiş sınavlar, bölümün
+// "Salon ve gözetmen ata" düğmesiyle AYNI kuralla (otomatikAtamaHesapla)
+// fakültenin salon listesine yerleştirilir. Bölümler sırayla işlenir: önce
+// yerleşenin salonu ve gözetmeni sonrakiler için dolu sayılır. Bölümler arası
+// birleşik oturumun (birlesimId) salonu olan üyesi varsa diğer üyeler o
+// salona oturur. Elle girilen değişmez; sonuç kaydedilmez, öneridir —
+// yerleşen sınav `oneriSalon` / `oneriGozetmen` ile işaretlenir.
+//   bolumler: [{ bolumId, sinavlar, gozetmenAdlari, kurallar, musaitsizlik }]
+function fakulteOtomatikYerlesim(bolumler, salonlar) {
+  const metinOf = (v) => String(v == null ? '' : v).trim();
+  const guncel = new Map();
+  bolumler.forEach((b) => b.sinavlar.forEach((e) => e && e.id && guncel.set(e.id, e)));
+  bolumler.forEach((b) => {
+    if (!b.sinavlar.some((e) => !metinOf(e.room) || !metinOf(e.supervisor))) return;
+    const kendi = b.sinavlar.map((e0) => {
+      const e = guncel.get(e0.id) || e0;
+      if (metinOf(e.room) || !e.birlesimId) return e;
+      const ortak = [...guncel.values()].find(
+        (x) => x.birlesimId === e.birlesimId && x.departmentId !== e.departmentId && metinOf(x.room)
+      );
+      return ortak ? { ...e, room: ortak.room, oneriSalon: true } : e;
+    });
+    const diger = [...guncel.values()].filter((x) => x.departmentId !== b.bolumId);
+    const { oneri } = otomatikAtamaHesapla({
+      sinavlar: kendi,
+      salonlar,
+      gozetmenAdlari: b.gozetmenAdlari,
+      kurallar: b.kurallar,
+      musaitsizlik: b.musaitsizlik,
+      digerSinavlar: diger,
+    });
+    kendi.forEach((e) => {
+      const o = oneri[e.id] || {};
+      const y = { ...e };
+      if (!metinOf(e.room) && o.room && o.room !== 'TBD') {
+        y.room = o.room;
+        y.oneriSalon = true;
+      }
+      if (!metinOf(e.supervisor) && o.supervisor) {
+        y.supervisor = o.supervisor;
+        y.oneriGozetmen = true;
+      }
+      guncel.set(e.id, y);
+    });
+  });
+  return guncel;
+}
+
+// Gün sayfası (dekanlık şablonu): 1. satır DERSLİKLER, 2. kapasite, 3. salon
+// adları, sonra saat dilimleri; sınav hücresi süresince birleşir. İsteğe bağlı
+// olarak altta renk açıklaması. Ekrandaki tabloyla aynı model
+// (SinavFakulte.gunTablosu).
+function programSayfasi(XLSX, tablo, secenek) {
   const o = secenek || {};
   const renkli = o.renkli !== false;
-  const haftalik = !!o.haftalik;
-  const sol = haftalik ? 2 : 1;
   const ince = { style: 'thin', color: { rgb: '000000' } };
-  const kalin = { style: 'medium', color: { rgb: '000000' } };
   const kesik = { style: 'dashed', color: { rgb: '475569' } };
   const kenar = { top: ince, bottom: ince, left: ince, right: ince };
-  const salonlar = [];
-  gunListesi.forEach((g) =>
-    g.tablo.salonlar.forEach((x) => {
-      if (!salonlar.some((y) => y.name === x.name)) salonlar.push(x);
-    })
-  );
-  // Sanal "Salonu girilmemiş" sütunu her zaman en sağda.
-  salonlar.sort((x, y) => Number(!!x.sanal) - Number(!!y.sanal));
-  const n = salonlar.length + sol;
+  const salonlar = tablo.salonlar;
+  const n = salonlar.length + 1;
   const bos = (k) => new Array(Math.max(0, k)).fill('');
   const kapasite = (x) =>
     x.capacity === '' || x.capacity == null ? '' : Number(x.capacity) || x.capacity;
-  // Haftalık sayfa fakültenin haftalık programı düzenindedir: 1. satır dönem
-  // başlığı, 2. satır "Gün | Ders Saati | SALON (kapasite)". Gün sayfası
-  // dekanlık şablonunu korur: DERSLİKLER / Kapasite / Saatler + salonlar.
-  const veri = haftalik
-    ? [
-        [o.baslik || '', ...bos(n - 1)],
-        [
-          'Gün',
-          'Ders Saati',
-          ...salonlar.map((x) =>
-            kapasite(x) === '' ? x.name : x.name + '\n(' + kapasite(x) + ')'
-          ),
-        ],
-      ]
-    : [
-        [...bos(sol), 'DERSLİKLER', ...bos(salonlar.length - 1)],
-        ['Kapasite', ...bos(sol - 1), ...salonlar.map(kapasite)],
-        ['Saatler', ...salonlar.map((x) => x.name)],
-      ];
-  const basSatir = veri.length;
+  const veri = [
+    ['', 'DERSLİKLER', ...bos(salonlar.length - 1)],
+    ['Kapasite', ...salonlar.map(kapasite)],
+    ['Saatler', ...salonlar.map((x) => x.name)],
+  ];
   const stiller = []; // [r, c, stil]
-  const birlesim = haftalik
-    ? [{ s: { r: 0, c: 0 }, e: { r: 0, c: Math.max(0, n - 1) } }]
-    : [{ s: { r: 0, c: sol }, e: { r: 0, c: Math.max(sol, n - 1) } }];
-  const satirYukseklik = haftalik
-    ? [{ hpt: 22 }, { hpt: 30 }]
-    : [{ hpt: 18 }, { hpt: 18 }, { hpt: 18 }];
-  gunListesi.forEach((g, gi) => {
-    const ilkSatir = veri.length;
-    const satirlar = g.tablo.satirlar;
-    satirlar.forEach((r, ri) => {
-      const satir = haftalik
-        ? [ri === 0 ? g.gun + ' ' + g.kisa : '', r.etiket]
-        : [r.ara ? 'Öğle arası ' + r.etiket : r.etiket];
-      salonlar.forEach((sutun, ci) => {
-        const j = g.tablo.salonlar.findIndex((x) => x.name === sutun.name);
-        const h = j >= 0 ? r.hucreler[j] : null;
-        satir.push(h && !h.gizli ? h.metin || '' : '');
-        const rr = veri.length;
-        const cc = ci + sol;
-        const ustKalin = haftalik && ri === 0 && gi > 0;
-        stiller.push([
-          rr,
-          cc,
-          {
-            font: {
-              name: 'Times New Roman',
-              sz: 9,
-              bold: !!(h && !h.gizli && h.metin),
-              italic: !!(h && h.taslak),
-              color:
-                h && h.cakisma ? { rgb: 'C00000' } : h && h.taslak ? { rgb: '475569' } : undefined,
-            },
-            fill:
-              renkli && h && !h.gizli && h.renk
-                ? { patternType: 'solid', fgColor: { rgb: h.renk } }
-                : r.ara
-                  ? { patternType: 'solid', fgColor: { rgb: 'C6EFCE' } }
-                  : sutun.sanal && !h
-                    ? { patternType: 'solid', fgColor: { rgb: 'FFF2CC' } }
-                    : undefined,
-            border:
-              h && (h.taslak || h.degisti)
-                ? { top: kesik, bottom: kesik, left: kesik, right: kesik }
-                : { ...kenar, ...(ustKalin ? { top: kalin } : {}) },
-            alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+  const birlesim = [{ s: { r: 0, c: 1 }, e: { r: 0, c: Math.max(1, n - 1) } }];
+  const satirYukseklik = [{ hpt: 18 }, { hpt: 18 }, { hpt: 18 }];
+  tablo.satirlar.forEach((r) => {
+    const satir = [r.ara ? 'Öğle arası ' + r.etiket : r.etiket];
+    r.hucreler.forEach((h, ci) => {
+      const sutun = salonlar[ci];
+      satir.push(h && !h.gizli ? h.metin || '' : '');
+      const rr = veri.length;
+      const cc = ci + 1;
+      stiller.push([
+        rr,
+        cc,
+        {
+          font: {
+            name: 'Times New Roman',
+            sz: 9,
+            bold: !!(h && !h.gizli && h.metin),
+            italic: !!(h && h.taslak),
+            color:
+              h && h.cakisma ? { rgb: 'C00000' } : h && h.taslak ? { rgb: '475569' } : undefined,
           },
-        ]);
-        if (h && !h.gizli && h.satirSayisi > 1) {
-          birlesim.push({ s: { r: rr, c: cc }, e: { r: rr + h.satirSayisi - 1, c: cc } });
-        }
-      });
-      for (let c = 0; c < sol; c++) {
-        stiller.push([
-          veri.length,
-          c,
-          {
-            font: { name: 'Times New Roman', bold: true, sz: haftalik && c === 0 ? 11 : 9 },
-            fill:
-              r.ara && !(haftalik && c === 0)
-                ? { patternType: 'solid', fgColor: { rgb: 'C6EFCE' } }
-                : undefined,
-            border: { ...kenar, ...(haftalik && ri === 0 && gi > 0 ? { top: kalin } : {}) },
-            alignment: {
-              horizontal: 'center',
-              vertical: 'center',
-              wrapText: true,
-              ...(haftalik && c === 0 ? { textRotation: 90 } : {}),
-            },
-          },
-        ]);
+          fill:
+            renkli && h && !h.gizli && h.renk
+              ? { patternType: 'solid', fgColor: { rgb: h.renk } }
+              : r.ara
+                ? { patternType: 'solid', fgColor: { rgb: 'E2EFDA' } }
+                : sutun.sanal && !h
+                  ? { patternType: 'solid', fgColor: { rgb: 'FFF2CC' } }
+                  : undefined,
+          border:
+            h && (h.taslak || h.degisti)
+              ? { top: kesik, bottom: kesik, left: kesik, right: kesik }
+              : kenar,
+          alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        },
+      ]);
+      if (h && !h.gizli && h.satirSayisi > 1) {
+        birlesim.push({ s: { r: rr, c: cc }, e: { r: rr + h.satirSayisi - 1, c: cc } });
       }
-      veri.push(satir);
-      satirYukseklik.push({ hpt: r.ara ? 15 : 30 });
     });
-    if (haftalik && satirlar.length > 1) {
-      birlesim.push({ s: { r: ilkSatir, c: 0 }, e: { r: ilkSatir + satirlar.length - 1, c: 0 } });
-    }
+    stiller.push([
+      veri.length,
+      0,
+      {
+        font: { name: 'Times New Roman', bold: true, sz: 9 },
+        fill: r.ara ? { patternType: 'solid', fgColor: { rgb: 'E2EFDA' } } : undefined,
+        border: kenar,
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      },
+    ]);
+    veri.push(satir);
+    satirYukseklik.push({ hpt: r.ara ? 15 : 30 });
   });
   // Renk açıklaması: tablonun altında renkli kutu + açıklama.
   const aciklama = Array.isArray(o.aciklama) ? o.aciklama : [];
@@ -3058,7 +3055,7 @@ function programSayfasi(XLSX, gunListesi, secenek) {
     veri.push(bos(n));
     satirYukseklik.push({ hpt: 14 }, { hpt: 28 });
     aciklama.forEach((x, k) => {
-      const c = sol + k;
+      const c = 1 + k;
       if (c >= n) return;
       stiller.push([
         r1,
@@ -3083,53 +3080,34 @@ function programSayfasi(XLSX, gunListesi, secenek) {
     ws[a].s = st;
   };
   for (let c = 0; c < n; c++) {
-    stilVer(
-      0,
-      c,
-      haftalik
-        ? {
-            font: { bold: true, sz: 14, name: 'Times New Roman' },
-            alignment: { horizontal: 'center', vertical: 'center' },
-          }
-        : {
-            fill: c >= sol ? { patternType: 'solid', fgColor: { rgb: 'FFFF00' } } : undefined,
-            font: { bold: true, sz: 12, name: 'Times New Roman' },
-            border: c >= sol ? kenar : undefined,
-            alignment: { horizontal: 'center', vertical: 'center' },
-          }
-    );
-    for (let r = 1; r < basSatir; r++) {
-      const sanal = c >= sol && salonlar[c - sol] && salonlar[c - sol].sanal;
+    stilVer(0, c, {
+      fill: c >= 1 ? { patternType: 'solid', fgColor: { rgb: 'FFFF00' } } : undefined,
+      font: { bold: true, sz: 12, name: 'Times New Roman' },
+      border: c >= 1 ? kenar : undefined,
+      alignment: { horizontal: 'center', vertical: 'center' },
+    });
+    [1, 2].forEach((r) =>
       stilVer(r, c, {
-        font: { bold: true, name: 'Times New Roman', sz: haftalik ? 10 : 11 },
-        fill: sanal ? { patternType: 'solid', fgColor: { rgb: 'FFE699' } } : undefined,
+        font: { bold: true, name: 'Times New Roman' },
+        fill:
+          c >= 1 && salonlar[c - 1].sanal
+            ? { patternType: 'solid', fgColor: { rgb: 'FFE699' } }
+            : undefined,
         border: kenar,
         alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-      });
-    }
+      })
+    );
   }
   stiller.forEach(([r, c, st]) => stilVer(r, c, st));
   ws['!merges'] = birlesim;
-  ws['!cols'] = [
-    ...(haftalik ? [{ wch: 6 }, { wch: 12 }] : [{ wch: 13 }]),
-    ...salonlar.map(() => ({ wch: 18 })),
-  ];
+  ws['!cols'] = [{ wch: 13 }, ...salonlar.map(() => ({ wch: 18 }))];
   ws['!rows'] = satirYukseklik;
   return ws;
 }
 
-// Bir günün sayfası (bölüm çıktısı ve gün gün fakülte çıktısı).
-function gunSayfasi(XLSX, tablo, secenek) {
-  return programSayfasi(XLSX, [{ tablo, gun: '', kisa: '', tarih: '' }], {
-    ...(secenek || {}),
-    haftalik: false,
-  });
-}
-
 // FAKÜLTE ÇIKTISI — fakülte yetkilisinin Excel'i: "Kısaltmalar" + gün başına
 // bir sayfa ("08.06"). Model lib/sinav-fakulte.js → fakulteKitabi.
-async function exportFakulteXLSX(kitap, dosyaAdi, secenek) {
-  const haftalik = !!(secenek && secenek.haftalik);
+async function exportFakulteXLSX(kitap, dosyaAdi) {
   const XLSX = await xlsxYukle();
   if (!XLSX) return;
   const wb = XLSX.utils.book_new();
@@ -3161,29 +3139,13 @@ async function exportFakulteXLSX(kitap, dosyaAdi, secenek) {
     return sonuc.slice(0, 31);
   };
   const aciklama = kitap.renkAciklamasi || [];
-  if (haftalik) {
-    // Bütün hafta tek sayfada: günler alt alta, gün adı solda dikey.
-    kitap.haftalar.forEach((h) => {
-      XLSX.utils.book_append_sheet(
-        wb,
-        programSayfasi(XLSX, h.gunler, {
-          renkli: true,
-          haftalik: true,
-          aciklama,
-          baslik: secenek && secenek.baslik,
-        }),
-        benzersiz(h.no + '. Hafta', h.no + '. Hafta ' + h.anahtar)
-      );
-    });
-  } else {
-    kitap.gunler.forEach((g) => {
-      XLSX.utils.book_append_sheet(
-        wb,
-        programSayfasi(XLSX, [g], { renkli: true, aciklama }),
-        benzersiz(g.kisa, g.kisa + '.' + g.tarih.slice(2, 4))
-      );
-    });
-  }
+  kitap.gunler.forEach((g) => {
+    XLSX.utils.book_append_sheet(
+      wb,
+      programSayfasi(XLSX, g.tablo, { renkli: true, aciklama }),
+      benzersiz(g.kisa, g.kisa + '.' + g.tarih.slice(2, 4))
+    );
+  });
   XLSX.writeFile(wb, (dosyaAdi || 'Fakulte_Sinav_Programi') + '.xlsx');
 }
 
@@ -3421,7 +3383,7 @@ async function exportToXLSX(
           { metinAlani: 'kodSatiri', dilimler: ek.dilimler }
         )
       : { salonlar: salonListesi, satirlar: [] };
-    XLSX.utils.book_append_sheet(wb, gunSayfasi(XLSX, tablo, { renkli: false }), sheetName);
+    XLSX.utils.book_append_sheet(wb, programSayfasi(XLSX, tablo, { renkli: false }), sheetName);
   });
 
   // Download
@@ -3650,7 +3612,9 @@ const OturumDuzenle = ({
   const [salon, setSalon] = useState(oturum.salonlar.join(' - '));
   const [gozetmen, setGozetmen] = useState(oturum.gozetmenler.join(', '));
   const [kaydediliyor, setKaydediliyor] = useState(false);
+  // Otomatik yerleşen (kayıtsız) oturum değişiklik yapılmadan da kaydedilebilir.
   const degisti =
+    !!oturum.otomatik ||
     tarih !== oturum.date ||
     saat !== oturum.timeSlot ||
     salon !== oturum.salonlar.join(' - ') ||
@@ -3874,9 +3838,6 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
   const [veri, setVeri] = useState(null);
   const [fakulteId, setFakulteId] = useState(currentUser?.facultyId || '');
   const [sekme, setSekme] = useState('tab:0');
-  // Görünüm: 'hafta' — bütün hafta tek tabloda (gün adı solda dikey);
-  // 'gun' — her gün ayrı sekme. Excel çıktısı da seçili görünümü izler.
-  const [gorunum, setGorunum] = useState('hafta');
   const [taslakDahil, setTaslakDahil] = useState(true);
   const [secilen, setSecilen] = useState(null);
   const [ayarTaslak, setAyarTaslak] = useState(null);
@@ -3890,7 +3851,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
     ['sinav_programi', 'sinav_gonderimleri', 'sinav_fakulte_ayarlari', 'sinav_donemler'].forEach(
       (k) => window.apiInvalidate && window.apiInvalidate(k)
     );
-    const [donemler, sinavlar, gonderimler, ayarlar, fakulteler, akademisyenler] =
+    const [donemler, sinavlar, gonderimler, ayarlar, fakulteler, akademisyenler, bolumKayitlari] =
       await Promise.all([
         window.apiRead('sinav_donemler').catch(() => []),
         window.apiRead('sinav_programi').catch(() => []),
@@ -3898,6 +3859,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         window.apiRead('sinav_fakulte_ayarlari').catch(() => []),
         window.apiRead('faculties').catch(() => []),
         window.apiRead('professors').catch(() => []),
+        window.apiRead('departments').catch(() => []),
       ]);
     const dizi = (x) => (Array.isArray(x) ? x : []);
     setVeri({
@@ -3907,6 +3869,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
       ayarlar: dizi(ayarlar),
       fakulteler: dizi(fakulteler),
       akademisyenler: dizi(akademisyenler),
+      bolumKayitlari: dizi(bolumKayitlari),
     });
   }, []);
 
@@ -4013,16 +3976,75 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
     (x) => x.durum === 'gonderildi' || x.durum === 'degisti'
   ).length;
 
+  // Bir bölümün gözetmenleri: o bölümde gözetmen olan ve ANA bölümü bu
+  // fakültede olan akademisyenler. Başka fakülteden olup burada yalnız ders
+  // veren (ek bölüm olarak bağlı) hoca listeye girmez.
+  const bolumGozetmenleri = useCallback(
+    (b) => {
+      const G = window.Gozetmen || {};
+      const gomulu = window.DEPARTMENTS || [];
+      return ((veri && veri.akademisyenler) || [])
+        .filter(
+          (p) =>
+            p &&
+            p.name &&
+            (G.bolumGozetmeniMi
+              ? G.bolumGozetmeniMi(p, b.id, gomulu, b.name)
+              : (p.roles || []).includes('gozetmen')) &&
+            (!SF || SF.fakulteAkademisyeniMi(p, bolumler, tumBolumler))
+        )
+        .sort((x, y) => (x.name || '').localeCompare(y.name || '', 'tr'));
+    },
+    [SF, veri, bolumler, tumBolumler]
+  );
+
+  // Salonu/gözetmeni girilmemiş sınavlar şablona otomatik yerleşir (bölümün
+  // "Salon ve gözetmen ata" kuralıyla; kaydedilmez, öneridir).
+  const yerlesim = useMemo(() => {
+    if (!SF || !veri || !grup) return null;
+    const G = window.Gozetmen || {};
+    return fakulteOtomatikYerlesim(
+      bolumDurumlari.map((x) => {
+        const kayit = G.bolumKaydiniBul ? G.bolumKaydiniBul(veri.bolumKayitlari, x.bolum.id) : null;
+        const havuz = bolumGozetmenleri(x.bolum);
+        return {
+          bolumId: x.bolum.id,
+          sinavlar: x.sinavlar,
+          gozetmenAdlari: havuz.map((p) => p.name),
+          kurallar: {
+            hocaKurali: kayit && kayit.gozetmenKurali,
+            sayiKurali: kayit && kayit.gozetmenSayiKurali,
+          },
+          musaitsizlik: window.gozetmenMusaitsizlikHaritasi
+            ? window.gozetmenMusaitsizlikHaritasi(havuz)
+            : {},
+        };
+      }),
+      fakulteSalonListesi(ayar)
+    );
+  }, [SF, veri, grup, bolumDurumlari, bolumGozetmenleri, ayar]);
+  const yerlesik = useCallback(
+    (liste) => liste.map((e) => (yerlesim && yerlesim.get(e.id)) || e),
+    [yerlesim]
+  );
+  const otomatikYerlesenler = useMemo(
+    () => (yerlesim ? [...yerlesim.values()].filter((e) => e.oneriSalon || e.oneriGozetmen) : []),
+    [yerlesim]
+  );
+
   const kitap = useMemo(() => {
     if (!SF || !grup) return null;
     const dahil = bolumDurumlari
       .filter((x) => taslakDahil || x.durum === 'gonderildi' || x.durum === 'degisti')
       .flatMap((x) => x.sinavlar);
     return SF.fakulteKitabi({
-      sinavlar: dahil,
+      sinavlar: yerlesik(dahil),
       salonlar: fakulteSalonListesi(ayar),
       bolumler,
       ayar,
+      // Gün sekmeleri dönemin bütün hafta içi günlerini kapsar: sınavı
+      // olmayan gün de (ör. hiç sınav konmamış Cuma) görünür.
+      ekGunler: [grup.bas, grup.bit].filter(Boolean),
       // Canlı görünüm: göndermemiş (ya da iade edilmiş) bölümün sınavı taslak,
       // gönderimden sonra değişmiş olanı ayrı işaretlenir.
       taslakBolumler: bolumDurumlari
@@ -4030,7 +4052,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         .map((x) => x.bolum.id),
       degisenBolumler: bolumDurumlari.filter((x) => x.durum === 'degisti').map((x) => x.bolum.id),
     });
-  }, [SF, grup, bolumDurumlari, taslakDahil, ayar, bolumler]);
+  }, [SF, grup, bolumDurumlari, taslakDahil, ayar, bolumler, yerlesik]);
 
   // ── Fakülte yetkilisinin seçenekleri: bütün salonlar ve gözetmenler ──
   const salonSecenekleri = useMemo(
@@ -4042,26 +4064,17 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
     [ayar]
   );
   const gozetmenSecenekleri = useMemo(() => {
-    const G = window.Gozetmen || {};
-    const gomulu = window.DEPARTMENTS || [];
     const out = [];
     const gorulen = new Set();
     bolumler.forEach((b) =>
-      ((veri && veri.akademisyenler) || [])
-        .filter((p) =>
-          G.bolumGozetmeniMi
-            ? G.bolumGozetmeniMi(p, b.id, gomulu, b.name)
-            : (p.roles || []).includes('gozetmen')
-        )
-        .sort((x, y) => (x.name || '').localeCompare(y.name || '', 'tr'))
-        .forEach((p) => {
-          if (!p.name || gorulen.has(p.name)) return;
-          gorulen.add(p.name);
-          out.push({ deger: p.name, etiket: p.name, grup: b.name });
-        })
+      bolumGozetmenleri(b).forEach((p) => {
+        if (gorulen.has(p.name)) return;
+        gorulen.add(p.name);
+        out.push({ deger: p.name, etiket: p.name, grup: b.name });
+      })
     );
     return out;
-  }, [veri, bolumler]);
+  }, [bolumler, bolumGozetmenleri]);
   const gunSecenekleri = useMemo(
     () =>
       SF && grup
@@ -4134,8 +4147,15 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
     if (d.timeSlot !== o.timeSlot) yama.timeSlot = d.timeSlot;
     const salonDegisti = d.room !== o.salonlar.join(' - ');
     const gozetmenDegisti = d.supervisor !== o.gozetmenler.join(', ');
-    if (salonDegisti) Object.assign(yama, { room: d.room, otomatikSalon: false });
-    if (gozetmenDegisti) Object.assign(yama, { supervisor: d.supervisor, otomatikGozetmen: false });
+    // Otomatik yerleşen (kayıtsız) salon/gözetmen, oturum kaydedilince yazılır.
+    const salonOnerisi = o.uyeler.some((u) => u.oneriSalon);
+    const gozetmenOnerisi = o.uyeler.some((u) => u.oneriGozetmen);
+    if (salonDegisti || salonOnerisi) {
+      Object.assign(yama, { room: d.room, otomatikSalon: !salonDegisti });
+    }
+    if (gozetmenDegisti || gozetmenOnerisi) {
+      Object.assign(yama, { supervisor: d.supervisor, otomatikGozetmen: !gozetmenDegisti });
+    }
     if (Object.keys(yama).length === 0) return Promise.resolve();
     return sinavYaz(
       o.uyeler.map((u) => ({
@@ -4273,6 +4293,38 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
 
   // Resmî Excel varsayılan olarak YALNIZ gönderilmiş programlardan üretilir;
   // taslakları da içeren çıktı ayrıca seçilir (taslak hücreler kesik çizgili).
+  // Otomatik yerleşimi kaydet: önerilen salon/gözetmen sınav kaydına yazılır
+  // (bölümün "Salon ve gözetmen ata" düğmesi gibi otomatik işaretiyle;
+  // bölüm "Otomatik atamayı temizle" ile geri alabilir).
+  const yerlesimiKaydet = () => {
+    if (otomatikYerlesenler.length === 0) return;
+    const salonSayisi = otomatikYerlesenler.filter((e) => e.oneriSalon).length;
+    const gozetmenSayisi = otomatikYerlesenler.filter((e) => e.oneriGozetmen).length;
+    if (
+      !window.confirm(
+        otomatikYerlesenler.length +
+          ' sınava otomatik yerleşim yazılacak (' +
+          salonSayisi +
+          ' salon, ' +
+          gozetmenSayisi +
+          ' gözetmen ataması). Elle girilenler değişmez.\n\nKaydedilsin mi?'
+      )
+    )
+      return;
+    sinavYaz(
+      otomatikYerlesenler.map((e) => ({
+        collection: 'sinav_programi',
+        type: 'update',
+        docId: e.id,
+        data: {
+          ...(e.oneriSalon ? { room: e.room, otomatikSalon: true } : {}),
+          ...(e.oneriGozetmen ? { supervisor: e.supervisor, otomatikGozetmen: true } : {}),
+        },
+      })),
+      'Otomatik yerleşim kaydedilemedi'
+    );
+  };
+
   const excel = (taslakDahilExcel) => {
     if (!SF || !grup) return;
     const gonderilen = (x) => x.durum === 'gonderildi' || x.durum === 'degisti';
@@ -4294,10 +4346,11 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
       return;
     }
     const k = SF.fakulteKitabi({
-      sinavlar,
+      sinavlar: yerlesik(sinavlar),
       salonlar: fakulteSalonListesi(ayar),
       bolumler,
       ayar,
+      ekGunler: [grup.bas, grup.bit].filter(Boolean),
       taslakBolumler: taslakDahilExcel
         ? bolumDurumlari.filter((x) => !gonderilen(x)).map((x) => x.bolum.id)
         : [],
@@ -4310,11 +4363,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         (grup ? grup.etiket : 'Sinav') +
         '_Programi' +
         (taslakDahilExcel ? '_TASLAK' : '')
-      ).replace(/[^\wğüşıöçĞÜŞİÖÇ-]+/g, '_'),
-      {
-        haftalik: gorunum === 'hafta',
-        baslik: (fakulteAdi ? fakulteAdi + ' — ' : '') + (grup ? grup.etiket : 'Sınav Programı'),
-      }
+      ).replace(/[^\wğüşıöçĞÜŞİÖÇ-]+/g, '_')
     );
   };
 
@@ -4335,33 +4384,12 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
     fontWeight: 700,
   };
 
-  // Tablo, fakültenin haftalık Excel'iyle aynı düzende: en üstte dönem
-  // başlığı, tek başlık satırı (Gün | Ders Saati | salon (kapasite)), en
-  // solda dikey gün adı, yanında saat sütunu, öğle arası açık yeşil şerit.
-  // Her günün kendi tablo modeli (gunTablosu) salon adına göre ortak
-  // sütunlara yerleştirilir; salonu girilmemiş oturumlar en sağdaki
-  // "Salonu girilmemiş" sütununda görünür.
-  const tabloCiz = (gunListesi, haftalik) => {
-    const sutunlar = [];
-    gunListesi.forEach((g) =>
-      g.tablo.salonlar.forEach((x) => {
-        if (!sutunlar.some((y) => y.name === x.name)) sutunlar.push(x);
-      })
-    );
-    // Sanal sütun her zaman en sağda.
-    sutunlar.sort((x, y) => Number(!!x.sanal) - Number(!!y.sanal));
-    const salonsuzSayisi = gunListesi.reduce((t, g) => t + g.salonsuz.length, 0);
-    const GUN_G = 46;
-    const SAAT_G = 96;
-    const BASLIK_Y = 30;
-    const solStil = (k) => ({
-      ...hucreStili,
-      position: 'sticky',
-      left: k === 0 ? 0 : GUN_G,
-      background: '#F8FAFC',
-      fontWeight: 600,
-      zIndex: 1,
-    });
+  // Gün tablosu — dekanlık şablonu: DERSLİKLER / Kapasite / Saatler +
+  // salonlar; sınav hücresi süresince birleşir. Otomatik yerleşen (henüz
+  // kaydedilmemiş) oturum "oto" rozetiyle işaretlenir. Otomatik atamanın da
+  // yerleştiremediği oturum en sağdaki "Salonu girilmemiş" sütununda kalır.
+  const tabloCiz = (g) => {
+    const t = g.tablo;
     const hucreGorunumu = (h) => {
       const st = {
         ...hucreStili,
@@ -4369,6 +4397,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         fontWeight: 600,
         cursor: 'pointer',
         outlineOffset: -3,
+        position: 'relative',
       };
       if (h.cakisma) st.outline = '3px solid #DC2626';
       else if (h.taslak) {
@@ -4377,10 +4406,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
       } else if (h.degisti) st.outline = '2px dashed #D97706';
       return st;
     };
-    const baslik =
-      (fakulteAdi ? fakulteAdi + ' — ' : '') +
-      (grup ? grup.etiket : 'Sınav Programı') +
-      (haftalik ? '' : ' — ' + gunListesi[0].kisa + ' ' + gunListesi[0].gun);
+    const sanalBas = { background: '#FEF3C7', color: '#92400E' };
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div
@@ -4396,183 +4422,130 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             <thead>
               <tr>
                 <th
-                  colSpan={2 + sutunlar.length}
+                  style={{ ...hucreStili, ...sabitBas, top: 0, left: 0, zIndex: 4, minWidth: 92 }}
+                >
+                  {g.kisa} {g.gun}
+                </th>
+                <th
+                  colSpan={t.salonlar.length}
                   style={{
                     ...hucreStili,
                     ...sabitBas,
                     top: 0,
-                    height: BASLIK_Y,
-                    background: '#FFFFFF',
-                    fontSize: 14,
-                    fontWeight: 800,
-                    textAlign: 'left',
+                    background: '#FFFF00',
+                    fontSize: 12,
                   }}
                 >
-                  <span style={{ position: 'sticky', left: 8 }}>{baslik}</span>
+                  DERSLİKLER
                 </th>
               </tr>
               <tr>
-                <th
-                  style={{
-                    ...hucreStili,
-                    ...sabitBas,
-                    top: BASLIK_Y,
-                    left: 0,
-                    zIndex: 4,
-                    minWidth: GUN_G,
-                    width: GUN_G,
-                  }}
-                >
-                  Gün
+                <th style={{ ...hucreStili, ...sabitBas, top: 22, left: 0, zIndex: 4 }}>
+                  Kapasite
                 </th>
-                <th
-                  style={{
-                    ...hucreStili,
-                    ...sabitBas,
-                    top: BASLIK_Y,
-                    left: GUN_G,
-                    zIndex: 4,
-                    minWidth: SAAT_G,
-                  }}
-                >
-                  Ders Saati
-                </th>
-                {sutunlar.map((x) => (
+                {t.salonlar.map((x) => (
+                  <th
+                    key={'k' + x.name}
+                    style={{ ...hucreStili, ...sabitBas, top: 22, ...(x.sanal ? sanalBas : {}) }}
+                  >
+                    {x.capacity}
+                  </th>
+                ))}
+              </tr>
+              <tr>
+                <th style={{ ...hucreStili, ...sabitBas, top: 44, left: 0, zIndex: 4 }}>Saatler</th>
+                {t.salonlar.map((x) => (
                   <th
                     key={'s' + x.name}
                     title={
                       x.sanal
-                        ? salonsuzSayisi +
-                          ' oturumun salonu girilmemiş — bölümün "Salon ve gözetmen ata" adımıyla ya da hücreye tıklayıp atanır.'
+                        ? 'Otomatik atamanın boş salon bulamadığı oturumlar — hücreye tıklayıp salon atayın.'
                         : undefined
                     }
                     style={{
                       ...hucreStili,
                       ...sabitBas,
-                      top: BASLIK_Y,
+                      top: 44,
                       minWidth: 128,
-                      whiteSpace: 'pre-line',
-                      ...(x.sanal ? { background: '#FEF3C7', color: '#92400E' } : {}),
+                      ...(x.sanal ? sanalBas : {}),
                     }}
                   >
-                    {x.sanal
-                      ? x.name + '\n(' + salonsuzSayisi + ' oturum)'
-                      : x.name + (x.capacity ? '\n(' + x.capacity + ')' : '')}
+                    {x.name}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {gunListesi.map((g, gi) =>
-                g.tablo.satirlar.map((r, ri) => {
-                  const ust = ri === 0 && gi > 0 ? '3px solid #334155' : undefined;
-                  // Öğleye taşan sınav yoksa öğle arası tek şerit olur.
-                  const araSeridi = r.ara && sutunlar.length > 0 && r.hucreler.every((h) => !h);
-                  return (
-                    <tr key={g.tarih + r.etiket} style={{ height: r.ara ? 22 : 34 }}>
-                      {ri === 0 && (
+              {t.satirlar.map((r) => (
+                <tr key={r.etiket} style={{ height: r.ara ? 22 : 34 }}>
+                  <td
+                    style={{
+                      ...hucreStili,
+                      position: 'sticky',
+                      left: 0,
+                      background: r.ara ? '#DCFCE7' : '#F8FAFC',
+                      fontWeight: 600,
+                      fontSize: r.ara ? 10.5 : 11,
+                      zIndex: 1,
+                    }}
+                  >
+                    {r.ara ? 'Öğle arası ' + r.etiket : r.etiket}
+                  </td>
+                  {r.hucreler.map((h, j) => {
+                    const sutun = t.salonlar[j];
+                    if (h && h.gizli) return null;
+                    if (!h)
+                      return (
                         <td
-                          rowSpan={g.tablo.satirlar.length}
-                          style={{
-                            ...solStil(0),
-                            borderTop: ust,
-                            width: GUN_G,
-                            minWidth: GUN_G,
-                            padding: 0,
-                            zIndex: 2,
-                          }}
-                        >
-                          <div
-                            style={{
-                              writingMode: 'vertical-rl',
-                              transform: 'rotate(180deg)',
-                              margin: '0 auto',
-                              fontWeight: 800,
-                              fontSize: 12.5,
-                              letterSpacing: 0.5,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {g.gun} · {g.kisa}
-                          </div>
-                        </td>
-                      )}
-                      <td
-                        style={{
-                          ...solStil(1),
-                          borderTop: ust,
-                          background: r.ara ? '#C6EFCE' : '#F8FAFC',
-                          fontSize: r.ara ? 10.5 : 11,
-                          minWidth: SAAT_G,
-                        }}
-                      >
-                        {r.etiket}
-                      </td>
-                      {araSeridi ? (
-                        <td
-                          colSpan={sutunlar.length}
+                          key={j}
                           style={{
                             ...hucreStili,
-                            borderTop: ust,
-                            background: '#C6EFCE',
-                            fontSize: 10.5,
-                            fontWeight: 600,
-                            color: '#166534',
+                            background: r.ara ? '#F0FDF4' : sutun.sanal ? '#FFFBEB' : undefined,
                           }}
-                        >
-                          Öğle arası
-                        </td>
-                      ) : (
-                        sutunlar.map((sutun) => {
-                          const j = g.tablo.salonlar.findIndex((x) => x.name === sutun.name);
-                          const h = j >= 0 ? r.hucreler[j] : null;
-                          if (h && h.gizli) return null;
-                          if (!h)
-                            return (
-                              <td
-                                key={sutun.name}
-                                style={{
-                                  ...hucreStili,
-                                  borderTop: ust,
-                                  background: r.ara
-                                    ? '#C6EFCE'
-                                    : sutun.sanal
-                                      ? '#FFFBEB'
-                                      : undefined,
-                                }}
-                              />
-                            );
-                          return (
-                            <td
-                              key={sutun.name}
-                              rowSpan={h.satirSayisi}
-                              onClick={() =>
-                                setSecilen({
-                                  hucre: h,
-                                  salon: sutun.sanal ? 'Salonu girilmemiş' : sutun.name,
-                                  saat: (haftalik ? g.kisa + ' ' : '') + r.etiket,
-                                })
-                              }
-                              title={
-                                h.salonsuz
-                                  ? 'Salonu girilmemiş — tıklayıp salon atayın.'
-                                  : h.taslak
-                                    ? 'Taslak — bölüm programını henüz göndermedi. Ayrıntı için tıklayın.'
-                                    : h.degisti
-                                      ? 'Gönderimden sonra değişti. Ayrıntı için tıklayın.'
-                                      : 'Ayrıntı için tıklayın'
-                              }
-                              style={{ ...hucreGorunumu(h), borderTop: ust }}
-                            >
-                              {h.metin}
-                            </td>
-                          );
-                        })
-                      )}
-                    </tr>
-                  );
-                })
-              )}
+                        />
+                      );
+                    return (
+                      <td
+                        key={j}
+                        rowSpan={h.satirSayisi}
+                        onClick={() => setSecilen({ hucre: h, salon: sutun.name, saat: r.etiket })}
+                        title={
+                          h.salonsuz
+                            ? 'Boş salon bulunamadı — tıklayıp salon atayın.'
+                            : h.otomatik
+                              ? 'Otomatik yerleşti (henüz kaydedilmedi). Ayrıntı için tıklayın.'
+                              : h.taslak
+                                ? 'Taslak — bölüm programını henüz göndermedi. Ayrıntı için tıklayın.'
+                                : h.degisti
+                                  ? 'Gönderimden sonra değişti. Ayrıntı için tıklayın.'
+                                  : 'Ayrıntı için tıklayın'
+                        }
+                        style={hucreGorunumu(h)}
+                      >
+                        {h.otomatik && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: 1,
+                              right: 2,
+                              fontSize: 8.5,
+                              fontWeight: 800,
+                              color: '#fff',
+                              background: '#0F766E',
+                              borderRadius: 3,
+                              padding: '0 3px',
+                              lineHeight: '12px',
+                            }}
+                          >
+                            oto
+                          </span>
+                        )}
+                        {h.metin}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -4628,6 +4601,21 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 28, height: 14, borderRadius: 3, border: '3px solid #DC2626' }} />
           Aynı salonda çakışma
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span
+            style={{
+              fontSize: 9,
+              fontWeight: 800,
+              color: '#fff',
+              background: '#0F766E',
+              borderRadius: 3,
+              padding: '0 4px',
+            }}
+          >
+            oto
+          </span>
+          Otomatik yerleşti (kaydedilmedi)
         </span>
       </div>
     );
@@ -5281,13 +5269,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
   );
 
   const sekmeNo = sekme.startsWith('tab:') ? Number(sekme.slice(4)) : -1;
-  const aktifGunler = !kitap
-    ? null
-    : gorunum === 'hafta'
-      ? (kitap.haftalar[sekmeNo] || {}).gunler || null
-      : kitap.gunler[sekmeNo]
-        ? [kitap.gunler[sekmeNo]]
-        : null;
+  const aktifGun = kitap ? kitap.gunler[sekmeNo] || null : null;
 
   const sekmeDugmesi = (anahtar, etiket, ek) => (
     <button
@@ -5441,43 +5423,26 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             Taslakları göster
           </label>
           {yetkili && <GhostBtn onClick={ayarAc}>Ayarlar</GhostBtn>}
-          <div
-            role="group"
-            aria-label="Görünüm"
-            style={{
-              display: 'inline-flex',
-              border: '1px solid #CBD5E1',
-              borderRadius: 8,
-              overflow: 'hidden',
-            }}
-          >
-            {[
-              ['hafta', 'Haftalık'],
-              ['gun', 'Gün gün'],
-            ].map(([k, ad]) => (
-              <button
-                key={k}
-                type="button"
-                aria-pressed={gorunum === k}
-                onClick={() => {
-                  setGorunum(k);
-                  if (sekme.startsWith('tab:')) setSekme('tab:0');
-                }}
-                style={{
-                  height: 34,
-                  padding: '0 12px',
-                  border: 'none',
-                  background: gorunum === k ? '#0F766E' : '#fff',
-                  color: gorunum === k ? '#fff' : '#334155',
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                {ad}
-              </button>
-            ))}
-          </div>
+          {yetkili && otomatikYerlesenler.length > 0 && (
+            <button
+              type="button"
+              onClick={yerlesimiKaydet}
+              title="Salonu/gözetmeni girilmemiş sınavlar bölümün otomatik atama kuralıyla yerleştirildi (tabloda 'oto'). Kaydetmek için tıklayın."
+              style={{
+                height: 34,
+                padding: '0 10px',
+                border: '1px solid #0F766E',
+                borderRadius: 8,
+                background: '#F0FDFA',
+                color: '#0F766E',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Yerleşimi kaydet ({otomatikYerlesenler.length})
+            </button>
+          )}
           <Btn
             onClick={() => excel(false)}
             disabled={!kitap || kitap.gunler.length === 0}
@@ -5628,8 +5593,8 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
               {sekme === 'ayar' && ayarCiz()}
               {sekme === 'kisaltma' && kitap && kisaltmaCiz()}
               {sekme.startsWith('tab:') &&
-                (aktifGunler && aktifGunler.length ? (
-                  tabloCiz(aktifGunler, gorunum === 'hafta')
+                (aktifGun ? (
+                  tabloCiz(aktifGun)
                 ) : (
                   <div style={{ padding: 50, textAlign: 'center', color: '#94A3B8' }}>
                     {grup
@@ -5651,17 +5616,9 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             >
               {kitap && sekmeDugmesi('kisaltma', 'Kısaltmalar')}
               {kitap &&
-                (gorunum === 'hafta'
-                  ? kitap.haftalar.map((h, i) =>
-                      sekmeDugmesi(
-                        'tab:' + i,
-                        h.etiket,
-                        h.gunler.reduce((t, g) => t + g.oturumSayisi, 0) || null
-                      )
-                    )
-                  : kitap.gunler.map((g, i) =>
-                      sekmeDugmesi('tab:' + i, g.kisa + ' ' + g.kisaGun, g.oturumSayisi || null)
-                    ))}
+                kitap.gunler.map((g, i) =>
+                  sekmeDugmesi('tab:' + i, g.kisa + ' ' + g.kisaGun, g.oturumSayisi || null)
+                )}
               {yetkili && ayarTaslak && sekmeDugmesi('ayar', 'Ayarlar')}
             </div>
           </>
@@ -6129,10 +6086,14 @@ function SinavOtomasyonuApp({
         const gorulen = new Set();
         departments.forEach((d) => {
           (Array.isArray(hepsi) ? hepsi : [])
-            .filter((p) =>
-              G.bolumGozetmeniMi
-                ? G.bolumGozetmeniMi(p, d.id, bolumler, d.name)
-                : (p.roles || []).includes('gozetmen')
+            .filter(
+              (p) =>
+                (G.bolumGozetmeniMi
+                  ? G.bolumGozetmeniMi(p, d.id, bolumler, d.name)
+                  : (p.roles || []).includes('gozetmen')) &&
+                // Başka fakülteden olup burada yalnız ders veren hoca gözetmen değil.
+                (!window.SinavFakulte ||
+                  window.SinavFakulte.fakulteAkademisyeniMi(p, departments, bolumler))
             )
             .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'))
             .forEach((p) => {
@@ -7066,8 +7027,8 @@ function SinavOtomasyonuApp({
         (salonsuz ? salonsuz + ' sınavın salonu' : '') +
           (salonsuz && gozetmensiz ? ', ' : '') +
           (gozetmensiz ? gozetmensiz + ' sınavın gözetmeni' : '') +
-          ' kayıtlı değil. Fakülte tablosunda salonsuz sınav "Salonu girilmemiş" sütununda, gözetmensiz sınav ' +
-          'gözetmensiz görünür. Önce "Salon ve Gözetmen Ata" kullanmanız önerilir.\n\n' +
+          ' kayıtlı değil. Fakülte tablosunda salonu/gözetmeni girilmemiş sınav otomatik atama kuralıyla ' +
+          'öneri olarak yerleşir. Önce "Salon ve Gözetmen Ata" kullanmanız önerilir.\n\n' +
           'Yine de gönderilsin mi?'
       )
     )

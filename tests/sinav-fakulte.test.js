@@ -19,6 +19,7 @@ import {
   gonderimDurumu,
   HOCA_ETIKETI,
   SALONSUZ_ETIKETI,
+  fakulteAkademisyeniMi,
   ORTAK_RENK,
 } from '../lib/sinav-fakulte.js';
 
@@ -622,5 +623,48 @@ describe('salonu girilmemiş oturumlar', () => {
       bolumler: BOLUMLER,
     });
     expect(k.gunler[0].tablo.salonlar.some((x) => x.sanal)).toBe(false);
+  });
+});
+
+describe('fakülte görünümü: gözetmen, günler, otomatik yerleşim', () => {
+  const fakBolum = [{ id: 'bilgisayar', kimlikler: ['6a1'] }, { id: 'makine' }];
+  const tum = [...fakBolum, { id: 'matematik', kimlikler: ['6b9'] }];
+
+  it('ana bölümü başka fakültede olan hoca fakültenin gözetmeni sayılmaz', () => {
+    expect(fakulteAkademisyeniMi({ departmentId: 'matematik' }, fakBolum, tum)).toBe(false);
+    expect(fakulteAkademisyeniMi({ departmentId: '6b9' }, fakBolum, tum)).toBe(false);
+    expect(fakulteAkademisyeniMi({ departmentId: '6a1' }, fakBolum, tum)).toBe(true);
+    expect(fakulteAkademisyeniMi({ departmentId: 'makine' }, fakBolum, tum)).toBe(true);
+    // ana bölümü bilinmeyen kayıt dışarıda bırakılmaz
+    expect(fakulteAkademisyeniMi({ departmentId: '' }, fakBolum, tum)).toBe(true);
+    expect(fakulteAkademisyeniMi({ departmentId: 'bilinmeyen' }, fakBolum, tum)).toBe(true);
+  });
+
+  it('dönem sınırı verilince sınavı olmayan Cuma da gün listesinde', () => {
+    const g = sinavGunleri(
+      [{ date: '2026-11-09' }, { date: '2026-11-12' }],
+      ['2026-11-09', '2026-11-15']
+    );
+    expect(g.map((x) => x.kisaGun)).toEqual(['Pzt', 'Sal', 'Çar', 'Per', 'Cum']);
+  });
+
+  it('otomatik yerleşen sınavın oturumu ve hücresi işaretlenir', () => {
+    const k = fakulteKitabi({
+      sinavlar: [
+        {
+          id: '1',
+          code: 'A',
+          date: '2026-06-15',
+          timeSlot: '09:00',
+          room: 'M10Z04',
+          oneriSalon: true,
+          departmentId: 'bilgisayar',
+        },
+      ],
+      salonlar: SALONLAR,
+      bolumler: BOLUMLER,
+    });
+    const h = k.gunler[0].tablo.satirlar.flatMap((r) => r.hucreler).find((x) => x && !x.gizli);
+    expect(h.otomatik).toBe(true);
   });
 });
