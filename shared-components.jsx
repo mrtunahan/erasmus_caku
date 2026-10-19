@@ -105,6 +105,7 @@ import {
 import * as GozetmenKurallari from './lib/gozetmen.js';
 import * as SinavBirlesim from './lib/sinav-birlesim.js';
 import * as SinavFakulte from './lib/sinav-fakulte.js';
+import * as SalonKullanim from './lib/salon-kullanim.js';
 import { GozetmenKurallariPaneli } from './gozetmen-kurallari.jsx';
 import {
   DUZENLENEBILIR_ALANLAR as MUAFIYET_DUZENLENEBILIR_ALANLAR,
@@ -15654,6 +15655,8 @@ window.Gozetmen = GozetmenKurallari;
 window.DersOdasi = DersOdasi;
 window.SinavBirlesim = SinavBirlesim;
 window.SinavFakulte = SinavFakulte;
+// Salon sınavda mı, ders programında mı (Bölüm Yönetimi → Sınıf / Salon).
+window.SalonKullanim = SalonKullanim;
 window.GozetmenKurallariPaneli = GozetmenKurallariPaneli;
 window.belgeGonderimHataMetni = gonderimHataMetni;
 window.belgeGonderimBilgiMetni = gonderimBilgiMetni;

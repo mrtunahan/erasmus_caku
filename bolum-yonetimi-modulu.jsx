@@ -485,7 +485,11 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   // ── Sınıf/Salon Yönetimi ──
   const startClassEdit = (c) => {
     setEditingItem(c || 'new');
-    setForm({ name: c?.name || '', capacity: c?.capacity || '' });
+    setForm({
+      name: c?.name || '',
+      capacity: c?.capacity || '',
+      kullanim: window.SalonKullanim ? window.SalonKullanim.salonKullanimi(c) : 'her_ikisi',
+    });
   };
   const handleClassSave = async () => {
     if (!form.name.trim()) return alert('Salon adı gerekli');
@@ -494,6 +498,8 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
       const data = {
         name: form.name.trim(),
         capacity: parseInt(form.capacity) || 0,
+        // Sınavda mı, ders programında mı, ikisinde mi (lib/salon-kullanim.js).
+        kullanim: form.kullanim || 'her_ikisi',
         departmentId: activeDepartment,
       };
       if (editingItem === 'new') {
@@ -846,7 +852,9 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                 baslik="Sınıf / Salon"
                 aciklama={
                   'Sınav ve ders programı yerleştirmesi bu listedeki salonları kullanır. ' +
-                  'Kapasite, sınav oturumu planlanırken dikkate alınır.'
+                  '"Kullanım" ile her salonun sınavda mı, ders programında mı, ikisinde mi ' +
+                  'kullanılacağını belirleyin: otomatik sınav salonu ataması yalnız sınav ' +
+                  'salonlarına yapılır. Kapasite, sınav oturumu planlanırken dikkate alınır.'
                 }
                 islem={<Btn onClick={() => startClassEdit()}>+ Yeni Sınıf / Salon</Btn>}
               />
@@ -933,19 +941,21 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                       yutuyor ve başlık satırın ortasında asılı kalıyordu. */}
                     <colgroup>
                       <col />
+                      <col style={{ width: 190 }} />
                       <col style={{ width: 140 }} />
                       <col style={{ width: 160 }} />
                     </colgroup>
                     <thead>
                       <tr>
                         <th style={byTh}>Sınıf/Salon Adı</th>
+                        <th style={{ ...byTh, textAlign: 'center' }}>Kullanım</th>
                         <th style={{ ...byTh, textAlign: 'center' }}>Kapasite</th>
                         <th style={{ ...byTh, textAlign: 'center' }}>İşlem</th>
                       </tr>
                     </thead>
                     <tbody>
                       {classrooms.length === 0 && (
-                        <BYTabloBos kolon={3}>
+                        <BYTabloBos kolon={4}>
                           Bu bölümde tanımlı sınıf/salon yok. Yukarıdaki “Yeni Sınıf / Salon”
                           düğmesiyle ekleyebilirsiniz.
                         </BYTabloBos>
@@ -953,6 +963,23 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                       {classrooms.map((c) => (
                         <tr key={c.id}>
                           <td style={{ ...byTd, fontWeight: 600 }}>{c.name}</td>
+                          <td style={{ ...byTd, textAlign: 'center' }}>
+                            {(() => {
+                              const SK = window.SalonKullanim;
+                              const k = SK ? SK.salonKullanimi(c) : 'her_ikisi';
+                              const renk =
+                                k === 'sinav'
+                                  ? ['#9A3412', '#FFEDD5']
+                                  : k === 'ders'
+                                    ? ['#1E40AF', '#DBEAFE']
+                                    : ['#334155', '#F1F5F9'];
+                              return (
+                                <BYRozet renk={renk[0]} zemin={renk[1]}>
+                                  {SK ? SK.salonKullanimEtiketi(c) : 'Sınav ve ders programı'}
+                                </BYRozet>
+                              );
+                            })()}
+                          </td>
                           <td style={{ ...byTd, textAlign: 'center' }}>
                             {c.capacity ? (
                               <BYRozet renk={BY.tealText} zemin={BY.tealPale}>
@@ -1280,6 +1307,34 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                 value={form.capacity}
                 onChange={(e) => setForm({ ...form, capacity: e.target.value })}
               />
+            </FormField>
+            <FormField label="Kullanım">
+              <select
+                value={form.kullanim || 'her_ikisi'}
+                onChange={(e) => setForm({ ...form, kullanim: e.target.value })}
+                style={{
+                  width: '100%',
+                  height: 38,
+                  padding: '0 10px',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: 8,
+                  fontSize: 13.5,
+                  background: '#fff',
+                }}
+              >
+                {(window.SalonKullanim
+                  ? window.SalonKullanim.SALON_KULLANIMLARI
+                  : [{ deger: 'her_ikisi', etiket: 'Sınav ve ders programı' }]
+                ).map((x) => (
+                  <option key={x.deger} value={x.deger}>
+                    {x.etiket}
+                  </option>
+                ))}
+              </select>
+              <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 4 }}>
+                Otomatik sınav salonu ataması yalnız sınavda kullanılan salonlara yapılır; ders
+                programı derslik listesi yalnız ders programında kullanılanları gösterir.
+              </div>
             </FormField>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <GhostBtn onClick={() => setEditingItem(null)} style={{ color: '#64748B' }}>
