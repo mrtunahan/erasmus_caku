@@ -202,6 +202,42 @@ function bolumKaydiKarari(koleksiyon, op, mevcut, alan) {
 }
 
 /**
+ * Başka bölümün akademisyenini KENDİ bölümüne ek bölüm olarak bağlama
+ * (Kullanıcı Yönetimi → "Var Olan Akademisyenden Ekle") ya da bu bağı
+ * kaldırma. Akademisyen kaydı ana bölümüne aittir; bölüm yetkilisi o kayda
+ * genel olarak yazamaz. Ama yalnız `additionalDepartments` listesinde KENDİ
+ * alanındaki bölümü ekleyip çıkarıyorsa izin verilir: başka bölümlerin
+ * bağlarına ve kaydın diğer alanlarına dokunamaz.
+ * @returns {{izin:boolean, hata?:string}}
+ */
+function ekBolumKarari(op, mevcut, alan) {
+  if (alan && alan.tur === 'universite') return { izin: true };
+  const veri = (op && op.data) || {};
+  const birlesik = op && (op.type === 'update' || (op.type === 'set' && op.merge));
+  if (!birlesik || !mevcut) {
+    return { izin: false, hata: 'Ek bölüm ataması yalnız mevcut kayda güncelleme olarak yazılır.' };
+  }
+  const fazla = Object.keys(veri).filter((k) => k !== 'additionalDepartments' && k !== 'updatedAt');
+  if (fazla.length) return { izin: false, hata: 'Yalnız kendi bölümünüzde işlem yapabilirsiniz.' };
+  const yeni = veri.additionalDepartments;
+  if (!Array.isArray(yeni) || yeni.some((x) => typeof x !== 'string')) {
+    return { izin: false, hata: 'Ek bölüm listesi geçersiz.' };
+  }
+  const eski = Array.isArray(mevcut.additionalDepartments)
+    ? mevcut.additionalDepartments.map(metin)
+    : [];
+  const yeniM = yeni.map(metin);
+  const degisen = [
+    ...yeniM.filter((x) => !eski.includes(x)),
+    ...eski.filter((x) => !yeniM.includes(x)),
+  ];
+  if (degisen.some((b) => !bolumAlanda(alan, b))) {
+    return { izin: false, hata: 'Yalnız kendi bölümünüze ek bölüm ataması yapabilirsiniz.' };
+  }
+  return { izin: true };
+}
+
+/**
  * Yapısal kayıtlar: bölüm, fakülte, üniversite, kurum ayarı.
  * Rol kapısı (kim yazabilir) routes/db.js'te; burada YER denetlenir.
  */
@@ -310,6 +346,7 @@ module.exports = {
   bolumAlanda,
   fakulteAlanda,
   bolumKaydiKarari,
+  ekBolumKarari,
   yapisalKarar,
   yayinKapsamKarari,
   kaydinBolumleri,

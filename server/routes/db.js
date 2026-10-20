@@ -19,6 +19,7 @@ const {
 const {
   yetkiAlani,
   bolumKaydiKarari,
+  ekBolumKarari,
   yapisalKarar,
   yayinKapsamKarari,
   basvurulariSuz,
@@ -1321,7 +1322,15 @@ async function enforceWritePolicies(db, op, user) {
           const alanlar = Object.keys(op.data || {}).filter(
             (k) => k !== 'gozetmenBolumleri' && k !== 'updatedAt'
           );
-          if (op.type === 'delete' || op.type === 'add' || alanlar.length > 0) {
+          // Başka bölümün akademisyenini kendi bölümüne ek bölüm olarak
+          // bağlamak/çözmek: yalnız kendi bölümünü ekleyip çıkarabilir.
+          const yalnizEkBolum =
+            alanlar.length === 1 &&
+            alanlar[0] === 'additionalDepartments' &&
+            op.type !== 'delete' &&
+            op.type !== 'add';
+          if (yalnizEkBolum) karar = ekBolumKarari(op, mevcut, alan);
+          else if (op.type === 'delete' || op.type === 'add' || alanlar.length > 0) {
             karar = bolumKaydiKarari(op.collection, op, mevcut, alan);
           }
         } else karar = bolumKaydiKarari(op.collection, op, mevcut, alan);
