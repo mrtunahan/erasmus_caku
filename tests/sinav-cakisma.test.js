@@ -7,6 +7,7 @@ import {
   dakikaya,
   gozetmenleri,
   kabulKaydi,
+  kabulBelgeKimligi,
   programHazirMi,
   salonlari,
   zamanCakisiyorMu,
@@ -393,5 +394,28 @@ describe('fakülte geneli: ad eşleşmesi, hoca ve ortak öğrenci', () => {
     const a = t('a', 'X', { room: 'M1', supervisor: 'Ali Veli' });
     const b = t('b', 'Y', { room: 'M2', supervisor: 'Ali Veli' });
     expect(cakismalariBul([a, b])[0].anahtar).toBe(cakismaAnahtari('gozetmen', a, b, 'Ali Veli'));
+  });
+});
+
+describe('kabul kaydının belge kimliği', () => {
+  const { gecerliKimlik } = require('../server/lib/yazma-girdisi.js');
+  it('anahtarda "|" ve ad olsa da sunucunun kimlik kuralından geçer, sabittir', () => {
+    const anahtar =
+      'kisi|dr. öğr. üyesi celalettin kaya|MAT221|2026-11-09|08:30|MAT241|2026-11-09|08:30';
+    const k = kabulBelgeKimligi(anahtar);
+    expect(gecerliKimlik(anahtar)).toBe(false);
+    expect(gecerliKimlik(k)).toBe(true);
+    expect(kabulBelgeKimligi(anahtar)).toBe(k);
+    expect(kabulBelgeKimligi(anahtar + 'x')).not.toBe(k);
+  });
+
+  it('kabul kaydı kimliği taşır', () => {
+    const k = kabulKaydi(
+      { kabulEdilebilir: true, anahtar: 'salon|M1|a|b', tur: 'salon' },
+      'Kapasite yeterli',
+      { name: 'X' }
+    );
+    expect(k.kayit.kimlik).toBe(kabulBelgeKimligi('salon|M1|a|b'));
+    expect(k.kayit.anahtar).toBe('salon|M1|a|b');
   });
 });

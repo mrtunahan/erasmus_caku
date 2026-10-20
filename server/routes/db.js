@@ -278,8 +278,9 @@ const ALLOWED_COLLECTIONS = [
   'sinav_programi',
   'sinav_dersler',
   'sinav_donemler',
-  // SINAV ÇAKIŞMA ŞARTLI KABULLERİ — doc id = çakışma anahtarı (tür|salon|
-  // sınav|sınav, sıralı). Çakışma İKİ BÖLÜMÜ birden ilgilendirebiliyor
+  // SINAV ÇAKIŞMA ŞARTLI KABULLERİ — kayıt `anahtar` alanında çakışma
+  // anahtarını (tür|salon|sınav|sınav, sıralı) taşır; belge kimliği bu
+  // anahtarın güvenli özetidir (lib/sinav-cakisma.js → kabulBelgeKimligi). Çakışma İKİ BÖLÜMÜ birden ilgilendirebiliyor
   // (fakültede bir salonda iki bölümün sınavı); kabul ortak bir kayıtta
   // durur ki iki taraf da aynı kararı görsün. Yalnız bölüm yetkilisi ve
   // üstü yazar — kabul, sorumluluğu üstlenen bir imzadır.
