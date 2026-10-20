@@ -398,3 +398,46 @@ describe('ciktiSatirlariniBirlestir', () => {
     expect(out[0].durationStr).toBe('90 dk');
   });
 });
+
+describe('aynı öğretim elemanı: ayrı eklenemez, birleştirilir', () => {
+  const K = 'Dr. Öğr. Üyesi Celalettin KAYA';
+  const mevcut = [
+    {
+      id: 'e1',
+      code: 'MAT221',
+      name: 'Lineer Cebir',
+      sinif: 2,
+      professor: K,
+      date: '2026-11-10',
+      timeSlot: '08:30',
+      duration: 60,
+    },
+  ];
+  it('farklı sınıf, farklı ders ama aynı hoca → ayrı eklenemez', () => {
+    const k = yerlestirmeSecenekleri(
+      {
+        id: 'c2',
+        code: 'MAT241',
+        name: 'Diferansiyel',
+        sinif: 1,
+        professor: 'DR. ÖĞR. ÜYESİ CELALETTİN KAYA',
+      },
+      '2026-11-10',
+      '08:30',
+      mevcut
+    );
+    expect(k.ayriEklenebilir).toBe(false);
+    expect(k.oturumlar[0].ayniHoca).toBe('DR. ÖĞR. ÜYESİ CELALETTİN KAYA');
+    expect(k.engel).toMatch(/öğretim elemanı iki sınavda birden bulunamaz/);
+  });
+  it('başka hoca ve başka sınıf → ayrı eklenebilir', () => {
+    const k = yerlestirmeSecenekleri(
+      { id: 'c3', code: 'FIZ101', name: 'Fizik', sinif: 1, professor: 'Dr. Başka HOCA' },
+      '2026-11-10',
+      '08:30',
+      mevcut
+    );
+    expect(k.ayriEklenebilir).toBe(true);
+    expect(k.oturumlar[0].ayniHoca).toBe('');
+  });
+});
