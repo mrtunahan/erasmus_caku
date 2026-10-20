@@ -451,3 +451,32 @@ describe('denetim düzeltmeleri — çakışma', () => {
     expect(k1).toBe(k2);
   });
 });
+
+describe('oturumun kendi kapasitesi', () => {
+  it('birleşik oturum salonuna sığmazsa engeldir', () => {
+    const ortak = {
+      date: '2026-11-09',
+      timeSlot: '09:00',
+      duration: 60,
+      room: 'M11101',
+      birlesimId: 'B1',
+    };
+    const c = cakismalariBul(
+      [
+        { id: 'a', code: 'BIL101', studentCount: 40, ...ortak },
+        { id: 'b', code: 'BIL203', studentCount: 35, ...ortak },
+      ],
+      { salonKapasiteleri: { M11101: 42 } }
+    );
+    const k = c.filter((x) => x.tur === 'kapasite');
+    expect(k).toHaveLength(1);
+    expect(k[0].seviye).toBe('engel');
+  });
+  it('kapasitesi bilinmeyen salon denetlenmez', () => {
+    const c = cakismalariBul(
+      [{ id: 'a', code: 'X', studentCount: 400, date: '2026-11-09', timeSlot: '09:00', room: 'Z' }],
+      {}
+    );
+    expect(c.filter((x) => x.tur === 'kapasite')).toHaveLength(0);
+  });
+});
