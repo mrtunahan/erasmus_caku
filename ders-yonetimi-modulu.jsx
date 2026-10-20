@@ -223,7 +223,8 @@ function DersListesiIceAktarModal({
           data: { ...data, duration: 30, studentCount: 0, createdAt: simdi },
         };
       });
-      await DBWrite.batch(ops);
+      // Sunucu tek istekte en çok 50 işlem kabul eder.
+      for (let i = 0; i < ops.length; i += 50) await DBWrite.batch(ops.slice(i, i + 50));
       if (window.audit) {
         window.audit('course_import', 'sinav_dersler', '', {
           meta: { dosya: dosyaAdi, yeni: yeniSayisi, guncellenen: guncelSayisi },

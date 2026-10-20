@@ -38,8 +38,37 @@ describe('sınav programı yazma kuralı (sunucu)', () => {
       sinavProgramiYazmaKarari(up({ timeSlot: '09:00' }), sinav, hoca, 'Dr. Başka HOCA').izin
     ).toBe(false);
     // ekleme
-    const ekle = { collection: 'sinav_programi', type: 'add', data: sinav };
-    expect(sinavProgramiYazmaKarari(ekle, null, hoca, benim).izin).toBe(true);
+    const ders = { departmentId: 'bilgisayar', professor: K };
+    const ekle = { collection: 'sinav_programi', type: 'add', data: { ...sinav, courseId: 'c1' } };
+    expect(sinavProgramiYazmaKarari(ekle, null, hoca, benim, { ders }).izin).toBe(true);
+    // derse bağlı olmayan, başkasının dersi ya da başka bölümde açılan sınav eklenemez
+    expect(sinavProgramiYazmaKarari(ekle, null, hoca, benim).izin).toBe(false);
+    expect(
+      sinavProgramiYazmaKarari(ekle, null, hoca, benim, { ders: { ...ders, professor: 'X' } }).izin
+    ).toBe(false);
+    expect(
+      sinavProgramiYazmaKarari(
+        { ...ekle, data: { ...ekle.data, departmentId: 'makine' } },
+        null,
+        hoca,
+        benim,
+        { ders }
+      ).izin
+    ).toBe(false);
+    // istemciyle aynı ad kuralı: unvan adın her yerinde, "Araş.", "Okt." …
+    expect(
+      sinavProgramiYazmaKarari(
+        up({ room: 'M1' }),
+        { ...sinav, professor: 'Araş. Gör. Ali VELİ' },
+        hoca,
+        'Ali Veli'
+      ).izin
+    ).toBe(true);
+    // dönem değiştirilemez
+    expect(
+      sinavProgramiYazmaKarari(up({ periodId: 'p9' }), { ...sinav, periodId: 'p1' }, hoca, benim)
+        .izin
+    ).toBe(false);
     // hocayı başkasına çevirip devralamaz, bölüm değiştiremez
     expect(sinavProgramiYazmaKarari(up({ professor: 'X' }), sinav, hoca, benim).izin).toBe(false);
     expect(sinavProgramiYazmaKarari(up({ departmentId: 'makine' }), sinav, hoca, benim).izin).toBe(
@@ -52,6 +81,14 @@ describe('sınav programı yazma kuralı (sunucu)', () => {
       professors: ['Prof. Dr. İlyas İNCİ', K],
     };
     expect(sinavProgramiYazmaKarari(up({ room: 'M1' }), ortak, hoca, benim).izin).toBe(true);
+  });
+  it('bölümü boş eski kayıt dönemin bölümüyle değerlendirilir', () => {
+    const eski = { ...sinav, departmentId: '', professor: 'Y' };
+    expect(
+      sinavProgramiYazmaKarari(up({ room: 'M1' }), eski, bolumYet, 'X', {
+        donemBolumu: 'bilgisayar',
+      }).izin
+    ).toBe(true);
   });
   it('bölüm/fakülte yetkilisi alanındaki bölümün kayıtlarını yazar', () => {
     expect(sinavProgramiYazmaKarari(up({ room: 'M1' }), sinav, bolumYet, 'X').izin).toBe(true);

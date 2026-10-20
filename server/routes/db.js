@@ -1308,6 +1308,32 @@ async function enforceWritePolicies(db, op, user) {
     op.data.kabulEden = String(user.identifier || '');
     op.data.tarih = new Date().toISOString();
   }
+  // Kabul yalnız çakışmanın bölümlerinden birinin (ya da fakültesinin)
+  // yetkilisince yazılır / geri alınır. Bölüm bilgisi olmayan eski kayıt serbest.
+  if (
+    op.collection === 'sinav_cakisma_kabul' &&
+    (user.role === 'professor' || user.role === 'bolum_yetkilisi')
+  ) {
+    const alan = await kullaniciAlani(db, user);
+    if (alan.tur !== 'universite') {
+      let kayit = op.data;
+      if (op.type === 'delete' && op.docId) {
+        try {
+          kayit = await findExistingDoc(db, op);
+        } catch (_) {
+          kayit = null;
+        }
+      }
+      const bolumler = Array.isArray(kayit && kayit.bolumler) ? kayit.bolumler : [];
+      if (bolumler.length > 0 && !bolumler.some((b) => bolumAlandaFn(alan, b))) {
+        return {
+          allow: false,
+          status: 403,
+          error: 'Bu çakışma yetki alanınızdaki bir bölümü ilgilendirmiyor.',
+        };
+      }
+    }
+  }
 
   // a2-sınav-programı) Sınav, sınav dönemi, ders ve salon kayıtları: bölüm
   // alanı ya da (akademisyen için) kendi dersi (server/lib/sinav-programi-yazma.js).
@@ -1324,7 +1350,24 @@ async function enforceWritePolicies(db, op, user) {
         mevcut = null;
       }
     }
-    const karar = sinavProgramiYazmaKarari(op, mevcut, alan, user.identifier);
+    // Sınavın dersi (akademisyen "kendi dersi" denetimi ve eklemede bölüm
+    // uyumu) ve bölümü boş eski kayıtta dönemin bölümü.
+    const ek = {};
+    if (op.collection === 'sinav_programi') {
+      const veri = op.data && typeof op.data === 'object' ? op.data : {};
+      const dersId = String((mevcut && mevcut.courseId) || veri.courseId || '');
+      const donemId = String((mevcut && mevcut.periodId) || veri.periodId || '');
+      try {
+        if (dersId) ek.ders = await findDocByAnyId(db, 'sinav_dersler', dersId);
+        if (mevcut && !mevcut.departmentId && donemId) {
+          const d = await findDocByAnyId(db, 'sinav_donemler', donemId);
+          ek.donemBolumu = (d && d.departmentId) || '';
+        }
+      } catch (_) {
+        /* okunamazsa kural yalnız sınav kaydına bakar */
+      }
+    }
+    const karar = sinavProgramiYazmaKarari(op, mevcut, alan, user.identifier, ek);
     if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
   }
 
@@ -2164,12 +2207,23 @@ async function enforceWritePolicies(db, op, user) {
       profil = profil || null;
     }
     const bolumler = await db.collection('departments').find({}).toArray();
+    // Kapsam bölüm kimliklerinin BÜTÜN biçimleriyle (slug / ObjectId) genişler:
+    // yoksa ekranın yazdığı biçim ile kapsamdaki biçim farklıysa reddediliyordu.
+    const kapsam = aktorKapsami(profil, bolumler);
+    try {
+      const alan = await kullaniciAlani(db, user);
+      if (kapsam && alan && alan.bolumler) {
+        kapsam.departmentIds = [...new Set([...(kapsam.departmentIds || []), ...alan.bolumler])];
+      }
+    } catch (_) {
+      /* alan okunamazsa ham kapsamla devam */
+    }
     const karar = gozetmenYazmaKarari({
       op,
       mevcut: mevcutKisi,
       flags,
       bolumYetkilisi: user.role === 'bolum_yetkilisi',
-      kapsam: aktorKapsami(profil, bolumler),
+      kapsam,
     });
     if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
   }

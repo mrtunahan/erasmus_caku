@@ -16,6 +16,7 @@
  * Üniversite yetkilisi / admin her yerde yazar. `alan` = yetkiAlani çıktısı.
  */
 const { bolumAlanda } = require('./yetki-alani');
+const { ayniBolum } = require('./bolum-kimlik');
 
 const SINAV_PROGRAMI = 'sinav_programi';
 const BOLUM_SINAV_KAYITLARI = new Set(['sinav_donemler', 'sinav_dersler', 'department_classrooms']);
@@ -24,51 +25,59 @@ const metin = (v) => String(v == null ? '' : v).trim();
 const ret = (hata) => ({ izin: false, hata });
 const IZIN = { izin: true };
 
-// Baştaki unvan kelimeleri (lib/akademik-unvan.js listesinin kelimeleri).
+// Ad eşleştirmesi istemcideki kuralla BİREBİR aynı (lib/akademisyen-programi.js
+// → adAnahtari, lib/ders-egitmenleri.js → egitmenleriCoz): istemcinin "kendi
+// dersin" dediği bir sınavı sunucu reddetmemeli. Unvan kelimeleri adın her
+// yerinden atılır; ayraç '/' ve ';' (virgül değil).
 const UNVAN_KELIMELERI = new Set([
   'prof',
   'profesör',
   'doç',
   'doc',
   'doçent',
-  'yrd',
-  'yardımcı',
+  'docent',
   'dr',
   'doktor',
+  'yrd',
+  'yardımcı',
   'öğr',
   'ogr',
   'öğrt',
   'öğretim',
-  'üyesi',
-  'uyesi',
+  'ogretim',
   'gör',
   'gor',
   'görevlisi',
+  'gorevlisi',
+  'üyesi',
+  'uyesi',
   'arş',
   'ars',
+  'araş',
   'araştırma',
-  'okutman',
+  'arastirma',
   'uzm',
   'uzman',
+  'okt',
+  'okutman',
 ]);
 
 /** "Dr. Öğr. Üyesi Ali VELİ" → "ali veli" (unvan ve harf farkı önemsenmez). */
 function kisiAnahtari(ad) {
-  const kelimeler = metin(ad)
-    .toLocaleLowerCase('tr-TR')
+  return metin(ad)
     .replace(/[.,]/g, ' ')
     .split(/\s+/)
-    .filter(Boolean);
-  while (kelimeler.length > 1 && UNVAN_KELIMELERI.has(kelimeler[0])) kelimeler.shift();
-  return kelimeler.join(' ');
+    .map((k) => k.trim().toLocaleLowerCase('tr-TR'))
+    .filter((k) => k && !UNVAN_KELIMELERI.has(k))
+    .join(' ');
 }
 
-/** Kaydın öğretim elemanları ("A / B" ya da "A, B" birleşik yazım da). */
+/** Kaydın öğretim elemanları (dizi ya da "A / B" birleşik yazım). */
 function hocalari(kayit) {
   if (!kayit) return [];
   return []
     .concat(Array.isArray(kayit.professors) ? kayit.professors : [], kayit.professor || [])
-    .flatMap((x) => metin(x).split(/\s*[/;]\s*|\s*,\s*(?=\S+\.)/))
+    .flatMap((x) => metin(x).split(/[/;]/))
     .map(kisiAnahtari)
     .filter(Boolean);
 }
@@ -83,17 +92,22 @@ const kendiDersi = (kayit, kullaniciAdi) => {
  * @param {object|null} mevcut belgenin şimdiki hâli
  * @param {object} alan yetkiAlani çıktısı
  * @param {string} kullaniciAdi oturumdaki kimlik (ad)
+ * @param {object} [ek] { ders: sınavın dersi (sinav_dersler), donemBolumu:
+ *   bölümü boş eski kayıtta sınav döneminin bölümü }
  * @returns {{izin:boolean, hata?:string}}
  */
-function sinavProgramiYazmaKarari(op, mevcut, alan, kullaniciAdi) {
+function sinavProgramiYazmaKarari(op, mevcut, alan, kullaniciAdi, ek) {
   if (!op) return IZIN;
   const a = alan || { tur: 'yok' };
   if (a.tur === 'universite') return IZIN;
   const koleksiyon = op.collection;
   if (koleksiyon !== SINAV_PROGRAMI && !BOLUM_SINAV_KAYITLARI.has(koleksiyon)) return IZIN;
+  const e = ek || {};
 
   const veri = op.data && typeof op.data === 'object' ? op.data : {};
-  const eskiBolum = metin(mevcut && mevcut.departmentId);
+  // Bölümü boş eski kayıt dönemin bölümüyle değerlendirilir (yoksa hiçbir
+  // yetkili düzenleyemiyordu).
+  const eskiBolum = metin(mevcut && mevcut.departmentId) || (mevcut ? metin(e.donemBolumu) : '');
   const yeniBolum = metin(veri.departmentId);
   const bolumler = [eskiBolum, yeniBolum].filter(Boolean);
   const yetkili = a.tur === 'bolum' || a.tur === 'fakulte';
@@ -107,18 +121,38 @@ function sinavProgramiYazmaKarari(op, mevcut, alan, kullaniciAdi) {
     );
   }
 
-  // sinav_programi — akademisyen yalnız kendi dersinin sınavını.
-  if (eskiBolum && yeniBolum && eskiBolum !== yeniBolum) {
-    return ret('Sınavın bölümü değiştirilemez.');
+  // sinav_programi — akademisyen yalnız KENDİ dersinin sınavını yazar.
+  const hata = yetkili
+    ? 'Bu sınav yetki alanınızdaki bir bölüme ait değil (ve dersin hocası değilsiniz).'
+    : 'Yalnız kendi dersinizin sınavını düzenleyebilirsiniz.';
+  const ders = e.ders || null;
+  // Kayıt alanları değiştirilerek başka bölüme/döneme taşınamaz.
+  if (mevcut) {
+    for (const alanAdi of ['departmentId', 'periodId', 'courseId']) {
+      if (alanAdi in veri && metin(veri[alanAdi]) !== metin(mevcut[alanAdi])) {
+        return ret('Sınavın bölümü, dönemi ya da dersi değiştirilemez.');
+      }
+    }
+  } else {
+    // Ekleme: bir derse bağlı olmalı ve sınav dersin bölümünde açılmalı.
+    if (!ders) return ret('Sınav bir derse bağlı olmalı.');
+    if (!yeniBolum) return ret('Sınavın bölümü belli değil.');
+    if (metin(ders.departmentId) && !ayniBolum(ders.departmentId, yeniBolum, a.harita)) {
+      return ret('Sınav dersin bölümünde açılmalı.');
+    }
   }
-  const kontrol = [];
-  if (mevcut) kontrol.push(mevcut);
-  // Ekleme ya da hoca alanlarını değiştiren yazım: yeni hâl de kendi dersi olmalı.
-  if (!mevcut || 'professor' in veri || 'professors' in veri) {
-    kontrol.push({ ...(mevcut || {}), ...veri });
-  }
-  if (kontrol.length > 0 && kontrol.every((k) => kendiDersi(k, kullaniciAdi))) return IZIN;
-  return ret('Yalnız kendi dersinizin sınavını düzenleyebilirsiniz.');
+  // Mevcut kayıt: sınavda ya da dersinde hocası olmalı. Yeni hâl (ekleme ya
+  // da hoca alanını değiştiren yazım) de kendi dersi olmalı.
+  const eskiKendi = !mevcut || kendiDersi(mevcut, kullaniciAdi) || kendiDersi(ders, kullaniciAdi);
+  const hocaDegisiyor = 'professor' in veri || 'professors' in veri;
+  const yeniKendi =
+    mevcut && !hocaDegisiyor
+      ? true
+      : kendiDersi({ ...(mevcut || {}), ...veri }, kullaniciAdi) ||
+        (!hocaDegisiyor && kendiDersi(ders, kullaniciAdi));
+  const dersKendi = mevcut ? true : kendiDersi(ders, kullaniciAdi);
+  if (eskiKendi && yeniKendi && dersKendi) return IZIN;
+  return ret(hata);
 }
 
 module.exports = {

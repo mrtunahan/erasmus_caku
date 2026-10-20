@@ -121,8 +121,11 @@ function yetkiAlani(p) {
     return { tur: 'fakulte', fakulteler, bolumler, harita };
   }
   if (flags.deptManager) {
+    // YAZMA alanı yalnız ana bölüm: ek bölümünde (ders verdiği) yetkili orada
+    // sade akademisyendir (arayüz de öyle davranır: app-shell isOnExtraDept).
+    // Okumada ek bölümler de alanındadır.
     ekle(profil.departmentId);
-    dizi(profil.additionalDepartments).forEach(ekle);
+    if (o.okuma) dizi(profil.additionalDepartments).forEach(ekle);
     bolumler.delete('');
     return { tur: bolumler.size ? 'bolum' : 'yok', fakulteler, bolumler, harita };
   }

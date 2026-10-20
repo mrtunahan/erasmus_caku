@@ -1,0 +1,411 @@
+{
+  "faculties": [
+    { "id": "muhendislik", "name": "Mühendislik Fakültesi" },
+    { "id": "fen", "name": "Fen Fakültesi" }
+  ],
+  "departments": [
+    { "id": "d_bil", "name": "Bilgisayar Mühendisliği", "facultyId": "muhendislik" },
+    { "id": "d_mak", "name": "Makine Mühendisliği", "facultyId": "muhendislik" },
+    { "id": "d_mat", "name": "Matematik", "facultyId": "fen" }
+  ],
+  "sinav_donemler": [
+    {
+      "id": "p_bil",
+      "departmentId": "bilgisayar",
+      "examType": "vize",
+      "semester": "Güz 2026-2027",
+      "startDate": "2026-11-09",
+      "endDate": "2026-11-15",
+      "weeks": 1,
+      "label": "Vize - Güz 2026-2027",
+      "seviye": "lisans"
+    },
+    {
+      "id": "p_mak",
+      "departmentId": "makine",
+      "examType": "vize",
+      "semester": "Güz 2026-2027",
+      "startDate": "2026-11-09",
+      "endDate": "2026-11-15",
+      "weeks": 1,
+      "label": "Vize - Güz 2026-2027",
+      "seviye": "lisans"
+    }
+  ],
+  "sinav_dersler": [
+    {
+      "id": "c1",
+      "departmentId": "bilgisayar",
+      "code": "BIL101",
+      "name": "Programlamaya Giriş",
+      "sinif": 1,
+      "duration": 60,
+      "professor": "Doç. Dr. Ali YILMAZ",
+      "studentCount": 40,
+      "donem": "guz"
+    },
+    {
+      "id": "c2",
+      "departmentId": "bilgisayar",
+      "code": "BIL203",
+      "name": "Veri Yapıları",
+      "sinif": 2,
+      "duration": 60,
+      "professor": "Doç. Dr. Ali YILMAZ",
+      "studentCount": 35,
+      "donem": "guz"
+    },
+    {
+      "id": "c3",
+      "departmentId": "bilgisayar",
+      "code": "BIL305",
+      "name": "İşletim Sistemleri",
+      "sinif": 3,
+      "duration": 60,
+      "professor": "Prof. Dr. Ayşe KAYA",
+      "professors": ["Prof. Dr. Ayşe KAYA", "Doç. Dr. Ali YILMAZ"],
+      "studentCount": 50,
+      "donem": "guz"
+    },
+    {
+      "id": "c4",
+      "departmentId": "bilgisayar",
+      "code": "BIL401",
+      "name": "Bitirme Projesi",
+      "sinif": 4,
+      "duration": 60,
+      "professor": "Prof. Dr. Ayşe KAYA",
+      "studentCount": 20,
+      "donem": "guz"
+    },
+    {
+      "id": "c5",
+      "departmentId": "bilgisayar",
+      "code": "MAT161",
+      "name": "Matematik I",
+      "sinif": 1,
+      "duration": 90,
+      "professor": "Dr. Öğr. Üyesi Mehmet DEMİR",
+      "studentCount": 60,
+      "donem": "guz"
+    },
+    {
+      "id": "c6",
+      "departmentId": "bilgisayar",
+      "code": "BIL207",
+      "name": "Ayrık Matematik",
+      "sinif": 2,
+      "duration": 60,
+      "professor": "Dr. Öğr. Üyesi Mehmet DEMİR",
+      "studentCount": 30,
+      "donem": "guz"
+    },
+    {
+      "id": "c7",
+      "departmentId": "bilgisayar",
+      "code": "BIL209",
+      "name": "Olasılık",
+      "sinif": 2,
+      "duration": 60,
+      "professor": "Prof. Dr. Ayşe KAYA",
+      "studentCount": 30,
+      "donem": "guz"
+    },
+    {
+      "id": "c8",
+      "departmentId": "bilgisayar",
+      "code": "BIL111",
+      "name": "Bilgisayar Okuryazarlığı",
+      "sinif": 1,
+      "duration": 60,
+      "professor": "Doç. Dr. Ali YILMAZ",
+      "studentCount": 25,
+      "donem": "guz"
+    },
+    {
+      "id": "m1",
+      "departmentId": "makine",
+      "code": "MAK101",
+      "name": "Statik",
+      "sinif": 1,
+      "duration": 60,
+      "professor": "Prof. Dr. Hasan ÇELİK",
+      "studentCount": 45,
+      "donem": "guz"
+    },
+    {
+      "id": "m2",
+      "departmentId": "makine",
+      "code": "MAT161",
+      "name": "Matematik I",
+      "sinif": 1,
+      "duration": 90,
+      "professor": "Dr. Öğr. Üyesi Mehmet DEMİR",
+      "studentCount": 70,
+      "donem": "guz"
+    },
+    {
+      "id": "m3",
+      "departmentId": "makine",
+      "code": "MAK205",
+      "name": "Termodinamik",
+      "sinif": 2,
+      "duration": 60,
+      "professor": "Doç. Dr. Zeynep AK",
+      "studentCount": 40,
+      "donem": "guz"
+    }
+  ],
+  "sinav_programi": [
+    {
+      "id": "e1",
+      "departmentId": "bilgisayar",
+      "periodId": "p_bil",
+      "courseId": "c2",
+      "code": "BIL203",
+      "name": "Veri Yapıları",
+      "sinif": 2,
+      "duration": 60,
+      "professor": "Doç. Dr. Ali YILMAZ",
+      "studentCount": 35,
+      "date": "2026-11-10",
+      "timeSlot": "10:00",
+      "room": "M11101",
+      "supervisor": "Arş. Gör. Can ÖZ",
+      "seviye": "lisans"
+    },
+    {
+      "id": "e2",
+      "departmentId": "bilgisayar",
+      "periodId": "p_bil",
+      "courseId": "c4",
+      "code": "BIL401",
+      "name": "Bitirme Projesi",
+      "sinif": 4,
+      "duration": 60,
+      "professor": "Prof. Dr. Ayşe KAYA",
+      "studentCount": 20,
+      "date": "2026-11-11",
+      "timeSlot": "09:00",
+      "room": "",
+      "supervisor": "",
+      "seviye": "lisans"
+    },
+    {
+      "id": "e3",
+      "departmentId": "bilgisayar",
+      "periodId": "p_bil",
+      "courseId": "c5",
+      "code": "MAT161",
+      "name": "Matematik I",
+      "sinif": 1,
+      "duration": 90,
+      "professor": "Dr. Öğr. Üyesi Mehmet DEMİR",
+      "studentCount": 60,
+      "date": "2026-11-12",
+      "timeSlot": "13:00",
+      "room": "M12202 - M12203",
+      "supervisor": "Arş. Gör. Elif SU",
+      "birlesimId": "B1",
+      "seviye": "lisans"
+    },
+    {
+      "id": "e4",
+      "departmentId": "makine",
+      "periodId": "p_mak",
+      "courseId": "m2",
+      "code": "MAT161",
+      "name": "Matematik I",
+      "sinif": 1,
+      "duration": 90,
+      "professor": "Dr. Öğr. Üyesi Mehmet DEMİR",
+      "studentCount": 70,
+      "date": "2026-11-12",
+      "timeSlot": "13:00",
+      "room": "M12202 - M12203",
+      "supervisor": "Arş. Gör. Elif SU",
+      "birlesimId": "B1",
+      "seviye": "lisans"
+    },
+    {
+      "id": "e6",
+      "departmentId": "bilgisayar",
+      "periodId": "p_bil",
+      "courseId": "c6",
+      "code": "BIL207",
+      "name": "Ayrık Matematik",
+      "sinif": 2,
+      "duration": 60,
+      "professor": "Dr. Öğr. Üyesi Mehmet DEMİR",
+      "studentCount": 30,
+      "date": "2026-11-13",
+      "timeSlot": "09:00",
+      "room": "M11101",
+      "supervisor": "Arş. Gör. Can ÖZ",
+      "seviye": "lisans"
+    },
+    {
+      "id": "e7",
+      "departmentId": "bilgisayar",
+      "periodId": "p_bil",
+      "courseId": "c7",
+      "code": "BIL209",
+      "name": "Olasılık",
+      "sinif": 2,
+      "duration": 60,
+      "professor": "Prof. Dr. Ayşe KAYA",
+      "studentCount": 30,
+      "date": "2026-11-13",
+      "timeSlot": "09:00",
+      "room": "M10Z07",
+      "supervisor": "Arş. Gör. Deniz ER",
+      "seviye": "lisans"
+    },
+    {
+      "id": "e8",
+      "departmentId": "bilgisayar",
+      "periodId": "p_bil",
+      "courseId": "c3",
+      "code": "BIL305",
+      "name": "İşletim Sistemleri",
+      "sinif": 3,
+      "duration": 60,
+      "professor": "Prof. Dr. Ayşe KAYA",
+      "professors": ["Prof. Dr. Ayşe KAYA", "Doç. Dr. Ali YILMAZ"],
+      "studentCount": 20,
+      "date": "2026-11-11",
+      "timeSlot": "14:00",
+      "room": "M11103",
+      "supervisor": "Arş. Gör. Deniz ER",
+      "seviye": "lisans"
+    },
+    {
+      "id": "e9",
+      "departmentId": "makine",
+      "periodId": "p_mak",
+      "courseId": "m3",
+      "code": "MAK205",
+      "name": "Termodinamik",
+      "sinif": 2,
+      "duration": 60,
+      "professor": "Doç. Dr. Zeynep AK",
+      "studentCount": 20,
+      "date": "2026-11-11",
+      "timeSlot": "14:00",
+      "room": "M11103",
+      "supervisor": "Arş. Gör. Burak TAŞ",
+      "seviye": "lisans"
+    },
+    {
+      "id": "e10",
+      "departmentId": "makine",
+      "periodId": "p_mak",
+      "courseId": "m1",
+      "code": "MAK101",
+      "name": "Statik",
+      "sinif": 1,
+      "duration": 60,
+      "professor": "Prof. Dr. Hasan ÇELİK",
+      "studentCount": 45,
+      "date": "2026-11-10",
+      "timeSlot": "10:00",
+      "room": "",
+      "supervisor": "",
+      "seviye": "lisans"
+    }
+  ],
+  "professors": [
+    {
+      "id": "pr1",
+      "name": "Doç. Dr. Ali YILMAZ",
+      "title": "Doç. Dr.",
+      "departmentId": "matematik"
+    },
+    {
+      "id": "pr2",
+      "name": "Prof. Dr. Ayşe KAYA",
+      "title": "Prof. Dr.",
+      "departmentId": "bilgisayar"
+    },
+    {
+      "id": "pr3",
+      "name": "Dr. Öğr. Üyesi Mehmet DEMİR",
+      "title": "Dr. Öğr. Üyesi",
+      "departmentId": "matematik"
+    },
+    {
+      "id": "pr4",
+      "name": "Prof. Dr. Hasan ÇELİK",
+      "title": "Prof. Dr.",
+      "departmentId": "makine"
+    },
+    { "id": "pr5", "name": "Doç. Dr. Zeynep AK", "title": "Doç. Dr.", "departmentId": "makine" },
+    {
+      "id": "pr6",
+      "name": "Arş. Gör. Can ÖZ",
+      "title": "Arş. Gör.",
+      "departmentId": "bilgisayar",
+      "roles": ["gozetmen"]
+    },
+    {
+      "id": "pr7",
+      "name": "Arş. Gör. Deniz ER",
+      "title": "Arş. Gör.",
+      "departmentId": "bilgisayar",
+      "roles": ["gozetmen"]
+    },
+    {
+      "id": "pr8",
+      "name": "Arş. Gör. Elif SU",
+      "title": "Arş. Gör.",
+      "departmentId": "makine",
+      "roles": ["gozetmen"]
+    },
+    {
+      "id": "pr9",
+      "name": "Arş. Gör. Burak TAŞ",
+      "title": "Arş. Gör.",
+      "departmentId": "makine",
+      "roles": ["gozetmen"]
+    },
+    {
+      "id": "pr10",
+      "name": "Arş. Gör. Dr. Selin AY",
+      "title": "Arş. Gör. Dr.",
+      "departmentId": "bilgisayar",
+      "roles": ["gozetmen"]
+    }
+  ],
+  "department_classrooms": [
+    {
+      "id": "r1",
+      "departmentId": "bilgisayar",
+      "name": "M11101",
+      "capacity": 42,
+      "kullanim": "sinav"
+    },
+    {
+      "id": "r2",
+      "departmentId": "bilgisayar",
+      "name": "M11103",
+      "capacity": 58,
+      "kullanim": "her_ikisi"
+    },
+    { "id": "r3", "departmentId": "bilgisayar", "name": "M10Z07", "capacity": 49 },
+    {
+      "id": "r4",
+      "departmentId": "bilgisayar",
+      "name": "LAB-DERS",
+      "capacity": 30,
+      "kullanim": "ders"
+    },
+    { "id": "r5", "departmentId": "makine", "name": "M12202", "capacity": 42, "kullanim": "sinav" },
+    { "id": "r6", "departmentId": "makine", "name": "M12203", "capacity": 42 },
+    { "id": "r7", "departmentId": "makine", "name": "MAK-LAB", "capacity": 20, "kullanim": "ders" }
+  ],
+  "sinav_gonderimleri": [],
+  "sinav_fakulte_ayarlari": [],
+  "sinav_cakisma_kabul": [],
+  "student_courses": [],
+  "students": []
+}
