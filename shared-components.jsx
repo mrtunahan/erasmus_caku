@@ -545,6 +545,7 @@ import {
   ortakOgrenciSayaci,
   gozetmenMusaitMi,
   kabulKaydi,
+  kabulBelgeKimligi,
   musaitsizGunler,
   musaitsizlikHaritasi,
   programHazirMi,
@@ -15643,6 +15644,7 @@ window.akademisyenMukerrerOnayi = akademisyenMukerrerOnayi;
 window.sinavCakismaOzeti = cakismaOzeti;
 window.sinavProgramHazirMi = programHazirMi;
 window.sinavKabulKaydi = kabulKaydi;
+window.sinavKabulKimligi = kabulBelgeKimligi;
 // Gözetmen müsaitliği — izinli/görevli olduğu günde atanmasın.
 window.gozetmenMusaitsizGunler = musaitsizGunler;
 window.gozetmenMusaitsizlikHaritasi = musaitsizlikHaritasi;

@@ -978,6 +978,10 @@ const AyniSaatPenceresi = ({
   onClose,
 }) => {
   const SB = window.SinavBirlesim;
+  // birlestirebilir: true/false ya da oturuma göre karar veren fonksiyon
+  // (akademisyen yalnız iki tarafın da hocası kendisiyse birleştirir).
+  const birlesimIzni = (o) =>
+    typeof birlestirebilir === 'function' ? birlestirebilir(o) : !!birlestirebilir;
   const [mesgul, setMesgul] = useState(false);
   const calistir = async (fn) => {
     setMesgul(true);
@@ -1066,13 +1070,14 @@ const AyniSaatPenceresi = ({
                   <span style={{ fontSize: 12, color: '#B45309', fontWeight: 600 }}>
                     Bu ders zaten bu oturumda.
                   </span>
-                ) : birlestirebilir ? (
+                ) : birlesimIzni(o) ? (
                   <Btn onClick={() => calistir(() => onBirlestir(o))} disabled={mesgul}>
                     Bununla ortak sınav yap
                   </Btn>
                 ) : (
                   <span style={{ fontSize: 12, color: '#64748B' }}>
-                    Birleştirmeyi bölüm yetkilisi yapar.
+                    Birleştirmeyi bölüm yetkilisi yapar (iki dersin de hocası sizseniz kendiniz
+                    birleştirebilirsiniz).
                   </span>
                 )}
               </div>
@@ -6212,7 +6217,8 @@ function SinavOtomasyonuApp({
       return false;
     }
     try {
-      await DBWrite.set('sinav_cakisma_kabul', k.kayit.anahtar, k.kayit, true);
+      // Belge kimliği güvenli özet (anahtarda "|" ve ad var); anahtar kayıtta.
+      await DBWrite.set('sinav_cakisma_kabul', k.kayit.kimlik, k.kayit, true);
       if (window.apiInvalidate) window.apiInvalidate('sinav_cakisma_kabul');
       await loadFakulteGeneli();
       return true;
@@ -6225,7 +6231,11 @@ function SinavOtomasyonuApp({
   const kabulGeriAl = async (cakisma) => {
     if (!confirm('Bu çakışmanın şartlı kabulü geri alınacak. Devam edilsin mi?')) return;
     try {
-      await DBWrite.remove('sinav_cakisma_kabul', cakisma.anahtar);
+      // Kayıt hangi kimlikle yazıldıysa onunla silinir (okunan kaydın id'si).
+      const kimlik =
+        (cakisma.kabul && (cakisma.kabul.id || cakisma.kabul.kimlik)) ||
+        window.sinavKabulKimligi(cakisma.anahtar);
+      await DBWrite.remove('sinav_cakisma_kabul', kimlik);
       if (window.apiInvalidate) window.apiInvalidate('sinav_cakisma_kabul');
       await loadFakulteGeneli();
     } catch (e) {
@@ -6920,9 +6930,22 @@ function SinavOtomasyonuApp({
 
   // Seçilen oturumla ortak sınav: oturumun bağı yoksa kurulur, yeni ders
   // oturumun saatine, salonuna ve (elle girilmişse) gözetmenine katılır.
+  // Akademisyen kendi derslerini birleştirebilir: bırakılan ders de
+  // oturumdaki bütün sınavlar da onun dersiyse (ör. aynı hocanın MAT161 ve
+  // MAT165'i). Başkasının dersine dokunan birleştirme bölüm yetkilisinindir.
+  const kendiDersleriniBirlestirebilir = (oturum) =>
+    !!ayniSaat &&
+    kendiDersiMi(ayniSaat.ders) &&
+    (oturum.uyeler || []).length > 0 &&
+    oturum.uyeler.every((u) => kendiDersiMi(u));
+
   const ortakSinavYap = async (oturum) => {
     const SB = window.SinavBirlesim;
     if (!ayniSaat || !SB) return;
+    if (!canManage && !kendiDersleriniBirlestirebilir(oturum)) {
+      alert('Yalnız iki dersin de hocası sizseniz birleştirebilirsiniz.');
+      return;
+    }
     const bid = oturum.uyeler.map((u) => u.birlesimId).find(Boolean) || SB.yeniBirlesimId();
     try {
       for (const u of oturum.uyeler) {
@@ -8368,7 +8391,7 @@ function SinavOtomasyonuApp({
         {ayniSaat && (
           <AyniSaatPenceresi
             {...ayniSaat}
-            birlestirebilir={canManage}
+            birlestirebilir={canManage ? true : kendiDersleriniBirlestirebilir}
             onBirlestir={ortakSinavYap}
             onAyriEkle={ayriEkle}
             onClose={() => setAyniSaat(null)}
