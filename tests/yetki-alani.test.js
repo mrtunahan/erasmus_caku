@@ -4,6 +4,7 @@ import {
   bolumAlanda,
   fakulteAlanda,
   bolumKaydiKarari,
+  ekBolumKarari,
   yapisalKarar,
   yayinKapsamKarari,
   basvurulariSuz,
@@ -224,5 +225,36 @@ describe('ad üzerinden eşleşen kimlikler (gömülü slug ↔ veritabanı Obje
     });
     expect(bolumAlanda(m, 'bil')).toBe(true);
     expect(bolumAlanda(m, '6a00000000000000000000b2')).toBe(false);
+  });
+});
+
+describe('başka bölümün akademisyenini kendi bölümüne ek bölüm olarak bağlama', () => {
+  const mevcut = { departmentId: 'makine', name: 'Prof. Dr. X', additionalDepartments: [KIM] };
+  const op = (liste, ek) => ({
+    collection: 'professors',
+    type: 'set',
+    merge: true,
+    docId: 'p1',
+    data: { additionalDepartments: liste, updatedAt: 'x', ...(ek || {}) },
+  });
+  it('bölüm yetkilisi kendi bölümünü ekleyip çıkarabilir', () => {
+    expect(ekBolumKarari(op([KIM, 'bilgisayar']), mevcut, secBil).izin).toBe(true);
+    expect(
+      ekBolumKarari(op([KIM]), { ...mevcut, additionalDepartments: [KIM, 'bilgisayar'] }, secBil)
+        .izin
+    ).toBe(true);
+  });
+  it('başka bölümün bağına ya da kaydın diğer alanlarına dokunamaz', () => {
+    expect(ekBolumKarari(op(['bilgisayar']), mevcut, secBil).izin).toBe(false); // KIM silindi
+    expect(ekBolumKarari(op([KIM, 'bilgisayar', 'makine']), mevcut, secBil).izin).toBe(false);
+    expect(ekBolumKarari(op([KIM, 'bilgisayar'], { name: 'Y' }), mevcut, secBil).izin).toBe(false);
+    expect(ekBolumKarari({ ...op([KIM, 'bilgisayar']), merge: false }, mevcut, secBil).izin).toBe(
+      false
+    );
+    expect(ekBolumKarari(op([KIM, 'bilgisayar']), null, secBil).izin).toBe(false);
+  });
+  it('fakülte yetkilisi kendi fakültesinin bölümünü bağlayabilir', () => {
+    expect(ekBolumKarari(op([KIM, 'bilgisayar']), mevcut, dekMuh).izin).toBe(true);
+    expect(ekBolumKarari(op([]), mevcut, dekMuh).izin).toBe(false); // KIM fen fakültesinde
   });
 });
