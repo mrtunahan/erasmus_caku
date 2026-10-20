@@ -121,8 +121,9 @@ function assignClassroomFromList(rooms, studentCount) {
 // ── Gözetmen ataması ──
 // Kurallar (dersin hocası, kaç gözetmen) ve dağıtım lib/gozetmen.js'te,
 // Bölüm Yönetimi ile ortak ve test altında. Burada yalnız çağrılır.
-// Kurallar bölüm kaydından okunur: departments.gozetmenKurali (hoca) ve
-// departments.gozetmenSayiKurali (salon başına gözetmen).
+// Bölüm kaydından yalnız departments.gozetmenSayiKurali (salon başına
+// gözetmen) okunur. Dersin hocası kuralı bölüm seçimi değil, fakülte
+// kuralıdır: hoca her sınavında ilk gözetmen (otomatikAtamaHesapla).
 // Kayıt KİMLİKLE bulunur, ada göre değil: bölüm listesi burada ada göre
 // eşleniyor ve aynı adlı iki kayıt varsa kuralın yazılmadığı kayıt seçilip
 // çıktı varsayılan kurallarla üretiliyordu.
@@ -134,10 +135,7 @@ async function bolumGozetmenKurallari(bolumId) {
   } catch (_) {
     bolum = null;
   }
-  return {
-    hocaKurali: bolum && bolum.gozetmenKurali,
-    sayiKurali: bolum && bolum.gozetmenSayiKurali,
-  };
+  return { sayiKurali: bolum && bolum.gozetmenSayiKurali };
 }
 
 function gozetmenleriDagit(havuz, exams, classroomFn, secenekler) {
@@ -2961,6 +2959,9 @@ function otomatikAtamaHesapla({
     salonBul,
     {
       ...(kurallar || {}),
+      // Fakülte kuralı: dersin hocası her sınavında ilk gözetmen (bölüm bazlı
+      // hoca kuralı seçimi kaldırıldı; eski kayıttaki seçim yok sayılır).
+      hocaKurali: 'zorunlu',
       ekHavuz: ekGozetmenAdlari || [],
       musaitsizlik: musaitsizlik || {},
       digerGorevler: diger,
@@ -4168,10 +4169,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
           gozetmenAdlari: birincil,
           ekGozetmenAdlari: ek,
           kapasiteler,
-          kurallar: {
-            hocaKurali: kayit && kayit.gozetmenKurali,
-            sayiKurali: kayit && kayit.gozetmenSayiKurali,
-          },
+          kurallar: { sayiKurali: kayit && kayit.gozetmenSayiKurali },
           musaitsizlik: window.gozetmenMusaitsizlikHaritasi
             ? window.gozetmenMusaitsizlikHaritasi(havuz)
             : {},
@@ -7351,13 +7349,13 @@ function SinavOtomasyonuApp({
       alert('Bu dönemdeki bütün sınavların salonu ve gözetmeni zaten girilmiş.');
       return;
     }
-    const { hocaKurali, sayiKurali } = await bolumGozetmenKurallari(selectedDeptId);
+    const { sayiKurali } = await bolumGozetmenKurallari(selectedDeptId);
     const { oneri, uyarilar } = otomatikAtamaHesapla({
       sinavlar: periodExams,
       salonlar: deptClassrooms.length > 0 ? deptClassrooms : salonListesi,
       gozetmenAdlari: gozetmenHavuzu.birincil,
       ekGozetmenAdlari: gozetmenHavuzu.ek,
-      kurallar: { hocaKurali, sayiKurali },
+      kurallar: { sayiKurali },
       musaitsizlik: gozetmenHavuzu.musaitsizlik,
       digerSinavlar,
       kapasiteler: salonKapasiteleri,
@@ -8304,7 +8302,7 @@ function SinavOtomasyonuApp({
                     canManage &&
                       selectedDeptId && {
                         etiket: 'Gözetmen kuralları',
-                        aciklama: 'Hoca kuralı ve salon başına gözetmen sayısı',
+                        aciklama: 'Atama sırası ve salon başına gözetmen sayısı',
                         onClick: () => setGozetmenKuralAcik(true),
                       },
                     canManage &&
