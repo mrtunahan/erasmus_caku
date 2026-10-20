@@ -110,8 +110,10 @@ export function GozetmenKurallariPaneli({ departmentId, duzenlenebilir = true, o
       <div>
         <div style={baslik}>Dersin hocası kendi sınavında gözetmen olsun mu?</div>
         <div style={aciklama}>
-          Bölümden bölüme değişir. Seçim, sınav otomasyonundaki otomatik gözetmen atamasında ve
-          dekanlık çıktısında uygulanır.
+          Varsayılan: dersin hocası her sınavında <b>ilk gözetmen</b> olarak yazılır (Zorunlu).
+          Otomatik atama sırası: dersin hocası → dersin bölümünün öğretim üyeleri ve araştırma
+          görevlileri (gözetmen listesi dahil) → gerekirse fakültenin diğer araştırma görevlileri.
+          Seçim, sınav otomasyonundaki otomatik atamada ve çıktılarda uygulanır.
         </div>
         <div style={{ display: 'grid', gap: 8 }}>
           {HOCA_KURALLARI.map((s) => {
