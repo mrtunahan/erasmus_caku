@@ -419,3 +419,64 @@ describe('kabul kaydının belge kimliği', () => {
     expect(k.kayit.anahtar).toBe('salon|M1|a|b');
   });
 });
+
+describe('denetim düzeltmeleri — çakışma', () => {
+  const s = (id, room, ogr, extra) => ({
+    id,
+    code: id,
+    date: '2026-11-09',
+    timeSlot: '09:00',
+    duration: 60,
+    room,
+    studentCount: ogr,
+    ...(extra || {}),
+  });
+  it('tireli salon adı tek salondur', () => {
+    expect(salonlari({ room: 'A-101' })).toEqual(['A-101']);
+    expect(salonlari({ room: 'M1 - M2' })).toEqual(['M1', 'M2']);
+    const c = cakismalariBul([s('a', 'A-101', 10), s('b', 'A-102', 10)], {});
+    expect(c.filter((x) => x.tur === 'salon')).toHaveLength(0);
+  });
+  it('aynı anda üç sınav kapasiteyi aşarsa engeldir', () => {
+    const c = cakismalariBul([s('a', 'R', 40), s('b', 'R', 40), s('c', 'R', 40)], {
+      salonKapasiteleri: { R: 100 },
+    });
+    expect(c.filter((x) => x.tur === 'salon').every((x) => x.seviye === 'engel')).toBe(true);
+  });
+  it('kişinin iki yazımında çakışma anahtarı sıradan bağımsızdır', () => {
+    const a = s('a', 'R1', 10, { supervisor: 'Dr. Ali Veli' });
+    const b = s('b', 'R2', 10, { supervisor: 'Ali VELİ' });
+    const k1 = cakismalariBul([a, b], {}).find((x) => x.tur === 'gozetmen').anahtar;
+    const k2 = cakismalariBul([b, a], {}).find((x) => x.tur === 'gozetmen').anahtar;
+    expect(k1).toBe(k2);
+  });
+});
+
+describe('oturumun kendi kapasitesi', () => {
+  it('birleşik oturum salonuna sığmazsa engeldir', () => {
+    const ortak = {
+      date: '2026-11-09',
+      timeSlot: '09:00',
+      duration: 60,
+      room: 'M11101',
+      birlesimId: 'B1',
+    };
+    const c = cakismalariBul(
+      [
+        { id: 'a', code: 'BIL101', studentCount: 40, ...ortak },
+        { id: 'b', code: 'BIL203', studentCount: 35, ...ortak },
+      ],
+      { salonKapasiteleri: { M11101: 42 } }
+    );
+    const k = c.filter((x) => x.tur === 'kapasite');
+    expect(k).toHaveLength(1);
+    expect(k[0].seviye).toBe('engel');
+  });
+  it('kapasitesi bilinmeyen salon denetlenmez', () => {
+    const c = cakismalariBul(
+      [{ id: 'a', code: 'X', studentCount: 400, date: '2026-11-09', timeSlot: '09:00', room: 'Z' }],
+      {}
+    );
+    expect(c.filter((x) => x.tur === 'kapasite')).toHaveLength(0);
+  });
+});

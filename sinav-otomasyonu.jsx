@@ -1267,6 +1267,9 @@ const EditExamModal = ({
   const [room, setRoom] = useState(exam?.room || '');
   const [duration, setDuration] = useState(exam?.duration || 30);
   const [professor, setProfessor] = useState(exam?.professor || '');
+  // Sınıf da diğer alanlarla birlikte kaydedilir: ayrı ve anında kaydedilip
+  // pencere açık kalınca "Kaydet" eski değeri geri yazıyordu.
+  const [sinif, setSinif] = useState(Number(exam?.sinif) || 1);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -1284,6 +1287,7 @@ const EditExamModal = ({
         room,
         duration: Math.min(480, Math.max(5, parseInt(duration) || 30)),
         professor,
+        sinif,
       });
       onClose();
     } catch (e) {
@@ -1372,13 +1376,10 @@ const EditExamModal = ({
 
         {!readOnly && (
           <FormField label="Sınıf (Dersin ait olduğu sınıfı değiştirebilirsiniz)">
-            <Select
-              value={exam.sinif}
-              onChange={(e) => onSave({ ...exam, sinif: parseInt(e.target.value) })}
-            >
-              {[1, 2, 3, 4].map((s) => (
+            <Select value={sinif} onChange={(e) => setSinif(parseInt(e.target.value) || 1)}>
+              {[1, 2, 3, 4, 5].map((s) => (
                 <option key={s} value={s}>
-                  {s}. Sınıf
+                  {s === 5 ? 'Seçmeli' : s + '. Sınıf'}
                 </option>
               ))}
             </Select>
@@ -1431,7 +1432,13 @@ const EditExamModal = ({
             secenekler={
               window.SinavFakulte
                 ? window.SinavFakulte.gozetmenSecenekListesi(
-                    window.SinavFakulte.sinavHocalari({ ...exam, professor }),
+                    // Ortak oturumda gözetmen bütün oturuma yazılır: oturumdaki
+                    // bütün derslerin hocaları seçenektedir.
+                    window.SinavFakulte.sinavHocalari(
+                      grup.length > 1
+                        ? grup.map((u) => (u.id === exam.id ? { ...u, professor } : u))
+                        : { ...exam, professor }
+                    ),
                     gozetmenSecenekleri
                   )
                 : gozetmenSecenekleri
@@ -1464,6 +1471,15 @@ const EditExamModal = ({
           {!readOnly && (
             <GhostBtn
               onClick={() => {
+                if (
+                  !window.confirm(
+                    (exam.code || 'Sınav') +
+                      ' takvimden kaldırılacak' +
+                      (grup.length > 1 ? ' (ortak oturumdan da çıkar)' : '') +
+                      '. Emin misiniz?'
+                  )
+                )
+                  return;
                 onRemove(exam);
                 onClose();
               }}
@@ -2041,7 +2057,7 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
   const sorted = [...placedExams].sort((a, b) => {
     if (a.sinif !== b.sinif) return a.sinif - b.sinif;
     if (a.date !== b.date) return a.date.localeCompare(b.date);
-    return a.timeSlot.localeCompare(b.timeSlot);
+    return String(a.timeSlot || '').localeCompare(String(b.timeSlot || ''));
   });
 
   return (
@@ -2699,7 +2715,10 @@ async function exportDeptPrintable(
   periodLabel,
   deptName,
   customClassrooms,
-  departmentId
+  departmentId,
+  // { gozetmenAdlari, kurallar, musaitsizlik, digerSinavlar } — salon ve
+  // gözetmen Dekanlık çıktısıyla AYNI hesapla (otomatikAtamaHesapla) bulunur.
+  atamaSecenek
 ) {
   const SINIF_BG = {
     1: '#B2EBF2',
@@ -2709,35 +2728,25 @@ async function exportDeptPrintable(
     5: '#E1BEE7',
   };
 
-  function assignRoom(studentCount) {
-    const rooms =
-      customClassrooms && customClassrooms.length > 0 ? customClassrooms : DEPT_CLASSROOMS;
-    return assignClassroomFromList(rooms, studentCount);
-  }
-
   const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
-    return a.timeSlot.localeCompare(b.timeSlot);
+    return String(a.timeSlot || '').localeCompare(String(b.timeSlot || ''));
   });
 
-  const oturumSalonu = window.SinavBirlesim
-    ? window.SinavBirlesim.oturumSalonlari(sorted, (n, dolu) => {
-        const rooms =
-          customClassrooms && customClassrooms.length > 0 ? customClassrooms : DEPT_CLASSROOMS;
-        return assignClassroomFromList(
-          rooms.filter((r) => !(dolu || []).includes(r.name)),
-          n
-        );
-      })
-    : {};
+  const ek = atamaSecenek || {};
+  const { oneri } = otomatikAtamaHesapla({
+    sinavlar: sorted,
+    salonlar: customClassrooms && customClassrooms.length > 0 ? customClassrooms : null,
+    gozetmenAdlari: ek.gozetmenAdlari || [],
+    kurallar: ek.kurallar,
+    musaitsizlik: ek.musaitsizlik,
+    digerSinavlar: ek.digerSinavlar,
+  });
   const enriched = sorted.map((exam) => {
-    // Elle atanmış salon varsa ona saygı duy; yoksa otomatik ata (Y1).
-    // Ortak sınavda salon toplam öğrenciye göre bir kez seçilir (Dekanlık
-    // çıktısıyla aynı kural).
-    const room =
-      oturumSalonu[exam.id || exam.code + exam.date + exam.timeSlot] ||
-      exam.room ||
-      assignRoom(exam.studentCount);
+    // Elle girilen salon/gözetmen esastır; yoksa Dekanlık çıktısıyla aynı öneri.
+    const o = oneri[exam.id || exam.code + exam.date + exam.timeSlot] || {};
+    const room = exam.room || o.room || '';
+    const supervisors = (exam.supervisor || o.supervisor || '').trim();
     const [sh, sm] = exam.timeSlot.split(':').map(Number);
     const totalMin = sh * 60 + sm + (exam.duration || 60);
     const eh = String(Math.floor(totalMin / 60)).padStart(2, '0');
@@ -2746,6 +2755,7 @@ async function exportDeptPrintable(
     return {
       ...exam,
       assignedRoom: room,
+      assignedSupervisors: supervisors,
       startStr: formatDate(dateObj) + ' - ' + exam.timeSlot,
       endStr: formatDate(dateObj) + ' - ' + eh + ':' + em,
       durationStr: (exam.duration || 60) + ' dk',
@@ -2769,7 +2779,7 @@ async function exportDeptPrintable(
       sure: e.durationStr || '',
       salon: e.assignedRoom || '',
       ogrenciSayisi: e.studentCount != null ? String(e.studentCount) : '',
-      gozetmen: e.supervisor || '',
+      gozetmen: e.assignedSupervisors || e.supervisor || '',
     }));
     const res = await window.TemplateEngine.produceFromTemplate({
       module: 'sinav',
@@ -2829,7 +2839,7 @@ async function exportDeptPrintable(
           e.durationStr || '',
           e.studentCount != null ? String(e.studentCount) : '',
           e.assignedRoom || '',
-          e.supervisor || '',
+          e.assignedSupervisors || e.supervisor || '',
         ],
       })),
     });
@@ -2961,13 +2971,21 @@ function fakulteOtomatikYerlesim(bolumler, salonlar) {
   bolumler.forEach((b) => b.sinavlar.forEach((e) => e && e.id && guncel.set(e.id, e)));
   bolumler.forEach((b) => {
     if (!b.sinavlar.some((e) => !metinOf(e.room) || !metinOf(e.supervisor))) return;
+    // Bölümler arası ortak oturumun diğer bölümdeki üyesinin salonu ve
+    // gözetmeni oturumundur: boş olan üyeye öneri olarak geçer (yeni gözetmen
+    // atanıp oturumda fazladan kişi görünmesin).
     const kendi = b.sinavlar.map((e0) => {
-      const e = guncel.get(e0.id) || e0;
-      if (metinOf(e.room) || !e.birlesimId) return e;
-      const ortak = [...guncel.values()].find(
-        (x) => x.birlesimId === e.birlesimId && x.departmentId !== e.departmentId && metinOf(x.room)
+      let e = guncel.get(e0.id) || e0;
+      if (!e.birlesimId) return e;
+      const ortaklar = [...guncel.values()].filter(
+        (x) => x.birlesimId === e.birlesimId && x.departmentId !== e.departmentId
       );
-      return ortak ? { ...e, room: ortak.room, oneriSalon: true } : e;
+      const salonlu = ortaklar.find((x) => metinOf(x.room));
+      if (!metinOf(e.room) && salonlu) e = { ...e, room: salonlu.room, oneriSalon: true };
+      const gozetmenli = ortaklar.find((x) => metinOf(x.supervisor));
+      if (!metinOf(e.supervisor) && gozetmenli)
+        e = { ...e, supervisor: gozetmenli.supervisor, oneriGozetmen: true };
+      return e;
     });
     const diger = [...guncel.values()].filter((x) => x.departmentId !== b.bolumId);
     const { oneri } = otomatikAtamaHesapla({
@@ -3004,6 +3022,7 @@ function programSayfasi(XLSX, tablo, secenek) {
   const renkli = o.renkli !== false;
   const ince = { style: 'thin', color: { rgb: '000000' } };
   const kesik = { style: 'dashed', color: { rgb: '475569' } };
+  const nokta = { style: 'dotted', color: { rgb: '0F766E' } };
   const kenar = { top: ince, bottom: ince, left: ince, right: ince };
   const salonlar = tablo.salonlar;
   const n = salonlar.length + 1;
@@ -3048,7 +3067,9 @@ function programSayfasi(XLSX, tablo, secenek) {
           border:
             h && (h.taslak || h.degisti)
               ? { top: kesik, bottom: kesik, left: kesik, right: kesik }
-              : kenar,
+              : h && h.otomatik
+                ? { top: nokta, bottom: nokta, left: nokta, right: nokta }
+                : kenar,
           alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
         },
       ]);
@@ -3072,30 +3093,36 @@ function programSayfasi(XLSX, tablo, secenek) {
   // Renk açıklaması: tablonun altında renkli kutu + açıklama.
   const aciklama = Array.isArray(o.aciklama) ? o.aciklama : [];
   if (aciklama.length) {
+    // Sütun sayısı açıklamadan azsa açıklama alt satırlara sarılır (dar
+    // sayfada bölüm renkleri sessizce düşüyordu).
+    const satirBasina = Math.max(1, n - 1);
     veri.push(bos(n));
     satirYukseklik.push({ hpt: 10 });
-    const r1 = veri.length;
-    veri.push(bos(n));
-    veri.push(bos(n));
-    satirYukseklik.push({ hpt: 14 }, { hpt: 28 });
-    aciklama.forEach((x, k) => {
-      const c = 1 + k;
-      if (c >= n) return;
-      stiller.push([
-        r1,
-        c,
-        { fill: { patternType: 'solid', fgColor: { rgb: x.renk } }, border: kenar },
-      ]);
-      veri[r1 + 1][c] = x.etiket;
-      stiller.push([
-        r1 + 1,
-        c,
-        {
-          font: { name: 'Times New Roman', sz: 9 },
-          alignment: { horizontal: 'center', vertical: 'top', wrapText: true },
-        },
-      ]);
-    });
+    for (let bas = 0; bas < aciklama.length; bas += satirBasina) {
+      const r1 = veri.length;
+      veri.push(bos(n));
+      veri.push(bos(n));
+      satirYukseklik.push({ hpt: 14 }, { hpt: 28 });
+      aciklama.slice(bas, bas + satirBasina).forEach((x, k) => {
+        const c = 1 + k;
+        stiller.push([
+          r1,
+          c,
+          x.cerceve
+            ? { border: { top: nokta, bottom: nokta, left: nokta, right: nokta } }
+            : { fill: { patternType: 'solid', fgColor: { rgb: x.renk } }, border: kenar },
+        ]);
+        veri[r1 + 1][c] = x.etiket;
+        stiller.push([
+          r1 + 1,
+          c,
+          {
+            font: { name: 'Times New Roman', sz: 9 },
+            alignment: { horizontal: 'center', vertical: 'top', wrapText: true },
+          },
+        ]);
+      });
+    }
   }
   const ws = XLSX.utils.aoa_to_sheet(veri);
   const stilVer = (r, c, st) => {
@@ -3162,7 +3189,16 @@ async function exportFakulteXLSX(kitap, dosyaAdi) {
     adlar.add(sonuc);
     return sonuc.slice(0, 31);
   };
-  const aciklama = kitap.renkAciklamasi || [];
+  // Kaydedilmemiş otomatik yerleşim varsa çıktıda ayırt edilir.
+  const otoVar = kitap.gunler.some((g) =>
+    g.tablo.satirlar.some((r) => r.hucreler.some((h) => h && h.otomatik))
+  );
+  const aciklama = [
+    ...(kitap.renkAciklamasi || []),
+    ...(otoVar
+      ? [{ renk: 'FFFFFF', cerceve: true, etiket: 'Otomatik yerleşim (henüz kaydedilmedi)' }]
+      : []),
+  ];
   kitap.gunler.forEach((g) => {
     XLSX.utils.book_append_sheet(
       wb,
@@ -3205,7 +3241,7 @@ async function exportToXLSX(
   // ── Sort and enrich exams ──
   const sorted = [...placedExams].map(turkishifyExam).sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
-    return a.timeSlot.localeCompare(b.timeSlot);
+    return String(a.timeSlot || '').localeCompare(String(b.timeSlot || ''));
   });
 
   // Salon + gözetmen: "Salon ve gözetmen ata" düğmesiyle AYNI hesap
@@ -3866,11 +3902,30 @@ const OturumDuzenle = ({
   );
 };
 
-const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
+// Girişte fakülte/üniversite yetkilisinin istemci rolü 'admin', bölüm
+// yetkilisi işaretli akademisyeninki 'bolum_yetkilisi' olur (baseRole
+// 'professor' kalır; shared-components → attachProfile). Bu modülde
+// 'admin' bütün üniversite demektir: fakülte yetkilisi (üniversite yetkilisi
+// değilse) yalnız fakültesinde yetkilidir.
+const tamYonetici = (u) =>
+  !!u && ((u.role === 'admin' && !u.isFacultyManager) || !!u.isUniversityAdmin);
+// Ders veren kişi mi (sade akademisyen ya da akademisyen girişli yetkili)?
+const akademisyenMi = (u) => !!u && (u.role === 'professor' || u.baseRole === 'professor');
+
+const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
   const SF = window.SinavFakulte;
   const [veri, setVeri] = useState(null);
-  const [fakulteId, setFakulteId] = useState(currentUser?.facultyId || '');
-  const [sekme, setSekme] = useState('tab:0');
+  // Açılışta kullanıcının fakültesi; yoksa (ör. admin) üzerinde çalışılan
+  // bölümün fakültesi.
+  const [fakulteId, setFakulteId] = useState(
+    currentUser?.facultyId ||
+      ((window.DEPARTMENTS || []).find((d) => d.id === varsayilanBolum) || {}).facultyId ||
+      (varsayilanBolum ? 'muhendislik' : '')
+  );
+  // Gün sekmesi TARİHLE tutulur ('gun:2026-11-09'); 'gun:' = ilk gün. Sıra
+  // numarasıyla tutulunca taslak göster/gizle ya da canlı yenileme gün
+  // listesini kaydırıp açık sekmeyi sessizce başka güne çeviriyordu.
+  const [sekme, setSekme] = useState('gun:');
   const [taslakDahil, setTaslakDahil] = useState(true);
   const [secilen, setSecilen] = useState(null);
   const [ayarTaslak, setAyarTaslak] = useState(null);
@@ -3959,8 +4014,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         : '';
   const fakulteAdi = fakulte ? fakulte.ad : '';
   const yetkili =
-    currentUser?.role === 'admin' ||
-    !!currentUser?.isUniversityAdmin ||
+    tamYonetici(currentUser) ||
     (!!currentUser?.isFacultyManager && fakKimlikleri.has(currentUser?.facultyId || ''));
 
   const bolumler = useMemo(
@@ -4004,7 +4058,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         (e) => e && e.departmentId === b.id && donemIdleri.has(e.periodId)
       );
       const kimlik = SF.gonderimKimligi(b.id, grup.anahtar);
-      const kayit = veri.gonderimler.find((g) => g && g.id === kimlik) || null;
+      const kayit = SF.gonderimKaydiBul(veri.gonderimler, b.id, grup.anahtar);
       return {
         bolum: b,
         sinavlar,
@@ -4018,6 +4072,8 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
   const gonderenSayisi = bolumDurumlari.filter(
     (x) => x.durum === 'gonderildi' || x.durum === 'degisti'
   ).length;
+  // Bu dönemde sınavı olan bölümler (sınavı hiç olmayan bölüm "göndermedi" sayılmaz).
+  const programliBolumSayisi = bolumDurumlari.filter((x) => x.sinavlar.length > 0).length;
 
   // Bir bölümün gözetmenleri: o bölümde gözetmen olan ve ANA bölümü bu
   // fakültede olan akademisyenler. Başka fakülteden olup burada yalnız ders
@@ -4081,10 +4137,19 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
     (liste) => liste.map((e) => (yerlesim && yerlesim.get(e.id)) || e),
     [yerlesim]
   );
-  const otomatikYerlesenler = useMemo(
-    () => (yerlesim ? [...yerlesim.values()].filter((e) => e.oneriSalon || e.oneriGozetmen) : []),
-    [yerlesim]
-  );
+  // Yalnız ekranda görünen bölümlerin önerileri (taslaklar gizliyse onlar
+  // kaydedilmez — kullanıcının görmediği yerleşim yazılmasın).
+  const otomatikYerlesenler = useMemo(() => {
+    if (!yerlesim) return [];
+    const gorunen = new Set(
+      bolumDurumlari
+        .filter((x) => taslakDahil || x.durum === 'gonderildi' || x.durum === 'degisti')
+        .map((x) => x.bolum.id)
+    );
+    return [...yerlesim.values()].filter(
+      (e) => (e.oneriSalon || e.oneriGozetmen) && gorunen.has(e.departmentId)
+    );
+  }, [yerlesim, bolumDurumlari, taslakDahil]);
 
   const kitap = useMemo(() => {
     if (!SF || !grup) return null;
@@ -4202,34 +4267,38 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
   };
   // Yalnız DEĞİŞEN alanlar yazılır: yalnız saat değiştiyse üyelerin kendi
   // salon/gözetmen kayıtları (ve otomatik işaretleri) olduğu gibi kalır.
+  // Üye üye yazılır: elle girilmiş salon/gözetmen olduğu gibi kalır; yalnız
+  // otomatik ÖNERİ taşıyan üyeye öneri (otomatik işaretiyle) yazılır. Gün ya
+  // da saat değiştiyse öneri yazılmaz — eski saate göre hesaplanmıştı; yeni
+  // saatte otomatik yerleşim yeniden önerir.
   const oturumKaydet = (o, d) => {
-    const yama = {};
-    if (d.date !== o.date) yama.date = d.date;
-    if (d.timeSlot !== o.timeSlot) yama.timeSlot = d.timeSlot;
+    const zamanDegisti = d.date !== o.date || d.timeSlot !== o.timeSlot;
     const salonDegisti = d.room !== o.salonlar.join(' - ');
     const gozetmenDegisti = d.supervisor !== o.gozetmenler.join(', ');
-    // Otomatik yerleşen (kayıtsız) salon/gözetmen, oturum kaydedilince yazılır.
-    const salonOnerisi = o.uyeler.some((u) => u.oneriSalon);
-    const gozetmenOnerisi = o.uyeler.some((u) => u.oneriGozetmen);
-    if (salonDegisti || salonOnerisi) {
-      Object.assign(yama, { room: d.room, otomatikSalon: !salonDegisti });
-    }
-    if (gozetmenDegisti || gozetmenOnerisi) {
-      Object.assign(yama, { supervisor: d.supervisor, otomatikGozetmen: !gozetmenDegisti });
-    }
-    if (Object.keys(yama).length === 0) return Promise.resolve();
-    return sinavYaz(
-      o.uyeler.map((u) => ({
-        collection: 'sinav_programi',
-        type: 'update',
-        docId: u.id,
-        data: yama,
-      }))
-    );
+    const ops = o.uyeler
+      .map((u) => {
+        const data = {};
+        if (zamanDegisti) Object.assign(data, { date: d.date, timeSlot: d.timeSlot });
+        if (salonDegisti) Object.assign(data, { room: d.room, otomatikSalon: false });
+        else if (u.oneriSalon && !zamanDegisti)
+          Object.assign(data, { room: u.room, otomatikSalon: true });
+        if (gozetmenDegisti)
+          Object.assign(data, { supervisor: d.supervisor, otomatikGozetmen: false });
+        else if (u.oneriGozetmen && !zamanDegisti)
+          Object.assign(data, { supervisor: u.supervisor, otomatikGozetmen: true });
+        return { collection: 'sinav_programi', type: 'update', docId: u.id, data };
+      })
+      .filter((op) => Object.keys(op.data).length > 0);
+    if (ops.length === 0) return Promise.resolve();
+    return sinavYaz(ops);
   };
   // hedef: { date, timeSlot } — birleşen sınavlar bu başlangıca taşınır.
-  const birlestir = (sinavlar, hedef) => {
+  const birlestir = (sinavlar0, hedef) => {
     const SB = window.SinavBirlesim;
+    // Ekrandaki kopyalar kaydedilmemiş otomatik öneri taşıyabilir: birleşim
+    // ham kayıtlar üzerinden yapılır (öneri kalıcı veri olarak yazılmasın).
+    const ham = bolumDurumlari.flatMap((x) => x.sinavlar);
+    const sinavlar = sinavlar0.map((e) => ham.find((h) => h.id === e.id) || e);
     const yamalar = SF.birlestirmeYamalari(sinavlar, SB ? SB.yeniBirlesimId() : 'B' + Date.now(), {
       // Seçilen sınav zaten bir ortak oturumdaysa o oturumun diğer üyeleri de
       // dahil edilir; yoksa oturum bölünürdü.
@@ -4264,10 +4333,38 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
       'Birleştirilemedi'
     );
   };
+  // Ayrılan sınav oturumun salon ve gözetmenini taşırsa aynı saatte aynı
+  // salonda kesin çakışma olur: boşaltılır, otomatik yerleşim yeniden önerir.
   const ayir = (u) =>
-    window.confirm(u.code + ' ortak oturumdan ayrılsın mı? (Salonu ve gözetmeni kalır.)') &&
+    window.confirm(
+      u.code +
+        ' ortak oturumdan ayrılsın mı? Salonu ve gözetmeni boşaltılır; otomatik yerleşim ' +
+        'yeni salon/gözetmen önerir.'
+    ) &&
     sinavYaz(
-      [{ collection: 'sinav_programi', type: 'update', docId: u.id, data: { birlesimId: '' } }],
+      // Geride tek üye kalırsa onun bağı da çözülür (sarkan tek üyeli oturum
+      // kalmasın).
+      (window.SinavBirlesim
+        ? window.SinavBirlesim.birlesimdenCikarYamalari(
+            u,
+            bolumDurumlari.flatMap((x) => x.sinavlar)
+          )
+        : [{ id: u.id }]
+      ).map((y) => ({
+        collection: 'sinav_programi',
+        type: 'update',
+        docId: y.id,
+        data:
+          y.id === u.id
+            ? {
+                birlesimId: '',
+                room: '',
+                supervisor: '',
+                otomatikSalon: false,
+                otomatikGozetmen: false,
+              }
+            : { birlesimId: '' },
+      })),
       'Ayrılamadı'
     );
 
@@ -4291,6 +4388,8 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
 
   const ayarKaydet = async () => {
     if (!ayarTaslak || !fakId) return;
+    const otomatikKisaltmalar =
+      SF && kitap ? SF.kisaltmaHaritasi(Object.keys(kitap.kisaltmalar), {}) : {};
     setKaydediliyor(true);
     try {
       const salonlar = ayarTaslak.salonlar
@@ -4312,8 +4411,14 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             kisaAd: String(v.kisaAd || '').trim(),
             renk: String(v.renk || '').replace('#', ''),
           })),
+          // Yalnız elle verilen ya da otomatikten farklı kısaltmalar saklanır;
+          // yoksa her kayıtta bütün otomatik kısaltmalar "elle" donuyordu.
           kisaltmalar: Object.entries(ayarTaslak.kisaltmalar)
             .filter(([, k]) => String(k || '').trim())
+            .filter(
+              ([ad, k]) =>
+                ayar.kisaltmalar[ad] !== undefined || String(k).trim() !== otomatikKisaltmalar[ad]
+            )
             .map(([ad, k]) => ({ ad, kisaltma: String(k).trim() })),
           ozelRenkler: Object.fromEntries(
             Object.entries(ayarTaslak.ozelRenkler || {}).map(([k, v]) => [
@@ -5229,7 +5334,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             type="button"
             onClick={() => {
               setAyarTaslak(null);
-              setSekme('tab:0');
+              setSekme('gun:');
             }}
             style={{
               height: 34,
@@ -5329,8 +5434,11 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
     </div>
   );
 
-  const sekmeNo = sekme.startsWith('tab:') ? Number(sekme.slice(4)) : -1;
-  const aktifGun = kitap ? kitap.gunler[sekmeNo] || null : null;
+  const aktifGun =
+    kitap && sekme.startsWith('gun:')
+      ? kitap.gunler.find((g) => 'gun:' + g.tarih === sekme) || kitap.gunler[0] || null
+      : null;
+  const aktifSekme = aktifGun ? 'gun:' + aktifGun.tarih : sekme;
 
   const sekmeDugmesi = (anahtar, etiket, ek) => (
     <button
@@ -5340,10 +5448,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
       style={{
         padding: '6px 12px',
         border: '1px solid #CBD5E1',
-        borderTop: sekme === anahtar ? '3px solid #0F766E' : '1px solid #CBD5E1',
-        background: sekme === anahtar ? '#fff' : '#F1F5F9',
-        color: sekme === anahtar ? '#0F766E' : '#334155',
-        fontWeight: sekme === anahtar ? 700 : 500,
+        borderTop: aktifSekme === anahtar ? '3px solid #0F766E' : '1px solid #CBD5E1',
+        background: aktifSekme === anahtar ? '#fff' : '#F1F5F9',
+        color: aktifSekme === anahtar ? '#0F766E' : '#334155',
+        fontWeight: aktifSekme === anahtar ? 700 : 500,
         fontSize: 12.5,
         cursor: 'pointer',
         borderRadius: '0 0 6px 6px',
@@ -5395,42 +5503,38 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         >
           <div style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', marginRight: 'auto' }}>
             Fakülte Sınav Programı
-            {!(
-              (currentUser?.role === 'admin' || currentUser?.isUniversityAdmin) &&
-              fakulteler.length > 1
-            ) && (
+            {!(tamYonetici(currentUser) && fakulteler.length > 1) && (
               <span style={{ fontWeight: 500, color: '#64748B', fontSize: 14 }}>
                 {' '}
                 — {fakulteAdi}
               </span>
             )}
           </div>
-          {(currentUser?.role === 'admin' || currentUser?.isUniversityAdmin) &&
-            fakulteler.length > 1 && (
-              <select
-                value={fakulte ? fakulte.anahtar : ''}
-                onChange={(e) => {
-                  setFakulteId(e.target.value);
-                  setSekme('tab:0');
-                  setAyarTaslak(null);
-                }}
-                aria-label="Fakülte / MYO"
-                style={{
-                  padding: '7px 10px',
-                  borderRadius: 8,
-                  border: '1px solid #CBD5E1',
-                  fontSize: 13,
-                  maxWidth: 320,
-                }}
-              >
-                {fakulteler.map((f) => (
-                  <option key={f.anahtar} value={f.anahtar}>
-                    {f.ad}
-                    {f.bolumSayisi ? ' (' + f.bolumSayisi + ' bölüm)' : ''}
-                  </option>
-                ))}
-              </select>
-            )}
+          {tamYonetici(currentUser) && fakulteler.length > 1 && (
+            <select
+              value={fakulte ? fakulte.anahtar : ''}
+              onChange={(e) => {
+                setFakulteId(e.target.value);
+                setSekme('gun:');
+                setAyarTaslak(null);
+              }}
+              aria-label="Fakülte / MYO"
+              style={{
+                padding: '7px 10px',
+                borderRadius: 8,
+                border: '1px solid #CBD5E1',
+                fontSize: 13,
+                maxWidth: 320,
+              }}
+            >
+              {fakulteler.map((f) => (
+                <option key={f.anahtar} value={f.anahtar}>
+                  {f.ad}
+                  {f.bolumSayisi ? ' (' + f.bolumSayisi + ' bölüm)' : ''}
+                </option>
+              ))}
+            </select>
+          )}
           <div
             title="Şu anki sınav dönemi: bugünü kapsayan, yoksa en yakın dönem"
             style={{
@@ -5462,7 +5566,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
                   fontWeight: 700,
                 }}
               >
-                {gonderenSayisi} / {bolumler.length} bölüm gönderdi
+                {gonderenSayisi} / {programliBolumSayisi} bölüm gönderdi
               </span>
             )}
           </div>
@@ -5653,7 +5757,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             <div style={{ flex: 1, minHeight: 0, padding: '10px 16px', overflow: 'hidden' }}>
               {sekme === 'ayar' && ayarCiz()}
               {sekme === 'kisaltma' && kitap && kisaltmaCiz()}
-              {sekme.startsWith('tab:') &&
+              {sekme.startsWith('gun:') &&
                 (aktifGun ? (
                   tabloCiz(aktifGun)
                 ) : (
@@ -5677,8 +5781,8 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
             >
               {kitap && sekmeDugmesi('kisaltma', 'Kısaltmalar')}
               {kitap &&
-                kitap.gunler.map((g, i) =>
-                  sekmeDugmesi('tab:' + i, g.kisa + ' ' + g.kisaGun, g.oturumSayisi || null)
+                kitap.gunler.map((g) =>
+                  sekmeDugmesi('gun:' + g.tarih, g.kisa + ' ' + g.kisaGun, g.oturumSayisi || null)
                 )}
               {yetkili && ayarTaslak && sekmeDugmesi('ayar', 'Ayarlar')}
             </div>
@@ -5775,8 +5879,24 @@ function SinavOtomasyonuApp({
           window.innerWidth <= 480 ? m : window.innerWidth <= 768 ? t || m : d || t || m,
         modalWidth: (w) => Math.min(w, window.innerWidth - 32),
       };
-  const isAdmin = currentUser?.role === 'admin';
-  const isDeptManager = currentUser?.role === 'bolum_yetkilisi';
+  const isAdmin = tamYonetici(currentUser);
+  // Bölüm yetkilisi: ayrı yetkili girişi (role) ya da akademisyen kaydındaki
+  // bölüm yetkilisi işareti (uygulamanın geri kalanıyla aynı kural). Yetki
+  // YALNIZ kendi bölümünde geçerlidir; ek bölümünde ders veren yetkili orada
+  // sade akademisyen kurallarıyla çalışır (bkz. aşağıda isDeptManager).
+  const bolumYetkilisiRolu =
+    currentUser?.role === 'bolum_yetkilisi' || !!currentUser?.isDeptManager;
+  const bolumAdiBul = (id) =>
+    ((window.DEPARTMENTS || []).find((d) => d.id === id) || {}).name || '';
+  const kendiBolumuMu = (id) => {
+    const ana = currentUser?.departmentId;
+    if (!id || !ana) return false;
+    const kimlikler = window.bolumKimlikleri ? window.bolumKimlikleri(ana) : [String(ana)];
+    if (kimlikler.includes(String(id))) return true;
+    const ad = currentUser?.departmentName;
+    const d = (window.DEPARTMENTS || []).find((x) => x.id === id);
+    return !!(ad && d && d.name === ad);
+  };
   // Fakülte / üniversite yetkilisi modülde TAM yetkilidir: fakültesindeki
   // bölümlerin programını düzenler, salon/gözetmen atar, birleştirir, iade
   // eder. Akademisyen girişiyle gelse de "sade akademisyen" kısıtları uygulanmaz.
@@ -5798,8 +5918,11 @@ function SinavOtomasyonuApp({
   // seçili bölüm fakültesi dışındaysa (ör. üst menüden) sade akademisyen sayılır.
   const bolumYetkiAlaninda = !fakulteSinirli || departments.some((d) => d.id === selectedDeptId);
   const yonetimYetkisi = fakulteYetkili && bolumYetkiAlaninda;
-  const isProfessor = currentUser?.role === 'professor' && !yonetimYetkisi;
+  const isDeptManager = bolumYetkilisiRolu && kendiBolumuMu(selectedDeptId);
   const canManage = isAdmin || isDeptManager || yonetimYetkisi;
+  // Yönetim yetkisi olmayan herkes yalnız kendi dersinin sınavını düzenler
+  // (akademisyen); başka bir rol (ör. modül atanmış memur) salt okur.
+  const isProfessor = akademisyenMi(currentUser) && !canManage;
   const [_showDeptModal, _setShowDeptModal] = useState(false);
   const [_showClassroomModal, _setShowClassroomModal] = useState(false);
   const [_showSupervisorModal, _setShowSupervisorModal] = useState(false);
@@ -5850,8 +5973,16 @@ function SinavOtomasyonuApp({
   const selectedDept = departments.find((d) => d.id === selectedDeptId);
 
   // Lisans takvimi gündüz satırlarıyla sınırlı; lisansüstü akşam satırları dahil
+  // (Fakülte çizelgesinden 18:00 ve sonrasına alınmış lisans sınavı varsa
+  // akşam satırları lisansta da açılır; yoksa sınav takvimde görünmüyordu.)
+  const aksamSinaviVar = placedExams.some((e) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(e.timeSlot || ''));
+    return !!m && Number(m[1]) * 60 + Number(m[2]) >= 18 * 60;
+  });
   const visibleTimeSlots =
-    seviye === 'lisans' ? TIME_SLOTS.slice(0, LISANS_TIME_SLOT_COUNT) : TIME_SLOTS;
+    seviye === 'lisans' && !aksamSinaviVar
+      ? TIME_SLOTS.slice(0, LISANS_TIME_SLOT_COUNT)
+      : TIME_SLOTS;
   // Lisansüstünde sınıf (1-4) kavramı yok — sınıf rozetleri/filtreleri gizlenir
   const sinifsiz = seviye !== 'lisans';
 
@@ -5959,8 +6090,16 @@ function SinavOtomasyonuApp({
           }
         });
 
-        // Bölüm yetkilisi için: sadece kendi bölümünü göster
-        if (isDeptManager && currentUser?.departmentId) {
+        // Bölüm yetkilisi girişi için: sadece kendi bölümünü göster (fakülte
+        // yetkilisi de olan kişi fakültenin bütün bölümlerini görür).
+        // (Akademisyen girişli bölüm yetkilisi ders verdiği bölümleri de görür:
+        // aşağıdaki akademisyen dalı kendi bölümünü de ekler.)
+        if (
+          currentUser?.role === 'bolum_yetkilisi' &&
+          currentUser?.baseRole !== 'professor' &&
+          !fakulteYetkili &&
+          currentUser?.departmentId
+        ) {
           const userDeptId = currentUser.departmentId;
           const userDeptName = currentUser.departmentName;
           depts = depts.filter(
@@ -5993,7 +6132,7 @@ function SinavOtomasyonuApp({
         }
 
         // Akademisyen için: derslerinin olduğu bölümleri bul
-        if (currentUser?.role === 'professor' && !fakulteYetkili && currentUser?.name) {
+        if (akademisyenMi(currentUser) && !fakulteYetkili && currentUser?.name) {
           // Ad birebir aranmaz (unvan/harf farkı, çok hocalı dersler): bütün
           // dersler okunup "hocalarından biri mi" kuralıyla süzülür.
           const cRef = getCoursesRef();
@@ -6006,20 +6145,30 @@ function SinavOtomasyonuApp({
               const benim = f ? f(c, currentUser.name) : c.professor === currentUser.name;
               if (benim && c.departmentId) profDeptIds.add(c.departmentId);
             });
+            // Bölüm yetkilisi işaretli akademisyen kendi bölümünü de görür.
+            if (bolumYetkilisiRolu)
+              depts.filter((d) => kendiBolumuMu(d.id)).forEach((d) => profDeptIds.add(d.id));
             depts = depts.filter((d) => profDeptIds.has(d.id));
           }
         }
 
         setDepartments(depts);
         // Auto-select for department manager
-        if (isDeptManager && currentUser?.departmentId) {
+        if (bolumYetkilisiRolu && !fakulteYetkili && currentUser?.departmentId) {
           // Eşleştirilmiş bölüm varsa onun ID'sini kullan
           const matchedDept = depts.find(
             (d) => d.id === currentUser.departmentId || d.name === currentUser.departmentName
           );
-          setSelectedDeptId(matchedDept ? matchedDept.id : currentUser.departmentId);
+          // Kabukta ders verdiği başka bir bölüm seçiliyse o korunur.
+          setSelectedDeptId(
+            activeDepartment && depts.some((d) => d.id === activeDepartment)
+              ? activeDepartment
+              : matchedDept
+                ? matchedDept.id
+                : currentUser.departmentId
+          );
         } else if (
-          currentUser?.role === 'professor' &&
+          akademisyenMi(currentUser) &&
           !fakulteYetkili &&
           depts.length > 0 &&
           (!selectedDeptId || !depts.some((d) => d.id === selectedDeptId))
@@ -6234,27 +6383,40 @@ function SinavOtomasyonuApp({
   // dahil edilir; hepsi ilk sınavın gün/saatine alınır, salon ve gözetmenler
   // birleşir. Yetki: bölüm yetkilisi (kendi bölümünün sınavları), fakülte
   // yetkilisi, ya da bütün sınavların hocası olan akademisyen.
+  const cakismaYamalari = (c) =>
+    SF && window.SinavBirlesim
+      ? SF.birlestirmeYamalari(c.sinavlar, window.SinavBirlesim.yeniBirlesimId(), {
+          tumSinavlar: denetimListesi(tumSinavlar),
+          date: c.sinavlar[0].date,
+          timeSlot: c.sinavlar[0].timeSlot,
+        })
+      : [];
+  // Değişecek HER sınav (oturumların diğer üyeleri dahil) yazanın alanında
+  // olmalı: fakülte yetkilisi fakültesinin bölümleri, bölüm yetkilisi kendi
+  // bölümü, akademisyen yalnız kendi dersleri.
+  const sinavYazilabilir = (e) => {
+    if (!e) return false;
+    if (isAdmin || currentUser?.isUniversityAdmin) return true;
+    if (yonetimYetkisi) return departments.some((d) => d.id === e.departmentId);
+    if (canManage) return e.departmentId === selectedDeptId;
+    return kendiDersiMi(e);
+  };
   const cakismaBirlestirilebilir = (c) => {
     if (!c || !Array.isArray(c.sinavlar) || c.sinavlar.length !== 2) return false;
     if (c.tur !== 'hoca' && c.tur !== 'sinif') return false;
-    const hepsiBolumde = c.sinavlar.every((e) => e && e.departmentId === selectedDeptId);
-    if (yonetimYetkisi) return true;
-    if (!hepsiBolumde) return false;
-    return canManage || c.sinavlar.every((e) => kendiDersiMi(e));
+    const tum = denetimListesi(tumSinavlar);
+    const yamalar = cakismaYamalari(c);
+    return (
+      yamalar.length > 0 && yamalar.every((y) => sinavYazilabilir(tum.find((e) => e.id === y.id)))
+    );
   };
   const cakismayiBirlestir = async (c) => {
-    const SB = window.SinavBirlesim;
-    if (!SF || !SB || !cakismaBirlestirilebilir(c)) return;
+    if (!cakismaBirlestirilebilir(c)) return;
     const [a] = c.sinavlar;
-    const yamalar = SF.birlestirmeYamalari(c.sinavlar, SB.yeniBirlesimId(), {
-      tumSinavlar: denetimListesi(tumSinavlar),
-      date: a.date,
-      timeSlot: a.timeSlot,
-    });
+    const tum = denetimListesi(tumSinavlar);
+    const yamalar = cakismaYamalari(c);
     const kodlar = [
-      ...new Set(
-        yamalar.map((y) => (denetimListesi(tumSinavlar).find((e) => e.id === y.id) || {}).code)
-      ),
+      ...new Set(yamalar.map((y) => (tum.find((e) => e.id === y.id) || {}).code)),
     ].filter(Boolean);
     if (
       !window.confirm(
@@ -6293,7 +6455,11 @@ function SinavOtomasyonuApp({
   };
 
   // ── Load data from DB (department-scoped) ──
+  // Hızlı bölüm değişiminde eski isteğin cevabı yeni bölümün verisinin
+  // üstüne yazılmasın: yalnız SON isteğin sonucu uygulanır.
+  const yuklemeNo = _useRef(0);
   const loadData = async () => {
+    const istekNo = ++yuklemeNo.current;
     setLoading(true);
     try {
       const cRef = getCoursesRef();
@@ -6360,6 +6526,7 @@ function SinavOtomasyonuApp({
 
       const [coursesSnap, profsSnap, periodsSnap, examsSnap, classroomsSnap] =
         await Promise.all(queries);
+      if (istekNo !== yuklemeNo.current) return;
 
       // Set courses (aynı code + aynı name olanları filtrele, farklı şubeler korunsun)
       // SEVİYE filtresi: bu modül örneği yalnız kendi seviyesinin derslerini
@@ -6445,7 +6612,9 @@ function SinavOtomasyonuApp({
       // Sadece bir kez çalışır (tarayıcı başına), her sayfa yüklemesinde çalışmaz
       const MIGRATION_VERSION = 'v5_donem_fix';
       const migrationDone = localStorage.getItem('sinav_migration_' + MIGRATION_VERSION);
-      if (depts.length > 0 && !migrationDone) {
+      // Bütün bölümlerin kayıtlarını değiştirir (mükerrer silme, bölüm
+      // kimliği düzeltme): yalnız sistem yöneticisinin tarayıcısında çalışır.
+      if (depts.length > 0 && !migrationDone && isAdmin) {
         try {
           const HARD_DEPTS = window.DEPARTMENTS || [];
           const _validDeptIds = new Set(HARD_DEPTS.map((d) => d.id));
@@ -6811,7 +6980,10 @@ function SinavOtomasyonuApp({
   const grupAnahtari = activePeriod && SF ? SF.donemGrubu(activePeriod) : '';
   const gonderimId =
     SF && selectedDeptId && grupAnahtari ? SF.gonderimKimligi(selectedDeptId, grupAnahtari) : '';
-  const gonderimKaydi = gonderimler.find((g) => g && g.id === gonderimId) || null;
+  const gonderimKaydi =
+    SF && selectedDeptId && grupAnahtari
+      ? SF.gonderimKaydiBul(gonderimler, selectedDeptId, grupAnahtari)
+      : null;
   const gonderimDurumu =
     SF && periodExams.length > 0
       ? SF.gonderimDurumu(gonderimKaydi, SF.programImzasi(periodExams))
@@ -6937,7 +7109,7 @@ function SinavOtomasyonuApp({
 
   const handleDrop = async (courseData, dateStr, timeSlot) => {
     // Akademisyen sadece kendi derslerini yerleştirebilir
-    if (isProfessor && !kendiDersiMi(courseData)) {
+    if (!canManage && !kendiDersiMi(courseData)) {
       alert('Sadece kendi derslerinizi programa ekleyebilirsiniz.');
       return;
     }
@@ -6995,6 +7167,30 @@ function SinavOtomasyonuApp({
       alert('Yalnız iki dersin de hocası sizseniz birleştirebilirsiniz.');
       return;
     }
+    // Oturumun salonu birleşince sığmıyorsa önceden söylenir (çakışma panelinde
+    // "salona sığmıyor" engeli olarak da görünür).
+    const salonlar = String(oturum.ozet.room || '')
+      .split(/\s+-\s+/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    const kapasiteler = salonlar.map((x) => Number(salonKapasiteleri[x]) || 0);
+    const toplam = (oturum.ozet.toplamOgrenci || 0) + (Number(ayniSaat.ders.studentCount) || 0);
+    const toplamKap = kapasiteler.reduce((t, c) => t + c, 0);
+    if (
+      salonlar.length > 0 &&
+      kapasiteler.every((c) => c > 0) &&
+      toplam > toplamKap &&
+      !window.confirm(
+        'Birleşince ' +
+          toplam +
+          ' öğrenci olacak; ' +
+          salonlar.join(' - ') +
+          ' kapasitesi ' +
+          toplamKap +
+          '. Oturuma salon eklemeniz gerekecek. Yine de birleştirilsin mi?'
+      )
+    )
+      return;
     const bid = oturum.uyeler.map((u) => u.birlesimId).find(Boolean) || SB.yeniBirlesimId();
     try {
       for (const u of oturum.uyeler) {
@@ -7028,11 +7224,41 @@ function SinavOtomasyonuApp({
   const birlesimdenAyir = async (exam) => {
     const SB = window.SinavBirlesim;
     if (!SB) return;
-    const yamalar = SB.birlesimdenCikarYamalari(exam, periodExams);
+    const tum = denetimListesi(tumSinavlar);
+    // Sınavın kendi yaması her zaman; geride tek kalan üyenin bağını çözen
+    // yama yalnız o üye yazılabiliyorsa (başka bölümün sınavıysa tek üyeli
+    // oturum zararsızdır — sınav silmedeki kuralla aynı).
+    const yamalar = SB.birlesimdenCikarYamalari(exam, tum).filter(
+      (y) => y.id === exam.id || sinavYazilabilir(tum.find((e) => e.id === y.id))
+    );
+    if (!sinavYazilabilir(exam)) {
+      alert('Bu sınavı düzenleme yetkiniz yok.');
+      return;
+    }
+    // Ayrılan sınav oturumun salon/gözetmenini taşırsa aynı saatte aynı salonda
+    // kesin çakışma olur: boşaltılır (fakülte görünümündeki "Ayır" ile aynı).
+    const veri = (y) =>
+      y.id === exam.id
+        ? {
+            birlesimId: '',
+            room: '',
+            supervisor: '',
+            otomatikSalon: false,
+            otomatikGozetmen: false,
+          }
+        : { birlesimId: '' };
+    if (
+      !window.confirm(
+        (exam.code || 'Sınav') +
+          ' ortak oturumdan ayrılacak; salonu ve gözetmeni boşaltılır (yeniden atanır). Devam edilsin mi?'
+      )
+    )
+      return;
     try {
-      for (const y of yamalar) await DBWrite.update('sinav_programi', y.id, { birlesimId: '' });
-      const ayrilan = new Set(yamalar.map((y) => y.id));
-      setPlacedExams((prev) => prev.map((e) => (ayrilan.has(e.id) ? { ...e, birlesimId: '' } : e)));
+      for (const y of yamalar) await DBWrite.update('sinav_programi', y.id, veri(y));
+      const h = new Map(yamalar.map((y) => [y.id, veri(y)]));
+      setPlacedExams((prev) => prev.map((e) => (h.has(e.id) ? { ...e, ...h.get(e.id) } : e)));
+      loadFakulteGeneli();
     } catch (e) {
       alert('Ayrılamadı: ' + e.message);
     }
@@ -7053,7 +7279,7 @@ function SinavOtomasyonuApp({
     const { hocaKurali, sayiKurali } = await bolumGozetmenKurallari(selectedDeptId);
     const { oneri, uyarilar } = otomatikAtamaHesapla({
       sinavlar: periodExams,
-      salonlar: deptClassrooms.length > 0 ? deptClassrooms : null,
+      salonlar: deptClassrooms.length > 0 ? deptClassrooms : salonListesi,
       gozetmenAdlari: deptSupervisors.map((x) => x.name),
       kurallar: { hocaKurali, sayiKurali },
       musaitsizlik: window.gozetmenMusaitsizlikHaritasi
@@ -7184,7 +7410,7 @@ function SinavOtomasyonuApp({
       periodExams,
       activePeriod.label,
       activePeriod,
-      deptClassrooms.length > 0 ? deptClassrooms : null,
+      deptClassrooms.length > 0 ? deptClassrooms : salonListesi,
       deptSupervisors.length > 0 ? deptSupervisors.map((x) => x.name) : null,
       selectedDept?.name || null,
       await bolumGozetmenKurallari(selectedDeptId),
@@ -7207,14 +7433,22 @@ function SinavOtomasyonuApp({
       periodExams,
       activePeriod.label,
       selectedDept?.name,
-      deptClassrooms.length > 0 ? deptClassrooms : null,
-      selectedDept?.id || activeDepartment
+      deptClassrooms.length > 0 ? deptClassrooms : salonListesi,
+      selectedDept?.id || activeDepartment,
+      {
+        gozetmenAdlari: deptSupervisors.map((x) => x.name),
+        kurallar: await bolumGozetmenKurallari(selectedDeptId),
+        musaitsizlik: window.gozetmenMusaitsizlikHaritasi
+          ? window.gozetmenMusaitsizlikHaritasi(deptSupervisors)
+          : {},
+        digerSinavlar,
+      }
     );
   };
 
   const handleUpdateExam = async (updatedExam) => {
     // Akademisyen sadece kendi derslerini düzenleyebilir
-    if (isProfessor && !kendiDersiMi(updatedExam)) {
+    if (!canManage && !kendiDersiMi(updatedExam)) {
       alert('Sadece kendi derslerinizi düzenleyebilirsiniz.');
       return;
     }
@@ -7226,15 +7460,45 @@ function SinavOtomasyonuApp({
         updatedExam = { ...updatedExam, otomatikSalon: false };
       if (onceki.otomatikGozetmen && (updatedExam.supervisor || '') !== (onceki.supervisor || ''))
         updatedExam = { ...updatedExam, otomatikGozetmen: false };
-      const { id, ...data } = updatedExam;
-      await DBWrite.update('sinav_programi', id, data);
+      const id = updatedExam.id;
+      // YALNIZ pencerede değişen alanlar yazılır. Bütün kaydı geri yazmak,
+      // başka ekranda (fakülte görünümü) ya da başka kullanıcının yaptığı
+      // değişikliği (saat, birleşim…) eski değerle eziyordu.
+      const ilk = editingExam && editingExam.id === id ? editingExam : onceki;
+      const data = {};
+      ['studentCount', 'supervisor', 'room', 'duration', 'professor', 'sinif'].forEach((k) => {
+        if (String(updatedExam[k] ?? '') !== String(ilk[k] ?? '')) data[k] = updatedExam[k];
+      });
+      ['otomatikSalon', 'otomatikGozetmen'].forEach((k) => {
+        if (updatedExam[k] === false && onceki[k]) data[k] = false;
+      });
+      if (Object.keys(data).length === 0) return;
       // Ortak sınav tek oturumdur: salon ve gözetmen bütün üyelerde aynı olmalı.
+      // Üyeler bütün bölümlerden aranır (oturum bölümler arası olabilir).
       const SB = window.SinavBirlesim;
       const digerleri =
         SB && updatedExam.birlesimId
-          ? SB.grupUyeleri(updatedExam, periodExams).filter((e) => e.id !== id)
+          ? SB.grupUyeleri(updatedExam, denetimListesi(tumSinavlar)).filter((e) => e.id !== id)
           : [];
       const ortak = { room: updatedExam.room || '', supervisor: updatedExam.supervisor || '' };
+      const ortakDegisti = digerleri.some(
+        (u) => (u.room || '') !== ortak.room || (u.supervisor || '') !== ortak.supervisor
+      );
+      const yazilamayan = digerleri.filter((u) => !sinavYazilabilir(u));
+      if (ortakDegisti && yazilamayan.length > 0) {
+        alert(
+          'Bu ortak sınavın salonu/gözetmeni oturumdaki bütün sınavlarda aynı olmalı; ' +
+            'oturumda düzenleme yetkiniz olmayan sınav var: ' +
+            yazilamayan
+              .map((u) => u.code + ' (' + (bolumAdiBul(u.departmentId) || 'başka bölüm') + ')')
+              .join(', ') +
+            '. Bu salon/gözetmen değişikliğini ' +
+            (canManage ? 'fakülte yetkilisi' : 'bölüm ya da fakülte yetkilisi') +
+            ' yapar.'
+        );
+        return;
+      }
+      await DBWrite.update('sinav_programi', id, data);
       // Elle değişen alan oturumun bütün üyelerinde artık otomatik sayılmaz.
       if (updatedExam.otomatikSalon === false) ortak.otomatikSalon = false;
       if (updatedExam.otomatikGozetmen === false) ortak.otomatikGozetmen = false;
@@ -7250,9 +7514,10 @@ function SinavOtomasyonuApp({
       const digerIdleri = new Set(digerleri.map((u) => u.id));
       setPlacedExams((prev) =>
         prev.map((e) =>
-          e.id === id ? updatedExam : digerIdleri.has(e.id) ? { ...e, ...ortak } : e
+          e.id === id ? { ...e, ...data } : digerIdleri.has(e.id) ? { ...e, ...ortak } : e
         )
       );
+      if (digerleri.some((u) => u.departmentId !== selectedDeptId)) loadFakulteGeneli();
     } catch (e) {
       console.error('Update error:', e);
       alert('Güncelleme hatası: ' + e.message);
@@ -7261,19 +7526,22 @@ function SinavOtomasyonuApp({
 
   const handleRemoveExam = async (exam) => {
     // Akademisyen sadece kendi derslerini kaldırabilir
-    if (isProfessor && !kendiDersiMi(exam)) {
+    if (!canManage && !kendiDersiMi(exam)) {
       alert('Sadece kendi derslerinizi takvimden kaldırabilirsiniz.');
       return;
     }
     try {
       // Ortak oturumdan çıkan sınav: geride tek üye kalırsa onun bağı da çözülür.
       const SB = window.SinavBirlesim;
+      // Üyeler bütün bölümlerden aranır: bölümler arası oturumda yalnız bu
+      // bölüme bakınca diğer bölümün iki üyesi varken bağ yanlışlıkla çözülüyordu.
       const kalan =
         SB && exam.birlesimId
-          ? SB.grupUyeleri(exam, periodExams).filter((e) => e.id !== exam.id)
+          ? SB.grupUyeleri(exam, denetimListesi(tumSinavlar)).filter((e) => e.id !== exam.id)
           : [];
       await DBWrite.remove('sinav_programi', exam.id);
-      if (kalan.length === 1)
+      // Tek kalan üyenin bağı çözülür (yazılamıyorsa tek üyeli oturum zararsızdır).
+      if (kalan.length === 1 && sinavYazilabilir(kalan[0]))
         await DBWrite.update('sinav_programi', kalan[0].id, { birlesimId: '' });
       setPlacedExams((prev) =>
         prev
@@ -7497,7 +7765,14 @@ function SinavOtomasyonuApp({
       {fakultePenceresi && (
         <FakulteProgramPenceresi
           currentUser={currentUser}
-          onClose={() => setFakultePenceresi(false)}
+          varsayilanBolum={selectedDeptId}
+          onClose={() => {
+            setFakultePenceresi(false);
+            // Fakülte görünümünde yapılan değişiklikler ana takvime gelsin
+            // (yoksa bayat kayıt bir sonraki kayıtta geri yazılabiliyordu).
+            loadData();
+            loadFakulteGeneli();
+          }}
         />
       )}
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 4px 40px' }}>
@@ -8259,7 +8534,7 @@ function SinavOtomasyonuApp({
                           course={c}
                           isPlaced={false}
                           placedCount={c.placedCount}
-                          canDrag={canManage || (isProfessor && kendiDersiMi(c))}
+                          canDrag={canManage || kendiDersiMi(c)}
                         />
                       ))}
                     </div>
@@ -8292,7 +8567,7 @@ function SinavOtomasyonuApp({
                                 course={c}
                                 isPlaced={false}
                                 placedCount={c.placedCount}
-                                canDrag={canManage || (isProfessor && kendiDersiMi(c))}
+                                canDrag={canManage || kendiDersiMi(c)}
                               />
                             ))}
                           </div>
@@ -8425,15 +8700,20 @@ function SinavOtomasyonuApp({
             exam={editingExam}
             grup={
               window.SinavBirlesim && editingExam.birlesimId
-                ? window.SinavBirlesim.grupUyeleri(editingExam, turkishifiedPeriodExams)
+                ? window.SinavBirlesim.grupUyeleri(
+                    editingExam,
+                    denetimListesi(tumSinavlar).map(turkishifyExam)
+                  )
                 : []
             }
-            onAyir={canManage ? birlesimdenAyir : null}
+            onAyir={
+              canManage || (editingExam && kendiDersiMi(editingExam)) ? birlesimdenAyir : null
+            }
             professors={professors}
             onSave={handleUpdateExam}
             onRemove={handleRemoveExam}
             onClose={() => setEditingExam(null)}
-            readOnly={isProfessor && !kendiDersiMi(editingExam)}
+            readOnly={!canManage && !kendiDersiMi(editingExam)}
             salonSecenekleri={salonSecenekleri}
             gozetmenSecenekleri={gozetmenSecenekleri}
           />

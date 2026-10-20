@@ -87,6 +87,33 @@ function birlesikHarita(bolumler) {
  * @param {object} p { user, flags, profil, bolumler }
  * @returns {{ tur: 'universite'|'fakulte'|'bolum'|'yok', fakulteler:Set, bolumler:Set, harita }}
  */
+// Aynı fakülte slug ('muhendislik'), veritabanı kimliği ve (çekirdek
+// bölümlerde) boş facultyId ile anılabiliyor; istemci bunları ada göre
+// birleştiriyor (lib/sinav-fakulte.js → fakulteListesi). Sunucu da aynı
+// birimi tek alan sayar. Çekirdek bölümler fakültesizse Mühendislik'tir.
+const VARSAYILAN_FAKULTE_ADLARI = { muhendislik: 'Mühendislik Fakültesi' };
+const adNormal = (v) => metin(v).toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ');
+function fakulteKimlikleri(fakId, fakulteKayitlari) {
+  const hedef = metin(fakId);
+  const out = new Set(hedef ? [hedef] : []);
+  if (!hedef) return out;
+  const kayitKimlikleri = (f) =>
+    [f && f._docId, f && f.id, f && f._id && f._id.toString()].map(metin).filter(Boolean);
+  const kayitlar = dizi(fakulteKayitlari).filter(Boolean);
+  // Hedefin adı: kayıttan ya da bilinen slug'dan.
+  const kayit = kayitlar.find((f) => kayitKimlikleri(f).includes(hedef));
+  const ad = adNormal((kayit && kayit.name) || VARSAYILAN_FAKULTE_ADLARI[hedef]);
+  if (ad) {
+    kayitlar
+      .filter((f) => adNormal(f.name) === ad)
+      .forEach((f) => kayitKimlikleri(f).forEach((k) => out.add(k)));
+    Object.entries(VARSAYILAN_FAKULTE_ADLARI).forEach(([slug, varsayilanAd]) => {
+      if (adNormal(varsayilanAd) === ad) out.add(slug);
+    });
+  }
+  return out;
+}
+
 function yetkiAlani(p) {
   const o = p || {};
   const user = o.user || {};
@@ -106,10 +133,12 @@ function yetkiAlani(p) {
     return { tur: bolumler.size ? 'bolum' : 'yok', fakulteler, bolumler, harita };
   }
   if (flags.facManager && metin(profil.facultyId)) {
-    const fak = metin(profil.facultyId);
-    fakulteler.add(fak);
+    const fakKimlik = fakulteKimlikleri(profil.facultyId, o.fakulteler);
+    fakKimlik.forEach((k) => fakulteler.add(k));
     dizi(o.bolumler).forEach((d) => {
-      if (d && metin(d.facultyId) === fak) {
+      // Fakültesi boş bölüm istemcide Mühendislik sayılır.
+      const df = metin(d && d.facultyId) || 'muhendislik';
+      if (d && fakKimlik.has(df)) {
         bolumVaryantlari(harita, metin(d._docId || d.id || (d._id && d._id.toString()))).forEach(
           (v) => bolumler.add(v)
         );
@@ -121,8 +150,11 @@ function yetkiAlani(p) {
     return { tur: 'fakulte', fakulteler, bolumler, harita };
   }
   if (flags.deptManager) {
+    // YAZMA alanı yalnız ana bölüm: ek bölümünde (ders verdiği) yetkili orada
+    // sade akademisyendir (arayüz de öyle davranır: app-shell isOnExtraDept).
+    // Okumada ek bölümler de alanındadır.
     ekle(profil.departmentId);
-    dizi(profil.additionalDepartments).forEach(ekle);
+    if (o.okuma) dizi(profil.additionalDepartments).forEach(ekle);
     bolumler.delete('');
     return { tur: bolumler.size ? 'bolum' : 'yok', fakulteler, bolumler, harita };
   }

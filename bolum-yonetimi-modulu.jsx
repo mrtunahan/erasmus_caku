@@ -371,7 +371,10 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
       ? G.gozetmenlikYamasi(guncel, activeDepartment, ekle, window.DEPARTMENTS || [])
       : null;
     if (!yama) throw new Error('Gözetmen kuralları yüklenemedi.');
-    await DBWrite.update('professors', prof.id, yama);
+    // Yalnız bölüm listesi gönderilir: 'gozetmen' rol işaretini sunucu bu
+    // listeden hesaplar (server/lib/gozetmen-yazma.js). `roles` gönderilirse
+    // başka bölümün akademisyeninin kaydına genel yazma sayılıp reddediliyordu.
+    await DBWrite.update('professors', prof.id, { gozetmenBolumleri: yama.gozetmenBolumleri });
   };
 
   // Veri yükleme — direkt MongoDB API

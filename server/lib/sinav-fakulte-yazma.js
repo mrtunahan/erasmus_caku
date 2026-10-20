@@ -68,6 +68,10 @@ function gonderimKarari(op, mevcut, alan) {
     if (['iadeNotu', 'iadeEden', 'iadeTarihi'].some((k) => veri[k] !== undefined)) {
       return ret('İade bilgisini yalnız fakülte yetkilisi yazar.');
     }
+    // Fakültenin düzenleme damgası bölümce yazılamaz.
+    if (['fakulteDuzenleyen', 'fakulteDuzenlemeTarihi'].some((k) => veri[k] !== undefined)) {
+      return ret('Fakülte düzenleme bilgisini yalnız fakülte yetkilisi yazar.');
+    }
     return IZIN;
   }
 
