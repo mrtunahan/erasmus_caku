@@ -8,8 +8,6 @@
 // ══════════════════════════════════════════════════════════════
 
 import {
-  HOCA_KURALLARI,
-  hocaKuraliOku,
   sayiKuraliOku,
   sayiKuraliOrnekleri,
   SAYI_KURALI_VARSAYILAN,
@@ -40,7 +38,6 @@ const baslik = { fontSize: 13.5, fontWeight: 700, color: R.navy, marginBottom: 4
 const aciklama = { fontSize: 12.5, color: R.muted, marginBottom: 12, lineHeight: 1.55 };
 
 export function GozetmenKurallariPaneli({ departmentId, duzenlenebilir = true, onKaydedildi }) {
-  const [hoca, setHoca] = useState('tercihli');
   const [sayi, setSayi] = useState({ ...SAYI_KURALI_VARSAYILAN });
   const [kayitli, setKayitli] = useState(null);
   const [yukleniyor, setYukleniyor] = useState(true);
@@ -58,11 +55,9 @@ export function GozetmenKurallariPaneli({ departmentId, duzenlenebilir = true, o
         if (!canli) return;
         const d = bolumKaydiniBul(liste, departmentId) || {};
         setKayitId(String(d.id || departmentId));
-        const h = hocaKuraliOku(d.gozetmenKurali);
         const s = sayiKuraliOku(d.gozetmenSayiKurali);
-        setHoca(h);
         setSayi(s);
-        setKayitli(JSON.stringify({ h, s }));
+        setKayitli(JSON.stringify(s));
       })
       .catch(() => {})
       .finally(() => canli && setYukleniyor(false));
@@ -74,18 +69,18 @@ export function GozetmenKurallariPaneli({ departmentId, duzenlenebilir = true, o
   if (yukleniyor) return null;
 
   const temiz = sayiKuraliOku(sayi);
-  const degisti = kayitli !== JSON.stringify({ h: hoca, s: temiz });
+  const degisti = kayitli !== JSON.stringify(temiz);
   const ornekler = sayiKuraliOrnekleri(temiz);
 
   const kaydet = async () => {
     setKaydediliyor(true);
     setMesaj(null);
     try {
-      const alanlar = { gozetmenKurali: hoca, gozetmenSayiKurali: temiz };
+      const alanlar = { gozetmenSayiKurali: temiz };
       await window.DBWrite.set('departments', kayitId, alanlar, true);
       if (window.apiInvalidate) window.apiInvalidate('departments');
       setSayi(temiz);
-      setKayitli(JSON.stringify({ h: hoca, s: temiz }));
+      setKayitli(JSON.stringify(temiz));
       setMesaj({ ok: true, metin: 'Kaydedildi. Dekanlık çıktısı bu kurallarla üretilecek.' });
       if (onKaydedildi) onKaydedildi(alanlar);
     } catch (e) {
@@ -107,59 +102,24 @@ export function GozetmenKurallariPaneli({ departmentId, duzenlenebilir = true, o
         gap: 18,
       }}
     >
+      {/* Dersin hocası kuralı bölümden bölüme seçilmez: fakülte kuralıdır
+          (hoca her sınavında ilk gözetmen). Yalnız bilgi olarak gösterilir. */}
       <div>
-        <div style={baslik}>Dersin hocası kendi sınavında gözetmen olsun mu?</div>
-        <div style={aciklama}>
-          Bölümden bölüme değişir. Seçim, sınav otomasyonundaki otomatik gözetmen atamasında ve
-          dekanlık çıktısında uygulanır.
-        </div>
-        <div style={{ display: 'grid', gap: 8 }}>
-          {HOCA_KURALLARI.map((s) => {
-            const secili = hoca === s.id;
-            return (
-              <label
-                key={s.id}
-                style={{
-                  display: 'flex',
-                  gap: 10,
-                  alignItems: 'flex-start',
-                  padding: '10px 12px',
-                  border: '1.5px solid ' + (secili ? R.blue : R.border),
-                  background: secili ? R.bluePale : 'white',
-                  borderRadius: 10,
-                  cursor: duzenlenebilir ? 'pointer' : 'default',
-                }}
-              >
-                <input
-                  type="radio"
-                  name={'gozetmen-hoca-kurali-' + departmentId}
-                  checked={secili}
-                  disabled={!duzenlenebilir || kaydediliyor}
-                  onChange={() => setHoca(s.id)}
-                  style={{ marginTop: 3 }}
-                />
-                <span>
-                  <span
-                    style={{ fontSize: 13, fontWeight: 700, color: secili ? '#115E59' : R.navy }}
-                  >
-                    {s.label}
-                  </span>
-                  <span
-                    style={{
-                      display: 'block',
-                      fontSize: 12.5,
-                      color: R.muted,
-                      lineHeight: 1.5,
-                      marginTop: 2,
-                    }}
-                  >
-                    {s.desc}
-                  </span>
-                </span>
-              </label>
-            );
-          })}
-        </div>
+        <div style={baslik}>Otomatik atama sırası</div>
+        <ol style={{ ...aciklama, margin: 0, paddingLeft: 18 }}>
+          <li>
+            <b>Dersin hocası</b> her sınavında ilk gözetmen olarak yazılır (o gün müsait değilse
+            uyarı verilir).
+          </li>
+          <li>
+            Sonra <b>dersin bölümünden</b>: bölümün gözetmen listesi ile bölümün öğretim üyeleri ve
+            araştırma görevlileri (iş yükü dengelenir).
+          </li>
+          <li>
+            Yetmezse <b>dışarıdan</b>: fakültenin diğer araştırma görevlileri ve araştırma görevlisi
+            doktorlar.
+          </li>
+        </ol>
       </div>
 
       <div>

@@ -238,7 +238,7 @@ describe('ortak oturumda gözetmen ataması', () => {
       s({ id: 'a', professor: 'X', studentCount: 5, birlesimId: 'B1' }),
       s({ id: 'b', professor: 'Y', studentCount: 5, birlesimId: 'B1' }),
     ];
-    const { atamalar } = gozetmenAta(['X', 'Y'], l, { salonBul: tekSalon });
+    const { atamalar } = gozetmenAta(['X', 'Y'], l, { salonBul: tekSalon, hocaKurali: 'tercihli' });
     expect(atamalar.a).toEqual(['X']);
   });
 
@@ -439,5 +439,38 @@ describe('aynı öğretim elemanı: ayrı eklenemez, birleştirilir', () => {
     );
     expect(k.ayriEklenebilir).toBe(true);
     expect(k.oturumlar[0].ayniHoca).toBe('');
+  });
+});
+
+describe('oturumSalonlari: kapasite yetmezse salon eklenir', () => {
+  it('girilen salon korunur, eksik için boş salon eklenir', () => {
+    const l = [
+      {
+        id: 'a',
+        code: 'A',
+        date: '2026-11-09',
+        timeSlot: '09:00',
+        studentCount: 40,
+        room: 'S1',
+        birlesimId: 'B',
+      },
+      {
+        id: 'b',
+        code: 'B',
+        date: '2026-11-09',
+        timeSlot: '09:00',
+        studentCount: 35,
+        room: 'S1',
+        birlesimId: 'B',
+      },
+    ];
+    const kap = { S1: 42, S2: 30, S3: 50 };
+    const salonBul = (n, dolu) => {
+      const bos = Object.keys(kap).filter((x) => !(dolu || []).includes(x));
+      return bos.sort((x, y) => kap[x] - kap[y]).find((x) => kap[x] >= n) || 'TBD';
+    };
+    const h = oturumSalonlari(l, salonBul, [], (x) => kap[x]);
+    expect(h.a).toBe('S1 - S3');
+    expect(h.b).toBe('S1 - S3');
   });
 });

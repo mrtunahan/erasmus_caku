@@ -83,7 +83,8 @@ describe('gozetmenlikYamasi', () => {
 describe('sayı kuralı', () => {
   it('bilinmeyen hoca kuralı varsayılana düşer', () => {
     expect(hocaKuraliOku('zorunlu')).toBe('zorunlu');
-    expect(hocaKuraliOku('saçma')).toBe('tercihli');
+    // Varsayılan: dersin hocası her sınavında ilk gözetmen (zorunlu).
+    expect(hocaKuraliOku('saçma')).toBe('zorunlu');
   });
 
   it('eksik/bozuk alanlar varsayılan, sınırlar kırpılır', () => {
@@ -185,6 +186,7 @@ describe('gozetmenAta', () => {
     const e = sinav();
     const { atamalar, uyarilar } = gozetmenAta(['Ali Veli', 'Can Demir'], [e], {
       salonBul: tekSalon,
+      hocaKurali: 'tercihli',
       musaitsizlik: { 'Ali Veli': ['2026-06-01'] },
     });
     expect(atamalar[e.id]).toEqual(['Can Demir']);
@@ -235,7 +237,10 @@ describe('gozetmenAta', () => {
   });
 
   it('havuz boşsa tek genel uyarı', () => {
-    const { uyarilar } = gozetmenAta([], [sinav(), sinav()], { salonBul: tekSalon });
+    const { uyarilar } = gozetmenAta([], [sinav(), sinav()], {
+      salonBul: tekSalon,
+      hocaKurali: 'tercihli',
+    });
     expect(uyarilar.map((u) => u.tur)).toEqual(['havuz_bos']);
     expect(uyariMetni(uyarilar)).toMatch(/tanımlı gözetmen yok/);
   });
@@ -292,4 +297,47 @@ describe('denetim düzeltmeleri — gözetmen', () => {
     expect(adAnahtari('Okutman Ali Veli')).toBe('ali veli');
     expect(adAnahtari('Yrd. Doç. Dr. Ali Veli')).toBe('ali veli');
   });
+});
+
+describe('gözetmen sırası: hoca → bölüm → dışarıdan', () => {
+  it('varsayılan kuralda dersin hocası ilk gözetmen; bölüm havuzu yetmezse dışarıdan', () => {
+    const e = {
+      id: 'e1',
+      code: 'A',
+      date: '2026-11-09',
+      timeSlot: '09:00',
+      duration: 60,
+      studentCount: 80,
+      professor: 'Dr. Öğr. Üyesi Ali VELİ',
+    };
+    const { atamalar } = gozetmenAta(['Arş. Gör. Bölüm KİŞİSİ'], [e], {
+      salonBul: () => 'M1 - M2',
+      sayiKurali: { salonBasina: 1, kalabalikEsik: 0 },
+      ekHavuz: ['Arş. Gör. Dış KİŞİ', 'Arş. Gör. Dış İKİ'],
+    });
+    expect(atamalar.e1[0]).toBe('Dr. Öğr. Üyesi Ali VELİ');
+    expect(atamalar.e1).toContain('Arş. Gör. Bölüm KİŞİSİ');
+    expect(atamalar.e1).toHaveLength(2);
+  });
+  it('bölüm havuzu yetiyorsa dışarıdan kimse atanmaz', () => {
+    const e = { id: 'e1', code: 'A', date: '2026-11-09', timeSlot: '09:00', studentCount: 10 };
+    const { atamalar } = gozetmenAta(['B1'], [e], {
+      salonBul: () => 'M1',
+      hocaKurali: 'haric',
+      ekHavuz: ['D1'],
+    });
+    expect(atamalar.e1).toEqual(['B1']);
+  });
+});
+
+it('bölüm havuzu yetmezse dışarıdan araştırma görevlisi atanır', () => {
+  const e = { id: 'e1', code: 'A', date: '2026-11-09', timeSlot: '09:00', studentCount: 90 };
+  const { atamalar } = gozetmenAta(['B1'], [e], {
+    salonBul: () => 'M1 - M2 - M3',
+    hocaKurali: 'haric',
+    sayiKurali: { salonBasina: 1, kalabalikEsik: 0 },
+    ekHavuz: ['D1', 'D2'],
+  });
+  expect(atamalar.e1[0]).toBe('B1');
+  expect(atamalar.e1.slice(1).sort()).toEqual(['D1', 'D2']);
 });
