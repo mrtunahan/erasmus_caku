@@ -1064,6 +1064,7 @@ const AyniSaatPenceresi = ({
                 {iliski.aciklama} Birleşince toplam{' '}
                 <b>{o.ozet.toplamOgrenci + (Number(ders.studentCount) || 0)} öğrenci</b>.
                 {o.ayniSinif ? ' Aynı sınıfın öğrencileri bu sınavda.' : ''}
+                {o.ayniHoca ? ' Aynı öğretim elemanının sınavı (' + o.ayniHoca + ').' : ''}
               </div>
               <div style={{ marginTop: 8 }}>
                 {o.zatenVar ? (
@@ -6228,6 +6229,54 @@ function SinavOtomasyonuApp({
     }
   };
 
+  // Çakışan iki sınavı ortak sınav yap (ör. aynı hocanın aynı saatteki iki
+  // dersi — Matematik'teki gibi tek oturum). Oturumların diğer üyeleri de
+  // dahil edilir; hepsi ilk sınavın gün/saatine alınır, salon ve gözetmenler
+  // birleşir. Yetki: bölüm yetkilisi (kendi bölümünün sınavları), fakülte
+  // yetkilisi, ya da bütün sınavların hocası olan akademisyen.
+  const cakismaBirlestirilebilir = (c) => {
+    if (!c || !Array.isArray(c.sinavlar) || c.sinavlar.length !== 2) return false;
+    if (c.tur !== 'hoca' && c.tur !== 'sinif') return false;
+    const hepsiBolumde = c.sinavlar.every((e) => e && e.departmentId === selectedDeptId);
+    if (yonetimYetkisi) return true;
+    if (!hepsiBolumde) return false;
+    return canManage || c.sinavlar.every((e) => kendiDersiMi(e));
+  };
+  const cakismayiBirlestir = async (c) => {
+    const SB = window.SinavBirlesim;
+    if (!SF || !SB || !cakismaBirlestirilebilir(c)) return;
+    const [a] = c.sinavlar;
+    const yamalar = SF.birlestirmeYamalari(c.sinavlar, SB.yeniBirlesimId(), {
+      tumSinavlar: denetimListesi(tumSinavlar),
+      date: a.date,
+      timeSlot: a.timeSlot,
+    });
+    const kodlar = [
+      ...new Set(
+        yamalar.map((y) => (denetimListesi(tumSinavlar).find((e) => e.id === y.id) || {}).code)
+      ),
+    ].filter(Boolean);
+    if (
+      !window.confirm(
+        kodlar.join(' + ') +
+          ' ortak sınav olacak: hepsi ' +
+          a.date +
+          ' ' +
+          a.timeSlot +
+          ' başlangıcında, aynı salon(lar)da yapılır; salon ve gözetmenler birleşir.\n\nDevam edilsin mi?'
+      )
+    )
+      return;
+    try {
+      for (const y of yamalar) await DBWrite.update('sinav_programi', y.id, y.data);
+      const h = new Map(yamalar.map((y) => [y.id, y.data]));
+      setPlacedExams((prev) => prev.map((e) => (h.has(e.id) ? { ...e, ...h.get(e.id) } : e)));
+      loadFakulteGeneli();
+    } catch (e) {
+      alert('Birleştirilemedi: ' + (e.message || ''));
+    }
+  };
+
   const kabulGeriAl = async (cakisma) => {
     if (!confirm('Bu çakışmanın şartlı kabulü geri alınacak. Devam edilsin mi?')) return;
     try {
@@ -8043,9 +8092,24 @@ function SinavOtomasyonuApp({
                                 </div>
                               )}
                             </div>
-                            {canManage && c.kabulEdilebilir && (
-                              <div style={{ flexShrink: 0 }}>
-                                {kabulEdildi ? (
+                            {(cakismaBirlestirilebilir(c) || (canManage && c.kabulEdilebilir)) && (
+                              <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
+                                {cakismaBirlestirilebilir(c) && (
+                                  <GhostBtn
+                                    onClick={() => cakismayiBirlestir(c)}
+                                    title="İki sınavı tek oturumda (aynı saat, aynı salon) yap"
+                                    style={{
+                                      fontSize: 12,
+                                      padding: '4px 10px',
+                                      background: '#0F766E',
+                                      color: 'white',
+                                      border: 'none',
+                                    }}
+                                  >
+                                    Ortak sınav yap
+                                  </GhostBtn>
+                                )}
+                                {!(canManage && c.kabulEdilebilir) ? null : kabulEdildi ? (
                                   <GhostBtn
                                     onClick={() => kabulGeriAl(c)}
                                     style={{ fontSize: 12, padding: '4px 10px' }}
