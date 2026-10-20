@@ -419,3 +419,35 @@ describe('kabul kaydının belge kimliği', () => {
     expect(k.kayit.anahtar).toBe('salon|M1|a|b');
   });
 });
+
+describe('denetim düzeltmeleri — çakışma', () => {
+  const s = (id, room, ogr, extra) => ({
+    id,
+    code: id,
+    date: '2026-11-09',
+    timeSlot: '09:00',
+    duration: 60,
+    room,
+    studentCount: ogr,
+    ...(extra || {}),
+  });
+  it('tireli salon adı tek salondur', () => {
+    expect(salonlari({ room: 'A-101' })).toEqual(['A-101']);
+    expect(salonlari({ room: 'M1 - M2' })).toEqual(['M1', 'M2']);
+    const c = cakismalariBul([s('a', 'A-101', 10), s('b', 'A-102', 10)], {});
+    expect(c.filter((x) => x.tur === 'salon')).toHaveLength(0);
+  });
+  it('aynı anda üç sınav kapasiteyi aşarsa engeldir', () => {
+    const c = cakismalariBul([s('a', 'R', 40), s('b', 'R', 40), s('c', 'R', 40)], {
+      salonKapasiteleri: { R: 100 },
+    });
+    expect(c.filter((x) => x.tur === 'salon').every((x) => x.seviye === 'engel')).toBe(true);
+  });
+  it('kişinin iki yazımında çakışma anahtarı sıradan bağımsızdır', () => {
+    const a = s('a', 'R1', 10, { supervisor: 'Dr. Ali Veli' });
+    const b = s('b', 'R2', 10, { supervisor: 'Ali VELİ' });
+    const k1 = cakismalariBul([a, b], {}).find((x) => x.tur === 'gozetmen').anahtar;
+    const k2 = cakismalariBul([b, a], {}).find((x) => x.tur === 'gozetmen').anahtar;
+    expect(k1).toBe(k2);
+  });
+});

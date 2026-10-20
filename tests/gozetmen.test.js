@@ -259,3 +259,37 @@ describe('bolumKaydiniBul', () => {
     expect(bolumKaydiniBul(null, 'x')).toBe(null);
   });
 });
+
+describe('denetim düzeltmeleri — gözetmen', () => {
+  it('elle girilmiş gözetmen, daha önce başlayan uzun sınava otomatik atanmaz', () => {
+    const { atamalar } = gozetmenAta(
+      ['X', 'Y'],
+      [
+        {
+          id: 'A',
+          code: 'A',
+          date: '2026-11-09',
+          timeSlot: '09:00',
+          duration: 120,
+          studentCount: 10,
+        },
+        {
+          id: 'B',
+          code: 'B',
+          date: '2026-11-09',
+          timeSlot: '10:00',
+          duration: 60,
+          supervisor: 'X',
+        },
+      ],
+      { hocaKurali: 'haric', sayiKurali: { salonBasina: 1 } }
+    );
+    expect(atamalar.A).toEqual(['Y']);
+  });
+  it('ad anahtarı ortak unvan listesini kullanır (Öğrt., Uzm., Okutman, Yrd. Doç.)', () => {
+    expect(adAnahtari('Öğrt. Gör. Gökalp SAYLAM')).toBe('gökalp saylam');
+    expect(adAnahtari('Uzm. Dr. Ali Veli')).toBe('ali veli');
+    expect(adAnahtari('Okutman Ali Veli')).toBe('ali veli');
+    expect(adAnahtari('Yrd. Doç. Dr. Ali Veli')).toBe('ali veli');
+  });
+});

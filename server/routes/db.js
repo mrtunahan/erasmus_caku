@@ -20,6 +20,7 @@ const {
   yetkiAlani,
   bolumKaydiKarari,
   ekBolumKarari,
+  bolumAlanda: bolumAlandaFn,
   yapisalKarar,
   yayinKapsamKarari,
   basvurulariSuz,
@@ -142,7 +143,15 @@ const { yeniKayitSahipligi } = require('../lib/ogrenci-sahiplik-damga');
 const { gizliAlanProjeksiyonu, gizliAlanlariCikar } = require('../lib/gizli-alanlar');
 // Yapısal kayıtlarda hiyerarşi koruması (bölüm yetkilisi, akademisyen adı).
 const { bolumYetkilisiYapisalYazim, akademisyenAdDegisimi } = require('../lib/yapisal-yazma');
-const { gozetmenYazmaKarari } = require('../lib/gozetmen-yazma');
+const {
+  gozetmenYazmaKarari,
+  oncekiListe: oncekiGozetmenListesi,
+} = require('../lib/gozetmen-yazma');
+// Sınav, sınav dönemi, ders ve salon kayıtları: bölüm alanı / kendi dersi.
+const {
+  sinavProgramiYazmaKarari,
+  SINAV_PROGRAMI_KOLEKSIYONLARI,
+} = require('../lib/sinav-programi-yazma');
 // Öğrencinin başkasının kaydını okuması: kural (hangi koleksiyon nasıl daralır)
 // tek dosyada ve testli — bkz. server/lib/ogrenci-okuma.js.
 const {
@@ -1288,6 +1297,37 @@ async function enforceWritePolicies(db, op, user) {
     if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
   }
 
+  // Şartlı kabul bir imzadır: kabul eden ve tarih istemciden alınmaz,
+  // oturumdaki kişiden damgalanır (lib/sinav-cakisma.js → kabulKaydi).
+  if (
+    op.collection === 'sinav_cakisma_kabul' &&
+    op.type !== 'delete' &&
+    op.data &&
+    typeof op.data === 'object'
+  ) {
+    op.data.kabulEden = String(user.identifier || '');
+    op.data.tarih = new Date().toISOString();
+  }
+
+  // a2-sınav-programı) Sınav, sınav dönemi, ders ve salon kayıtları: bölüm
+  // alanı ya da (akademisyen için) kendi dersi (server/lib/sinav-programi-yazma.js).
+  if (
+    SINAV_PROGRAMI_KOLEKSIYONLARI.has(op.collection) &&
+    (user.role === 'professor' || user.role === 'bolum_yetkilisi')
+  ) {
+    const alan = await kullaniciAlani(db, user);
+    let mevcut = null;
+    if (op.type !== 'add' && op.docId) {
+      try {
+        mevcut = await findExistingDoc(db, op);
+      } catch (_) {
+        mevcut = null;
+      }
+    }
+    const karar = sinavProgramiYazmaKarari(op, mevcut, alan, user.identifier);
+    if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
+  }
+
   // a2-alan) YETKİ ALANI: rol kapısı "kim" sorusunu cevapladı; burada "NEREYE"
   // sorulur (server/lib/yetki-alani.js). Yalnız yönetici düzeyindeki
   // aktörler: bölüm yetkilisi (iki giriş biçimi) ve fakülte yetkilisi.
@@ -1329,8 +1369,22 @@ async function enforceWritePolicies(db, op, user) {
             alanlar[0] === 'additionalDepartments' &&
             op.type !== 'delete' &&
             op.type !== 'add';
+          // Gözetmenin müsait olmadığı günler: kişi yazanın alanındaki bir
+          // bölümün gözetmeniyse (başka bölümden atanmış olsa da) yazılabilir.
+          const yalnizMusaitlik =
+            alanlar.length === 1 &&
+            alanlar[0] === 'gozetmenMusaitsizGunler' &&
+            (op.type === 'update' || (op.type === 'set' && op.merge)) &&
+            Array.isArray(op.data.gozetmenMusaitsizGunler) &&
+            op.data.gozetmenMusaitsizGunler.every((g) => typeof g === 'string');
           if (yalnizEkBolum) karar = ekBolumKarari(op, mevcut, alan);
-          else if (op.type === 'delete' || op.type === 'add' || alanlar.length > 0) {
+          else if (
+            yalnizMusaitlik &&
+            mevcut &&
+            oncekiGozetmenListesi(mevcut).some((b) => bolumAlandaFn(alan, b))
+          ) {
+            karar = { izin: true };
+          } else if (op.type === 'delete' || op.type === 'add' || alanlar.length > 0) {
             karar = bolumKaydiKarari(op.collection, op, mevcut, alan);
           }
         } else karar = bolumKaydiKarari(op.collection, op, mevcut, alan);

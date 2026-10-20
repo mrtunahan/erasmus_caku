@@ -15,6 +15,7 @@ import {
   sinavGunleri,
   fakulteKitabi,
   gonderimKimligi,
+  gonderimKaydiBul,
   programImzasi,
   gonderimDurumu,
   HOCA_ETIKETI,
@@ -264,9 +265,18 @@ describe('gün tablosu', () => {
 
 describe('gönderim', () => {
   it('kimlik ve durum', () => {
-    expect(gonderimKimligi('bilgisayar', 'final|2025-2026 bahar')).toBe(
-      'bilgisayar__final|2025-2026_bahar'
-    );
+    const k = gonderimKimligi('bilgisayar', 'final|2025-2026 bahar|yuksek_lisans');
+    expect(k).toBe('bilgisayar__final:2025-2026_bahar:yuksek_lisans');
+    // sunucunun belge kimliği kuralından geçmeli ("|" yasak)
+    expect(require('../server/lib/yazma-girdisi.js').gecerliKimlik(k)).toBe(true);
+    // eski "|" kimlikli kayıt da bulunur
+    expect(
+      gonderimKaydiBul(
+        [{ id: 'bilgisayar__final|2025-2026_bahar', durum: 'gonderildi' }],
+        'bilgisayar',
+        'final|2025-2026 bahar'
+      ).durum
+    ).toBe('gonderildi');
     const s = [{ code: 'A', date: '2026-06-08', timeSlot: '10:00', room: 'M1' }];
     const imza = programImzasi(s);
     expect(gonderimDurumu(null, imza)).toBe('bekliyor');
@@ -718,5 +728,37 @@ describe('gözetmen seçenekleri: dersin hocası + fakültenin araştırma göre
     ]);
     expect(l.filter((x) => /kaya/i.test(x.deger))).toHaveLength(1);
     expect(l).toHaveLength(5);
+  });
+});
+
+describe('denetim düzeltmeleri — fakülte tablosu', () => {
+  it('aynı satıra düşen ama saatte örtüşmeyen sınavlar çakışma sayılmaz', () => {
+    const o = fakulteOturumlari(
+      [
+        {
+          id: '1',
+          code: 'A',
+          date: '2026-06-15',
+          timeSlot: '09:00',
+          duration: 45,
+          room: 'M10Z04',
+          departmentId: 'bilgisayar',
+        },
+        {
+          id: '2',
+          code: 'B',
+          date: '2026-06-15',
+          timeSlot: '09:45',
+          duration: 45,
+          room: 'M10Z04',
+          departmentId: 'bilgisayar',
+        },
+      ],
+      { bolumler: BOLUMLER }
+    );
+    const t = gunTablosu(o, SALONLAR);
+    const h = t.satirlar.flatMap((r) => r.hucreler).find((x) => x && !x.gizli);
+    expect(h.cakisma).toBe(false);
+    expect(h.metin).not.toMatch(/ÇAKIŞMA/);
   });
 });
