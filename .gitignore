@@ -43,3 +43,6 @@ scripts/service-account-key.json
 yedek/
 yedek-*.json
 professors-dedupe-*.json
+
+# Geçici tarayıcı test düzenekleri
+tmp-harness*/
