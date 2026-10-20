@@ -916,7 +916,15 @@ async function kullaniciAlani(db, user, okuma) {
   } catch (_) {
     profil = null;
   }
-  return yetkiAlani({ user, flags, profil, bolumler: await bolumListesi(db), okuma });
+  let fakulteler = [];
+  if (flags && flags.facManager) {
+    try {
+      fakulteler = await db.collection('faculties').find({}).toArray();
+    } catch (_) {
+      fakulteler = [];
+    }
+  }
+  return yetkiAlani({ user, flags, profil, bolumler: await bolumListesi(db), okuma, fakulteler });
 }
 
 async function findDocByAnyId(db, collectionName, docId) {

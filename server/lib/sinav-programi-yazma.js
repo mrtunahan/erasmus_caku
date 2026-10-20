@@ -63,12 +63,25 @@ const UNVAN_KELIMELERI = new Set([
 ]);
 
 /** "Dr. Öğr. Üyesi Ali VELİ" → "ali veli" (unvan ve harf farkı önemsenmez). */
+// Türkçe harfler ASCII'ye katlanır: ekran ders kaydındaki adı Türkçe
+// yazımla ("Özgür Yılmaz") gösterip geri yazabiliyor, giriş adı ASCII olabilir.
+const katla = (k) =>
+  k
+    .replace(/ç/g, 'c')
+    .replace(/ğ/g, 'g')
+    .replace(/ı/g, 'i')
+    .replace(/i̇/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ş/g, 's')
+    .replace(/ü/g, 'u');
+const UNVAN_KATLI = new Set([...UNVAN_KELIMELERI].map(katla));
+
 function kisiAnahtari(ad) {
   return metin(ad)
     .replace(/[.,]/g, ' ')
     .split(/\s+/)
-    .map((k) => k.trim().toLocaleLowerCase('tr-TR'))
-    .filter((k) => k && !UNVAN_KELIMELERI.has(k))
+    .map((k) => katla(k.trim().toLocaleLowerCase('tr-TR')))
+    .filter((k) => k && !UNVAN_KATLI.has(k))
     .join(' ');
 }
 
@@ -144,12 +157,18 @@ function sinavProgramiYazmaKarari(op, mevcut, alan, kullaniciAdi, ek) {
   // Mevcut kayıt: sınavda ya da dersinde hocası olmalı. Yeni hâl (ekleme ya
   // da hoca alanını değiştiren yazım) de kendi dersi olmalı.
   const eskiKendi = !mevcut || kendiDersi(mevcut, kullaniciAdi) || kendiDersi(ders, kullaniciAdi);
-  const hocaDegisiyor = 'professor' in veri || 'professors' in veri;
+  // Hoca alanı GERÇEKTEN değişiyor mu? (Ekran kaydı bütün alanlarıyla geri
+  // yazar; aynı değer "değişiklik" sayılmaz.)
+  const hocaKumesi = (x) => hocalari(x).sort().join('|');
+  const hocaDegisiyor =
+    ('professor' in veri || 'professors' in veri) &&
+    (!mevcut || hocaKumesi({ ...mevcut, ...veri }) !== hocaKumesi(mevcut));
+  // Hoca değişiyorsa yeni hâl de kişinin dersi olmalı (sınavı başkasına
+  // devredip sonra dokunulmaz kılmasın); dersin kaydı da kişinin olabilir.
   const yeniKendi =
-    mevcut && !hocaDegisiyor
-      ? true
-      : kendiDersi({ ...(mevcut || {}), ...veri }, kullaniciAdi) ||
-        (!hocaDegisiyor && kendiDersi(ders, kullaniciAdi));
+    !hocaDegisiyor ||
+    kendiDersi({ ...(mevcut || {}), ...veri }, kullaniciAdi) ||
+    kendiDersi(ders, kullaniciAdi);
   const dersKendi = mevcut ? true : kendiDersi(ders, kullaniciAdi);
   if (eskiKendi && yeniKendi && dersKendi) return IZIN;
   return ret(hata);

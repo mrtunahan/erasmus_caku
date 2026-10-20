@@ -3893,6 +3893,16 @@ const OturumDuzenle = ({
   );
 };
 
+// Girişte fakülte/üniversite yetkilisinin istemci rolü 'admin', bölüm
+// yetkilisi işaretli akademisyeninki 'bolum_yetkilisi' olur (baseRole
+// 'professor' kalır; shared-components → attachProfile). Bu modülde
+// 'admin' bütün üniversite demektir: fakülte yetkilisi (üniversite yetkilisi
+// değilse) yalnız fakültesinde yetkilidir.
+const tamYonetici = (u) =>
+  !!u && ((u.role === 'admin' && !u.isFacultyManager) || !!u.isUniversityAdmin);
+// Ders veren kişi mi (sade akademisyen ya da akademisyen girişli yetkili)?
+const akademisyenMi = (u) => !!u && (u.role === 'professor' || u.baseRole === 'professor');
+
 const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
   const SF = window.SinavFakulte;
   const [veri, setVeri] = useState(null);
@@ -3989,8 +3999,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         : '';
   const fakulteAdi = fakulte ? fakulte.ad : '';
   const yetkili =
-    currentUser?.role === 'admin' ||
-    !!currentUser?.isUniversityAdmin ||
+    tamYonetici(currentUser) ||
     (!!currentUser?.isFacultyManager && fakKimlikleri.has(currentUser?.facultyId || ''));
 
   const bolumler = useMemo(
@@ -5468,42 +5477,38 @@ const FakulteProgramPenceresi = ({ currentUser, onClose }) => {
         >
           <div style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', marginRight: 'auto' }}>
             Fakülte Sınav Programı
-            {!(
-              (currentUser?.role === 'admin' || currentUser?.isUniversityAdmin) &&
-              fakulteler.length > 1
-            ) && (
+            {!(tamYonetici(currentUser) && fakulteler.length > 1) && (
               <span style={{ fontWeight: 500, color: '#64748B', fontSize: 14 }}>
                 {' '}
                 — {fakulteAdi}
               </span>
             )}
           </div>
-          {(currentUser?.role === 'admin' || currentUser?.isUniversityAdmin) &&
-            fakulteler.length > 1 && (
-              <select
-                value={fakulte ? fakulte.anahtar : ''}
-                onChange={(e) => {
-                  setFakulteId(e.target.value);
-                  setSekme('gun:');
-                  setAyarTaslak(null);
-                }}
-                aria-label="Fakülte / MYO"
-                style={{
-                  padding: '7px 10px',
-                  borderRadius: 8,
-                  border: '1px solid #CBD5E1',
-                  fontSize: 13,
-                  maxWidth: 320,
-                }}
-              >
-                {fakulteler.map((f) => (
-                  <option key={f.anahtar} value={f.anahtar}>
-                    {f.ad}
-                    {f.bolumSayisi ? ' (' + f.bolumSayisi + ' bölüm)' : ''}
-                  </option>
-                ))}
-              </select>
-            )}
+          {tamYonetici(currentUser) && fakulteler.length > 1 && (
+            <select
+              value={fakulte ? fakulte.anahtar : ''}
+              onChange={(e) => {
+                setFakulteId(e.target.value);
+                setSekme('gun:');
+                setAyarTaslak(null);
+              }}
+              aria-label="Fakülte / MYO"
+              style={{
+                padding: '7px 10px',
+                borderRadius: 8,
+                border: '1px solid #CBD5E1',
+                fontSize: 13,
+                maxWidth: 320,
+              }}
+            >
+              {fakulteler.map((f) => (
+                <option key={f.anahtar} value={f.anahtar}>
+                  {f.ad}
+                  {f.bolumSayisi ? ' (' + f.bolumSayisi + ' bölüm)' : ''}
+                </option>
+              ))}
+            </select>
+          )}
           <div
             title="Şu anki sınav dönemi: bugünü kapsayan, yoksa en yakın dönem"
             style={{
@@ -5848,7 +5853,7 @@ function SinavOtomasyonuApp({
           window.innerWidth <= 480 ? m : window.innerWidth <= 768 ? t || m : d || t || m,
         modalWidth: (w) => Math.min(w, window.innerWidth - 32),
       };
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = tamYonetici(currentUser);
   // Bölüm yetkilisi: ayrı yetkili girişi (role) ya da akademisyen kaydındaki
   // bölüm yetkilisi işareti (uygulamanın geri kalanıyla aynı kural). Yetki
   // YALNIZ kendi bölümünde geçerlidir; ek bölümünde ders veren yetkili orada
@@ -5889,7 +5894,7 @@ function SinavOtomasyonuApp({
   const canManage = isAdmin || isDeptManager || yonetimYetkisi;
   // Yönetim yetkisi olmayan herkes yalnız kendi dersinin sınavını düzenler
   // (akademisyen); başka bir rol (ör. modül atanmış memur) salt okur.
-  const isProfessor = currentUser?.role === 'professor' && !canManage;
+  const isProfessor = akademisyenMi(currentUser) && !canManage;
   const [_showDeptModal, _setShowDeptModal] = useState(false);
   const [_showClassroomModal, _setShowClassroomModal] = useState(false);
   const [_showSupervisorModal, _setShowSupervisorModal] = useState(false);
@@ -6059,8 +6064,11 @@ function SinavOtomasyonuApp({
 
         // Bölüm yetkilisi girişi için: sadece kendi bölümünü göster (fakülte
         // yetkilisi de olan kişi fakültenin bütün bölümlerini görür).
+        // (Akademisyen girişli bölüm yetkilisi ders verdiği bölümleri de görür:
+        // aşağıdaki akademisyen dalı kendi bölümünü de ekler.)
         if (
           currentUser?.role === 'bolum_yetkilisi' &&
+          currentUser?.baseRole !== 'professor' &&
           !fakulteYetkili &&
           currentUser?.departmentId
         ) {
@@ -6096,7 +6104,7 @@ function SinavOtomasyonuApp({
         }
 
         // Akademisyen için: derslerinin olduğu bölümleri bul
-        if (currentUser?.role === 'professor' && !fakulteYetkili && currentUser?.name) {
+        if (akademisyenMi(currentUser) && !fakulteYetkili && currentUser?.name) {
           // Ad birebir aranmaz (unvan/harf farkı, çok hocalı dersler): bütün
           // dersler okunup "hocalarından biri mi" kuralıyla süzülür.
           const cRef = getCoursesRef();
@@ -6123,9 +6131,16 @@ function SinavOtomasyonuApp({
           const matchedDept = depts.find(
             (d) => d.id === currentUser.departmentId || d.name === currentUser.departmentName
           );
-          setSelectedDeptId(matchedDept ? matchedDept.id : currentUser.departmentId);
+          // Kabukta ders verdiği başka bir bölüm seçiliyse o korunur.
+          setSelectedDeptId(
+            activeDepartment && depts.some((d) => d.id === activeDepartment)
+              ? activeDepartment
+              : matchedDept
+                ? matchedDept.id
+                : currentUser.departmentId
+          );
         } else if (
-          currentUser?.role === 'professor' &&
+          akademisyenMi(currentUser) &&
           !fakulteYetkili &&
           depts.length > 0 &&
           (!selectedDeptId || !depts.some((d) => d.id === selectedDeptId))
@@ -7157,10 +7172,15 @@ function SinavOtomasyonuApp({
   const birlesimdenAyir = async (exam) => {
     const SB = window.SinavBirlesim;
     if (!SB) return;
-    const yamalar = SB.birlesimdenCikarYamalari(exam, denetimListesi(tumSinavlar));
     const tum = denetimListesi(tumSinavlar);
-    if (!yamalar.every((y) => sinavYazilabilir(tum.find((e) => e.id === y.id)))) {
-      alert('Bu oturumdan ayırma, düzenleyemeyeceğiniz bir dersi de değiştirir; yetkili yapar.');
+    // Sınavın kendi yaması her zaman; geride tek kalan üyenin bağını çözen
+    // yama yalnız o üye yazılabiliyorsa (başka bölümün sınavıysa tek üyeli
+    // oturum zararsızdır — sınav silmedeki kuralla aynı).
+    const yamalar = SB.birlesimdenCikarYamalari(exam, tum).filter(
+      (y) => y.id === exam.id || sinavYazilabilir(tum.find((e) => e.id === y.id))
+    );
+    if (!sinavYazilabilir(exam)) {
+      alert('Bu sınavı düzenleme yetkiniz yok.');
       return;
     }
     try {
@@ -8419,7 +8439,7 @@ function SinavOtomasyonuApp({
                           course={c}
                           isPlaced={false}
                           placedCount={c.placedCount}
-                          canDrag={canManage || (isProfessor && kendiDersiMi(c))}
+                          canDrag={canManage || kendiDersiMi(c)}
                         />
                       ))}
                     </div>
@@ -8452,7 +8472,7 @@ function SinavOtomasyonuApp({
                                 course={c}
                                 isPlaced={false}
                                 placedCount={c.placedCount}
-                                canDrag={canManage || (isProfessor && kendiDersiMi(c))}
+                                canDrag={canManage || kendiDersiMi(c)}
                               />
                             ))}
                           </div>

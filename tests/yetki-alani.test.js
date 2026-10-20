@@ -258,3 +258,31 @@ describe('başka bölümün akademisyenini kendi bölümüne ek bölüm olarak b
     expect(ekBolumKarari(op([]), mevcut, dekMuh).izin).toBe(false); // KIM fen fakültesinde
   });
 });
+
+describe('fakülte kimliğinin farklı yazımları', () => {
+  const FAK_ID = '6a2ef9cb45b65d403456660c';
+  const bolumler = [
+    { _docId: 'b1', name: 'Bilgisayar', facultyId: 'muhendislik' },
+    { _docId: 'b2', name: 'Makine', facultyId: FAK_ID },
+    { _docId: 'b3', name: 'Gıda', facultyId: '' },
+    { _docId: 'b4', name: 'Kimya', facultyId: 'fen' },
+  ];
+  const fakulteler = [
+    { _docId: FAK_ID, name: 'Mühendislik Fakültesi' },
+    { _docId: 'fen', name: 'Fen Fakültesi' },
+  ];
+  it('slug, veritabanı kimliği ve boş fakülte aynı birimdir', () => {
+    const a = yetkiAlani({
+      user: { role: 'professor' },
+      flags: { facManager: true },
+      profil: { facultyId: FAK_ID },
+      bolumler,
+      fakulteler,
+    });
+    expect(bolumAlanda(a, 'b1')).toBe(true);
+    expect(bolumAlanda(a, 'b2')).toBe(true);
+    expect(bolumAlanda(a, 'b3')).toBe(true);
+    expect(bolumAlanda(a, 'b4')).toBe(false);
+    expect(fakulteAlanda(a, 'muhendislik')).toBe(true);
+  });
+});

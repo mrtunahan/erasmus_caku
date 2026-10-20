@@ -82,6 +82,13 @@ describe('sınav programı yazma kuralı (sunucu)', () => {
     };
     expect(sinavProgramiYazmaKarari(up({ room: 'M1' }), ortak, hoca, benim).izin).toBe(true);
   });
+  it('ekranın Türkçe yazımla geri yazdığı aynı hoca değişiklik sayılmaz; ASCII giriş adı eşleşir', () => {
+    const kayit = { ...sinav, professor: 'Dr. Öğr. Üyesi Özgür YILMAZ' };
+    const yaz = up({ professor: 'Dr. Öğr. Üyesi Özgür Yılmaz', room: 'M1' });
+    expect(sinavProgramiYazmaKarari(yaz, kayit, hoca, 'Dr. Ogr. Uyesi Ozgur Yilmaz').izin).toBe(
+      true
+    );
+  });
   it('bölümü boş eski kayıt dönemin bölümüyle değerlendirilir', () => {
     const eski = { ...sinav, departmentId: '', professor: 'Y' };
     expect(
