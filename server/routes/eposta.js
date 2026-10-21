@@ -283,11 +283,25 @@ router.post('/sifremi-unuttum', async (req, res) => {
   const adresSiniri = sinirAsildi('unuttum:' + eposta, 3, 60);
   try {
     const db = await getDbSafe();
+    // Kullanıcıya her durumda aynı yanıt gider; neden gönderilmediği yalnız
+    // sunucu günlüğüne ve eposta_gonderimleri kaydına (adres maskeli) düşer.
+    const tani = (durum) => {
+      console.info('[eposta] sifremi-unuttum:', K.epostaMaskele(eposta), durum);
+      return db
+        .collection('eposta_gonderimleri')
+        .insertOne({ tur: 'sifre_sifirlama', kime: K.epostaMaskele(eposta), durum, at: new Date() })
+        .catch(() => {});
+    };
+    if (adresSiniri) await tani('adres_siniri');
     if (!adresSiniri) {
       const hesaplar = await db.collection(HESAPLAR).find({ eposta }).limit(10).toArray();
+      if (!hesaplar.length) await tani('dogrulanmis_hesap_yok');
       for (const h of hesaplar) {
         const hesap = String(h._id);
-        if (!(await hesapKullanilabilirMi(db, hesap))) continue;
+        if (!(await hesapKullanilabilirMi(db, hesap))) {
+          await tani('hesap_kullanilamaz');
+          continue;
+        }
         const jeton = K.jetonUret();
         await db.collection(SIFIRLAMA).insertOne({
           _id: K.ozet(jeton, ''),
@@ -297,7 +311,7 @@ router.post('/sifremi-unuttum', async (req, res) => {
           at: new Date(),
           ip: ipOf(req),
         });
-        await posta.gonder({
+        const sonuc = await posta.gonder({
           kime: eposta,
           konu: 'Offline Asistan şifre yenileme',
           tur: 'sifre_sifirlama',
@@ -316,6 +330,9 @@ router.post('/sifremi-unuttum', async (req, res) => {
           },
           altNot: 'Bu isteği siz yapmadıysanız bu iletiyi dikkate almayın; şifreniz değişmez.',
         });
+        if (!sonuc || !sonuc.ok) {
+          console.warn('[eposta] sifremi-unuttum gönderilemedi:', sonuc && sonuc.hata);
+        }
         await iz(db, 'sifre_sifirlama_istegi', { hesap, ip: ipOf(req) });
       }
     }
