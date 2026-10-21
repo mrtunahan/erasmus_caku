@@ -3607,6 +3607,18 @@ const IslemMenusu = ({ ogeler, cakismaOzet, gonderim }) => {
                   İade notu: {gonderim.not}
                 </span>
               )}
+              {gonderim && gonderim.fakulteDuzenleme && (
+                <span
+                  style={{
+                    color: '#1E40AF',
+                    background: '#EFF6FF',
+                    borderRadius: 6,
+                    padding: '4px 8px',
+                  }}
+                >
+                  Fakülte yetkilisi programda değişiklik yaptı: {gonderim.fakulteDuzenleme}
+                </span>
+              )}
             </div>
           )}
           {ogeler.map((o, i) =>
@@ -6292,16 +6304,29 @@ function SinavOtomasyonuApp({
   // sınavıyla olur, kendi bölümüne bakarak görülemez. Yalnız denetim için
   // kullanılır; takvim ve listeler aktif bölümün verisiyle çizilmeye devam
   // eder.
+  // Fakülte yetkilisi (ya da başka kullanıcı) bu bölümün sınavlarını
+  // değiştirdiğinde açık takvim de tazelenir: yalnız fakülte geneli denetim
+  // listesi tazelenip bölümün kendi takvimi bayat kalıyordu.
+  const seciliBolumRef = _useRef(selectedDeptId);
+  seciliBolumRef.current = selectedDeptId;
   const loadFakulteGeneli = useCallback(async () => {
     try {
       const [sinavlar, salonlar, kabuller, ayarlar, gonderimKayitlari] = await Promise.all([
-        window.apiRead('sinav_programi').catch(() => []),
+        window.apiRead('sinav_programi').catch(() => null),
         window.apiRead('department_classrooms').catch(() => []),
         window.apiRead('sinav_cakisma_kabul').catch(() => []),
         window.apiRead('sinav_fakulte_ayarlari').catch(() => []),
         window.apiRead('sinav_gonderimleri').catch(() => []),
       ]);
       setTumSinavlar(Array.isArray(sinavlar) ? sinavlar : []);
+      const bolum = seciliBolumRef.current;
+      if (Array.isArray(sinavlar) && bolum) {
+        setPlacedExams(
+          sinavlar
+            .filter((e) => e && e.departmentId === bolum && (e.seviye || 'lisans') === seviye)
+            .map((e) => ({ ...e, id: e.id || e._docId }))
+        );
+      }
       setTumSalonlar(Array.isArray(salonlar) ? salonlar : []);
       setCakismaKabulleri(Array.isArray(kabuller) ? kabuller : []);
       setFakulteAyarlari(Array.isArray(ayarlar) ? ayarlar : []);
@@ -8290,6 +8315,16 @@ function SinavOtomasyonuApp({
                           durum: gonderimDurumu,
                           etiket: SF.GONDERIM_ETIKETI[gonderimDurumu],
                           not: gonderimKaydi && gonderimKaydi.iadeNotu,
+                          // Fakültenin salon/gözetmen/saat düzenlemesi bölüme görünür.
+                          fakulteDuzenleme:
+                            gonderimKaydi && gonderimKaydi.fakulteDuzenlemeTarihi
+                              ? (gonderimKaydi.fakulteDuzenleyen || 'fakülte') +
+                                ', ' +
+                                new Date(gonderimKaydi.fakulteDuzenlemeTarihi).toLocaleString(
+                                  'tr-TR',
+                                  { dateStyle: 'short', timeStyle: 'short' }
+                                )
+                              : '',
                         }
                       : null
                   }
