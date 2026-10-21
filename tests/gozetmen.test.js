@@ -341,3 +341,82 @@ it('bölüm havuzu yetmezse dışarıdan araştırma görevlisi atanır', () => 
   expect(atamalar.e1[0]).toBe('B1');
   expect(atamalar.e1.slice(1).sort()).toEqual(['D1', 'D2']);
 });
+
+describe('denetim 3 — hoca kimliği', () => {
+  it('çok hocalı derste yalnız sorumlu hoca ilk gözetmen; birleşik yazım tek kişi sayılmaz', () => {
+    const l = [
+      {
+        id: 'BIT',
+        code: 'BIT',
+        date: '2026-11-09',
+        timeSlot: '10:00',
+        studentCount: 10,
+        professor: 'Prof. Dr. Ali Veli / Dr. Ayşe Kaya',
+      },
+      {
+        id: 'Y',
+        code: 'Y',
+        date: '2026-11-09',
+        timeSlot: '10:00',
+        studentCount: 10,
+        professor: 'Ali Veli',
+      },
+    ];
+    const { atamalar } = gozetmenAta(['G1', 'G2'], l, { salonBul: () => 'M1' });
+    // Ali Veli aynı saatte iki salonda olamaz
+    const aliVeli = [...atamalar.BIT, ...atamalar.Y].filter((x) => /ali veli/i.test(x));
+    expect(aliVeli).toHaveLength(1);
+    expect(atamalar.BIT.some((x) => x.includes('/'))).toBe(false);
+  });
+  it('havuzda olmayan hoca: başka bölümdeki görevi ve izinli günü yazım farkına rağmen görülür', () => {
+    const e = {
+      id: 'A',
+      code: 'A',
+      date: '2026-11-09',
+      timeSlot: '10:00',
+      studentCount: 10,
+      professor: 'Prof. Dr. Ali Veli',
+    };
+    const r1 = gozetmenAta(['G1'], [e], {
+      salonBul: () => 'M1',
+      digerGorevler: [
+        { date: '2026-11-09', timeSlot: '10:00', duration: 60, supervisor: 'Ali VELİ' },
+      ],
+    });
+    expect(r1.atamalar.A).not.toContain('Prof. Dr. Ali Veli');
+    expect(r1.uyarilar.some((u) => u.tur === 'hoca_musait_degil')).toBe(true);
+    const r2 = gozetmenAta(['G1'], [e], {
+      salonBul: () => 'M1',
+      musaitsizlik: { 'Ali Veli': ['2026-11-09'] },
+    });
+    expect(r2.atamalar.A).not.toContain('Prof. Dr. Ali Veli');
+  });
+});
+
+it('hoca, aynı saatteki başka sınava atanıp kendi sınavından düşmez', () => {
+  const l = [
+    {
+      id: 'A',
+      code: 'BIL101',
+      date: '2026-11-09',
+      timeSlot: '09:00',
+      studentCount: 10,
+      professor: 'Diğer HOCA',
+    },
+    {
+      id: 'B',
+      code: 'BIL201',
+      date: '2026-11-09',
+      timeSlot: '09:00',
+      studentCount: 10,
+      professor: 'Ayşe Yılmaz',
+    },
+  ];
+  const { atamalar, uyarilar } = gozetmenAta(['Ayşe Yılmaz', 'G1'], l, {
+    salonBul: () => 'M1',
+    sayiKurali: { salonBasina: 2, kalabalikEsik: 0 },
+  });
+  expect(atamalar.A).not.toContain('Ayşe Yılmaz');
+  expect(atamalar.B[0]).toBe('Ayşe Yılmaz');
+  expect(uyarilar.some((u) => u.tur === 'hoca_musait_degil')).toBe(false);
+});

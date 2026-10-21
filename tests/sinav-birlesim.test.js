@@ -474,3 +474,20 @@ describe('oturumSalonlari: kapasite yetmezse salon eklenir', () => {
     expect(h.b).toBe('S1 - S3');
   });
 });
+
+it('ortak oturumda üyelerin salonları birlikte sayılır', () => {
+  const ortak = { date: '2026-11-09', timeSlot: '09:00', birlesimId: 'B' };
+  const l = [
+    { id: 'a', code: 'A', studentCount: 20, room: 'S1', ...ortak },
+    { id: 'b', code: 'B', studentCount: 20, room: 'S2', ...ortak },
+  ];
+  const kap = { S1: 20, S2: 30, S3: 50 };
+  const h = oturumSalonlari(
+    l,
+    () => 'S3',
+    [],
+    (x) => kap[x]
+  );
+  expect(h.a).toBe('S1 - S2');
+  expect(h.b).toBe('S1 - S2');
+});

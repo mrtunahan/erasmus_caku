@@ -480,3 +480,31 @@ describe('oturumun kendi kapasitesi', () => {
     expect(c.filter((x) => x.tur === 'kapasite')).toHaveLength(0);
   });
 });
+
+it('ortak oturum kapasitesi liste sırasından bağımsız (salonu yalnız bir üye girmiş)', () => {
+  const ortak = { date: '2026-11-10', timeSlot: '13:00', duration: 60, birlesimId: 'BX' };
+  const a = {
+    id: 'e4',
+    code: 'MAT161',
+    departmentId: 'makine',
+    studentCount: 40,
+    room: '',
+    ...ortak,
+  };
+  const b = {
+    id: 'e3',
+    code: 'MAT161',
+    departmentId: 'bilgisayar',
+    studentCount: 45,
+    room: 'B102',
+    ...ortak,
+  };
+  const k1 = cakismalariBul([a, b], { salonKapasiteleri: { B102: 40 } }).filter(
+    (x) => x.tur === 'kapasite'
+  );
+  const k2 = cakismalariBul([b, a], { salonKapasiteleri: { B102: 40 } }).filter(
+    (x) => x.tur === 'kapasite'
+  );
+  expect(k1).toHaveLength(1);
+  expect(k2).toHaveLength(1);
+});

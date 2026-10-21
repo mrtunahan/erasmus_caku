@@ -164,3 +164,9 @@ describe('slotEgitmeniSec — slota koyarken "hangi hoca?"', () => {
     expect(slotEgitmeniSec({}, '')).toEqual({ ok: true, egitmen: '' });
   });
 });
+
+it('Türkçe harf farkı aynı kişi sayılır (sunucu kuralıyla aynı)', () => {
+  expect(
+    dersEgitmeniMi({ professor: 'Dr. Öğr. Üyesi Özgür YILMAZ' }, 'Dr. Ogr. Uyesi Ozgur Yilmaz')
+  ).toBe(true);
+});
