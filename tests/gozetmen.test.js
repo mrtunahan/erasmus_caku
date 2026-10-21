@@ -392,3 +392,31 @@ describe('denetim 3 — hoca kimliği', () => {
     expect(r2.atamalar.A).not.toContain('Prof. Dr. Ali Veli');
   });
 });
+
+it('hoca, aynı saatteki başka sınava atanıp kendi sınavından düşmez', () => {
+  const l = [
+    {
+      id: 'A',
+      code: 'BIL101',
+      date: '2026-11-09',
+      timeSlot: '09:00',
+      studentCount: 10,
+      professor: 'Diğer HOCA',
+    },
+    {
+      id: 'B',
+      code: 'BIL201',
+      date: '2026-11-09',
+      timeSlot: '09:00',
+      studentCount: 10,
+      professor: 'Ayşe Yılmaz',
+    },
+  ];
+  const { atamalar, uyarilar } = gozetmenAta(['Ayşe Yılmaz', 'G1'], l, {
+    salonBul: () => 'M1',
+    sayiKurali: { salonBasina: 2, kalabalikEsik: 0 },
+  });
+  expect(atamalar.A).not.toContain('Ayşe Yılmaz');
+  expect(atamalar.B[0]).toBe('Ayşe Yılmaz');
+  expect(uyarilar.some((u) => u.tur === 'hoca_musait_degil')).toBe(false);
+});
