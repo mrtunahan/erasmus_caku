@@ -183,6 +183,41 @@ function satirYazKurali() {
 // Staj yol haritasında da aynı desen: harita değil ADIM yazılıyor. Noktalı
 // anahtarın biçimi orada tanımlı ve testli (lib/staj-adim-yaz.js).
 // TTO talep kuralları: istemciyle AYNI dosya (lib/tto-talep.js).
+let cakismaKuraliSozu = null;
+function cakismaKurali() {
+  if (!cakismaKuraliSozu) cakismaKuraliSozu = import('../../lib/sinav-cakisma.js');
+  return cakismaKuraliSozu;
+}
+
+/**
+ * Şartlı kabulün bölümleri SUNUCUDA çözülür: anahtarın son iki parçası
+ * çakışan iki sınavın kimliğidir (sınav kimliği ya da "B:<birlesimId>").
+ * İstemcinin gönderdiği `bolumler` listesine güvenilmez.
+ */
+async function kabulBolumleriniCoz(db, anahtar) {
+  const parcalar = String(anahtar || '').split('|');
+  if (parcalar.length < 3) return [];
+  const bolumler = new Set();
+  for (const k of parcalar.slice(-2)) {
+    try {
+      if (k.startsWith('B:')) {
+        const uyeler = await db
+          .collection('sinav_programi')
+          .find({ birlesimId: k.slice(2) })
+          .limit(50)
+          .toArray();
+        uyeler.forEach((u) => u.departmentId && bolumler.add(String(u.departmentId)));
+      } else {
+        const e = await findDocByAnyId(db, 'sinav_programi', k);
+        if (e && e.departmentId) bolumler.add(String(e.departmentId));
+      }
+    } catch (_) {
+      /* okunamayan parça atlanır */
+    }
+  }
+  return [...bolumler];
+}
+
 let ttoKuraliSozu = null;
 function ttoKurali() {
   if (!ttoKuraliSozu) ttoKuraliSozu = import('../../lib/tto-talep.js');
@@ -723,6 +758,13 @@ const STUDENT_READ_DENY = new Set([
   // Fakülte sınav programı hazırlığı personelin işidir.
   'sinav_fakulte_ayarlari',
   'sinav_gonderimleri',
+  // Sınav taslakları, gözetmen atamaları, kabul gerekçeleri ve salon listesi:
+  // öğrenci kendi sınavlarını /api/oda üzerinden görür, bu koleksiyonları
+  // okuyan öğrenci ekranı yoktur. (sinav_dersler öğrenciye açık kalır.)
+  'sinav_programi',
+  'sinav_donemler',
+  'sinav_cakisma_kabul',
+  'department_classrooms',
   // TTO talepleri personelin kurumsal/ticari başvurularıdır (firma, bütçe,
   // vergi bilgisi); öğrenci ekranı yoktur.
   'tto_talepleri',
@@ -1330,6 +1372,20 @@ async function enforceWritePolicies(db, op, user) {
     const karar = sinavFakulteYazmaKarari(op, mevcut, alan);
     if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
   }
+  // Gönderim/iade/fakülte düzenleme TARİHLERİ istemciden alınmaz; yazan
+  // hesabın kimliği de kayda geçer (görünen ad istemciden gelir).
+  if (
+    op.collection === 'sinav_gonderimleri' &&
+    op.type !== 'delete' &&
+    op.data &&
+    typeof op.data === 'object'
+  ) {
+    const simdi = new Date().toISOString();
+    for (const k of ['gonderimTarihi', 'iadeTarihi', 'fakulteDuzenlemeTarihi']) {
+      if (k in op.data) op.data[k] = simdi;
+    }
+    op.data.sonYazanKimlik = String(user.identifier || '');
+  }
 
   // Şartlı kabul bir imzadır: kabul eden ve tarih istemciden alınmaz,
   // oturumdaki kişiden damgalanır (lib/sinav-cakisma.js → kabulKaydi).
@@ -1350,21 +1406,44 @@ async function enforceWritePolicies(db, op, user) {
   ) {
     const alan = await kullaniciAlani(db, user);
     if (alan.tur !== 'universite') {
-      let kayit = op.data;
-      if (op.type === 'delete' && op.docId) {
+      const red = {
+        allow: false,
+        status: 403,
+        error: 'Bu çakışma yetki alanınızdaki bir bölümü ilgilendirmiyor.',
+      };
+      let mevcut = null;
+      if (op.type !== 'add' && op.docId) {
         try {
-          kayit = await findExistingDoc(db, op);
+          mevcut = await findExistingDoc(db, op);
         } catch (_) {
-          kayit = null;
+          mevcut = null;
         }
       }
-      const bolumler = Array.isArray(kayit && kayit.bolumler) ? kayit.bolumler : [];
-      if (bolumler.length > 0 && !bolumler.some((b) => bolumAlandaFn(alan, b))) {
-        return {
-          allow: false,
-          status: 403,
-          error: 'Bu çakışma yetki alanınızdaki bir bölümü ilgilendirmiyor.',
-        };
+      const alanda = (liste) => Array.isArray(liste) && liste.some((b) => bolumAlandaFn(alan, b));
+      // Var olan kayıt: saklı bölümleri (eski kayıtta anahtardan çözülen)
+      // yazanın alanında olmalı.
+      if (mevcut) {
+        const eskiBolumler =
+          Array.isArray(mevcut.bolumler) && mevcut.bolumler.length
+            ? mevcut.bolumler
+            : await kabulBolumleriniCoz(db, mevcut.anahtar);
+        if (eskiBolumler.length && !alanda(eskiBolumler)) return red;
+      }
+      if (op.type !== 'delete') {
+        const veri = op.data && typeof op.data === 'object' ? op.data : null;
+        const anahtar = String((veri && veri.anahtar) || (mevcut && mevcut.anahtar) || '');
+        if (!anahtar) return red;
+        // Belge kimliği anahtarın özeti olmalı: başka çakışmanın kaydının
+        // üstüne yazılamaz.
+        if (op.docId) {
+          const { kabulBelgeKimligi } = await cakismaKurali();
+          if (op.docId !== kabulBelgeKimligi(anahtar)) {
+            return { allow: false, status: 400, error: 'Kabul kaydı kimliği anahtarla uyuşmuyor.' };
+          }
+        }
+        const bolumler = await kabulBolumleriniCoz(db, anahtar);
+        if (!alanda(bolumler)) return red;
+        if (veri) veri.bolumler = bolumler;
       }
     }
   }
@@ -1389,7 +1468,7 @@ async function enforceWritePolicies(db, op, user) {
     const ek = {};
     if (op.collection === 'sinav_programi') {
       const veri = op.data && typeof op.data === 'object' ? op.data : {};
-      const dersId = String((mevcut && mevcut.courseId) || veri.courseId || '');
+      const dersId = String(veri.courseId || (mevcut && mevcut.courseId) || '');
       const donemId = String((mevcut && mevcut.periodId) || veri.periodId || '');
       try {
         if (dersId) ek.ders = await findDocByAnyId(db, 'sinav_dersler', dersId);
