@@ -4381,13 +4381,19 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
     );
     const hatalar = [];
     for (const x of bolumDurumlari) {
-      if (!etkilenen.has(x.bolum.id) || !x.kayit || x.durum !== 'gonderildi') continue;
+      if (
+        ![...etkilenen].some((b) => ayniBolumMu(b, x.bolum.id)) ||
+        !x.kayit ||
+        x.durum !== 'gonderildi'
+      )
+        continue;
       const l = yeni.filter(
         (e) => ayniBolumMu(e.departmentId, x.bolum.id) && donemIdleri.has(e.periodId)
       );
+      // Eski (| ayraçlı) kimlikle kayıtlı gönderim kendi belgesine yazılır.
       await DBWrite.set(
         'sinav_gonderimleri',
-        x.kimlik,
+        x.kayit.id || x.kayit._docId || x.kimlik,
         {
           durum: 'gonderildi',
           imza: SF.programImzasi(l),
@@ -4525,12 +4531,16 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
     );
     if (!not || !not.trim()) return;
     try {
-      await DBWrite.update('sinav_gonderimleri', x.kimlik, {
-        durum: 'iade',
-        iadeNotu: not.trim(),
-        iadeEden: currentUser?.name || '',
-        iadeTarihi: new Date().toISOString(),
-      });
+      await DBWrite.update(
+        'sinav_gonderimleri',
+        (x.kayit && (x.kayit.id || x.kayit._docId)) || x.kimlik,
+        {
+          durum: 'iade',
+          iadeNotu: not.trim(),
+          iadeEden: currentUser?.name || '',
+          iadeTarihi: new Date().toISOString(),
+        }
+      );
       await oku();
     } catch (e) {
       alert('İade edilemedi: ' + e.message);
@@ -6171,20 +6181,14 @@ function SinavOtomasyonuApp({
           await DBWrite.batch(delOps1.slice(i, i + 20));
         }
       }
-      // Sadece seçili bölümün profesörlerini sil
+      // Akademisyen kayıtları SİLİNMEZ (şifre, yetki, gözetmenlik bilgisi
+      // taşırlar): yalnız bölümde aynı adla olmayan örnek kayıtlar eklenir.
       const existingProfs = await pRef.where('departmentId', '==', selectedDeptId).get();
-      const deptProfs = existingProfs.docs;
-      if (deptProfs.length > 0) {
-        const delOps2 = deptProfs.map((doc) => ({
-          collection: 'professors',
-          type: 'delete',
-          docId: doc.id,
-        }));
-        for (let i = 0; i < delOps2.length; i += 20) {
-          await DBWrite.batch(delOps2.slice(i, i + 20));
-        }
-      }
+      const mevcutAdlar = new Set(
+        existingProfs.docs.map((d) => String((d.data() || {}).name || '').trim())
+      );
       for (const prof of SEED_PROFESSORS) {
+        if (mevcutAdlar.has(String(prof.name || '').trim())) continue;
         await DBWrite.add('professors', {
           ...prof,
           departmentId: selectedDeptId,
@@ -6300,7 +6304,9 @@ function SinavOtomasyonuApp({
             // Bölüm yetkilisi işaretli akademisyen kendi bölümünü de görür.
             if (bolumYetkilisiRolu)
               depts.filter((d) => kendiBolumuMu(d.id)).forEach((d) => profDeptIds.add(d.id));
-            depts = depts.filter((d) => profDeptIds.has(d.id));
+            depts = depts.filter((d) =>
+              [...profDeptIds].some((b) => ayniBolumMu(d.id, b) || ayniBolumMu(d.docId, b))
+            );
           }
         }
 
@@ -6575,10 +6581,33 @@ function SinavOtomasyonuApp({
   const sinavYazilabilir = (e) => {
     if (!e) return false;
     if (isAdmin || currentUser?.isUniversityAdmin) return true;
-    if (yonetimYetkisi) return departments.some((d) => d.id === e.departmentId);
+    if (yonetimYetkisi)
+      return (
+        departments.some(
+          (d) => ayniBolumMu(d.id, e.departmentId) || ayniBolumMu(d.docId, e.departmentId)
+        ) || kendiDersiMi(e)
+      );
     if (canManage) return ayniBolumMu(e.departmentId, selectedDeptId);
     return kendiDersiMi(e);
   };
+  // Şartlı kabul: sunucu, çakışan bölümlerden en az biri yazanın alanında
+  // değilse reddeder; düğme de yalnız o durumda görünür.
+  const kabulYetkisi = (c) =>
+    !!(
+      canManage &&
+      c &&
+      c.kabulEdilebilir &&
+      Array.isArray(c.sinavlar) &&
+      c.sinavlar.some(
+        (x) =>
+          x &&
+          (isAdmin ||
+            currentUser?.isUniversityAdmin ||
+            (yonetimYetkisi
+              ? departments.some((d) => ayniBolumMu(d.id, x.departmentId))
+              : ayniBolumMu(x.departmentId, selectedDeptId)))
+      )
+    );
   const cakismaBirlestirilebilir = (c) => {
     if (!c || !Array.isArray(c.sinavlar) || c.sinavlar.length !== 2) return false;
     if (c.tur !== 'hoca' && c.tur !== 'sinif') return false;
@@ -6778,7 +6807,8 @@ function SinavOtomasyonuApp({
     setLoading(false);
   };
 
-  // Initial load: departments first, then comprehensive migration, then data
+  // Bölümler: ilk açılışta ve rol/fakülte değişince (ana ↔ ek bölüm geçişi
+  // kabuk tarafından bileşen yeniden kurulmadan yapılır) yeniden okunur.
   useEffect(() => {
     const init = async () => {
       const depts = await loadDepartments();
@@ -6786,215 +6816,20 @@ function SinavOtomasyonuApp({
       // yükleme hiç bitmiyordu: veri yalnız bölüm seçilince okunuyor.
       if (depts.length === 0 && !selectedDeptId) setLoading(false);
 
-      // ── Veri-bazlı migration: departmentId normalize + mükerrer silme ──
-      // Sadece bir kez çalışır (tarayıcı başına), her sayfa yüklemesinde çalışmaz
-      const MIGRATION_VERSION = 'v5_donem_fix';
-      const migrationDone = localStorage.getItem('sinav_migration_' + MIGRATION_VERSION);
-      // Bütün bölümlerin kayıtlarını değiştirir (mükerrer silme, bölüm
-      // kimliği düzeltme): yalnız sistem yöneticisinin tarayıcısında çalışır.
-      if (depts.length > 0 && !migrationDone && isAdmin) {
-        try {
-          const HARD_DEPTS = window.DEPARTMENTS || [];
-          const _validDeptIds = new Set(HARD_DEPTS.map((d) => d.id));
-
-          // 1. Veritabanı doc ID → hardcoded ID eşleştirmesi
-          const idMap = {}; // dbDocId → hardcodedId
-          const dRef = getDepartmentsRef();
-          if (dRef) {
-            const dSnap = await dRef.get();
-            dSnap.docs.forEach((doc) => {
-              const data = doc.data();
-              const matched = HARD_DEPTS.find((hd) => hd.name === data.name);
-              if (matched && doc.id !== matched.id) {
-                idMap[doc.id] = matched.id;
-              }
-            });
-          }
-
-          // 2. Dersleri kontrol et (hem normalize hem mükerrer)
-          // NOT: Tüm bölümlerin dersleri yüklenir çünkü departmentId normalize edilmesi gerekiyor
-          const cRef = getCoursesRef();
-          const updateOps = [];
-          const deleteOps = [];
-          let needsMigration = false;
-
-          if (cRef) {
-            const cSnap = await cRef.get();
-            const allCourses = cSnap.docs.map((d) => ({ docId: d.id, ...d.data() }));
-
-            // departmentId kontrol
-            allCourses.forEach((c) => {
-              const did = c.departmentId;
-              if (!did || did === '') {
-                updateOps.push({
-                  collection: 'sinav_dersler',
-                  type: 'update',
-                  docId: c.docId,
-                  data: { departmentId: 'bilgisayar' },
-                });
-              } else if (idMap[did]) {
-                updateOps.push({
-                  collection: 'sinav_dersler',
-                  type: 'update',
-                  docId: c.docId,
-                  data: { departmentId: idMap[did] },
-                });
-              }
-              // donem eksik olan derslere SEED_COURSES'tan veya sınıf bazlı varsayılan ata
-              if (!c.donem || (c.donem !== 'guz' && c.donem !== 'bahar')) {
-                const seedMatch = SEED_COURSES.find((s) => s.code === c.code && s.name === c.name);
-                const donem = seedMatch
-                  ? seedMatch.donem
-                  : (c.sinif || 1) % 2 === 1
-                    ? 'guz'
-                    : 'bahar';
-                updateOps.push({
-                  collection: 'sinav_dersler',
-                  type: 'update',
-                  docId: c.docId,
-                  data: { donem },
-                });
-              }
-            });
-
-            // Mükerrer kontrol (aynı bölüm + aynı kod + aynı ad = gerçek mükerrer)
-            const courseGroups = {};
-            allCourses.forEach((c) => {
-              const code = (c.code || '').trim();
-              const name = (c.name || '').trim();
-              const dept = c.departmentId || '';
-              if (!code) return;
-              const key = `${dept}__${code}__${name}`;
-              if (!courseGroups[key]) courseGroups[key] = [];
-              courseGroups[key].push(c);
-            });
-            for (const group of Object.values(courseGroups)) {
-              if (group.length <= 1) continue;
-              group.sort((a, b) => {
-                const aP = a.professor && a.professor !== '-' && a.professor !== '' ? 1 : 0;
-                const bP = b.professor && b.professor !== '-' && b.professor !== '' ? 1 : 0;
-                if (bP !== aP) return bP - aP;
-                if ((b.studentCount || 0) !== (a.studentCount || 0))
-                  return (b.studentCount || 0) - (a.studentCount || 0);
-                return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
-              });
-              for (let i = 1; i < group.length; i++) {
-                deleteOps.push({
-                  collection: 'sinav_dersler',
-                  type: 'delete',
-                  docId: group[i].docId,
-                });
-              }
-            }
-          }
-
-          // 3. Profesörleri kontrol et
-          const pRef = getProfessorsRef();
-          if (pRef) {
-            const pSnap = await pRef.get();
-            const allProfs = pSnap.docs.map((d) => ({ docId: d.id, ...d.data() }));
-
-            allProfs.forEach((p) => {
-              const did = p.departmentId;
-              if (!did || did === '') {
-                updateOps.push({
-                  collection: 'professors',
-                  type: 'update',
-                  docId: p.docId,
-                  data: { departmentId: 'bilgisayar' },
-                });
-              } else if (idMap[did]) {
-                updateOps.push({
-                  collection: 'professors',
-                  type: 'update',
-                  docId: p.docId,
-                  data: { departmentId: idMap[did] },
-                });
-              }
-            });
-
-            const profGroups = {};
-            allProfs.forEach((p) => {
-              const name = (p.name || '').trim();
-              const dept = p.departmentId || '';
-              if (!name) return;
-              const key = `${dept}__${name}`;
-              if (!profGroups[key]) profGroups[key] = [];
-              profGroups[key].push(p);
-            });
-            for (const group of Object.values(profGroups)) {
-              if (group.length <= 1) continue;
-              group.sort((a, b) =>
-                String(a.createdAt || '').localeCompare(String(b.createdAt || ''))
-              );
-              for (let i = 1; i < group.length; i++) {
-                deleteOps.push({ collection: 'professors', type: 'delete', docId: group[i].docId });
-              }
-            }
-          }
-
-          // 4. Diğer koleksiyonların departmentId kontrolü
-          const otherCollections = [
-            { ref: getPeriodsRef(), col: 'sinav_donemler' },
-            { ref: getExamsRef(), col: 'sinav_programi' },
-            { ref: getDeptClassroomsRef(), col: 'department_classrooms' },
-          ];
-          for (const { ref, col } of otherCollections) {
-            if (!ref) continue;
-            const snap = await ref.get();
-            snap.docs.forEach((d) => {
-              const data = d.data();
-              const did = data.departmentId;
-              if (!did || did === '') {
-                updateOps.push({
-                  collection: col,
-                  type: 'update',
-                  docId: d.id,
-                  data: { departmentId: 'bilgisayar' },
-                });
-              } else if (idMap[did]) {
-                updateOps.push({
-                  collection: col,
-                  type: 'update',
-                  docId: d.id,
-                  data: { departmentId: idMap[did] },
-                });
-              }
-            });
-          }
-
-          // Sadece düzeltme gerekiyorsa yazma işlemi yap
-          // Server limiti: tek batch'te max 20 silme, güvenli chunk boyutu
-          const BATCH_LIMIT = 20;
-
-          if (updateOps.length > 0) {
-            for (let i = 0; i < updateOps.length; i += BATCH_LIMIT) {
-              await DBWrite.batch(updateOps.slice(i, i + BATCH_LIMIT));
-            }
-            console.log(`Migration: ${updateOps.length} kayıt normalize edildi.`);
-            needsMigration = true;
-          }
-
-          if (deleteOps.length > 0) {
-            for (let i = 0; i < deleteOps.length; i += BATCH_LIMIT) {
-              await DBWrite.batch(deleteOps.slice(i, i + BATCH_LIMIT));
-            }
-            console.log(`Migration: ${deleteOps.length} mükerrer kayıt silindi.`);
-            needsMigration = true;
-          }
-
-          // Veri değiştiyse yeniden yükle
-          if (needsMigration && selectedDeptId) loadData();
-          // Migration tamamlandı — bir daha çalıştırma
-          localStorage.setItem('sinav_migration_' + MIGRATION_VERSION, 'done');
-        } catch (e) {
-          console.error('Migration error:', e);
-          // Hata durumunda flag set etme — bir sonraki yüklemede tekrar denesin
-        }
-      }
+      // Eski tarayıcı-taraflı göç (boş departmentId → bilgisayar, aynı adlı
+      // akademisyen silme) kaldırıldı: her yeni tarayıcıda yeniden çalışıp dış
+      // akademisyenleri Bilgisayar'a taşıyor ve aynı adlı kişileri siliyordu.
     };
     init();
-  }, []);
+  }, [
+    currentUser?.role,
+    currentUser?.baseRole,
+    currentUser?.isFacultyManager,
+    currentUser?.isDeptManager,
+    currentUser?.isUniversityAdmin,
+    currentUser?.facultyId,
+    currentUser?.departmentId,
+  ]);
   // Reload data when selected department changes
   useEffect(() => {
     if (selectedDeptId) {
@@ -7939,7 +7774,9 @@ function SinavOtomasyonuApp({
     )
       return;
     try {
-      const ops = [{ collection: 'sinav_donemler', type: 'delete', docId: periodId }];
+      // Dönem EN SON silinir: bölümsüz eski sınavların yetkisi sunucuda
+      // dönemin bölümünden çözülür; dönem önce giderse sonraki parçalar reddedilir.
+      const ops = [];
       // İlişkili sınavları da sil
       const exRef = getExamsRef();
       if (exRef) {
@@ -7948,6 +7785,7 @@ function SinavOtomasyonuApp({
           ops.push({ collection: 'sinav_programi', type: 'delete', docId: doc.id })
         );
       }
+      ops.push({ collection: 'sinav_donemler', type: 'delete', docId: periodId });
       for (let i = 0; i < ops.length; i += 20) {
         await DBWrite.batch(ops.slice(i, i + 20));
       }
@@ -8631,7 +8469,7 @@ function SinavOtomasyonuApp({
                                 </div>
                               )}
                             </div>
-                            {(cakismaBirlestirilebilir(c) || (canManage && c.kabulEdilebilir)) && (
+                            {(cakismaBirlestirilebilir(c) || kabulYetkisi(c)) && (
                               <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
                                 {cakismaBirlestirilebilir(c) && (
                                   <GhostBtn
@@ -8648,7 +8486,7 @@ function SinavOtomasyonuApp({
                                     Ortak sınav yap
                                   </GhostBtn>
                                 )}
-                                {!(canManage && c.kabulEdilebilir) ? null : kabulEdildi ? (
+                                {!kabulYetkisi(c) ? null : kabulEdildi ? (
                                   <GhostBtn
                                     onClick={() => kabulGeriAl(c)}
                                     style={{ fontSize: 12, padding: '4px 10px' }}

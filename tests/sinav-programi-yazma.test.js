@@ -126,3 +126,38 @@ describe('sınav programı yazma kuralı (sunucu)', () => {
     expect(sinavProgramiYazmaKarari(salon, null, dekan, 'X').izin).toBe(true);
   });
 });
+
+describe('sınavın dersi ve kodu', () => {
+  const ekle = (data) => ({ collection: 'sinav_programi', type: 'add', data });
+  it('yetkili sınavı başka bölümün dersine bağlayamaz', () => {
+    const ders = { departmentId: 'matematik', code: 'MAT161' };
+    const k = sinavProgramiYazmaKarari(
+      ekle({ departmentId: 'bilgisayar', courseId: 'c1', code: 'MAT161' }),
+      null,
+      bolumYet,
+      'x',
+      { ders }
+    );
+    expect(k.izin).toBe(false);
+  });
+  it('kendi bölümünün dersine bağlar', () => {
+    const ders = { departmentId: 'bilgisayar', code: 'BLM101' };
+    const k = sinavProgramiYazmaKarari(
+      ekle({ departmentId: 'bilgisayar', courseId: 'c1', code: 'BLM101' }),
+      null,
+      bolumYet,
+      'x',
+      { ders }
+    );
+    expect(k.izin).toBe(true);
+  });
+  it('ders kodu dersin kodundan başkasına çevrilemez', () => {
+    const ders = { departmentId: 'bilgisayar', code: 'MAT161' };
+    expect(
+      sinavProgramiYazmaKarari(up({ code: 'KIM101' }), sinav, bolumYet, 'x', { ders }).izin
+    ).toBe(false);
+    expect(
+      sinavProgramiYazmaKarari(up({ code: 'MAT161' }), sinav, bolumYet, 'x', { ders }).izin
+    ).toBe(true);
+  });
+});

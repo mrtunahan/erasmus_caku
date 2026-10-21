@@ -133,10 +133,10 @@ describe('sayı kuralı', () => {
 
 describe('adAnahtari', () => {
   it('unvanlar atılır, Türkçe küçük harf', () => {
-    expect(adAnahtari('Dr. Öğr. Üyesi Esma Baran ÖZKAN')).toBe('esma baran özkan');
+    expect(adAnahtari('Dr. Öğr. Üyesi Esma Baran ÖZKAN')).toBe('esma baran ozkan');
     expect(adAnahtari('Prof.Dr. Hamit ALYAR')).toBe('hamit alyar');
     expect(adAnahtari('Doç. Dr.  Ali  Veli')).toBe('ali veli');
-    expect(adAnahtari('Öğr. Gör. Ayşe Kaya')).toBe('ayşe kaya');
+    expect(adAnahtari('Öğr. Gör. Ayşe Kaya')).toBe('ayse kaya');
   });
 });
 
@@ -292,7 +292,7 @@ describe('denetim düzeltmeleri — gözetmen', () => {
     expect(atamalar.A).toEqual(['Y']);
   });
   it('ad anahtarı ortak unvan listesini kullanır (Öğrt., Uzm., Okutman, Yrd. Doç.)', () => {
-    expect(adAnahtari('Öğrt. Gör. Gökalp SAYLAM')).toBe('gökalp saylam');
+    expect(adAnahtari('Öğrt. Gör. Gökalp SAYLAM')).toBe('gokalp saylam');
     expect(adAnahtari('Uzm. Dr. Ali Veli')).toBe('ali veli');
     expect(adAnahtari('Okutman Ali Veli')).toBe('ali veli');
     expect(adAnahtari('Yrd. Doç. Dr. Ali Veli')).toBe('ali veli');
@@ -419,4 +419,17 @@ it('hoca, aynı saatteki başka sınava atanıp kendi sınavından düşmez', ()
   expect(atamalar.A).not.toContain('Ayşe Yılmaz');
   expect(atamalar.B[0]).toBe('Ayşe Yılmaz');
   expect(uyarilar.some((u) => u.tur === 'hoca_musait_degil')).toBe(false);
+});
+
+describe('Türkçe/ASCII yazım farkı aynı kişi sayılır', () => {
+  it('aynı saatte iki salona atanmaz', () => {
+    const a = sinav({ id: 'A', professor: 'Ozgur Yilmaz', timeSlot: '10:00' });
+    const b = sinav({ id: 'B', professor: 'Ali Veli', timeSlot: '10:00' });
+    const { atamalar } = gozetmenAta(['Özgür Yılmaz', 'Can Demir'], [a, b], {
+      salonBul: tekSalon,
+      hocaKurali: 'zorunlu',
+    });
+    const b2 = (atamalar.B || []).map(adAnahtari);
+    expect(b2).not.toContain('ozgur yilmaz');
+  });
 });

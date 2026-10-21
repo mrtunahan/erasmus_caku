@@ -124,6 +124,28 @@ function sinavProgramiYazmaKarari(op, mevcut, alan, kullaniciAdi, ek) {
   const yeniBolum = metin(veri.departmentId);
   const bolumler = [eskiBolum, yeniBolum].filter(Boolean);
   const yetkili = a.tur === 'bolum' || a.tur === 'fakulte';
+  const ders0 = (ek && ek.ders) || null;
+  if (koleksiyon === SINAV_PROGRAMI) {
+    // Sınav başka bölümün dersine bağlanamaz (Ders Odası sınavı derse göre
+    // gösterir: yanlış bağ, o dersin öğrencilerine sahte tarih gösterirdi).
+    const dersDegisiyor =
+      'courseId' in veri && (!mevcut || metin(veri.courseId) !== metin(mevcut.courseId));
+    const sinavBolumu = yeniBolum || eskiBolum;
+    if (
+      dersDegisiyor &&
+      ders0 &&
+      metin(ders0.departmentId) &&
+      !ayniBolum(ders0.departmentId, sinavBolumu, a.harita) &&
+      !bolumAlanda(a, ders0.departmentId)
+    ) {
+      return ret('Sınav başka bölümün dersine bağlanamaz.');
+    }
+    // Ders kodu da dersin kodundan başka bir koda çevrilemez.
+    const kodDegisiyor = 'code' in veri && (!mevcut || metin(veri.code) !== metin(mevcut.code));
+    if (kodDegisiyor && ders0 && metin(ders0.code) && metin(veri.code) !== metin(ders0.code)) {
+      return ret('Sınavın ders kodu dersin koduyla aynı olmalı.');
+    }
+  }
   if (yetkili && bolumler.length > 0 && bolumler.every((b) => bolumAlanda(a, b))) return IZIN;
 
   if (BOLUM_SINAV_KAYITLARI.has(koleksiyon)) {
