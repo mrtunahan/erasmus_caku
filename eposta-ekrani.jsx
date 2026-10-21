@@ -509,7 +509,9 @@ export function SifremiUnuttumPaneli({ onGeri }) {
         >
           <div style={lgBilgi}>
             Hesabınıza bağladığınız e-posta adresini yazın; şifrenizi yenilemeniz için bir bağlantı
-            gönderelim. Öğrenci, akademisyen, personel ve aday hesapları için aynıdır.
+            gönderelim. Öğrenci, akademisyen, personel ve aday hesapları için aynıdır. Yalnız
+            uygulamada kodla doğruladığınız adrese gönderilir; adresinizi hiç doğrulamadıysanız
+            şifrenizi bölüm yetkilinize veya yöneticiye sıfırlatın.
           </div>
           <div>
             <label className="lg-label">E-posta adresi</label>
