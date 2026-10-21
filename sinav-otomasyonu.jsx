@@ -2897,6 +2897,15 @@ async function xlsxYukle() {
 }
 
 // Fakültenin ortak salonları: fakülte ayarında tanımlıysa o, yoksa yerleşik liste.
+// Aynı bölüm mü? Bölüm slug ('bilgisayar') ya da veritabanı kimliğiyle
+// anılabiliyor; ham eşitlik aynı bölümün sınavını "başka bölüm" sayıyordu.
+function ayniBolumMu(a, b) {
+  if (!a || !b) return false;
+  if (String(a) === String(b)) return true;
+  const k = window.bolumKimlikleri ? window.bolumKimlikleri(String(a)) : [String(a)];
+  return k.includes(String(b));
+}
+
 // Bölümün salonlarından yalnız SINAVDA kullanılanlar (Bölüm Yönetimi →
 // Sınıf / Salon → Kullanım). Otomatik atama ve bölümün salon listesi bunlar.
 function sinavSalonlari(liste) {
@@ -3001,11 +3010,11 @@ function fakulteOtomatikYerlesim(bolumler, salonlar) {
     const kendi = b.sinavlar.map((e0) => guncel.get(e0.id) || e0);
     const kendiOturumlari = new Set(kendi.map((e) => metinOf(e.birlesimId)).filter(Boolean));
     const ortak = [...guncel.values()].filter(
-      (x) => x.departmentId !== b.bolumId && kendiOturumlari.has(metinOf(x.birlesimId))
+      (x) => !ayniBolumMu(x.departmentId, b.bolumId) && kendiOturumlari.has(metinOf(x.birlesimId))
     );
     const ortakIdleri = new Set(ortak.map((x) => x.id));
     const diger = [...guncel.values()].filter(
-      (x) => x.departmentId !== b.bolumId && !ortakIdleri.has(x.id)
+      (x) => !ayniBolumMu(x.departmentId, b.bolumId) && !ortakIdleri.has(x.id)
     );
     const { oneri } = otomatikAtamaHesapla({
       sinavlar: [...kendi, ...ortak],
@@ -4010,12 +4019,18 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
 
   useEffect(() => {
     oku();
-    const h = () => oku();
+    // Art arda gelen anlık olaylar tek okumada toplanır.
+    let zamanlayici = null;
+    const h = () => {
+      clearTimeout(zamanlayici);
+      zamanlayici = setTimeout(() => oku(), 700);
+    };
     const c = ['sinav_programi', 'sinav_gonderimleri', 'sinav_fakulte_ayarlari'];
     c.forEach((x) => window.addEventListener('realtime:' + x, h));
     const esc = (e) => e.key === 'Escape' && kapatRef.current();
     window.addEventListener('keydown', esc);
     return () => {
+      clearTimeout(zamanlayici);
       c.forEach((x) => window.removeEventListener('realtime:' + x, h));
       window.removeEventListener('keydown', esc);
     };
@@ -4092,7 +4107,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
     const donemIdleri = new Set(grup.donemler.map((d) => d.id));
     return bolumler.map((b) => {
       const sinavlar = veri.sinavlar.filter(
-        (e) => e && e.departmentId === b.id && donemIdleri.has(e.periodId)
+        (e) => e && ayniBolumMu(e.departmentId, b.id) && donemIdleri.has(e.periodId)
       );
       const kimlik = SF.gonderimKimligi(b.id, grup.anahtar);
       const kayit = SF.gonderimKaydiBul(veri.gonderimler, b.id, grup.anahtar);
@@ -4290,7 +4305,9 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
     const hatalar = [];
     for (const x of bolumDurumlari) {
       if (!etkilenen.has(x.bolum.id) || !x.kayit || x.durum !== 'gonderildi') continue;
-      const l = yeni.filter((e) => e.departmentId === x.bolum.id && donemIdleri.has(e.periodId));
+      const l = yeni.filter(
+        (e) => ayniBolumMu(e.departmentId, x.bolum.id) && donemIdleri.has(e.periodId)
+      );
       await DBWrite.set(
         'sinav_gonderimleri',
         x.kimlik,
@@ -6311,14 +6328,17 @@ function SinavOtomasyonuApp({
   seciliBolumRef.current = selectedDeptId;
   const loadFakulteGeneli = useCallback(async () => {
     try {
+      // Sınavlar strict okunur: okuma hatasında eski liste korunur (apiRead
+      // hata olunca [] döndürüyor; takvim ve çakışma denetimi boşalıyordu).
+      const okuSiki = window.apiRead.strict || window.apiRead;
       const [sinavlar, salonlar, kabuller, ayarlar, gonderimKayitlari] = await Promise.all([
-        window.apiRead('sinav_programi').catch(() => null),
+        okuSiki('sinav_programi').catch(() => null),
         window.apiRead('department_classrooms').catch(() => []),
         window.apiRead('sinav_cakisma_kabul').catch(() => []),
         window.apiRead('sinav_fakulte_ayarlari').catch(() => []),
         window.apiRead('sinav_gonderimleri').catch(() => []),
       ]);
-      setTumSinavlar(Array.isArray(sinavlar) ? sinavlar : []);
+      if (Array.isArray(sinavlar)) setTumSinavlar(sinavlar);
       const bolum = seciliBolumRef.current;
       if (Array.isArray(sinavlar) && bolum) {
         setPlacedExams(
@@ -6336,15 +6356,24 @@ function SinavOtomasyonuApp({
     }
   }, []);
 
+  // Art arda gelen tetikler (her yazım herkese "realtime" olayı yayar) tek
+  // okumada toplanır: her olayda bütün koleksiyonları yeniden okumak yük.
+  const tazeleZamanlayici = _useRef(null);
+  const fakulteGeneliTazele = useCallback(() => {
+    clearTimeout(tazeleZamanlayici.current);
+    tazeleZamanlayici.current = setTimeout(() => loadFakulteGeneli(), 700);
+  }, [loadFakulteGeneli]);
+  useEffect(() => () => clearTimeout(tazeleZamanlayici.current), []);
+
   useEffect(() => {
-    loadFakulteGeneli();
-  }, [loadFakulteGeneli, placedExams.length]);
+    fakulteGeneliTazele();
+  }, [fakulteGeneliTazele, placedExams.length]);
 
   // ── Anlık güncelleme ──
   // Başka bölüm sınav yerleştirdiğinde ya da bir çakışmayı kabul ettiğinde
   // denetim sayfa yenilenmeden güncellenir.
   useEffect(() => {
-    const h = () => loadFakulteGeneli();
+    const h = () => fakulteGeneliTazele();
     const c = [
       'sinav_programi',
       'sinav_cakisma_kabul',
@@ -6353,7 +6382,7 @@ function SinavOtomasyonuApp({
     ];
     c.forEach((x) => window.addEventListener('realtime:' + x, h));
     return () => c.forEach((x) => window.removeEventListener('realtime:' + x, h));
-  }, [loadFakulteGeneli]);
+  }, [fakulteGeneliTazele]);
 
   // Ortak öğrenci verisi bir kez okunur (ders seçimleri sınav hazırlığı
   // sırasında pek değişmez); okunamazsa ortak öğrenci denetimi atlanır.
@@ -6383,15 +6412,18 @@ function SinavOtomasyonuApp({
   // ⚠ Çıktıdan hemen önce bütün bölümlerin sınavları ve kabuller YENİDEN
   // okunur: başka bölümün son yerleştirmesi kaçmasın.
   const cikisIzniVar = async () => {
-    let tazeHazir = programHazir;
+    let tazeHazir;
     try {
       if (window.apiInvalidate) {
         window.apiInvalidate('sinav_programi');
         window.apiInvalidate('sinav_cakisma_kabul');
       }
+      // strict: okuma hatası "çakışma yok" sayılmasın (apiRead hata olunca []
+      // döndürür; resmî çıktı kapısı boş listeyle geçiyordu).
+      const oku = window.apiRead.strict || window.apiRead;
       const [sinavlar, kabuller] = await Promise.all([
-        window.apiRead('sinav_programi'),
-        window.apiRead('sinav_cakisma_kabul').catch(() => []),
+        oku('sinav_programi'),
+        oku('sinav_cakisma_kabul'),
       ]);
       const taze = Array.isArray(sinavlar) ? sinavlar : [];
       const tazeKabul = Array.isArray(kabuller) ? kabuller : [];
@@ -6413,21 +6445,15 @@ function SinavOtomasyonuApp({
       }
       return true;
     } catch (e) {
-      console.warn('Çıktı öncesi denetim verisi okunamadı:', e && e.message);
+      // Bütün bölümlerin son durumu okunamadıysa çakışma denetimi yapılamaz:
+      // resmî çıktı/gönderim durdurulur (eksik veriyle "çakışma yok" denmesin).
+      alert(
+        'Fakülte geneli sınav verisi okunamadı (' +
+          ((e && e.message) || 'bağlantı hatası') +
+          '). Çakışma denetimi yapılamadığı için işlem durduruldu; biraz sonra tekrar deneyin.'
+      );
+      return false;
     }
-    if (tazeHazir) return true;
-    setCakismaPaneli(true);
-    alert(
-      cakismaOzet.engel > 0
-        ? cakismaOzet.engel +
-            ' çakışma fiziksel olarak imkânsız (kapasite yetmiyor ya da gözetmen iki ' +
-            'salonda birden olamaz). Bunlar düzeltilmeden resmî çıktı alınamaz.\n\n' +
-            'Çakışma panelini açtım.'
-        : cakismaOzet.bekleyen +
-            ' çakışma karar bekliyor. Her birini ya düzeltin ya da sebebini yazarak ' +
-            'şartlı kabul edin; kabul kayda geçer.\n\nÇakışma panelini açtım.'
-    );
-    return false;
   };
 
   // Şartlı kabul — sebep zorunlu, kim/ne zaman kayda geçer.
@@ -6469,7 +6495,7 @@ function SinavOtomasyonuApp({
     if (!e) return false;
     if (isAdmin || currentUser?.isUniversityAdmin) return true;
     if (yonetimYetkisi) return departments.some((d) => d.id === e.departmentId);
-    if (canManage) return e.departmentId === selectedDeptId;
+    if (canManage) return ayniBolumMu(e.departmentId, selectedDeptId);
     return kendiDersiMi(e);
   };
   const cakismaBirlestirilebilir = (c) => {
@@ -6972,7 +6998,6 @@ function SinavOtomasyonuApp({
   const cakismaOzet = window.sinavCakismaOzeti
     ? window.sinavCakismaOzeti(cakismalar)
     : { toplam: 0, engel: 0, bekleyen: 0, kabul: 0 };
-  const programHazir = window.sinavProgramHazirMi ? window.sinavProgramHazirMi(cakismalar) : true;
 
   // ── Fakülte: ortak salonlar, başka bölümlerin doluluğu, gönderim ──
   const SF = window.SinavFakulte;
@@ -6993,7 +7018,8 @@ function SinavOtomasyonuApp({
   const digerSinavlar = useMemo(
     () =>
       tumSinavlar.filter(
-        (e) => e && e.departmentId !== selectedDeptId && e.date && donemGunleri.has(e.date)
+        (e) =>
+          e && !ayniBolumMu(e.departmentId, selectedDeptId) && e.date && donemGunleri.has(e.date)
       ),
     [tumSinavlar, selectedDeptId, donemGunleri]
   );
@@ -7268,7 +7294,7 @@ function SinavOtomasyonuApp({
     // Oturumun salonu birleşince sığmıyorsa önceden söylenir (çakışma panelinde
     // "salona sığmıyor" engeli olarak da görünür).
     const salonlar = String(oturum.ozet.room || '')
-      .split(/\s+-\s+/)
+      .split(/\s+-\s+|,/)
       .map((x) => x.trim())
       .filter(Boolean);
     const kapasiteler = salonlar.map((x) => Number(salonKapasiteleri[x]) || 0);

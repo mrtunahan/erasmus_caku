@@ -908,7 +908,33 @@ async function bolumListesi(db) {
   bolumListesiOnbellek = { liste, ts: Date.now() };
   return liste;
 }
+// Bir istekteki her işlem için alan yeniden hesaplanıyordu (profil + fakülte
+// okuması; 50 işlemlik toplu yazımda yüzlerce sorgu). Aynı kullanıcı nesnesi
+// (aynı istek) için kısa süre tekrar kullanılır.
+const alanOnbellek = new WeakMap();
+let fakulteListesiOnbellek = null;
+async function fakulteListesiOku(db) {
+  if (fakulteListesiOnbellek && Date.now() - fakulteListesiOnbellek.ts < 30 * 1000) {
+    return fakulteListesiOnbellek.liste;
+  }
+  const liste = await db.collection('faculties').find({}).toArray();
+  fakulteListesiOnbellek = { liste, ts: Date.now() };
+  return liste;
+}
 async function kullaniciAlani(db, user, okuma) {
+  if (user && typeof user === 'object') {
+    const kayit = alanOnbellek.get(user);
+    const anahtar = okuma ? 'okuma' : 'yazma';
+    if (kayit && kayit[anahtar] && Date.now() - kayit[anahtar].ts < 5000) {
+      return kayit[anahtar].alan;
+    }
+    const alan = await kullaniciAlaniHesapla(db, user, okuma);
+    alanOnbellek.set(user, { ...(kayit || {}), [anahtar]: { alan, ts: Date.now() } });
+    return alan;
+  }
+  return kullaniciAlaniHesapla(db, user, okuma);
+}
+async function kullaniciAlaniHesapla(db, user, okuma) {
   const flags = await getActorFlags(db, user);
   let profil = null;
   try {
@@ -919,7 +945,7 @@ async function kullaniciAlani(db, user, okuma) {
   let fakulteler = [];
   if (flags && flags.facManager) {
     try {
-      fakulteler = await db.collection('faculties').find({}).toArray();
+      fakulteler = await fakulteListesiOku(db);
     } catch (_) {
       fakulteler = [];
     }
