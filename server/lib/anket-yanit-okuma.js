@@ -15,8 +15,8 @@
 //   • Kişinin KENDİ yanıtı kimliğiyle döner ("bu anketi doldurdum" bilgisi).
 //   • Üniversite yetkilisi   → bütün yanıtlar, ANONİM.
 //   • Fakülte/bölüm yetkilisi → yanıtlayanın bölümü kendi alanındaysa, ANONİM.
-//   • Akademisyen            → yalnız KENDİ paylaştığı ya da açtığı anketin,
-//                              kendi bölümündeki yanıtları, ANONİM.
+//   • Akademisyen            → yalnız KENDİ OLUŞTURDUĞU anketin, kendi
+//                              bölümündeki yanıtları, ANONİM.
 // Anonim: kimlik alanları (userId, studentNumber, ad) düşer; cevaplar,
 // rol, tarih ve bölüm kalır. Anketin kendi bilgi alanları (ör. "Sınıf")
 // anketi hazırlayanın kararıdır ve cevapların içinde durur.
@@ -57,7 +57,7 @@ function kendiYanitiMi(doc, ben) {
  * @param {object} p
  * @param {object} p.kapsam     anketAktorKapsami çıktısı (universite/fakulte/bolum/akademisyen)
  * @param {string} p.ben        okuyanın kimliği (ad)
- * @param {Set<string>} [p.benimAnketlerim] akademisyenin açtığı ya da paylaştığı anket kimlikleri
+ * @param {Set<string>} [p.benimAnketlerim] akademisyenin oluşturduğu anket kimlikleri
  * @returns {(doc:object)=>object|null} görünen hâl ya da null (gizli)
  */
 function yanitSuzgeci(p) {

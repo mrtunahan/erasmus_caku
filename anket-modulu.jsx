@@ -521,6 +521,8 @@ function YoneticiGorunumu({
     return out;
   }, [dbBolumler, FACULTY_DEPARTMENTS]);
 
+  // Fakülte geneli anketin sahibi olarak fakültenin ADI yazılsın.
+  const fakulteAdlari = window.useFakulteAdlari ? window.useFakulteAdlari() : {};
   const anketOzeti = useMemo(() => {
     if (!window.anketleriSuz) {
       // Kural yüklenemediyse liste BOŞ kalır. Yetki kararında "kural yoksa
@@ -534,8 +536,9 @@ function YoneticiGorunumu({
       bolumler: bolumAdListesi,
       atamalar: assignments,
       derslerim,
+      fakulteAdlari,
     });
-  }, [surveys, yayinKapsami, currentUser, bolumAdListesi, assignments, derslerim]);
+  }, [surveys, yayinKapsami, currentUser, bolumAdListesi, assignments, derslerim, fakulteAdlari]);
   const gorunenAnketler = anketOzeti.liste;
 
   const addSurvey = async (survey) => {
@@ -594,9 +597,10 @@ function YoneticiGorunumu({
     toast.show('Anket silindi');
   };
   // Anketi kopyala — sorular ve ders eşleştirmesiyle; atamalar kopyalanmaz
-  const duplicateSurvey = async (s) => {
+  const duplicateSurvey = async (s, yeniAd) => {
     const copy = {
-      title: (s.title || 'Anket') + ' (Kopya)',
+      // Yeni ad çoğaltma penceresinde yazılır; boş gelirse eski davranış.
+      title: String(yeniAd || '').trim() || (s.title || 'Anket') + ' (Kopya)',
       description: s.description || '',
       infoFields: s.infoFields || [],
       questions: s.questions || [],
@@ -610,7 +614,7 @@ function YoneticiGorunumu({
     };
     await window.DBWrite.add('surveys', copy);
     await load();
-    toast.show('Anket çoğaltıldı');
+    toast.show('“' + copy.title + '” oluşturuldu');
   };
   // Atamanın KAPSAMI kayda yazılır: bölüm yetkilisi → kendi bölüm(ler)i,
   // fakülte yetkilisi → fakültesinin tüm bölümleri, üniversite yetkilisi →
@@ -711,6 +715,7 @@ function YoneticiGorunumu({
               activeDepartment={activeDepartment}
               isAdmin={isAdmin}
               derslerim={akademisyenModu ? derslerim : null}
+              olusturanAdi={currentUser?.name || ''}
             />
           )}
           {tab === 'atama' && (
@@ -1129,7 +1134,32 @@ function AnketlerPaneli({
   kapsam,
   kapsamOzeti,
   derslerim,
+  olusturanAdi,
 }) {
+  // Çoğaltma penceresi: yeni anketin adı kopyalamadan ÖNCE yazılır.
+  const [cogaltilan, setCogaltilan] = useState(null);
+  const [cogaltAd, setCogaltAd] = useState('');
+  const [cogaltiliyor, setCogaltiliyor] = useState(false);
+  const cogaltmayiAc = (s) => {
+    setCogaltilan(s);
+    setCogaltAd((s.title || 'Anket') + ' (Kopya)');
+  };
+  const cogaltmayiOnayla = async () => {
+    const ad = cogaltAd.trim();
+    if (!ad) {
+      alert('Yeni anketin adını yazın.');
+      return;
+    }
+    setCogaltiliyor(true);
+    try {
+      await onDuplicate(cogaltilan, ad);
+      setCogaltilan(null);
+    } catch (e) {
+      alert('Anket çoğaltılamadı: ' + (e && e.message ? e.message : e));
+    } finally {
+      setCogaltiliyor(false);
+    }
+  };
   // Doğrudan yükle — aynı şablon birden çok kez eklenebilir (kopya sayısı gösterilir)
   const addPreset = async (key) => {
     const count = surveys.filter((s) => s.presetKey === key).length;
@@ -1435,147 +1465,187 @@ function AnketlerPaneli({
                 )
               ),
             ];
+            const renk = KAPSAM_RENK[(s._etiket && s._etiket.ton) || 'eski'] || KAPSAM_RENK.eski;
+            const bilgi = (etiket, deger, ipucu) => (
+              <div style={{ minWidth: 0 }} title={ipucu || deger}>
+                <div
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 600,
+                    color: ANK.textDim,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {etiket}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    color: ANK.text,
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {deger}
+                </div>
+              </div>
+            );
             return (
               <div
                 key={s.id}
+                data-anket-kart
                 className="ank-card ank-card-hover"
                 style={{
                   ...cardStyle,
-                  padding: 16,
+                  padding: 0,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 12,
+                  overflow: 'hidden',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                {/* Üst şerit anketin sahibi seviyesinin rengini taşır. */}
+                <div style={{ height: 4, background: renk.renk }} />
+                <div
+                  style={{
+                    padding: 16,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    flex: 1,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p
+                        title={s.title}
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 700,
+                          color: ANK.primary,
+                          margin: 0,
+                          lineHeight: 1.35,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {s.title || 'Adsız anket'}
+                      </p>
+                      {s.description && (
+                        <p
+                          title={s.description}
+                          style={{
+                            fontSize: 12,
+                            color: ANK.textMuted,
+                            margin: '4px 0 0',
+                            lineHeight: 1.45,
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {s.description}
+                        </p>
+                      )}
+                    </div>
+                    {/* Yetki durumu açıkça yazılır; sebep üzerine gelince görünür. */}
+                    <span
+                      data-anket-yetki
+                      title={s._kilitSebebi || 'Bu anketi düzenleyebilir ve silebilirsiniz.'}
+                      style={{
+                        flexShrink: 0,
+                        padding: '3px 9px',
+                        borderRadius: 10,
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        background: s._yonetilebilir ? '#DCFCE7' : '#F1F5F9',
+                        color: s._yonetilebilir ? '#166534' : '#64748B',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {s._yonetilebilir ? 'Düzenlenebilir' : 'Salt okunur'}
+                    </span>
+                  </div>
+
                   <div
                     style={{
-                      width: 40,
-                      height: 40,
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                      gap: '10px 14px',
+                      padding: '10px 12px',
                       borderRadius: 10,
-                      background: ANK.accentPale,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
+                      background: ANK.surfaceAlt || '#F8FAFC',
                     }}
                   >
-                    <AIcon
-                      path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      size={19}
-                      color={ANK.accent}
-                    />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p
-                      title={s.title}
-                      style={{
-                        fontSize: 14.5,
-                        fontWeight: 700,
-                        color: ANK.primary,
-                        margin: 0,
-                        lineHeight: 1.35,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {s.title}
-                    </p>
-                    <p style={{ fontSize: 12, color: ANK.textMuted, margin: '3px 0 0' }}>
-                      {s.questions?.length || 0} soru
-                    </p>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, minHeight: 22 }}>
-                  {/* Kapsam rozeti: anket KİMİN (hangi seviyede oluşturuldu,
-                      kim yönetir)? Kime gittiği değil — o, yanındaki
-                      "Paylaşıldı" rozetinde yazar. */}
-                  {s._etiket && (
-                    <span
-                      data-anket-sahiplik
-                      title={
+                    <div data-anket-olusturan-kart>
+                      {bilgi('Oluşturan', s._olusturan || 'Belirtilmemiş')}
+                    </div>
+                    <div data-anket-sahiplik>
+                      {bilgi(
+                        'Sahibi',
+                        s._sahipBirim || (s._etiket && s._etiket.etiket) || 'Eski kayıt',
                         'Anketin sahibi: ' +
-                        s._etiket.etiket +
-                        '. ' +
-                        (s._kilitSebebi || 'Bu anketi düzenleyebilirsiniz.')
-                      }
-                      style={{
-                        padding: '2px 9px',
-                        borderRadius: 10,
-                        background: KAPSAM_RENK[s._etiket.ton].zemin,
-                        color: KAPSAM_RENK[s._etiket.ton].renk,
-                        fontSize: 11,
-                        fontWeight: 700,
-                      }}
+                          (s._sahipBirim || 'eski kayıt') +
+                          '. ' +
+                          (s._kilitSebebi || 'Bu anketi düzenleyebilirsiniz.')
+                      )}
+                    </div>
+                    {bilgi('Sorular', (s.questions?.length || 0) + ' soru')}
+                    <div data-anket-paylasim>
+                      {bilgi(
+                        'Paylaşım',
+                        ac > 0
+                          ? hedefler.slice(0, 2).join(', ') +
+                              (hedefler.length > 2 ? ' +' + (hedefler.length - 2) : '')
+                          : 'Henüz paylaşılmadı',
+                        ac > 0 ? ac + ' paylaşım · ' + hedefler.join(', ') : 'Henüz paylaşılmadı'
+                      )}
+                    </div>
+                  </div>
+
+                  {(s.linkedCourses || []).length > 0 && (
+                    <div
+                      style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}
                     >
-                      {s._etiket.ton === 'eski'
-                        ? 'Eski kayıt'
-                        : 'Oluşturan: ' +
-                          s._etiket.etiket
-                            .replace(/ geneli$/, '')
-                            .replace(/^Bölüm anketi$/, 'Bölüm')}
-                    </span>
-                  )}
-                  {ac > 0 && (
-                    <span
-                      data-anket-paylasim
-                      title={ac + ' atama · ' + hedefler.join(', ')}
-                      style={{
-                        padding: '2px 9px',
-                        borderRadius: 10,
-                        background: ANK.blueLight,
-                        color: ANK.blue,
-                        fontSize: 11,
-                        fontWeight: 600,
-                      }}
-                    >
-                      Paylaşıldı: {hedefler.slice(0, 2).join(', ')}
-                      {hedefler.length > 2 ? ' +' + (hedefler.length - 2) : ''}
-                    </span>
-                  )}
-                  {(s.linkedCourses || []).slice(0, 3).map((c) => (
-                    <span
-                      key={c.code || c.name}
-                      title={c.name}
-                      style={{
-                        padding: '2px 9px',
-                        borderRadius: 10,
-                        background: ANK.tealLight,
-                        color: ANK.teal,
-                        fontSize: 11,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {c.code || c.name}
-                    </span>
-                  ))}
-                  {(s.linkedCourses || []).length > 3 && (
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: ANK.teal,
-                        fontWeight: 600,
-                        alignSelf: 'center',
-                      }}
-                    >
-                      +{s.linkedCourses.length - 3} ders
-                    </span>
-                  )}
-                  {ac === 0 && (s.linkedCourses || []).length === 0 && (
-                    <span style={{ fontSize: 11, color: ANK.textDim, alignSelf: 'center' }}>
-                      Henüz atama yok
-                    </span>
+                      <span style={{ fontSize: 11, color: ANK.textDim, fontWeight: 600 }}>
+                        Bağlı dersler:
+                      </span>
+                      {(s.linkedCourses || []).slice(0, 3).map((c) => (
+                        <span
+                          key={c.code || c.name}
+                          title={c.name}
+                          style={{
+                            padding: '2px 9px',
+                            borderRadius: 10,
+                            background: ANK.tealLight,
+                            color: ANK.teal,
+                            fontSize: 11,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {c.code || c.name}
+                        </span>
+                      ))}
+                      {(s.linkedCourses || []).length > 3 && (
+                        <span style={{ fontSize: 11, color: ANK.teal, fontWeight: 600 }}>
+                          +{s.linkedCourses.length - 3} ders
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div
                   style={{
                     display: 'flex',
                     gap: 6,
-                    marginTop: 'auto',
-                    paddingTop: 10,
+                    padding: '10px 16px',
                     borderTop: '1px solid ' + ANK.border,
+                    background: '#FCFDFD',
                   }}
                 >
                   {/* Yetki yoksa düğme "Görüntüle"ye döner: anket kilitli
@@ -1595,7 +1665,7 @@ function AnketlerPaneli({
                       padding: '8px 10px',
                       borderRadius: 8,
                       border: '1px solid ' + ANK.border,
-                      background: s._yonetilebilir ? ANK.accentPale : ANK.surfaceAlt || '#F1F5F9',
+                      background: s._yonetilebilir ? ANK.accentPale : 'white',
                       color: s._yonetilebilir ? ANK.accent : ANK.textMuted,
                       fontSize: 12.5,
                       fontWeight: 600,
@@ -1615,10 +1685,24 @@ function AnketlerPaneli({
                     {s._yonetilebilir ? 'Düzenle' : 'Görüntüle'}
                   </button>
                   <button
-                    onClick={() => onDuplicate(s)}
-                    title="Çoğalt"
+                    onClick={() => cogaltmayiAc(s)}
+                    title="Bu anketin kopyasını yeni bir adla oluştur"
                     className="ank-btn"
-                    style={iconBtn(ANK.blue)}
+                    data-anket-cogalt-dugme
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      border: '1px solid ' + ANK.border,
+                      background: 'white',
+                      color: ANK.blue,
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontFamily: "'Inter', sans-serif",
+                    }}
                   >
                     <AIcon
                       path={[
@@ -1628,6 +1712,7 @@ function AnketlerPaneli({
                       size={13}
                       color={ANK.blue}
                     />
+                    Çoğalt
                   </button>
                   {/* Silme yetkisi yoksa düğme HİÇ ÇİZİLMEZ: tıklanan ama
                       her seferinde reddedilen bir düğme, kullanıcıya yetkisi
@@ -1637,7 +1722,7 @@ function AnketlerPaneli({
                       onClick={() => onRemove(s.id)}
                       title="Sil"
                       className="ank-btn"
-                      style={iconBtn(ANK.red)}
+                      style={{ ...iconBtn(ANK.red), width: 34, height: 34 }}
                     >
                       <AIcon
                         path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
@@ -1662,7 +1747,106 @@ function AnketlerPaneli({
           activeDepartment={activeDepartment}
           isAdmin={isAdmin}
           derslerim={derslerim}
+          olusturan={editing._isNew ? olusturanAdi : editing._olusturan || editing.createdBy || ''}
         />
+      )}
+
+      {cogaltilan && (
+        <div
+          onClick={() => !cogaltiliyor && setCogaltilan(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1200,
+            padding: 16,
+          }}
+        >
+          <div
+            data-anket-cogalt
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: 14,
+              padding: 22,
+              width: '100%',
+              maxWidth: 460,
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: ANK.primary, margin: '0 0 6px' }}>
+              Anketi çoğalt
+            </h3>
+            <p
+              style={{ fontSize: 12.5, color: ANK.textMuted, margin: '0 0 14px', lineHeight: 1.5 }}
+            >
+              “{cogaltilan.title}” anketinin soruları ve bağlı dersleri yeni bir ankete kopyalanır.
+              Paylaşımlar ve yanıtlar kopyalanmaz; yeni anketin sahibi siz olursunuz.
+            </p>
+            <label style={labelStyle}>Yeni anketin adı *</label>
+            <input
+              value={cogaltAd}
+              onChange={(e) => setCogaltAd(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') cogaltmayiOnayla();
+              }}
+              style={inputStyle}
+              autoFocus
+              data-anket-cogalt-ad
+            />
+            {surveys.some(
+              (x) =>
+                String(x.title || '')
+                  .trim()
+                  .toLocaleLowerCase('tr') === cogaltAd.trim().toLocaleLowerCase('tr')
+            ) && (
+              <p style={{ fontSize: 12, color: '#B45309', margin: '6px 0 0' }}>
+                Bu adda bir anket zaten var; ayırt edebilmek için farklı bir ad önerilir.
+              </p>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+              <button
+                onClick={() => setCogaltilan(null)}
+                disabled={cogaltiliyor}
+                className="ank-btn"
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: 8,
+                  border: '1px solid ' + ANK.border,
+                  background: 'white',
+                  color: ANK.textMuted,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={cogaltmayiOnayla}
+                disabled={cogaltiliyor}
+                className="ank-btn"
+                data-anket-cogalt-onay
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: ANK.blue,
+                  color: 'white',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: cogaltiliyor ? 'wait' : 'pointer',
+                  opacity: cogaltiliyor ? 0.7 : 1,
+                }}
+              >
+                {cogaltiliyor ? 'Çoğaltılıyor…' : 'Çoğalt'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1930,6 +2114,7 @@ function SurveyEditorModal({
   activeDepartment,
   isAdmin,
   derslerim,
+  olusturan,
 }) {
   // Yetkisi olmayan kullanıcı anketi GÖRÜNTÜLER: içeriğe bakmak yasak değil,
   // değiştirmek yasak (bkz. lib/anket-kapsam.js).
@@ -2092,6 +2277,13 @@ function SurveyEditorModal({
         <h3 style={{ fontSize: 18, fontWeight: 700, color: ANK.primary, margin: '0 0 16px' }}>
           {isNew ? 'Yeni Anket' : saltOkunur ? 'Anketi Görüntüle' : 'Anketi Düzenle'}
         </h3>
+        {/* Anketi oluşturan kişi kayda adıyla geçer (createdBy). */}
+        <p
+          data-anket-olusturan
+          style={{ fontSize: 12.5, color: ANK.textMuted, margin: '-10px 0 16px' }}
+        >
+          Oluşturan: <b style={{ color: ANK.text }}>{olusturan || 'Belirtilmemiş (eski kayıt)'}</b>
+        </p>
         {saltOkunur && (
           <div
             style={{
@@ -2935,9 +3127,14 @@ function AtamaPaneli({
             style={{ ...inputStyle, cursor: 'pointer' }}
           >
             <option value="">— Anket seçin —</option>
+            {/* Anket adı, SAHİBİ birim (bölüm / fakülte / üniversite) ve
+                oluşturan kişi: aynı adlı anketler birbirinden ayırt edilsin. */}
             {surveys.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.title}
+                {(s.title || 'Adsız anket') +
+                  ' — ' +
+                  (s._sahipBirim || 'Eski kayıt') +
+                  (s._olusturan ? ' · ' + s._olusturan : '')}
               </option>
             ))}
           </select>
@@ -4106,6 +4303,18 @@ function SonuclarPaneli({ surveys }) {
   }, [surveyId]);
 
   const survey = surveys.find((s) => s.id === surveyId);
+  // Liste sahibi birime, sonra ada göre sıralanır.
+  const siraliAnketler = useMemo(
+    () =>
+      surveys
+        .slice()
+        .sort(
+          (a, b) =>
+            String(a._sahipBirim || '').localeCompare(String(b._sahipBirim || ''), 'tr') ||
+            String(a.title || '').localeCompare(String(b.title || ''), 'tr')
+        ),
+    [surveys]
+  );
 
   // Seçili anket başka oturumda silinmişse (realtime yenileme sonrası)
   // seçim sıfırlanır — aksi halde aşağıdaki render survey.questions'ta çöker.
@@ -4223,9 +4432,13 @@ function SonuclarPaneli({ surveys }) {
             style={{ ...inputStyle, cursor: 'pointer' }}
           >
             <option value="">— Anket seçin —</option>
-            {surveys.map((s) => (
+            {/* Anket adı — sahibi birim (bölüm / fakülte / üniversite) · oluşturan */}
+            {siraliAnketler.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.title}
+                {(s.title || 'Adsız anket') +
+                  ' — ' +
+                  (s._sahipBirim || 'Eski kayıt') +
+                  (s._olusturan ? ' · ' + s._olusturan : '')}
               </option>
             ))}
           </select>
