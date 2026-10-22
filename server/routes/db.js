@@ -71,6 +71,7 @@ async function personelYanitSuzgeci(db, user, docs) {
   const kapsam = await anketAktorKapsami(db, user, flags);
   const ben = String(user.identifier || '').trim();
   const benimAnketlerim = new Set();
+  const dersAnketlerim = new Map();
   if (kapsam.kapsamTuru === 'akademisyen') {
     // Akademisyen YALNIZ KENDİ OLUŞTURDUĞU anketlerin yanıtlarını görür;
     // başkasının anketini paylaşmış olması sonuçlarını açmaz.
@@ -79,6 +80,40 @@ async function personelYanitSuzgeci(db, user, docs) {
       .find({ $or: [{ createdBy: ben }, { sahipAd: ben }] }, { projection: { _docId: 1 } })
       .toArray();
     anketler.forEach((a) => benimAnketlerim.add(String(a._docId || (a._id && a._id.toString()))));
+    // Kendi verdiği derse bağlı (başkasının açtığı) anketler: yalnız kendi
+    // ders kodlarının yanıtları görünür.
+    const K = await anketKurali();
+    const dersler = await db
+      .collection('sinav_dersler')
+      .find({}, { projection: { code: 1, name: 1, professor: 1, professors: 1 } })
+      .toArray();
+    const derslerim = K.akademisyenDersleri(dersler, ben);
+    const kodlar = new Set(
+      derslerim
+        .map((d) =>
+          String(d.code || '')
+            .toLocaleUpperCase('tr-TR')
+            .replace(/\s+/g, '')
+        )
+        .filter(Boolean)
+    );
+    if (kodlar.size > 0) {
+      const bagli = await db
+        .collection('surveys')
+        .find(
+          { 'linkedCourses.0': { $exists: true } },
+          { projection: { _docId: 1, linkedCourses: 1, infoFields: 1 } }
+        )
+        .toArray();
+      bagli.forEach((a) => {
+        const id = String(a._docId || (a._id && a._id.toString()));
+        if (benimAnketlerim.has(id) || !K.dersAnketiMi(a, derslerim)) return;
+        const f = (Array.isArray(a.infoFields) ? a.infoFields : []).find(
+          (x) => x && x.source === 'courseCode'
+        );
+        dersAnketlerim.set(id, { alan: (f && f.key) || 'dersKodu', kodlar });
+      });
+    }
   }
   // Bölüm damgası olmayan eski yanıtlar: yanıtlayanın kaydından çözülür.
   let coz = (d) => d;
@@ -112,7 +147,7 @@ async function personelYanitSuzgeci(db, user, docs) {
     ]);
     coz = eskiYanitBolumCozucu(ogrenciler, personel);
   }
-  const suz = yanitSuzgeci({ kapsam, ben, benimAnketlerim });
+  const suz = yanitSuzgeci({ kapsam, ben, benimAnketlerim, dersAnketlerim });
   return (d) => suz(coz(d));
 }
 const { aramaKapsami, trAramaDeseni, aramaAdlari } = require('../lib/ogrenci-arama');

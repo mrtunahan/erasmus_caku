@@ -152,20 +152,22 @@ describe('anketGorunurMu', () => {
     expect(anketGorunurMu(eskiAnket, BIL_BOLUM, { user: { name: 'Dr. Ayşe KAYA' } })).toBe(true);
   });
 
-  it('akademisyen YALNIZ kendi oluşturduğu anketleri görür', () => {
+  it('akademisyen kendi oluşturduğu ve kendi dersine bağlı anketleri görür', () => {
     const AKAD = { kapsamTuru: 'akademisyen', facultyId: 'f-muh', departmentIds: ['b-bil'] };
     const derslerim = [{ code: 'BLM445', name: 'Yapay Zekâ' }];
     const ben = { name: 'Dr. Ali Veli' };
     const dersli = { ...bilAnketi, id: 'a7', linkedCourses: [{ code: 'blm445', name: 'X' }] };
     const benimDersli = { ...dersli, createdBy: 'Dr. Ali Veli' };
-    // Başkasının (bölüm yetkilisinin) dersime bağlı anketi artık görünmez.
-    expect(anketGorunurMu(dersli, AKAD, { derslerim, user: ben })).toBe(false);
+    // Başkasının (bölüm yetkilisinin) dersime bağlı anketi görünür.
+    expect(anketGorunurMu(dersli, AKAD, { derslerim, user: ben })).toBe(true);
+    const baskaDers = { ...bilAnketi, id: 'a8', linkedCourses: [{ code: 'BLM101' }] };
+    expect(anketGorunurMu(baskaDers, AKAD, { derslerim, user: ben })).toBe(false);
     expect(anketGorunurMu(benimDersli, AKAD, { derslerim, user: ben })).toBe(true);
     expect(anketGorunurMu(bilAnketi, AKAD, { derslerim, user: ben })).toBe(false);
     expect(anketGorunurMu(eskiAnket, AKAD, { user: { name: 'Dr. Ayşe Kaya' } })).toBe(true);
     // Paylaşma: kendi anketi ve dersine bağlı; düzenleme: yalnız kendi açtığı.
     expect(anketAtanabilirMi(benimDersli, AKAD, { derslerim, user: ben })).toBe(true);
-    expect(anketAtanabilirMi(dersli, AKAD, { derslerim, user: ben })).toBe(false);
+    expect(anketAtanabilirMi(dersli, AKAD, { derslerim, user: ben })).toBe(true);
     expect(anketAtanabilirMi(eskiAnket, AKAD, { user: { name: 'Dr. Ayşe Kaya' } })).toBe(false);
     expect(anketYonetilebilirMi(dersli, AKAD, { name: 'Dr. Başka' })).toBe(false);
     expect(

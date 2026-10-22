@@ -96,3 +96,22 @@ describe('anket yanıtı okuma (personel)', () => {
     expect(coz(damgali)).toBe(damgali);
   });
 });
+
+describe('akademisyen: başkasının ders anketi', () => {
+  it('yalnız kendi ders kodunun yanıtlarını görür', () => {
+    const l = [
+      y('1', 'bil', { answers: { dersKodu: 'BLM445', q1: 4 } }),
+      y('2', 'bil', { answers: { dersKodu: 'BLM101', q1: 2 } }),
+      y('3', 'bil', { answers: { q1: 3 } }),
+    ];
+    const dersAnketlerim = new Map([['s1', { alan: 'dersKodu', kodlar: new Set(['BLM445']) }]]);
+    expect(idler(yanitlariSuz(l, { kapsam: AKAD, ben: 'Dr. Ali', dersAnketlerim }))).toEqual(['1']);
+    // Kendi oluşturduğu ankette hepsi görünür.
+    const benimAnketlerim = new Set(['s1']);
+    expect(idler(yanitlariSuz(l, { kapsam: AKAD, ben: 'Dr. Ali', benimAnketlerim }))).toEqual([
+      '1',
+      '2',
+      '3',
+    ]);
+  });
+});

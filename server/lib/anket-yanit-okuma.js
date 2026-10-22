@@ -15,8 +15,10 @@
 //   • Kişinin KENDİ yanıtı kimliğiyle döner ("bu anketi doldurdum" bilgisi).
 //   • Üniversite yetkilisi   → bütün yanıtlar, ANONİM.
 //   • Fakülte/bölüm yetkilisi → yanıtlayanın bölümü kendi alanındaysa, ANONİM.
-//   • Akademisyen            → yalnız KENDİ OLUŞTURDUĞU anketin, kendi
-//                              bölümündeki yanıtları, ANONİM.
+//   • Akademisyen            → KENDİ OLUŞTURDUĞU anketin kendi bölümündeki
+//                              yanıtları; başkasının, kendi dersine bağlı
+//                              anketinde yalnız KENDİ DERSLERİNİN yanıtları
+//                              (yanıttaki ders kodu). ANONİM.
 // Anonim: kimlik alanları (userId, studentNumber, ad) düşer; cevaplar,
 // rol, tarih ve bölüm kalır. Anketin kendi bilgi alanları (ör. "Sınıf")
 // anketi hazırlayanın kararıdır ve cevapların içinde durur.
@@ -58,6 +60,9 @@ function kendiYanitiMi(doc, ben) {
  * @param {object} p.kapsam     anketAktorKapsami çıktısı (universite/fakulte/bolum/akademisyen)
  * @param {string} p.ben        okuyanın kimliği (ad)
  * @param {Set<string>} [p.benimAnketlerim] akademisyenin oluşturduğu anket kimlikleri
+ * @param {Map<string,{alan:string,kodlar:Set<string>}>} [p.dersAnketlerim]
+ *        başkasının, akademisyenin dersine bağlı anketleri: yanıtta ders
+ *        kodunun durduğu alan ve akademisyenin ders kodları (büyük harf)
  * @returns {(doc:object)=>object|null} görünen hâl ya da null (gizli)
  */
 function yanitSuzgeci(p) {
@@ -65,6 +70,8 @@ function yanitSuzgeci(p) {
   const ben = metin(p && p.ben);
   const benimBolumler = dizi(k.departmentIds);
   const anketlerim = (p && p.benimAnketlerim) || new Set();
+  const dersAnketlerim = (p && p.dersAnketlerim) || new Map();
+  const kodu = (v) => metin(v).toLocaleUpperCase('tr-TR').replace(/\s+/g, '');
   return (doc) => {
     if (!doc) return null;
     if (kendiYanitiMi(doc, ben)) return doc;
@@ -72,7 +79,15 @@ function yanitSuzgeci(p) {
     const bolumler = yanitBolumleri(doc);
     const alanimda = bolumler.some((b) => benimBolumler.includes(b));
     if (!alanimda) return null;
-    if (k.kapsamTuru === 'akademisyen' && !anketlerim.has(metin(doc.surveyId))) return null;
+    if (k.kapsamTuru === 'akademisyen') {
+      const id = metin(doc.surveyId);
+      if (!anketlerim.has(id)) {
+        const d = dersAnketlerim.get(id);
+        if (!d) return null;
+        const cevaplar = (doc.answers && typeof doc.answers === 'object' && doc.answers) || {};
+        if (!d.kodlar.has(kodu(cevaplar[d.alan]))) return null;
+      }
+    }
     return anonim(doc);
   };
 }
