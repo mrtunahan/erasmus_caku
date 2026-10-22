@@ -733,7 +733,12 @@ function YoneticiGorunumu({
               kapsam={yayinKapsami}
             />
           )}
-          {tab === 'sonuclar' && <SonuclarPaneli surveys={gorunenAnketler} />}
+          {tab === 'sonuclar' && (
+            <SonuclarPaneli
+              surveys={gorunenAnketler}
+              akademisyen={yayinKapsami.kapsamTuru === 'akademisyen'}
+            />
+          )}
         </>
       )}
 
@@ -4282,7 +4287,7 @@ async function downloadWord(survey, responses, suzgec) {
   );
 }
 
-function SonuclarPaneli({ surveys }) {
+function SonuclarPaneli({ surveys, akademisyen }) {
   const [surveyId, setSurveyId] = useState('');
   const [responses, setResponses] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -4422,6 +4427,15 @@ function SonuclarPaneli({ surveys }) {
       >
         Yanıtlar <b>anonimdir</b>: kimin ne cevap verdiği gösterilmez. Yalnız yetki alanınızdaki
         bölümlerin yanıtları listelenir.
+        {akademisyen && (
+          <>
+            {' '}
+            Başkasının oluşturduğu, derslerinize bağlı anketlerde yalnız <b>
+              kendi derslerinizin
+            </b>{' '}
+            yanıtları gösterilir.
+          </>
+        )}
       </div>
       <div style={{ ...cardStyle, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ flex: 2, minWidth: 220 }}>
