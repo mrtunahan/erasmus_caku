@@ -72,18 +72,13 @@ async function personelYanitSuzgeci(db, user, docs) {
   const ben = String(user.identifier || '').trim();
   const benimAnketlerim = new Set();
   if (kapsam.kapsamTuru === 'akademisyen') {
-    const [anketler, atamalar] = await Promise.all([
-      db
-        .collection('surveys')
-        .find({ $or: [{ createdBy: ben }, { sahipAd: ben }] }, { projection: { _docId: 1 } })
-        .toArray(),
-      db
-        .collection('survey_assignments')
-        .find({ assignedBy: ben }, { projection: { surveyId: 1 } })
-        .toArray(),
-    ]);
+    // Akademisyen YALNIZ KENDİ OLUŞTURDUĞU anketlerin yanıtlarını görür;
+    // başkasının anketini paylaşmış olması sonuçlarını açmaz.
+    const anketler = await db
+      .collection('surveys')
+      .find({ $or: [{ createdBy: ben }, { sahipAd: ben }] }, { projection: { _docId: 1 } })
+      .toArray();
     anketler.forEach((a) => benimAnketlerim.add(String(a._docId || (a._id && a._id.toString()))));
-    atamalar.forEach((a) => benimAnketlerim.add(String(a.surveyId || '')));
   }
   // Bölüm damgası olmayan eski yanıtlar: yanıtlayanın kaydından çözülür.
   let coz = (d) => d;

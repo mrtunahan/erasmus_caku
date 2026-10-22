@@ -366,6 +366,9 @@ import {
 import {
   anketGorunurMu,
   anketKapsamEtiketi,
+  anketSecimEtiketi,
+  anketSahipBirimi,
+  anketOlusturan,
   anketKapsamYamasi,
   anketKilitSebebi,
   anketYonetilebilirMi,
@@ -15479,6 +15482,9 @@ window.anketGorunurMu = anketGorunurMu;
 window.anketYonetilebilirMi = anketYonetilebilirMi;
 window.anketKilitSebebi = anketKilitSebebi;
 window.anketKapsamEtiketi = anketKapsamEtiketi;
+window.anketSecimEtiketi = anketSecimEtiketi;
+window.anketSahipBirimi = anketSahipBirimi;
+window.anketOlusturan = anketOlusturan;
 window.anketleriSuz = anketleriSuz;
 window.anketAtanabilirMi = anketAtanabilirMi;
 window.akademisyenDersleri = akademisyenDersleri;

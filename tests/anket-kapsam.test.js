@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   anketGorunurMu,
+  anketSecimEtiketi,
+  anketSahipBirimi,
   anketKapsamEtiketi,
   anketKapsamYamasi,
   anketKilitSebebi,
@@ -150,17 +152,20 @@ describe('anketGorunurMu', () => {
     expect(anketGorunurMu(eskiAnket, BIL_BOLUM, { user: { name: 'Dr. Ayşe KAYA' } })).toBe(true);
   });
 
-  it('akademisyen yalnız kendi açtığı ve kendi dersine bağlı anketleri görür', () => {
+  it('akademisyen YALNIZ kendi oluşturduğu anketleri görür', () => {
     const AKAD = { kapsamTuru: 'akademisyen', facultyId: 'f-muh', departmentIds: ['b-bil'] };
     const derslerim = [{ code: 'BLM445', name: 'Yapay Zekâ' }];
+    const ben = { name: 'Dr. Ali Veli' };
     const dersli = { ...bilAnketi, id: 'a7', linkedCourses: [{ code: 'blm445', name: 'X' }] };
-    const baskaDers = { ...bilAnketi, id: 'a8', linkedCourses: [{ code: 'BLM101' }] };
-    expect(anketGorunurMu(dersli, AKAD, { derslerim })).toBe(true);
-    expect(anketGorunurMu(baskaDers, AKAD, { derslerim })).toBe(false);
-    expect(anketGorunurMu(bilAnketi, AKAD, { derslerim })).toBe(false);
+    const benimDersli = { ...dersli, createdBy: 'Dr. Ali Veli' };
+    // Başkasının (bölüm yetkilisinin) dersime bağlı anketi artık görünmez.
+    expect(anketGorunurMu(dersli, AKAD, { derslerim, user: ben })).toBe(false);
+    expect(anketGorunurMu(benimDersli, AKAD, { derslerim, user: ben })).toBe(true);
+    expect(anketGorunurMu(bilAnketi, AKAD, { derslerim, user: ben })).toBe(false);
     expect(anketGorunurMu(eskiAnket, AKAD, { user: { name: 'Dr. Ayşe Kaya' } })).toBe(true);
-    // Paylaşma: yalnız dersine bağlı olan; düzenleme: yalnız kendi açtığı.
-    expect(anketAtanabilirMi(dersli, AKAD, { derslerim })).toBe(true);
+    // Paylaşma: kendi anketi ve dersine bağlı; düzenleme: yalnız kendi açtığı.
+    expect(anketAtanabilirMi(benimDersli, AKAD, { derslerim, user: ben })).toBe(true);
+    expect(anketAtanabilirMi(dersli, AKAD, { derslerim, user: ben })).toBe(false);
     expect(anketAtanabilirMi(eskiAnket, AKAD, { user: { name: 'Dr. Ayşe Kaya' } })).toBe(false);
     expect(anketYonetilebilirMi(dersli, AKAD, { name: 'Dr. Başka' })).toBe(false);
     expect(
@@ -412,5 +417,30 @@ describe('atamaKapsamiKarari (paylaşım kapsamı)', () => {
     );
     const AKAD = { ...BIL, kapsamTuru: 'akademisyen' };
     expect(atamaKapsamiKarari(AKAD, {}).kapsamDepartmentIds).toEqual(['b-bil']);
+  });
+});
+
+describe('anketin sahibi birim ve seçim etiketi', () => {
+  it('bölüm, fakülte ve üniversite adı yazılır', () => {
+    const o = {
+      bolumler: [{ id: 'b-bil', name: 'Bilgisayar Mühendisliği' }],
+      fakulteAdlari: { 'f-muh': 'Mühendislik Fakültesi' },
+    };
+    expect(
+      anketSecimEtiketi(
+        {
+          title: 'Ders Değ.',
+          kapsamTuru: 'bolum',
+          kapsamDepartmentIds: ['b-bil'],
+          createdBy: 'Dr. Ali Veli',
+        },
+        o
+      )
+    ).toBe('Ders Değ. — Bilgisayar Mühendisliği · Dr. Ali Veli');
+    expect(anketSahipBirimi({ kapsamTuru: 'fakulte', kapsamFacultyId: 'f-muh' }, o)).toBe(
+      'Mühendislik Fakültesi'
+    );
+    expect(anketSahipBirimi({ kapsamTuru: 'universite' }, o)).toBe('Üniversite geneli');
+    expect(anketSahipBirimi({ title: 'x' }, o)).toBe('Eski kayıt');
   });
 });
