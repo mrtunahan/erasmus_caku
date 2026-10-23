@@ -446,3 +446,32 @@ describe('adalet: başka bölümdeki görevler yüke sayılır', () => {
     expect(atamalar.X).toEqual(['Zeki Su']);
   });
 });
+
+describe('başka bölüm yükü oturum başına bir kez', () => {
+  it('üç dersli ortak oturum bir görev sayılır; hocanın kendi sınavı yüke eklenmez', () => {
+    const e = sinav({ id: 'X', timeSlot: '09:00', studentCount: 10 });
+    const ortak = ['1', '2', '3'].map((n) => ({
+      id: 'o' + n,
+      birlesimId: 'B9',
+      code: 'K' + n,
+      date: e.date,
+      timeSlot: '14:00',
+      duration: 60,
+      supervisor: 'Ali Can',
+    }));
+    const tekler = ['13:00', '16:00'].map((t, i) => ({
+      id: 't' + i,
+      code: 'T' + i,
+      date: e.date,
+      timeSlot: t,
+      duration: 60,
+      supervisor: 'Zeki Su',
+    }));
+    const { atamalar } = gozetmenAta(['Ali Can', 'Zeki Su'], [e], {
+      salonBul: tekSalon,
+      hocaKurali: 'haric',
+      digerGorevler: [...ortak, ...tekler],
+    });
+    expect(atamalar.X).toEqual(['Ali Can']);
+  });
+});
