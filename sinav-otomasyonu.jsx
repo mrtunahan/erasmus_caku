@@ -801,7 +801,14 @@ function getDeptClassroomsRef() {
 // ══════════════════════════════════════════════════════════════
 // Period Config Modal
 // ══════════════════════════════════════════════════════════════
-const PeriodConfigModal = ({ period, onSave, onClose, departmentId, seviye = 'lisans' }) => {
+const PeriodConfigModal = ({
+  period,
+  onSave,
+  onClose,
+  departmentId,
+  seviye = 'lisans',
+  kilitKontrol,
+}) => {
   const [examType, setExamType] = useState(period?.examType || 'final');
   const [startDate, setStartDate] = useState(period?.startDate || '');
   const [semester, setSemester] = useState(period?.semester || 'Güz 2024-2025');
@@ -817,6 +824,13 @@ const PeriodConfigModal = ({ period, onSave, onClose, departmentId, seviye = 'li
 
   const handleSave = async () => {
     if (!startDate) return alert('Başlangıç tarihi seçin');
+    // Fakülteye gönderilmiş dönem grubu (mevcut ya da hedef) değiştirilemez.
+    if (
+      kilitKontrol &&
+      ((period && kilitKontrol(period)) ||
+        kilitKontrol({ examType, semester, seviye: period?.seviye || seviye }))
+    )
+      return;
     setSaving(true);
     try {
       const data = {
@@ -4580,8 +4594,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
           ekGozetmenAdlari: ek,
           kapasiteler,
           kurallar: { sayiKurali: kayit && kayit.gozetmenSayiKurali },
+          // Bütün akademisyenler: havuzda olmayan ders hocasının müsait
+          // olmadığı gün de bilinsin.
           musaitsizlik: window.gozetmenMusaitsizlikHaritasi
-            ? window.gozetmenMusaitsizlikHaritasi(havuz)
+            ? window.gozetmenMusaitsizlikHaritasi([...havuz, ...veri.akademisyenler])
             : {},
         };
       }),
@@ -4839,23 +4855,38 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
   };
   // Çakışma panelinden: bir oturumda X yerine Y yazılır (salon dağılımında
   // X'in salonuna). Diğer alanlar olduğu gibi kalır.
-  const gozetmenDegistir = (o, eski, yeni) => {
-    const esit = (a, b) =>
-      window.Gozetmen && window.Gozetmen.adAnahtari
-        ? window.Gozetmen.adAnahtari(a) === window.Gozetmen.adAnahtari(b)
-        : a === b;
-    const liste = [];
-    o.gozetmenler.forEach((g) => {
-      const v = esit(g, eski) ? yeni : g;
-      if (!liste.includes(v)) liste.push(v);
-    });
-    const dagilim =
-      (o.salonGozetmenleri || []).length > 0
-        ? o.salonGozetmenleri.map((x) => ({
-            salon: x.salon,
-            gozetmenler: [...new Set(x.gozetmenler.map((g) => (esit(g, eski) ? yeni : g)))],
-          }))
-        : null;
+  // tekSalon: "iki salona yazılmış" çakışmasında kişi YALNIZ son salonda
+  // yeni kişiyle değişir, öbür salonlardan çıkarılır (yoksa yeni kişi de iki
+  // salona birden yazılıp aynı çakışma onun adıyla sürerdi).
+  const gozetmenDegistir = (o, eski, yeni, tekSalon) => {
+    const anahtar = (a) =>
+      window.Gozetmen && window.Gozetmen.adAnahtari ? window.Gozetmen.adAnahtari(a) : a;
+    const esit = (a, b) => anahtar(a) === anahtar(b);
+    const tekil = (l) => l.filter((g, i) => l.findIndex((x) => esit(x, g)) === i);
+    let dagilim = null;
+    if ((o.salonGozetmenleri || []).length > 0) {
+      const iceren = o.salonGozetmenleri
+        .map((x, i) => (x.gozetmenler.some((g) => esit(g, eski)) ? i : -1))
+        .filter((i) => i >= 0);
+      const hedefSalon = iceren[iceren.length - 1];
+      dagilim = o.salonGozetmenleri.map((x, i) => ({
+        salon: x.salon,
+        gozetmenler: tekil(
+          x.gozetmenler
+            .map((g) => (esit(g, eski) ? (!tekSalon || i === hedefSalon ? yeni : null) : g))
+            .filter(Boolean)
+        ),
+      }));
+      // Kişi ilk salonda kalır (tekSalon): yalnız sondaki yerine yeni kişi gelir.
+      if (tekSalon && iceren.length > 1) {
+        dagilim = dagilim.map((x, i) =>
+          i === iceren[0] ? { ...x, gozetmenler: tekil([...x.gozetmenler, eski]) } : x
+        );
+      }
+    }
+    const liste = dagilim
+      ? tekil(dagilim.flatMap((x) => x.gozetmenler))
+      : tekil(o.gozetmenler.map((g) => (esit(g, eski) ? yeni : g)));
     return oturumKaydet(o, {
       date: o.date,
       timeSlot: o.timeSlot,
@@ -5490,7 +5521,18 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               {D.liste.map((c, i) => {
                 // Öneri, çakışmanın SONRAKİ oturumu için: o oturumda kişi
                 // yerine o saatte boş ve yükü az biri.
-                const hedef = oturumBul(c.oturumlar[c.oturumlar.length - 1]);
+                // Kişinin DERSİN HOCASI olmadığı oturum tercih edilir: hocayı
+                // kendi sınavından çıkarmak çözüm değildir.
+                const adaylarOt = c.oturumlar.map(oturumBul).filter(Boolean);
+                const hocaDegil = adaylarOt.filter(
+                  (o) =>
+                    !(SF.sinavHocalari(o.uyeler || []) || []).some(
+                      (h) =>
+                        window.Gozetmen &&
+                        window.Gozetmen.adAnahtari(h) === window.Gozetmen.adAnahtari(c.ad)
+                    )
+                );
+                const hedef = hocaDegil[hocaDegil.length - 1] || adaylarOt[adaylarOt.length - 1];
                 const oneriler = hedef ? oneriBul(hedef).slice(0, 3) : [];
                 return (
                   <div
@@ -5536,7 +5578,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                                       ' yazılsın mı?'
                                   )
                                 )
-                                  gozetmenDegistir(hedef, c.ad, x.ad);
+                                  gozetmenDegistir(hedef, c.ad, x.ad, c.tur === 'iki_salon');
                               }}
                               style={{
                                 border: '1px solid #FDBA74',
@@ -6783,7 +6825,12 @@ function SinavOtomasyonuApp({
   );
   // Fakülte yetkilisi yalnız KENDİ fakültesinin bölümlerinde yetkilidir;
   // seçili bölüm fakültesi dışındaysa (ör. üst menüden) sade akademisyen sayılır.
-  const bolumYetkiAlaninda = !fakulteSinirli || departments.some((d) => d.id === selectedDeptId);
+  // Fakülte yetkilisinin kendi bölümü fakültesi dışında kayıtlı olsa da
+  // kendi alanıdır (sunucu da öyle sayıyor: server/lib/yetki-alani.js).
+  const bolumYetkiAlaninda =
+    !fakulteSinirli ||
+    departments.some((d) => d.id === selectedDeptId) ||
+    kendiBolumuMu(selectedDeptId);
   const yonetimYetkisi = fakulteYetkili && bolumYetkiAlaninda;
   const isDeptManager = bolumYetkilisiRolu && kendiBolumuMu(selectedDeptId);
   const canManage = isAdmin || isDeptManager || yonetimYetkisi;
@@ -6988,7 +7035,9 @@ function SinavOtomasyonuApp({
           depts = depts.filter((d) => {
             const g = gomulu.find((x) => x.id === d.id);
             return (
-              kimlikler.has(String(d.facultyId || '')) || (g && kimlikler.has(String(g.facultyId)))
+              kimlikler.has(String(d.facultyId || '')) ||
+              (g && kimlikler.has(String(g.facultyId))) ||
+              kendiBolumuMu(d.id)
             );
           });
         }
@@ -7066,6 +7115,47 @@ function SinavOtomasyonuApp({
 
   // Bölümün gözetmenleri: gözetmenlik bölüme bağlı (professors.gozetmenBolumleri);
   // eski kayıtlar (yalnız roles:['gozetmen']) kendi bölümlerinde sayılır.
+  // Bölümün fakültesindeki bölümler ({ fakulte, tum }; kimlik biçimleriyle).
+  // Çözülemezse null: süzgeç uygulanmaz (bugünkü davranış).
+  const bolumunFakulteBolumleri = async (deptId) => {
+    try {
+      if (!SF) return null;
+      const [db, fakKayit] = await Promise.all([
+        window.apiRead('departments').catch(() => []),
+        window.apiRead('faculties').catch(() => []),
+      ]);
+      const gomulu = (window.DEPARTMENTS || []).map((d) => ({
+        ...d,
+        facultyId: d.facultyId || 'muhendislik',
+      }));
+      const tum = [...(db || []), ...gomulu].map((d) => {
+        const id = String(d._docId || d.id || d._id || '');
+        return {
+          id,
+          name: d.name,
+          facultyId: String(d.facultyId || '') || 'muhendislik',
+          kimlikler: [
+            ...new Set(
+              [
+                id,
+                String(d.id || ''),
+                ...(window.bolumKimlikleri ? window.bolumKimlikleri(id) : []),
+              ].filter(Boolean)
+            ),
+          ],
+        };
+      });
+      const secili = tum.find((d) => d.kimlikler.includes(String(deptId)));
+      if (!secili) return null;
+      const birim = SF.fakulteListesi(fakKayit || [], gomulu).find((f) =>
+        f.kimlikler.includes(String(secili.facultyId))
+      );
+      const fakSet = new Set(birim ? birim.kimlikler : [secili.facultyId]);
+      return { fakulte: tum.filter((d) => fakSet.has(d.facultyId)), tum };
+    } catch (_) {
+      return null;
+    }
+  };
   const bolumGozetmenleriniOku = async (deptId) => {
     if (!deptId) return [];
     const G = window.Gozetmen || {};
@@ -7074,11 +7164,19 @@ function SinavOtomasyonuApp({
       (departments.find((d) => d.id === deptId) || bolumler.find((d) => d.id === deptId) || {})
         .name || '';
     const hepsi = (await window.apiRead('professors')) || [];
+    // Fakülte görünümüyle AYNI havuz: ana bölümü başka fakültede olan kişi
+    // (eski 'gozetmen' rolü ya da ek bölüm üzerinden) bölümün gözetmeni
+    // sayılmaz; o kişi yalnız kendi dersinin hocası olarak girer.
+    const fakulteBolumleri = await bolumunFakulteBolumleri(deptId);
     return hepsi
-      .filter((p) =>
-        G.bolumGozetmeniMi
-          ? G.bolumGozetmeniMi(p, deptId, bolumler, bolumAdi)
-          : (p.roles || []).includes('gozetmen')
+      .filter(
+        (p) =>
+          (G.bolumGozetmeniMi
+            ? G.bolumGozetmeniMi(p, deptId, bolumler, bolumAdi)
+            : (p.roles || []).includes('gozetmen')) &&
+          (!fakulteBolumleri ||
+            !SF ||
+            SF.fakulteAkademisyeniMi(p, fakulteBolumleri.fakulte, fakulteBolumleri.tum))
       )
       .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
   };
@@ -7316,7 +7414,9 @@ function SinavOtomasyonuApp({
           (d) => ayniBolumMu(d.id, e.departmentId) || ayniBolumMu(d.docId, e.departmentId)
         ) || kendiDersiMi(e)
       );
-    if (canManage) return ayniBolumMu(e.departmentId, selectedDeptId);
+    // Bölüm yetkilisi başka bölümdeki KENDİ dersinin sınavını da yazar
+    // (sunucu akademisyen kuralıyla izin veriyor).
+    if (canManage) return ayniBolumMu(e.departmentId, selectedDeptId) || kendiDersiMi(e);
     return kendiDersiMi(e);
   };
   // Şartlı kabul: sunucu, çakışan bölümlerden en az biri yazanın alanında
@@ -7765,7 +7865,13 @@ function SinavOtomasyonuApp({
       birincil,
       ek,
       musaitsizlik: window.gozetmenMusaitsizlikHaritasi
-        ? window.gozetmenMusaitsizlikHaritasi([...deptSupervisors, ...kisiler])
+        ? // Bütün akademisyenler: havuzda olmayan ders hocasının (öğr. gör.,
+          // servis dersi veren) müsait olmadığı gün de bilinsin.
+          window.gozetmenMusaitsizlikHaritasi([
+            ...deptSupervisors,
+            ...kisiler,
+            ...tumAkademisyenler,
+          ])
         : {},
     };
   }, [SF, selectedDept, selectedDeptId, deptSupervisors, tumAkademisyenler, arastirmaGorevlileri]);
@@ -7986,6 +8092,16 @@ function SinavOtomasyonuApp({
       c.sinavlar.some((x) => x && x.id === '__aday__')
     );
     if (!bulunan.length) return true;
+    // Aynı salonda örtüşme kesin engeldir: onayla geçilemez.
+    const salonEngel = bulunan.filter((c) => c.tur === 'salon' && c.seviye === 'engel');
+    if (salonEngel.length > 0) {
+      alert(
+        'Yerleştirilemez: aynı salonda saatleri örtüşen iki ayrı sınav olamaz (1 dakika bile).\n\n' +
+          salonEngel.map((c) => '⛔ ' + c.baslik + ' — ' + c.aciklama).join('\n') +
+          '\n\nBirlikte yapılacaksa ortak oturum olarak birleştirin; değilse başka saat ya da salon seçin.'
+      );
+      return false;
+    }
     const satirlar = bulunan
       .slice(0, 6)
       .map((c) => (c.seviye === 'engel' ? '⛔ ' : '⚠ ') + c.baslik + ' — ' + c.aciklama);
@@ -8369,6 +8485,25 @@ function SinavOtomasyonuApp({
             ('room' in ortak && (u.room || '') !== ortak.room) ||
             ('supervisor' in ortak && (u.supervisor || '') !== ortak.supervisor)
         );
+      // Salon ya da süre değiştiyse aynı salonda örtüşme denetlenir (geniş
+      // programdaki kuralın aynısı; ortak oturum tek oturum sayılır).
+      if (('room' in data || 'duration' in data) && SF && SF.degisiklikSalonCakismalari) {
+        const yamalar = [
+          { id, data },
+          ...(ortakDegisti || 'room' in ortak
+            ? digerleri.map((u) => ({ id: u.id, data: ortak }))
+            : []),
+        ];
+        const engel = SF.degisiklikSalonCakismalari(denetimListesi(tumSinavlar), yamalar);
+        if (engel.length > 0) {
+          alert(
+            'Kaydedilmedi: aynı salonda saatleri örtüşen iki ayrı sınav olamaz (1 dakika bile).\n\n' +
+              SF.salonCakismaMetni(engel) +
+              '\n\nBirlikte yapılacaksa ortak oturum olarak birleştirin; değilse başka saat ya da salon seçin.'
+          );
+          return;
+        }
+      }
       const yazilamayan = digerleri.filter((u) => !sinavYazilabilir(u));
       if (ortakDegisti && yazilamayan.length > 0) {
         alert(
@@ -8942,6 +9077,7 @@ function SinavOtomasyonuApp({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (kilitliyse(p)) return;
                             setEditingPeriod(p);
                             setShowPeriodModal(true);
                           }}
@@ -9255,6 +9391,19 @@ function SinavOtomasyonuApp({
                               <div style={{ fontSize: 12, color: '#64748B', marginTop: 3 }}>
                                 {c.cozum}
                               </div>
+                              {c.eskiKabul && (
+                                <div
+                                  data-eski-kabul
+                                  style={{ fontSize: 12, color: '#B91C1C', marginTop: 5 }}
+                                >
+                                  Bu çakışma daha önce şartlı kabul edilmişti (“{c.eskiKabul.sebep}”
+                                  — {c.eskiKabul.kabulEden || 'yetkili'}). Kural değişti: aynı
+                                  salonda saatleri örtüşen iki ayrı sınav artık kabul edilemez.
+                                  Birlikte yapılacaksa ortak oturum olarak birleştirin (başka
+                                  bölümün sınavıysa fakülte yetkilisi birleştirir); değilse birini
+                                  başka saate ya da salona alın.
+                                </div>
+                              )}
                               {kabulEdildi && (
                                 <div
                                   style={{
@@ -9654,6 +9803,7 @@ function SinavOtomasyonuApp({
             period={editingPeriod}
             departmentId={selectedDeptId}
             seviye={seviye}
+            kilitKontrol={(d) => kilitliyse(d)}
             onSave={handlePeriodSave}
             onClose={() => {
               setShowPeriodModal(false);

@@ -292,13 +292,15 @@ function yapisalKarar(koleksiyon, op, mevcut, alan) {
   if (koleksiyon === 'departments') {
     if (alan && alan.tur === 'fakulte') {
       // Mevcut bölüm kendi fakültesinde olmalı; yeni/taşınan bölüm de.
-      if (mevcut && !fakulteAlanda(alan, mevcut.facultyId)) {
+      // Fakültesi boş bölüm Mühendislik sayılır (yetkiAlani ve istemciyle aynı).
+      const fakOf = (v) => metin(v) || 'muhendislik';
+      if (mevcut && !fakulteAlanda(alan, fakOf(mevcut.facultyId))) {
         return { izin: false, hata: 'Bu bölüm sizin fakültenizde değil.' };
       }
-      if (op.type === 'add' && !fakulteAlanda(alan, veri.facultyId)) {
+      if (op.type === 'add' && !fakulteAlanda(alan, fakOf(veri.facultyId))) {
         return { izin: false, hata: 'Bölümü yalnız kendi fakültenize ekleyebilirsiniz.' };
       }
-      if ('facultyId' in veri && !fakulteAlanda(alan, veri.facultyId)) {
+      if ('facultyId' in veri && !fakulteAlanda(alan, fakOf(veri.facultyId))) {
         return { izin: false, hata: 'Bölümü başka bir fakülteye taşıyamazsınız.' };
       }
       return { izin: true };

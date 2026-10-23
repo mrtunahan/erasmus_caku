@@ -1547,9 +1547,10 @@ async function enforceWritePolicies(db, op, user) {
     const karar = sinavProgramiYazmaKarari(op, mevcut, alan, user.identifier, ek);
     if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
 
-    // Gönderilmiş program kilidi (fakülte/üniversite yetkilisi hariç).
+    // Gönderilmiş program kilidi. Muafiyet ROLE göre değil ALANA göre:
+    // fakülte yetkilisi yalnız KENDİ fakültesindeki bölümlerde muaftır;
+    // başka fakültedeki kendi dersinin sınavında o bölümün kilidine uyar.
     if (
-      alan.tur !== 'fakulte' &&
       alan.tur !== 'universite' &&
       (op.collection === 'sinav_programi' || op.collection === 'sinav_donemler')
     ) {
@@ -1588,6 +1589,7 @@ async function enforceWritePolicies(db, op, user) {
         /* dönem okunamazsa kilit uygulanmaz; yetki kuralı yukarıda geçti */
       }
       for (const [bolum, donem] of denetimler) {
+        if (alan.tur === 'fakulte' && bolumAlandaFn(alan, bolum)) continue;
         if (await gonderimKilidi(db, alan, bolum, donem)) {
           return {
             allow: false,
