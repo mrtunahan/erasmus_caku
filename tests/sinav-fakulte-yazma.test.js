@@ -156,3 +156,20 @@ describe('gönderilmiş program kilidi', () => {
     expect(sinavFakulteYazmaKarari(gonder('bilgisayar'), iadeli, bolumYetkilisi).izin).toBe(true);
   });
 });
+
+describe('gönderim kilidi: durum silinemez', () => {
+  it('bölüm gönderilmiş kaydı durumsuz baştan yazamaz, birleştirmeli yazımda durum korunur', () => {
+    const mevcut = { bolumId: 'bilgisayar', durum: 'gonderildi' };
+    const sil = {
+      collection: 'sinav_gonderimleri',
+      type: 'set',
+      docId: 'bilgisayar__final|bahar',
+      data: { bolumId: 'bilgisayar' },
+    };
+    expect(sinavFakulteYazmaKarari(sil, mevcut, bolumYetkilisi).izin).toBe(false);
+    const birlestir = { ...sil, merge: true, data: { bolumId: 'bilgisayar', imza: 'x' } };
+    expect(sinavFakulteYazmaKarari(birlestir, mevcut, bolumYetkilisi).izin).toBe(true);
+    const yeniden = { ...sil, data: { bolumId: 'bilgisayar', durum: 'gonderildi' } };
+    expect(sinavFakulteYazmaKarari(yeniden, mevcut, bolumYetkilisi).izin).toBe(true);
+  });
+});

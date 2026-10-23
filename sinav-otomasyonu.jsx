@@ -4740,7 +4740,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
       if (
         ![...etkilenen].some((b) => ayniBolumMu(b, x.bolum.id)) ||
         !x.kayit ||
-        x.durum !== 'gonderildi'
+        !(x.durum === 'gonderildi' || x.durum === 'degisti')
       )
         continue;
       const l = yeni.filter(
@@ -7284,8 +7284,31 @@ function SinavOtomasyonuApp({
   // Değişecek HER sınav (oturumların diğer üyeleri dahil) yazanın alanında
   // olmalı: fakülte yetkilisi fakültesinin bölümleri, bölüm yetkilisi kendi
   // bölümü, akademisyen yalnız kendi dersleri.
+  // Gönderim kaydı bölüm kimliğinin bütün biçimleriyle (slug / veritabanı
+  // kimliği) aranır: sunucu kilidi de böyle arıyor (server/routes/db.js).
+  const gonderimKaydiBulV = (bolumId, grup) => {
+    if (!SF || !bolumId || !grup) return null;
+    const v = window.bolumKimlikleri ? window.bolumKimlikleri(String(bolumId)) : [];
+    for (const b of [String(bolumId), ...v]) {
+      const k = SF.gonderimKaydiBul(gonderimler, b, grup);
+      if (k) return k;
+    }
+    return null;
+  };
+  // Sınavın bölümü o dönem grubunu fakülteye göndermişse bölüm tarafı onu
+  // yazamaz (fakülte/üniversite yetkilisi hariç). Ortak oturumun BAŞKA
+  // bölümdeki üyesi için de geçerli: yazım yarıda kalmasın diye işlemden
+  // ÖNCE sorulur.
+  const sinavKilitli = (e) => {
+    if (!e || !SF || isAdmin || currentUser?.isUniversityAdmin || yonetimYetkisi) return false;
+    const donem = periods.find((p) => p.id === e.periodId) || activePeriod;
+    if (!donem) return false;
+    const k = gonderimKaydiBulV(e.departmentId || selectedDeptId, SF.donemGrubu(donem));
+    return !!k && k.durum === 'gonderildi';
+  };
   const sinavYazilabilir = (e) => {
     if (!e) return false;
+    if (sinavKilitli(e)) return false;
     if (isAdmin || currentUser?.isUniversityAdmin) return true;
     if (yonetimYetkisi)
       return (
@@ -7751,9 +7774,7 @@ function SinavOtomasyonuApp({
   const gonderimId =
     SF && selectedDeptId && grupAnahtari ? SF.gonderimKimligi(selectedDeptId, grupAnahtari) : '';
   const gonderimKaydi =
-    SF && selectedDeptId && grupAnahtari
-      ? SF.gonderimKaydiBul(gonderimler, selectedDeptId, grupAnahtari)
-      : null;
+    SF && selectedDeptId && grupAnahtari ? gonderimKaydiBulV(selectedDeptId, grupAnahtari) : null;
   const gonderimDurumu =
     SF && periodExams.length > 0
       ? SF.gonderimDurumu(gonderimKaydi, SF.programImzasi(periodExams))
@@ -7767,14 +7788,47 @@ function SinavOtomasyonuApp({
   const fakulteDuzeyi = isAdmin || !!currentUser?.isUniversityAdmin || yonetimYetkisi;
   const donemKilitli = (donem) => {
     if (fakulteDuzeyi || !SF || !donem || !selectedDeptId) return false;
-    const k = SF.gonderimKaydiBul(gonderimler, selectedDeptId, SF.donemGrubu(donem));
+    const k = gonderimKaydiBulV(selectedDeptId, SF.donemGrubu(donem));
     return !!k && k.durum === 'gonderildi';
   };
   const programKilitli = donemKilitli(activePeriod);
+  const imzaTazeleRef = _useRef(0);
+  useEffect(() => {
+    if (!SF || !fakulteDuzeyi || !gonderimKaydi || gonderimKaydi.durum !== 'gonderildi') return;
+    // Yalnız fakülte düzeyindeki kişinin bu ekrandaki son işleminden sonra
+    // (2 dk): bölümün eski, gönderilmemiş değişikliklerini sessizce
+    // "gönderildi" saymamak için.
+    if (Date.now() - imzaTazeleRef.current > 120000) return;
+    const imza = SF.programImzasi(periodExams);
+    if (!imza || gonderimKaydi.imza === imza) return;
+    const kimlik = gonderimKaydi.id || gonderimKaydi._docId;
+    if (!kimlik) return;
+    DBWrite.set(
+      'sinav_gonderimleri',
+      kimlik,
+      {
+        durum: 'gonderildi',
+        imza,
+        fakulteDuzenleyen: currentUser?.name || '',
+        fakulteDuzenlemeTarihi: new Date().toISOString(),
+      },
+      true
+    )
+      .then(() =>
+        setGonderimler((prev) =>
+          prev.map((g) => (g && (g.id || g._docId) === kimlik ? { ...g, imza } : g))
+        )
+      )
+      .catch((e) => console.warn('Gönderim parmak izi tazelenemedi:', e && e.message));
+  }, [placedExams, gonderimKaydi]);
   const KILIT_MESAJI =
     'Bu program fakülteye gönderildi. Fakülte yetkilisi iade edene kadar bölüm sınav ' +
     'programında değişiklik yapılamaz.';
   const kilitliyse = (donem) => {
+    // Fakülte düzeyindeki kişinin değişikliği gönderilmiş programın parmak
+    // izini de tazeler (aşağıdaki etki): bölüm "gönderimden sonra değişti"
+    // görünmesin.
+    if (fakulteDuzeyi) imzaTazeleRef.current = Date.now();
     if (donemKilitli(donem === undefined ? activePeriod : donem)) {
       alert(KILIT_MESAJI);
       return true;
@@ -8319,7 +8373,8 @@ function SinavOtomasyonuApp({
       if (ortakDegisti && yazilamayan.length > 0) {
         alert(
           'Bu ortak sınavın salonu/gözetmeni oturumdaki bütün sınavlarda aynı olmalı; ' +
-            'oturumda düzenleme yetkiniz olmayan sınav var: ' +
+            'oturumda düzenleyemeyeceğiniz sınav var (yetkiniz yok ya da bölümü programı ' +
+            'fakülteye gönderdi): ' +
             yazilamayan
               .map((u) => u.code + ' (' + (bolumAdiBul(u.departmentId) || 'başka bölüm') + ')')
               .join(', ') +
