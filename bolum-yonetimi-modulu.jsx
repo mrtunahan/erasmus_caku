@@ -588,8 +588,19 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
           return;
         }
       } else {
-        // Düzenleme — isim güncelle
-        await DBWrite.update('professors', editingItem.id, { name: form.name.trim() });
+        // Düzenleme — ad bütün atıflarla birlikte değişir (şifre, ders, sınav,
+        // ders programı); yalnız professors.name değişseydi kişi giriş
+        // yapamaz, kayıtları eski adda kalırdı.
+        const yeniAd = form.name.trim();
+        if (yeniAd && yeniAd !== String(editingItem.name || '').trim()) {
+          const tamam = window.akademisyenAdiDegistir
+            ? await window.akademisyenAdiDegistir(editingItem.id, editingItem.name, yeniAd)
+            : false;
+          if (!tamam) {
+            setSaving(false);
+            return;
+          }
+        }
       }
       setEditingItem(null);
       await loadData();

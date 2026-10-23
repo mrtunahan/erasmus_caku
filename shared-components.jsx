@@ -8429,6 +8429,21 @@ const DB = {
     try {
       const { id: _id, ...data } = prof;
       if (_id) {
+        // Ad değiştiyse bütün atıflarla birlikte sunucuda değiştirilir
+        // (şifre, ders, sınav, ders programı); sonra kalan alanlar yazılır.
+        if (typeof data.name === 'string' && window.akademisyenAdiDegistir) {
+          const mevcut = await window.apiReadDoc('professors', String(_id)).catch(() => null);
+          const eskiAd = mevcut && mevcut.exists ? String(mevcut.data?.name || '').trim() : '';
+          if (eskiAd && eskiAd !== data.name.trim()) {
+            const tamam = await window.akademisyenAdiDegistir(
+              String(_id),
+              eskiAd,
+              data.name.trim()
+            );
+            if (!tamam) throw new Error('Ad değişikliği yapılmadı.');
+          }
+          delete data.name;
+        }
         await DBWrite.update('professors', String(_id), data);
         return prof;
       } else {
@@ -15665,6 +15680,62 @@ window.DersOdasi = DersOdasi;
 window.SinavBirlesim = SinavBirlesim;
 window.SinavFakulte = SinavFakulte;
 window.SinavYayilim = SinavYayilim;
+
+/**
+ * Akademisyen adını BÜTÜN atıflarla birlikte değiştirir (sunucu:
+ * /api/db/akademisyen-ad-degistir). Önce önizleme gösterilir, onayla uygulanır.
+ * @returns {Promise<boolean>} değiştirildi mi
+ */
+window.akademisyenAdiDegistir = async (professorId, eskiAd, yeniAd) => {
+  const istek = async (govde) => {
+    const r = await fetch('/api/db/akademisyen-ad-degistir', {
+      method: 'POST',
+      credentials: 'include',
+      headers: Object.assign(
+        { 'Content-Type': 'application/json' },
+        window.yoklamaBasliklari ? window.yoklamaBasliklari() : {}
+      ),
+      body: JSON.stringify(govde),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'İşlem yapılamadı (' + r.status + ').');
+    return j;
+  };
+  try {
+    const on = await istek({ professorId, yeniAd, onizleme: true });
+    const ADLAR = {
+      professors: 'akademisyen kaydı',
+      professor_passwords: 'şifre kaydı',
+      department_manager_passwords: 'bölüm yetkilisi şifresi',
+      departments: 'bölüm (yetkili listesi)',
+      sinav_dersler: 'ders',
+      sinav_programi: 'sınav',
+      course_schedules: 'ders programı',
+      commissions: 'komisyon',
+    };
+    const satirlar = Object.entries(on.ozet || {}).map(
+      ([k, n]) => '• ' + (ADLAR[k] || k) + ': ' + n + ' kayıt'
+    );
+    if (
+      !window.confirm(
+        '“' +
+          eskiAd +
+          '” → “' +
+          yeniAd +
+          '”\n\nAd şu kayıtlarda birlikte değişecek:\n' +
+          (satirlar.join('\n') || '• yalnız akademisyen kaydı') +
+          '\n\nDeğişiklikten önce yedek alınır. Kişinin açık oturumu kapanır; yeni adıyla ve ' +
+          'aynı şifresiyle yeniden giriş yapar.\n\nDevam edilsin mi?'
+      )
+    )
+      return false;
+    await istek({ professorId, yeniAd });
+    return true;
+  } catch (e) {
+    alert('Ad değiştirilemedi: ' + e.message);
+    return false;
+  }
+};
 
 // ── SINAVA YAYILIM: ortak akışlar (Ders Yönetimi, içe aktarma, Bölüm Yönetimi) ──
 // Kural lib/sinav-yayilim.js'te; burada okuma, soru ve yazma. Hiçbir şey
