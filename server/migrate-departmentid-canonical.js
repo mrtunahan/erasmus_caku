@@ -58,6 +58,10 @@ const TARGET_COLLECTIONS = [
   'professors',
   'sinav_dersler',
   'sinav_donemler',
+  // Sınav kayıtları: belge kimliği bölümü kodlamaz, yalnız alan çevrilir.
+  // (sinav_gonderimleri belge kimliği bölümü kodlar: DOKUNULMAZ; okuyan her
+  // yer kimliğin bütün biçimleriyle arar.)
+  'sinav_programi',
   'department_classrooms',
   'course_schedules', // docId dept'i kodlar → dokümanları per-doc atlanır (güvenlik ağı)
   'exam_periods',

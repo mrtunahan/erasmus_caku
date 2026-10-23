@@ -914,8 +914,38 @@ describe('aynı salonda örtüşme engeli ve gözetmen görev listesi', () => {
       }),
     ]);
     expect(S.gozetmenGorevListesi(ot)).toEqual([
-      { ad: 'Ayşe K', tarih: '2026-11-09', bas: '10:00', bit: '11:00', salon: 'M1' },
-      { ad: 'Can D', tarih: '2026-11-09', bas: '10:00', bit: '11:00', salon: 'M2' },
+      { ad: 'Ayşe K', tarih: '2026-11-09', bas: '10:00', bit: '11:00', salon: 'M1', hoca: false },
+      { ad: 'Can D', tarih: '2026-11-09', bas: '10:00', bit: '11:00', salon: 'M2', hoca: false },
     ]);
+  });
+});
+
+describe('gözetmen görev listesi: yazım birleştirme ve hoca işareti', () => {
+  it('aynı kişinin iki yazımı tek kişi; hocanın kendi sınavı işaretli', () => {
+    const ot = SFTum.fakulteOturumlari([
+      {
+        id: 'x1',
+        code: 'A',
+        date: '2026-11-09',
+        timeSlot: '09:00',
+        duration: 60,
+        room: 'M1',
+        supervisor: 'Dr. Ali Veli',
+        professor: 'Dr. Ali Veli',
+      },
+      {
+        id: 'x2',
+        code: 'B',
+        date: '2026-11-10',
+        timeSlot: '09:00',
+        duration: 60,
+        room: 'M2',
+        supervisor: 'Ali VELİ',
+        professor: 'Can D',
+      },
+    ]);
+    const l = SFTum.gozetmenGorevListesi(ot);
+    expect(l.map((x) => x.ad)).toEqual(['Dr. Ali Veli', 'Dr. Ali Veli']);
+    expect(l.map((x) => x.hoca)).toEqual([true, false]);
   });
 });

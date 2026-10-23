@@ -93,6 +93,7 @@ function DersListesiIceAktarModal({
   mevcutDersler,
   departmentId,
   onDone,
+  fakulteDuzeyi,
 }) {
   const [dosyaAdi, setDosyaAdi] = useState('');
   const [okunuyor, setOkunuyor] = useState(false);
@@ -225,6 +226,19 @@ function DersListesiIceAktarModal({
       });
       // Sunucu tek istekte en çok 50 işlem kabul eder.
       for (let i = 0; i < ops.length; i += 50) await DBWrite.batch(ops.slice(i, i + 50));
+      // Güncellenen derslerin yerleşmiş sınavları (hoca/kod/ad değiştiyse).
+      if (window.dersDegisikliginiSinavlaraYay) {
+        const ciftler = ops
+          .filter((op) => op.type === 'set' && op.docId)
+          .map((op) => ({
+            eski: (mevcutDersler || []).find((c) => String(c.id) === String(op.docId)),
+            yeni: op.data,
+          }))
+          .filter((c) => c.eski);
+        await window.dersDegisikliginiSinavlaraYay(ciftler, {
+          fakulteDuzeyi: !!fakulteDuzeyi,
+        });
+      }
       if (window.audit) {
         window.audit('course_import', 'sinav_dersler', '', {
           meta: { dosya: dosyaAdi, yeni: yeniSayisi, guncellenen: guncelSayisi },
@@ -879,6 +893,12 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
           window.audit('course_update', 'sinav_dersler', editingCourse.id, {
             meta: { code: dataToSave.code, name: dataToSave.name },
           });
+        // Yerleşmiş sınavlar dersin eski hocası/kodu/süresiyle kalmasın (sorarak).
+        if (window.dersDegisikliginiSinavlaraYay) {
+          await window.dersDegisikliginiSinavlaraYay([{ eski: editingCourse, yeni: dataToSave }], {
+            fakulteDuzeyi: isAdmin,
+          });
+        }
       }
 
       setEditingCourse(null);
@@ -893,6 +913,12 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
 
   const handleDelete = async (c) => {
     if (!confirm(`${c.code} kodlu ${c.name} dersini silmek istediğinize emin misiniz?`)) return;
+    // Dersin sınavları takvimde sahipsiz kalmasın: önce onlar (sorarak).
+    if (
+      window.dersSinavlariniSilOnayi &&
+      !(await window.dersSinavlariniSilOnayi(c, { fakulteDuzeyi: isAdmin }))
+    )
+      return;
     try {
       await DBWrite.remove('sinav_dersler', c.id);
       if (window.audit)
@@ -1383,6 +1409,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
         professors={professors}
         mevcutDersler={courses}
         departmentId={activeDepartment}
+        fakulteDuzeyi={isAdmin}
         onDone={() => {
           setIceAktarAcik(false);
           loadData();

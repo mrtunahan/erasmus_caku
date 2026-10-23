@@ -23,9 +23,9 @@ function dok(id, slots, ekstra) {
 
 describe('adAnahtari', () => {
   it('unvanları ayıklar', () => {
-    expect(adAnahtari('Prof. Dr. Ayşe Yılmaz')).toBe('ayşe yılmaz');
-    expect(adAnahtari('Dr. Öğr. Üyesi Ayşe YILMAZ')).toBe('ayşe yılmaz');
-    expect(adAnahtari('Arş. Gör. Ayşe Yılmaz')).toBe('ayşe yılmaz');
+    expect(adAnahtari('Prof. Dr. Ayşe Yılmaz')).toBe('ayse yilmaz');
+    expect(adAnahtari('Dr. Öğr. Üyesi Ayşe YILMAZ')).toBe('ayse yilmaz');
+    expect(adAnahtari('Arş. Gör. Ayşe Yılmaz')).toBe('ayse yilmaz');
   });
 
   it('unvansız ad ile unvanlı ad aynı anahtara düşer', () => {
@@ -449,5 +449,12 @@ describe('akademisyenKayitlari — seviyeye özel saat etiketi', () => {
       bolumSaatleri: { bilgisayar: ['09:00-09:45'] },
     });
     expect(kayitlar.every((k) => k.saat === '09:00-09:45')).toBe(true);
+  });
+});
+
+describe('adAnahtari Türkçe/ASCII', () => {
+  it('Özgür YILMAZ ile Ozgur Yilmaz aynı anahtar', () => {
+    expect(adAnahtari('Dr. Özgür YILMAZ')).toBe(adAnahtari('Ozgur Yilmaz'));
+    expect(adAnahtari('Ogr. Gor. Ozgur Yilmaz')).toBe('ozgur yilmaz');
   });
 });

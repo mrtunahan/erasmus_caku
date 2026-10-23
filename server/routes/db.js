@@ -2476,6 +2476,18 @@ async function enforceWritePolicies(db, op, user) {
       mevcutProf = null;
     }
     if (mevcutProf && op.data.name.trim() !== String(mevcutProf.name || '').trim()) {
+      // Ad bir kimliktir (şifre, ders, sınav, ders programı atıfları): tek
+      // başına değiştirilirse kişi giriş yapamaz, kayıtları eski adda kalır.
+      // Ad değişikliği bütün atıflarla birlikte /akademisyen-ad-degistir ile.
+      return {
+        allow: false,
+        status: 400,
+        error:
+          'Akademisyen adı yalnız "Adı değiştir" işlemiyle değiştirilir (şifre, ders, sınav ve ' +
+          'ders programı kayıtları birlikte güncellenir).',
+      };
+    }
+    if (mevcutProf && op.data.name.trim() !== String(mevcutProf.name || '').trim()) {
       const flags = await getActorFlags(db, user);
       const baska = await db
         .collection('professors')
@@ -3557,6 +3569,98 @@ async function executeSingleOp(db, op) {
 }
 
 // POST /api/db/write
+// ══════════════════════════════════════════════════════════════
+// AKADEMİSYEN AD DEĞİŞİKLİĞİ — bütün atıflarla birlikte (server/lib/ad-degisim.js)
+//   POST /api/db/akademisyen-ad-degistir { professorId, yeniAd, onizleme }
+//   onizleme=true → yalnız sayılar; değilse yedek alınır ve uygulanır.
+// Yetki: üniversite yetkilisi/admin her kişi; fakülte ve bölüm yetkilisi
+// kendi alanındaki bölümün akademisyeni (lib/yapisal-yazma.js kuralıyla).
+// ══════════════════════════════════════════════════════════════
+router.post('/akademisyen-ad-degistir', softAuthMiddleware, async (req, res) => {
+  const user = req.user;
+  if (
+    !user ||
+    (user.role !== 'admin' && user.role !== 'professor' && user.role !== 'bolum_yetkilisi')
+  ) {
+    return res.status(403).json({ error: 'Bu işlem için yetkiniz yok.' });
+  }
+  const metinOf = (v) => String(v == null ? '' : v).trim();
+  const professorId = metinOf(req.body && req.body.professorId);
+  const yeniAd = metinOf(req.body && req.body.yeniAd);
+  const onizleme = !!(req.body && req.body.onizleme);
+  if (!professorId || !yeniAd || yeniAd.length > 120) {
+    return res.status(400).json({ error: 'Akademisyen ve yeni ad gerekli.' });
+  }
+  try {
+    const db = await getDbSafe();
+    const prof = await findDocByAnyId(db, 'professors', professorId);
+    if (!prof) return res.status(404).json({ error: 'Akademisyen bulunamadı.' });
+    const eskiAd = metinOf(prof.name);
+    if (!eskiAd || eskiAd === yeniAd) return res.status(400).json({ error: 'Ad değişmiyor.' });
+    const flags = await getActorFlags(db, user);
+    const baska = await db
+      .collection('professors')
+      .findOne({ name: yeniAd, _id: { $ne: prof._id } });
+    const ad = akademisyenAdDegisimi({ mevcut: prof, yeniAd, adBaskasinda: !!baska, flags });
+    if (!ad.izin) return res.status(403).json({ error: ad.hata });
+    if (baska) {
+      return res.status(409).json({
+        error:
+          'Bu ad başka bir akademisyen kaydında var; birleştirme üniversite yetkilisinin işidir.',
+      });
+    }
+    if (!flags.admin && !flags.uniAdmin) {
+      const alan = await kullaniciAlani(db, user);
+      if (!(
+        alan &&
+        (alan.tur === 'bolum' || alan.tur === 'fakulte') &&
+        bolumAlandaFn(alan, prof.departmentId)
+      )) {
+        return res
+          .status(403)
+          .json({ error: 'Yalnız kendi bölümünüzün akademisyeninin adını değiştirebilirsiniz.' });
+      }
+    }
+    const { adDegisimPlani, planOzeti, DOKUNULMAZ } = require('../lib/ad-degisim');
+    const adlar = (await db.listCollections({}, { nameOnly: true }).toArray())
+      .map((c) => c.name)
+      .filter((n) => !DOKUNULMAZ.has(n) && !n.startsWith('system.'));
+    const koleksiyonlar = {};
+    for (const n of adlar) koleksiyonlar[n] = await db.collection(n).find({}).toArray();
+    const plan = adDegisimPlani(koleksiyonlar, eskiAd, yeniAd);
+    // Hesap e-postası ve oturum kimliği ad taşır ("professor:<ad>").
+    const hesapKimlikleri = ['professor:', 'bolum_yetkilisi:'].map((r) => [r + eskiAd, r + yeniAd]);
+    const ozet = planOzeti(plan);
+    if (onizleme) return res.json({ eskiAd, yeniAd, ozet, toplam: plan.length });
+
+    await db.collection('ad_degisim_yedekleri').insertOne({
+      eskiAd,
+      yeniAd,
+      yapan: metinOf(user.identifier),
+      at: new Date(),
+      belgeler: plan.map((p) => ({ koleksiyon: p.koleksiyon, once: p.once })),
+    });
+    for (const p of plan) {
+      await db.collection(p.koleksiyon).replaceOne({ _id: p._id }, p.sonra);
+    }
+    for (const [eskiK, yeniK] of hesapKimlikleri) {
+      const h = await db.collection('hesap_epostalari').findOne({ _id: eskiK });
+      if (h && !(await db.collection('hesap_epostalari').findOne({ _id: yeniK }))) {
+        const { _id, ...govde } = h;
+        void _id;
+        await db.collection('hesap_epostalari').insertOne({ _id: yeniK, ...govde });
+        await db.collection('hesap_epostalari').deleteOne({ _id: eskiK });
+      }
+      // Eski adla açık oturumlar kapanır; kişi yeni adla yeniden giriş yapar.
+      await oturumIptal.iptalEt(db, eskiK);
+    }
+    return res.json({ ok: true, eskiAd, yeniAd, ozet, toplam: plan.length });
+  } catch (e) {
+    console.error('[ad-degistir]', e && e.message);
+    return res.status(500).json({ error: 'Ad değiştirilemedi.' });
+  }
+});
+
 router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
   const { operations } = req.body;
 
