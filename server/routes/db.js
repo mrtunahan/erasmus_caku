@@ -28,6 +28,11 @@ const {
   BASVURU_BOLUMU,
 } = require('../lib/yetki-alani');
 const { idSorgusu: bildirimIdSorgusu } = require('./bildirim');
+const personelKapsami = require('../lib/personel-kayit-kapsami');
+const { ogrenciAlanSuzgeci } = require('../lib/ogrenci-alan-suzgeci');
+
+// Personel yazmasında bölüm sınırı uygulanan koleksiyonlar (a2-personel).
+const PERSONEL_KAPSAMLI = new Set(['students', 'muafiyet_records', 'survey_responses']);
 const { ttoBirimUyesi, ttoYoneticileri } = require('../lib/tto-birim');
 const { aktorKapsami, yonetilebilirMi } = require('../lib/yayin-kapsami');
 // ── ANKET KAPSAMI: istemciyle AYNI kural dosyası ──
@@ -147,7 +152,16 @@ async function personelYanitSuzgeci(db, user, docs) {
     ]);
     coz = eskiYanitBolumCozucu(ogrenciler, personel);
   }
-  const suz = yanitSuzgeci({ kapsam, ben, benimAnketlerim, dersAnketlerim });
+  let benKimlikleri = [];
+  if (user.role === 'professor') {
+    const prof = await profilBul(db, ben).catch(() => null);
+    if (prof) {
+      benKimlikleri = [prof._docId, prof.id, prof._id && String(prof._id)]
+        .filter(Boolean)
+        .map(String);
+    }
+  }
+  const suz = yanitSuzgeci({ kapsam, ben, benKimlikleri, benimAnketlerim, dersAnketlerim });
   return (d) => suz(coz(d));
 }
 const { aramaKapsami, trAramaDeseni, aramaAdlari } = require('../lib/ogrenci-arama');
@@ -1810,6 +1824,76 @@ async function enforceWritePolicies(db, op, user) {
     }
   }
 
+  // a2-personel) PERSONEL YAZMASINDA BÖLÜM SINIRI: öğrenci kaydı, muafiyet
+  // başvurusu ve anket yanıtı (server/lib/personel-kayit-kapsami.js).
+  // Okuma bu kayıtlarda zaten yetki alanına daraltılmıştı; yazma eşitlenir.
+  // Sistem yöneticisi ve üniversite yetkilisi her yerde yazar.
+  if (
+    (user.role === 'professor' || user.role === 'bolum_yetkilisi') &&
+    !op.subCollection &&
+    PERSONEL_KAPSAMLI.has(op.collection)
+  ) {
+    const flags = await getActorFlags(db, user);
+    if (!flags.admin && !flags.uniAdmin) {
+      let mevcut = null;
+      if (op.type !== 'add' && op.docId) {
+        try {
+          mevcut = await findExistingDoc(db, op);
+        } catch (_) {
+          mevcut = null;
+        }
+      }
+      let karar = { izin: true };
+      if (op.collection === 'survey_responses') {
+        let kimlikler = [];
+        if (user.role === 'professor') {
+          const prof = await profilBul(db, user.identifier).catch(() => null);
+          if (prof) kimlikler = [prof._docId, prof.id, prof._id && String(prof._id)];
+        }
+        karar = personelKapsami.anketYanitiKarari({
+          op,
+          mevcut,
+          ident: user.identifier,
+          kimlikler: kimlikler.filter(Boolean).map(String),
+          ustYetki: false,
+        });
+      } else if (op.collection === 'muafiyet_records') {
+        karar = await muafiyetPersonelKarari(db, op, mevcut, user);
+      } else {
+        const yonetici = user.role === 'bolum_yetkilisi' || flags.facManager || flags.deptManager;
+        const [yazmaAlani, okumaAlani] = await Promise.all([
+          kullaniciAlani(db, user, false),
+          kullaniciAlani(db, user, true),
+        ]);
+        const nolar = personelKapsami.bagliNoFarki(op, mevcut);
+        const bagliBolumleri = {};
+        if (nolar.length) {
+          const sayilar = nolar.map(Number).filter((n) => Number.isFinite(n));
+          const kayitlar = await db
+            .collection('students')
+            .find(
+              { studentNumber: { $in: nolar.concat(sayilar) } },
+              { projection: { studentNumber: 1, departmentId: 1 } }
+            )
+            .toArray();
+          kayitlar.forEach((k) => {
+            bagliBolumleri[String(k.studentNumber)] = String(k.departmentId || '');
+          });
+        }
+        karar = personelKapsami.ogrenciKaydiKarari({
+          op,
+          mevcut,
+          yonetici,
+          yazmaAlani,
+          okumaAlani,
+          alanda: bolumAlandaFn,
+          bagliBolumleri,
+        });
+      }
+      if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
+    }
+  }
+
   // a2a-0) ANKET YANITI: yanıtlayanın BÖLÜMÜ sunucuda damgalanır.
   // Sonuçlar bölüme göre süzülebilsin diye (server/lib/anket-yanit-okuma.js);
   // istemcinin yazdığı bölüme güvenilmez.
@@ -2267,6 +2351,8 @@ async function enforceWritePolicies(db, op, user) {
         if (STUDENT_SELF_PROTECTED.has(alan)) delete op.data[alan];
       }
     }
+    // Erasmus not durumu: öğrenci yalnız 'onay-bekliyor' koyar.
+    ogrenciAlanSuzgeci('students', op, mevcut);
     // `set` + merge:false dokümanı KOMPLE değiştirir; korunan alanlar silinir.
     // Bu yüzden öğrencinin replace'i birleştirmeye çevrilir.
     if (op.type === 'set') op.merge = true;
@@ -2747,6 +2833,8 @@ async function enforceWritePolicies(db, op, user) {
         op.data.approvedCount = 0;
         op.data.rejectedCount = 0;
       }
+      const suz = await ogrenciKararAlanlari(db, op, null, ident);
+      if (!suz.izin) return { allow: false, status: 403, error: suz.hata };
       return { allow: true };
     }
 
@@ -2758,6 +2846,8 @@ async function enforceWritePolicies(db, op, user) {
         if (op.data && typeof op.data === 'object' && op.data._owner === undefined) {
           op.data._owner = ident;
         }
+        const suz = await ogrenciKararAlanlari(db, op, await findExistingDoc(db, op), ident);
+        if (!suz.izin) return { allow: false, status: 403, error: suz.hata };
         return { allow: true };
       }
       return {
@@ -2779,6 +2869,8 @@ async function enforceWritePolicies(db, op, user) {
           await ogrenciKapsami(db, ident)
         );
         if (!damga.izin) return { allow: false, status: 403, error: damga.hata };
+        const suz = await ogrenciKararAlanlari(db, op, null, ident);
+        if (!suz.izin) return { allow: false, status: 403, error: suz.hata };
       }
       return { allow: true };
     }
@@ -2917,6 +3009,8 @@ async function enforceWritePolicies(db, op, user) {
           );
         }
       }
+      const suz = await ogrenciKararAlanlari(db, op, existing, ident);
+      if (!suz.izin) return { allow: false, status: 403, error: suz.hata };
       return { allow: true };
     }
 
@@ -3017,6 +3111,39 @@ async function memurKimligi(db, user) {
   }
   memurKimlikCache.set(user.identifier, { kimlik, ts: Date.now() });
   return kimlik;
+}
+
+// Öğrencinin yazdığı kayıtta karar alanları (server/lib/ogrenci-alan-suzgeci.js).
+// Alt koleksiyon ana koleksiyonun kuralına girmez.
+async function ogrenciKararAlanlari(db, op, mevcut, ident) {
+  if (op.subCollection) return { izin: true };
+  return ogrenciAlanSuzgeci(op.collection, op, mevcut, { ident });
+}
+
+// Muafiyet başvurusu: personel YALNIZ OKUYABİLDİĞİ kayda yazar. Okuma kuralının
+// aynısı: memurda atama/gönderilmiş belge, diğer personelde yetki alanı
+// (okuma alanı: komisyon üyesi ek bölümünde de çalışır). Kayıt başka bölüme
+// taşınacaksa yeni bölüm de alanda olmalı.
+async function muafiyetPersonelKarari(db, op, mevcut, user) {
+  const memur = await memurKimligi(db, user);
+  let gorur;
+  if (memur) {
+    const atamalar = await memurAtamalari(db);
+    const gonderilen = await memurunMuafiyetKayitlari(db, memur, atamalar);
+    gorur = (r) => memurMuafiyetKaydiniGorurMu(r, memur, atamalar, gonderilen);
+  } else {
+    const alan = await kullaniciAlani(db, user, true);
+    gorur = (r) => basvurulariSuz('muafiyet_records', [r], alan).length > 0;
+  }
+  const hata = 'Bu muafiyet başvurusu sizin yetki alanınızda değil.';
+  if (op.type === 'delete' && !mevcut) return { izin: true };
+  if (mevcut && !gorur(mevcut)) return { izin: false, hata };
+  const data = op.data && typeof op.data === 'object' ? op.data : null;
+  if (op.type !== 'delete' && data && (!mevcut || 'departmentId' in data)) {
+    const sonra = mevcut ? { ...mevcut, departmentId: data.departmentId } : data;
+    if (!gorur(sonra)) return { izin: false, hata };
+  }
+  return { izin: true };
 }
 
 async function memurAtamalari(db) {

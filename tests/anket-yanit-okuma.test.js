@@ -3,6 +3,7 @@ import {
   yanitlariSuz,
   eskiYanitBolumCozucu,
   kendiYanitiMi,
+  yanitSuzgeci,
 } from '../server/lib/anket-yanit-okuma.js';
 
 const UNI = { kapsamTuru: 'universite', departmentIds: [] };
@@ -113,5 +114,18 @@ describe('akademisyen: başkasının ders anketi', () => {
       '2',
       '3',
     ]);
+  });
+});
+
+describe('akademisyenin kendi yanıtı', () => {
+  it('profil id ya da sunucu damgasıyla kendi yanıtı kimlikli görünür', () => {
+    const suz = yanitSuzgeci({
+      kapsam: { kapsamTuru: 'akademisyen', departmentIds: [] },
+      ben: 'Dr. A',
+      benKimlikleri: ['p-12'],
+    });
+    expect(suz({ surveyId: 's', userId: 'p-12' })).toEqual({ surveyId: 's', userId: 'p-12' });
+    expect(suz({ surveyId: 's', userId: 'p-12', yanitlayanKimlik: 'Dr. A' }).userId).toBe('p-12');
+    expect(suz({ surveyId: 's', userId: 'p-99' })).toBeNull();
   });
 });

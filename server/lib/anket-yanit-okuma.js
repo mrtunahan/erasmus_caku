@@ -29,7 +29,15 @@ const dizi = (v) => (Array.isArray(v) ? v.filter(Boolean).map(String) : []);
 const anahtar = (v) => metin(v).toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ');
 
 /** Yanıtta kimliği açık eden alanlar. */
-const KIMLIK_ALANLARI = ['userId', 'studentNumber', 'studentName', 'userName', 'name', 'email'];
+const KIMLIK_ALANLARI = [
+  'userId',
+  'studentNumber',
+  'studentName',
+  'userName',
+  'name',
+  'email',
+  'yanitlayanKimlik',
+];
 
 /** Yanıtı anonimleştirir (yeni nesne). */
 function anonim(doc) {
@@ -47,10 +55,19 @@ function yanitBolumleri(doc) {
 }
 
 /** Bu yanıt okuyan kişinin kendisine mi ait? */
-function kendiYanitiMi(doc, ben) {
-  const k = anahtar(ben);
-  if (!k) return false;
-  return [doc && doc.userId, doc && doc.studentNumber].some((v) => anahtar(v) === k);
+function kendiYanitiMi(doc, ben, ekKimlikler) {
+  const kler = new Set(
+    [ben]
+      .concat(ekKimlikler || [])
+      .map(anahtar)
+      .filter(Boolean)
+  );
+  if (kler.size === 0) return false;
+  // Akademisyen ekranı `userId`ye profil kaydının id'sini yazıyor; sunucu
+  // yeni yanıtlara yazanın jeton kimliğini `yanitlayanKimlik` olarak damgalar.
+  return [doc && doc.userId, doc && doc.studentNumber, doc && doc.yanitlayanKimlik].some((v) =>
+    kler.has(anahtar(v))
+  );
 }
 
 /**
@@ -59,6 +76,7 @@ function kendiYanitiMi(doc, ben) {
  * @param {object} p
  * @param {object} p.kapsam     anketAktorKapsami çıktısı (universite/fakulte/bolum/akademisyen)
  * @param {string} p.ben        okuyanın kimliği (ad)
+ * @param {string[]} [p.benKimlikleri] okuyanın diğer kimlikleri (profil kaydı id'leri)
  * @param {Set<string>} [p.benimAnketlerim] akademisyenin oluşturduğu anket kimlikleri
  * @param {Map<string,{alan:string,kodlar:Set<string>}>} [p.dersAnketlerim]
  *        başkasının, akademisyenin dersine bağlı anketleri: yanıtta ders
@@ -68,13 +86,14 @@ function kendiYanitiMi(doc, ben) {
 function yanitSuzgeci(p) {
   const k = (p && p.kapsam) || { kapsamTuru: 'bolum', departmentIds: [] };
   const ben = metin(p && p.ben);
+  const benEk = (p && p.benKimlikleri) || [];
   const benimBolumler = dizi(k.departmentIds);
   const anketlerim = (p && p.benimAnketlerim) || new Set();
   const dersAnketlerim = (p && p.dersAnketlerim) || new Map();
   const kodu = (v) => metin(v).toLocaleUpperCase('tr-TR').replace(/\s+/g, '');
   return (doc) => {
     if (!doc) return null;
-    if (kendiYanitiMi(doc, ben)) return doc;
+    if (kendiYanitiMi(doc, ben, benEk)) return doc;
     if (k.kapsamTuru === 'universite') return anonim(doc);
     const bolumler = yanitBolumleri(doc);
     const alanimda = bolumler.some((b) => benimBolumler.includes(b));
