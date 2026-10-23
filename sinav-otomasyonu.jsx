@@ -7167,6 +7167,7 @@ function SinavOtomasyonuApp({
     );
   };
   const cakismayiBirlestir = async (c) => {
+    if (kilitliyse()) return;
     if (!cakismaBirlestirilebilir(c)) return;
     const [a] = c.sinavlar;
     const tum = denetimListesi(tumSinavlar);
@@ -7601,6 +7602,29 @@ function SinavOtomasyonuApp({
       ? SF.gonderimDurumu(gonderimKaydi, SF.programImzasi(periodExams))
       : 'bekliyor';
 
+  // ── GÖNDERİLMİŞ PROGRAM KİLİDİ ──
+  // Bölüm programı fakülteye gönderdikten sonra fakülte İADE edene kadar
+  // bölüm (yetkili ve akademisyenler) o dönem grubunun programını
+  // değiştiremez. Fakülte ve üniversite yetkilisi düzenlemeye devam eder.
+  // Sunucu da aynı kuralı uygular (server/routes/db.js → gonderimKilidi).
+  const fakulteDuzeyi = isAdmin || !!currentUser?.isUniversityAdmin || yonetimYetkisi;
+  const donemKilitli = (donem) => {
+    if (fakulteDuzeyi || !SF || !donem || !selectedDeptId) return false;
+    const k = SF.gonderimKaydiBul(gonderimler, selectedDeptId, SF.donemGrubu(donem));
+    return !!k && k.durum === 'gonderildi';
+  };
+  const programKilitli = donemKilitli(activePeriod);
+  const KILIT_MESAJI =
+    'Bu program fakülteye gönderildi. Fakülte yetkilisi iade edene kadar bölüm sınav ' +
+    'programında değişiklik yapılamaz.';
+  const kilitliyse = (donem) => {
+    if (donemKilitli(donem === undefined ? activePeriod : donem)) {
+      alert(KILIT_MESAJI);
+      return true;
+    }
+    return false;
+  };
+
   // ── SEÇİM YOKKEN KAPANMAZ ──
   // Panel varsayılan kapalıdır, ama hiç dönem seçilmemişken kapalı açılış
   // kullanıcıyı boş bir sayfayla baş başa bırakırdı: seçecek kart görünmez.
@@ -7720,6 +7744,7 @@ function SinavOtomasyonuApp({
   };
 
   const handleDrop = async (courseData, dateStr, timeSlot) => {
+    if (kilitliyse()) return;
     // Akademisyen sadece kendi derslerini yerleştirebilir
     if (!canManage && !kendiDersiMi(courseData)) {
       alert('Sadece kendi derslerinizi programa ekleyebilirsiniz.');
@@ -7773,6 +7798,7 @@ function SinavOtomasyonuApp({
     oturum.uyeler.every((u) => kendiDersiMi(u));
 
   const ortakSinavYap = async (oturum) => {
+    if (kilitliyse()) return;
     const SB = window.SinavBirlesim;
     if (!ayniSaat || !SB) return;
     if (!canManage && !kendiDersleriniBirlestirebilir(oturum)) {
@@ -7826,6 +7852,7 @@ function SinavOtomasyonuApp({
   };
 
   const ayriEkle = async () => {
+    if (kilitliyse()) return;
     if (!ayniSaat) return;
     const aday = yeniSinavVerisi(ayniSaat.ders, ayniSaat.tarih, ayniSaat.saat);
     if (!yerlestirmeOnayi(aday)) return;
@@ -7834,6 +7861,7 @@ function SinavOtomasyonuApp({
 
   // Ortak oturumdan ayırma: kalan tek üye olursa onun bağı da çözülür.
   const birlesimdenAyir = async (exam) => {
+    if (kilitliyse()) return;
     const SB = window.SinavBirlesim;
     if (!SB) return;
     const tum = denetimListesi(tumSinavlar);
@@ -7883,6 +7911,7 @@ function SinavOtomasyonuApp({
   // salon/gözetmen değişmez. Otomatik yazılanlar işaretlenir ve tek
   // düğmeyle geri alınabilir.
   const salonGozetmenAta = async () => {
+    if (kilitliyse()) return;
     if (periodExams.length === 0) return;
 
     const { sayiKurali } = await bolumGozetmenKurallari(selectedDeptId);
@@ -7953,6 +7982,7 @@ function SinavOtomasyonuApp({
   };
 
   const otomatikAtamayiTemizle = async () => {
+    if (kilitliyse()) return;
     const hedef = periodExams.filter(
       (e) => e.otomatikSalon || e.otomatikGozetmen || e.otomatikEkSalon
     );
@@ -8081,6 +8111,7 @@ function SinavOtomasyonuApp({
   };
 
   const handleUpdateExam = async (updatedExam) => {
+    if (kilitliyse()) return;
     // Akademisyen sadece kendi derslerini düzenleyebilir
     if (!canManage && !kendiDersiMi(updatedExam)) {
       alert('Sadece kendi derslerinizi düzenleyebilirsiniz.');
@@ -8163,6 +8194,7 @@ function SinavOtomasyonuApp({
   };
 
   const handleRemoveExam = async (exam) => {
+    if (kilitliyse()) return;
     // Akademisyen sadece kendi derslerini kaldırabilir
     if (!canManage && !kendiDersiMi(exam)) {
       alert('Sadece kendi derslerinizi takvimden kaldırabilirsiniz.');
@@ -8316,6 +8348,7 @@ function SinavOtomasyonuApp({
   };
 
   const handleDeletePeriod = async (periodId) => {
+    if (kilitliyse(periods.find((p) => p.id === periodId) || null)) return;
     if (
       !confirm(
         'Bu dönemi silmek istediğinize emin misiniz? Bu döneme ait tüm sınav yerleştirmeleri de silinecek.'
@@ -8884,18 +8917,21 @@ function SinavOtomasyonuApp({
                         onClick: () => setGozetmenKuralAcik(true),
                       },
                     canManage &&
+                      !programKilitli &&
                       periodExams.length > 0 && {
                         etiket: 'Salon ve gözetmen ata',
                         aciklama: 'Boş alanları otomatik doldurur ve kaydeder',
                         onClick: salonGozetmenAta,
                       },
                     canManage &&
+                      !programKilitli &&
                       periodExams.some((e) => e.otomatikSalon || e.otomatikGozetmen) && {
                         etiket: 'Otomatik atamayı temizle',
                         aciklama: 'Yalnız otomatik yazılan salon/gözetmenleri siler',
                         onClick: otomatikAtamayiTemizle,
                       },
                     canManage &&
+                      !programKilitli &&
                       periodExams.length > 0 && {
                         etiket:
                           gonderimDurumu === 'gonderildi' ? 'Yeniden gönder' : 'Fakülteye gönder',
@@ -9065,6 +9101,32 @@ function SinavOtomasyonuApp({
                   </div>
                 </div>
               </Card>
+            )}
+
+            {programKilitli && (
+              <div
+                data-program-kilitli
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 14px',
+                  marginBottom: 12,
+                  borderRadius: 10,
+                  background: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  color: '#1E3A8A',
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
+                <span style={{ fontSize: 16 }}>🔒</span>
+                <span>
+                  <b>Program fakülteye gönderildi.</b> Fakülte yetkilisi iade edene kadar sınav
+                  programında değişiklik yapılamaz (yerleştirme, saat/salon/gözetmen düzenleme,
+                  birleştirme, silme). Değişiklik gerekiyorsa fakülte yetkilisinden iade isteyin.
+                </span>
+              </div>
             )}
 
             {viewMode === 'calendar' ? (
@@ -9364,7 +9426,7 @@ function SinavOtomasyonuApp({
             onSave={handleUpdateExam}
             onRemove={handleRemoveExam}
             onClose={() => setEditingExam(null)}
-            readOnly={!canManage && !kendiDersiMi(editingExam)}
+            readOnly={programKilitli || (!canManage && !kendiDersiMi(editingExam))}
             salonSecenekleri={salonSecenekleri}
             gozetmenSecenekleri={gozetmenSecenekleri}
           />

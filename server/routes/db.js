@@ -213,6 +213,40 @@ function satirYazKurali() {
 // Staj yol haritasında da aynı desen: harita değil ADIM yazılıyor. Noktalı
 // anahtarın biçimi orada tanımlı ve testli (lib/staj-adim-yaz.js).
 // TTO talep kuralları: istemciyle AYNI dosya (lib/tto-talep.js).
+let sinavFakulteSozu = null;
+function sinavFakulteKurali() {
+  if (!sinavFakulteSozu) sinavFakulteSozu = import('../../lib/sinav-fakulte.js');
+  return sinavFakulteSozu;
+}
+
+/**
+ * GÖNDERİLMİŞ PROGRAM KİLİDİ: bölüm programını fakülteye gönderdikten sonra
+ * fakülte İADE edene kadar bölüm tarafı (bölüm yetkilisi, akademisyen) o
+ * dönem grubunun sınav ve dönem kayıtlarını değiştiremez. Fakülte ve
+ * üniversite yetkilisi bu kilide takılmaz.
+ * @returns {Promise<boolean>}
+ */
+async function gonderimKilidi(db, alan, bolumId, donem) {
+  if (!bolumId || !donem) return false;
+  const SFk = await sinavFakulteKurali();
+  const grup = SFk.donemGrubu(donem);
+  const { bolumVaryantlari: varyant } = require('../lib/bolum-kimlik');
+  const kimlikler = new Set();
+  varyant(alan && alan.harita, String(bolumId)).forEach((v) =>
+    SFk.gonderimKimlikleri(v, grup).forEach((k) => kimlikler.add(k))
+  );
+  for (const k of kimlikler) {
+    let g = null;
+    try {
+      g = await findDocByAnyId(db, 'sinav_gonderimleri', k);
+    } catch (_) {
+      g = null;
+    }
+    if (g && String(g.durum || '') === 'gonderildi') return true;
+  }
+  return false;
+}
+
 let cakismaKuraliSozu = null;
 function cakismaKurali() {
   if (!cakismaKuraliSozu) cakismaKuraliSozu = import('../../lib/sinav-cakisma.js');
@@ -1512,6 +1546,48 @@ async function enforceWritePolicies(db, op, user) {
     }
     const karar = sinavProgramiYazmaKarari(op, mevcut, alan, user.identifier, ek);
     if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
+
+    // Gönderilmiş program kilidi (fakülte/üniversite yetkilisi hariç).
+    if (
+      alan.tur !== 'fakulte' &&
+      alan.tur !== 'universite' &&
+      (op.collection === 'sinav_programi' || op.collection === 'sinav_donemler')
+    ) {
+      const veri = op.data && typeof op.data === 'object' ? op.data : {};
+      const denetimler = []; // [bolumId, donem]
+      try {
+        if (op.collection === 'sinav_programi') {
+          const pid = String((mevcut && mevcut.periodId) || veri.periodId || '');
+          const donem = pid ? await findDocByAnyId(db, 'sinav_donemler', pid) : null;
+          const bolum = String(
+            (mevcut && mevcut.departmentId) ||
+              veri.departmentId ||
+              ek.donemBolumu ||
+              (donem && donem.departmentId) ||
+              ''
+          );
+          denetimler.push([bolum, donem]);
+        } else {
+          const bolum = String((mevcut && mevcut.departmentId) || veri.departmentId || '');
+          if (mevcut) denetimler.push([bolum, mevcut]);
+          // Yeni dönem ya da tür/yarıyıl değişikliği: hedef grup da kilitli olabilir.
+          if (op.type !== 'delete') denetimler.push([bolum, { ...(mevcut || {}), ...veri }]);
+        }
+      } catch (_) {
+        /* dönem okunamazsa kilit uygulanmaz; yetki kuralı yukarıda geçti */
+      }
+      for (const [bolum, donem] of denetimler) {
+        if (await gonderimKilidi(db, alan, bolum, donem)) {
+          return {
+            allow: false,
+            status: 403,
+            error:
+              'Bu bölümün sınav programı fakülteye gönderildi; fakülte yetkilisi iade edene ' +
+              'kadar değişiklik yapılamaz.',
+          };
+        }
+      }
+    }
   }
 
   // a2-alan) YETKİ ALANI: rol kapısı "kim" sorusunu cevapladı; burada "NEREYE"
