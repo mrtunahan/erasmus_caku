@@ -3786,11 +3786,90 @@ const OturumDuzenle = ({
   onKaydet,
   onAyir,
   onBirlestir,
+  kisiUyarisi,
+  oneriBul,
 }) => {
+  const SFk = window.SinavFakulte;
+  const parca = (v) =>
+    String(v || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+  const anahtarOf = (a) =>
+    window.Gozetmen && window.Gozetmen.adAnahtari ? window.Gozetmen.adAnahtari(a) : a;
   const [tarih, setTarih] = useState(oturum.date);
   const [saat, setSaat] = useState(oturum.timeSlot);
   const [salon, setSalon] = useState(oturum.salonlar.join(' - '));
   const [gozetmen, setGozetmen] = useState(oturum.gozetmenler.join(', '));
+  // ── SALON BAŞINA GÖZETMEN ──
+  // Çok salonlu (ortak) oturumda her salonun gözetmeni ayrı seçilir; tek
+  // liste halinde birleştirilmez. Başlangıç: kayıtlı dağılım ya da
+  // (yoksa) hoca ilk salona, kalanlar sırayla.
+  const odalar = salon
+    .split(/\s+-\s+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const odaAnahtari = odalar.join('|');
+  const cokSalon = odalar.length > 1;
+  const ilkDagilim = () => {
+    const o = {};
+    (oturum.salonGozetmenleri || []).forEach((x) => {
+      o[x.salon] = (x.gozetmenler || []).join(', ');
+    });
+    return o;
+  };
+  const [salonGoz, setSalonGoz] = useState(ilkDagilim);
+  const birlesikListe = (h) => {
+    const out = [];
+    odalar.forEach((o) =>
+      parca(h[o]).forEach((g) => {
+        if (!out.some((x) => anahtarOf(x) === anahtarOf(g))) out.push(g);
+      })
+    );
+    return out;
+  };
+  // Salon eklenince/çıkarılınca: kalan salonların gözetmenleri korunur;
+  // çıkarılan salonun (ya da tek salondan çoka geçişte tek listenin) kişileri
+  // boş salonlara dağıtılır.
+  useEffect(() => {
+    if (!cokSalon) return;
+    setSalonGoz((prev) => {
+      const yeni = {};
+      odalar.forEach((o) => {
+        if (prev[o] != null) yeni[o] = prev[o];
+      });
+      const mevcut = new Set(Object.values(yeni).flatMap(parca).map(anahtarOf));
+      const artan = [
+        ...parca(gozetmen),
+        ...Object.entries(prev)
+          .filter(([k]) => !odalar.includes(k))
+          .flatMap(([, v]) => parca(v)),
+      ].filter(
+        (g, i, l) =>
+          !mevcut.has(anahtarOf(g)) && l.findIndex((x) => anahtarOf(x) === anahtarOf(g)) === i
+      );
+      const bos = odalar.filter((o) => yeni[o] == null);
+      const hedef = bos.length > 0 ? bos : [odalar[0]];
+      const d = SFk ? SFk.salonGozetmenDagilimi(oturum.uyeler, hedef, artan).dagilim : [];
+      d.forEach((x) => {
+        yeni[x.salon] = [...parca(yeni[x.salon]), ...x.gozetmenler].join(', ');
+      });
+      odalar.forEach((o) => {
+        if (yeni[o] == null) yeni[o] = '';
+      });
+      return yeni;
+    });
+  }, [odaAnahtari]);
+  const salonGozDegis = (oda, v) => {
+    const yeni = { ...salonGoz, [oda]: v };
+    setSalonGoz(yeni);
+    setGozetmen(birlesikListe(yeni).join(', '));
+  };
+  const etkinGozetmenler = cokSalon ? birlesikListe(salonGoz) : parca(gozetmen);
+  const dagilimMetni = (l) => JSON.stringify(l.map((x) => [x.salon, x.gozetmenler]));
+  const yeniDagilim = cokSalon
+    ? odalar.map((o) => ({ salon: o, gozetmenler: parca(salonGoz[o]) }))
+    : null;
   const [kaydediliyor, setKaydediliyor] = useState(false);
   // Otomatik yerleşen (kayıtsız) oturum değişiklik yapılmadan da kaydedilebilir.
   const degisti =
@@ -3798,7 +3877,45 @@ const OturumDuzenle = ({
     tarih !== oturum.date ||
     saat !== oturum.timeSlot ||
     salon !== oturum.salonlar.join(' - ') ||
-    gozetmen !== oturum.gozetmenler.join(', ');
+    etkinGozetmenler.join(', ') !== oturum.gozetmenler.join(', ') ||
+    (!!yeniDagilim && dagilimMetni(yeniDagilim) !== dagilimMetni(oturum.salonGozetmenleri || []));
+  // Seçilen saat için kişi uyarıları ve öneriler.
+  const hedef = {
+    anahtar: oturum.anahtar,
+    date: tarih,
+    timeSlot: saat,
+    sure: oturum.sure,
+    gozetmenler: etkinGozetmenler,
+  };
+  const uyarilar = [];
+  etkinGozetmenler.forEach((g) => {
+    const u = kisiUyarisi ? kisiUyarisi(g, hedef) : null;
+    if (u) uyarilar.push(g + ' ' + u + '.');
+  });
+  if (cokSalon) {
+    const gorulen = {};
+    odalar.forEach((o) =>
+      parca(salonGoz[o]).forEach((g) => {
+        const k = anahtarOf(g);
+        if (gorulen[k] && gorulen[k] !== o) {
+          uyarilar.push(g + ' iki salona birden yazılmış (' + gorulen[k] + ', ' + o + ').');
+        } else gorulen[k] = o;
+      })
+    );
+    odalar.forEach((o) => {
+      if (parca(salonGoz[o]).length === 0) uyarilar.push(o + ' salonuna gözetmen yazılmamış.');
+    });
+  }
+  const oneriler = oneriBul ? oneriBul(hedef) : [];
+  const oneriEkle = (ad) => {
+    if (cokSalon) {
+      // En az gözetmenli salona.
+      const oda = odalar
+        .slice()
+        .sort((a, b) => parca(salonGoz[a]).length - parca(salonGoz[b]).length)[0];
+      salonGozDegis(oda, [...parca(salonGoz[oda]), ad].join(', '));
+    } else setGozetmen([...parca(gozetmen), ad].join(', '));
+  };
   const etiket = { fontSize: 11.5, fontWeight: 600, color: '#64748B', marginBottom: 4 };
   const secim = {
     height: 34,
@@ -3918,21 +4035,118 @@ const OturumDuzenle = ({
           <div style={{ marginBottom: 12 }}>
             <div style={etiket}>
               Gözetmenler (dersin öğretim elemanı ve fakültenin araştırma görevlileri)
+              {cokSalon ? ' — her salonun gözetmeni ayrı' : ''}
             </div>
-            <CokluSecim
-              deger={gozetmen}
-              ayrac=", "
-              secenekler={
-                window.SinavFakulte
-                  ? window.SinavFakulte.gozetmenSecenekListesi(
-                      window.SinavFakulte.sinavHocalari(oturum.uyeler),
-                      gozetmenSecenekleri
-                    )
-                  : gozetmenSecenekleri
-              }
-              onChange={setGozetmen}
-              ekleMetni="+ Gözetmen ekle"
-            />
+            {cokSalon ? (
+              <div style={{ display: 'grid', gap: 8 }} data-salon-gozetmenleri>
+                {odalar.map((oda) => (
+                  <div
+                    key={oda}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '92px 1fr',
+                      gap: 8,
+                      alignItems: 'start',
+                      padding: '6px 8px',
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <div
+                      style={{ fontSize: 12.5, fontWeight: 700, color: '#0F766E', paddingTop: 7 }}
+                    >
+                      {oda}
+                    </div>
+                    <CokluSecim
+                      deger={salonGoz[oda] || ''}
+                      ayrac=", "
+                      secenekler={
+                        SFk
+                          ? SFk.gozetmenSecenekListesi(
+                              SFk.sinavHocalari(oturum.uyeler),
+                              gozetmenSecenekleri
+                            )
+                          : gozetmenSecenekleri
+                      }
+                      onChange={(v) => salonGozDegis(oda, v)}
+                      ekleMetni="+ Gözetmen"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <CokluSecim
+                deger={gozetmen}
+                ayrac=", "
+                secenekler={
+                  SFk
+                    ? SFk.gozetmenSecenekListesi(
+                        SFk.sinavHocalari(oturum.uyeler),
+                        gozetmenSecenekleri
+                      )
+                    : gozetmenSecenekleri
+                }
+                onChange={setGozetmen}
+                ekleMetni="+ Gözetmen ekle"
+              />
+            )}
+            {uyarilar.length > 0 && (
+              <div
+                data-gozetmen-uyari
+                style={{
+                  marginTop: 8,
+                  padding: '6px 10px',
+                  background: '#FFF7ED',
+                  border: '1px solid #FED7AA',
+                  borderRadius: 8,
+                  fontSize: 12.5,
+                  color: '#9A3412',
+                  display: 'grid',
+                  gap: 2,
+                }}
+              >
+                {uyarilar.map((x) => (
+                  <div key={x}>⚠ {x}</div>
+                ))}
+              </div>
+            )}
+            {oneriler.length > 0 && (
+              <div
+                data-gozetmen-oneri
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 6,
+                  marginTop: 8,
+                  alignItems: 'center',
+                }}
+              >
+                <span style={{ fontSize: 12, color: '#64748B' }}>
+                  Öneri (bu saatte boş, yükü en az):
+                </span>
+                {oneriler.map((x) => (
+                  <button
+                    key={x.ad}
+                    type="button"
+                    onClick={() => oneriEkle(x.ad)}
+                    title={x.gorev + ' görev · ' + x.dakika + ' dk — eklemek için tıklayın'}
+                    style={{
+                      border: '1px solid #99F6E4',
+                      background: '#F0FDFA',
+                      color: '#0F766E',
+                      borderRadius: 999,
+                      padding: '2px 10px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    + {x.ad} · {x.gorev}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button
@@ -3944,7 +4158,8 @@ const OturumDuzenle = ({
                   date: tarih,
                   timeSlot: saat,
                   room: salon,
-                  supervisor: gozetmen,
+                  supervisor: etkinGozetmenler.join(', '),
+                  ...(yeniDagilim ? { salonGozetmenleri: yeniDagilim } : {}),
                 });
                 setKaydediliyor(false);
               }}
@@ -4014,8 +4229,18 @@ const OturumDuzenle = ({
         </>
       ) : (
         <div style={{ fontSize: 13 }}>
-          <b>Salon:</b> {oturum.salonlar.join(', ') || '—'} · <b>Gözetmen:</b>{' '}
-          {oturum.gozetmenler.join(', ') || '—'}
+          {(oturum.salonGozetmenleri || []).length > 1 ? (
+            oturum.salonGozetmenleri.map((x) => (
+              <div key={x.salon}>
+                <b>{x.salon}:</b> {x.gozetmenler.join(', ') || '—'}
+              </div>
+            ))
+          ) : (
+            <>
+              <b>Salon:</b> {oturum.salonlar.join(', ') || '—'} · <b>Gözetmen:</b>{' '}
+              {oturum.gozetmenler.join(', ') || '—'}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -4350,6 +4575,56 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
     );
     return out;
   }, [SF, veri, bolumler, bolumGozetmenleri]);
+  // ── GÖZETMEN DENETİMİ: çakışma, yük sayacı, öneri ──
+  // Ekrandaki oturumlar (kaydedilmemiş otomatik öneriler dahil) üzerinden:
+  // aynı kişi aynı saatte iki yerde mi, kim ne kadar görev aldı, bir
+  // oturuma kim önerilir (o saatte boş, o gün müsait, yükü en az).
+  const tumMusaitsizlik = useMemo(
+    () =>
+      window.gozetmenMusaitsizlikHaritasi && veri
+        ? window.gozetmenMusaitsizlikHaritasi(veri.akademisyenler || [])
+        : {},
+    [veri]
+  );
+  const gozetmenDenetimi = useMemo(() => {
+    if (!SF || !kitap || !SF.gozetmenCakismalari) {
+      return { liste: [], oturumBazinda: {}, yukler: [], denge: null };
+    }
+    const c = SF.gozetmenCakismalari(kitap.oturumlar);
+    const yukler = SF.gozetmenYukleri(
+      kitap.oturumlar,
+      gozetmenSecenekleri.map((x) => x.deger)
+    );
+    return { ...c, yukler, denge: SF.yukDengesi(yukler) };
+  }, [SF, kitap, gozetmenSecenekleri]);
+  const kisiUyarisi = (ad, hedef) => {
+    if (!SF || !kitap) return null;
+    const m = SF.gozetmenMesgulMu(ad, hedef, kitap.oturumlar);
+    if (m) {
+      return (
+        'aynı saatte ' +
+        (m.kod || 'başka bir sınavda') +
+        ' (' +
+        m.saat +
+        (m.salonlar.length ? ', ' + m.salonlar.join(' - ') : '') +
+        ') görevli'
+      );
+    }
+    if (SF.gozetmenGunMusaitDegilMi(ad, hedef && hedef.date, tumMusaitsizlik)) {
+      return 'o gün müsait değil olarak işaretli';
+    }
+    return null;
+  };
+  const oneriBul = (hedef) =>
+    SF && kitap
+      ? SF.gozetmenOnerileri({
+          oturum: hedef,
+          oturumlar: kitap.oturumlar,
+          adaylar: gozetmenSecenekleri.map((x) => x.deger),
+          yukler: gozetmenDenetimi.yukler,
+          musaitsizlik: tumMusaitsizlik,
+        })
+      : [];
   const gunSecenekleri = useMemo(
     () =>
       SF && grup
@@ -4432,6 +4707,13 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
     const zamanDegisti = d.date !== o.date || d.timeSlot !== o.timeSlot;
     const salonDegisti = d.room !== o.salonlar.join(' - ');
     const gozetmenDegisti = d.supervisor !== o.gozetmenler.join(', ');
+    // Salon başına gözetmen dağılımı (çok salonlu oturum): kişiler aynı kalıp
+    // yalnız salonları değişse de kaydedilir.
+    const dagilimMetni = (l) =>
+      JSON.stringify((l || []).map((x) => [x.salon, x.gozetmenler || []]));
+    const yeniDagilim = Array.isArray(d.salonGozetmenleri) ? d.salonGozetmenleri : null;
+    const dagilimDegisti =
+      !!yeniDagilim && dagilimMetni(yeniDagilim) !== dagilimMetni(o.salonGozetmenleri);
     const ops = o.uyeler
       .map((u) => {
         const data = {};
@@ -4439,8 +4721,12 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
         if (salonDegisti)
           Object.assign(data, { room: d.room, otomatikSalon: false, otomatikEkSalon: '' });
         else if (u.oneriSalon && !zamanDegisti) Object.assign(data, salonOnerisiVerisi(u));
-        if (gozetmenDegisti)
-          Object.assign(data, { supervisor: d.supervisor, otomatikGozetmen: false });
+        if (gozetmenDegisti || dagilimDegisti)
+          Object.assign(data, {
+            supervisor: d.supervisor,
+            otomatikGozetmen: false,
+            ...(yeniDagilim ? { salonGozetmenleri: yeniDagilim } : {}),
+          });
         else if (u.oneriGozetmen && !zamanDegisti)
           Object.assign(data, { supervisor: u.supervisor, otomatikGozetmen: true });
         return { collection: 'sinav_programi', type: 'update', docId: u.id, data };
@@ -4448,6 +4734,33 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
       .filter((op) => Object.keys(op.data).length > 0);
     if (ops.length === 0) return Promise.resolve();
     return sinavYaz(ops);
+  };
+  // Çakışma panelinden: bir oturumda X yerine Y yazılır (salon dağılımında
+  // X'in salonuna). Diğer alanlar olduğu gibi kalır.
+  const gozetmenDegistir = (o, eski, yeni) => {
+    const esit = (a, b) =>
+      window.Gozetmen && window.Gozetmen.adAnahtari
+        ? window.Gozetmen.adAnahtari(a) === window.Gozetmen.adAnahtari(b)
+        : a === b;
+    const liste = [];
+    o.gozetmenler.forEach((g) => {
+      const v = esit(g, eski) ? yeni : g;
+      if (!liste.includes(v)) liste.push(v);
+    });
+    const dagilim =
+      (o.salonGozetmenleri || []).length > 0
+        ? o.salonGozetmenleri.map((x) => ({
+            salon: x.salon,
+            gozetmenler: [...new Set(x.gozetmenler.map((g) => (esit(g, eski) ? yeni : g)))],
+          }))
+        : null;
+    return oturumKaydet(o, {
+      date: o.date,
+      timeSlot: o.timeSlot,
+      room: o.salonlar.join(' - '),
+      supervisor: liste.join(', '),
+      ...(dagilim ? { salonGozetmenleri: dagilim } : {}),
+    });
   };
   // hedef: { date, timeSlot } — birleşen sınavlar bu başlangıca taşınır.
   const birlestir = (sinavlar0, hedef) => {
@@ -4715,6 +5028,11 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
   // salonlar; sınav hücresi süresince birleşir. Otomatik yerleşen (henüz
   // kaydedilmemiş) oturum "oto" rozetiyle işaretlenir. Otomatik atamanın da
   // yerleştiremediği oturum en sağdaki "Salonu girilmemiş" sütununda kalır.
+  // Hücredeki oturumlarda aynı saatte başka yerde de görevli olan kişiler.
+  const gozetmenCakisanlari = (h) =>
+    h && Array.isArray(h.oturumlar)
+      ? [...new Set(h.oturumlar.flatMap((o) => gozetmenDenetimi.oturumBazinda[o.anahtar] || []))]
+      : [];
   const tabloCiz = (g) => {
     const t = g.tablo;
     const hucreGorunumu = (h) => {
@@ -4726,7 +5044,9 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
         outlineOffset: -3,
         position: 'relative',
       };
+      const gc = gozetmenCakisanlari(h);
       if (h.cakisma) st.outline = '3px solid #DC2626';
+      else if (gc.length > 0) st.outline = '3px solid #F97316';
       else if (h.taslak) {
         st.outline = '2px dashed #475569';
         st.opacity = 0.62;
@@ -4837,18 +5157,41 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                         rowSpan={h.satirSayisi}
                         onClick={() => setSecilen({ hucre: h, salon: sutun.name, saat: r.etiket })}
                         title={
-                          h.salonsuz
-                            ? 'Boş salon bulunamadı — tıklayıp salon atayın.'
-                            : h.otomatik
-                              ? 'Otomatik yerleşti (henüz kaydedilmedi). Ayrıntı için tıklayın.'
-                              : h.taslak
-                                ? 'Taslak — bölüm programını henüz göndermedi. Ayrıntı için tıklayın.'
-                                : h.degisti
-                                  ? 'Gönderimden sonra değişti. Ayrıntı için tıklayın.'
-                                  : 'Ayrıntı için tıklayın'
+                          gozetmenCakisanlari(h).length > 0
+                            ? 'Gözetmen çakışması: ' +
+                              gozetmenCakisanlari(h).join(', ') +
+                              ' aynı saatte başka bir yerde de görevli. Tıklayıp değiştirin.'
+                            : h.salonsuz
+                              ? 'Boş salon bulunamadı — tıklayıp salon atayın.'
+                              : h.otomatik
+                                ? 'Otomatik yerleşti (henüz kaydedilmedi). Ayrıntı için tıklayın.'
+                                : h.taslak
+                                  ? 'Taslak — bölüm programını henüz göndermedi. Ayrıntı için tıklayın.'
+                                  : h.degisti
+                                    ? 'Gönderimden sonra değişti. Ayrıntı için tıklayın.'
+                                    : 'Ayrıntı için tıklayın'
                         }
                         style={hucreGorunumu(h)}
                       >
+                        {gozetmenCakisanlari(h).length > 0 && (
+                          <span
+                            data-gozetmen-cakisma
+                            style={{
+                              position: 'absolute',
+                              top: 1,
+                              left: 2,
+                              fontSize: 8.5,
+                              fontWeight: 800,
+                              color: '#fff',
+                              background: '#EA580C',
+                              borderRadius: 3,
+                              padding: '0 3px',
+                              lineHeight: '12px',
+                            }}
+                          >
+                            ⚠ gözetmen
+                          </span>
+                        )}
                         {h.otomatik && (
                           <span
                             style={{
@@ -4930,6 +5273,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
           Aynı salonda çakışma
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 28, height: 14, borderRadius: 3, border: '3px solid #F97316' }} />
+          Gözetmen çakışması (aynı kişi aynı saatte iki yerde)
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <span
             style={{
               fontSize: 9,
@@ -4986,6 +5333,199 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
       </div>
     </div>
   );
+
+  // ── GÖZETMEN YÜKÜ: çakışmalar + öneri + adalet sayacı ──
+  const sureMetni = (dk) => {
+    const sa = Math.floor(dk / 60);
+    const d = Math.round(dk % 60);
+    return (sa ? sa + ' sa ' : '') + (d || !sa ? d + ' dk' : '');
+  };
+  const yukCiz = () => {
+    const D = gozetmenDenetimi;
+    const oturumBul = (a) => (kitap ? kitap.oturumlar.find((x) => x.anahtar === a) : null);
+    const durumRenk = {
+      fazla: { bg: '#FEE2E2', fg: '#B91C1C', yazi: 'Fazla' },
+      az: { bg: '#E0F2FE', fg: '#0369A1', yazi: 'Az' },
+      dengeli: { bg: '#DCFCE7', fg: '#166534', yazi: 'Dengeli' },
+    };
+    const th = { ...hucreStili, fontSize: 12, background: '#F1F5F9', padding: '6px 10px' };
+    const td = { ...hucreStili, fontSize: 12.5, padding: '5px 10px' };
+    return (
+      <div
+        style={{
+          overflow: 'auto',
+          height: '100%',
+          display: 'grid',
+          gap: 16,
+          alignContent: 'start',
+        }}
+      >
+        <div data-gozetmen-cakisma-paneli>
+          <div style={{ fontWeight: 800, fontSize: 14, color: '#9A3412', marginBottom: 6 }}>
+            Gözetmen çakışmaları ({D.liste.length})
+          </div>
+          {D.liste.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: '#166534' }}>
+              Aynı saatte iki yerde görevli gözetmen yok.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {D.liste.map((c, i) => {
+                // Öneri, çakışmanın SONRAKİ oturumu için: o oturumda kişi
+                // yerine o saatte boş ve yükü az biri.
+                const hedef = oturumBul(c.oturumlar[c.oturumlar.length - 1]);
+                const oneriler = hedef ? oneriBul(hedef).slice(0, 3) : [];
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      border: '1px solid #FED7AA',
+                      background: '#FFF7ED',
+                      borderRadius: 8,
+                      padding: '8px 10px',
+                      fontSize: 12.5,
+                    }}
+                  >
+                    <div style={{ color: '#7C2D12' }}>
+                      <b>{new Date(c.tarih + 'T00:00:00').toLocaleDateString('tr-TR')}</b> ·{' '}
+                      {c.mesaj}
+                    </div>
+                    {yetkili && hedef && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                        <span style={{ color: '#64748B' }}>
+                          Öneri ({hedef.kodSatiri} oturumunda {c.ad} yerine):
+                        </span>
+                        {oneriler.length === 0 ? (
+                          <span style={{ color: '#B91C1C' }}>o saatte boş gözetmen yok</span>
+                        ) : (
+                          oneriler.map((x) => (
+                            <button
+                              key={x.ad}
+                              type="button"
+                              title={
+                                x.gorev +
+                                ' görev · ' +
+                                sureMetni(x.dakika) +
+                                ' — tıklayınca yazılır'
+                              }
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    hedef.kodSatiri +
+                                      ' oturumunda ' +
+                                      c.ad +
+                                      ' yerine ' +
+                                      x.ad +
+                                      ' yazılsın mı?'
+                                  )
+                                )
+                                  gozetmenDegistir(hedef, c.ad, x.ad);
+                              }}
+                              style={{
+                                border: '1px solid #FDBA74',
+                                background: '#fff',
+                                color: '#9A3412',
+                                borderRadius: 999,
+                                padding: '2px 10px',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {x.ad} · {x.gorev} görev
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div data-gozetmen-yuk-paneli>
+          <div style={{ fontWeight: 800, fontSize: 14, color: '#0F766E', marginBottom: 4 }}>
+            Gözetmen yük sayacı
+          </div>
+          {D.denge && (
+            <div style={{ fontSize: 12.5, color: '#334155', marginBottom: 8 }}>
+              Kişi başı ortalama <b>{D.denge.ortalamaGorev.toFixed(1)}</b> görev ·{' '}
+              <b>{sureMetni(D.denge.ortalamaDakika)}</b>.{' '}
+              <span style={{ color: '#B91C1C', fontWeight: 600 }}>
+                {D.denge.fazla.length} kişi fazla
+              </span>
+              ,{' '}
+              <span style={{ color: '#0369A1', fontWeight: 600 }}>{D.denge.az.length} kişi az</span>{' '}
+              yüklü (ortalamadan %50&apos;den çok sapma). Otomatik atama yükü az olanı önce seçer;
+              başka bölümlerdeki görevler de yüke sayılır.
+            </div>
+          )}
+          <table style={{ borderCollapse: 'collapse', minWidth: 640 }}>
+            <thead>
+              <tr>
+                {[
+                  '#',
+                  'Ad Soyad',
+                  'Görev',
+                  'Toplam süre',
+                  'Gün',
+                  'En yoğun gün',
+                  'Kendi sınavı',
+                  'Durum',
+                ].map((x) => (
+                  <th key={x} style={th}>
+                    {x}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {D.yukler.map((y, i) => {
+                const r = durumRenk[(D.denge && D.denge.durum[y.ad]) || 'dengeli'];
+                return (
+                  <tr key={y.ad}>
+                    <td style={td}>{i + 1}</td>
+                    <td style={{ ...td, textAlign: 'left' }}>{y.ad}</td>
+                    <td style={{ ...td, fontWeight: 700 }}>{y.gorev}</td>
+                    <td style={td}>{sureMetni(y.dakika)}</td>
+                    <td style={td}>{y.gunSayisi}</td>
+                    <td
+                      style={{ ...td, color: y.enYogunGun >= 3 ? '#B91C1C' : undefined }}
+                      title={y.enYogunGun >= 3 ? 'Bir günde 3 ya da daha çok görev' : undefined}
+                    >
+                      {y.enYogunGun}
+                    </td>
+                    <td style={{ ...td, color: '#64748B' }}>{y.kendiSinavi}</td>
+                    <td style={td}>
+                      <span
+                        style={{
+                          padding: '1px 8px',
+                          borderRadius: 999,
+                          background: r.bg,
+                          color: r.fg,
+                          fontWeight: 700,
+                          fontSize: 11.5,
+                        }}
+                      >
+                        {r.yazi}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div style={{ fontSize: 12, color: '#64748B', marginTop: 8 }}>
+            Sayaç ekrandaki programa göre (gizlenen taslak bölümler hariç) hesaplanır. Dersin
+            hocasının kendi sınavı &quot;Kendi sınavı&quot; sütununda ayrı sayılır, adalet hesabına
+            girmez.
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const ayarCiz = () => {
     const a = ayarTaslak;
@@ -5918,6 +6458,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
             <div style={{ flex: 1, minHeight: 0, padding: '10px 16px', overflow: 'hidden' }}>
               {sekme === 'ayar' && ayarCiz()}
               {sekme === 'kisaltma' && kitap && kisaltmaCiz()}
+              {sekme === 'yuk' && kitap && yukCiz()}
               {sekme.startsWith('gun:') &&
                 (aktifGun ? (
                   tabloCiz(aktifGun)
@@ -5941,6 +6482,12 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               }}
             >
               {kitap && sekmeDugmesi('kisaltma', 'Kısaltmalar')}
+              {kitap &&
+                sekmeDugmesi(
+                  'yuk',
+                  gozetmenDenetimi.liste.length > 0 ? '⚠ Gözetmen Yükü' : 'Gözetmen Yükü',
+                  gozetmenDenetimi.liste.length || null
+                )}
               {kitap &&
                 kitap.gunler.map((g) =>
                   sekmeDugmesi('gun:' + g.tarih, g.kisa + ' ' + g.kisaGun, g.oturumSayisi || null)
@@ -6002,6 +6549,8 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                     )
                 )}
                 onKaydet={oturumKaydet}
+                kisiUyarisi={kisiUyarisi}
+                oneriBul={oneriBul}
                 onAyir={ayir}
                 onBirlestir={(a, b) =>
                   birlestir([...a.uyeler, ...b.uyeler], { date: a.date, timeSlot: a.timeSlot })

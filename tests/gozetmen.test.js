@@ -433,3 +433,16 @@ describe('Türkçe/ASCII yazım farkı aynı kişi sayılır', () => {
     expect(b2).not.toContain('ozgur yilmaz');
   });
 });
+
+describe('adalet: başka bölümdeki görevler yüke sayılır', () => {
+  it('başka bölümde görevi olan yerine boş olan seçilir', () => {
+    const e = sinav({ id: 'X', timeSlot: '09:00', studentCount: 10 });
+    const diger = [{ date: e.date, timeSlot: '14:00', duration: 120, supervisor: 'Ali Can' }];
+    const { atamalar } = gozetmenAta(['Ali Can', 'Zeki Su'], [e], {
+      salonBul: tekSalon,
+      hocaKurali: 'haric',
+      digerGorevler: diger,
+    });
+    expect(atamalar.X).toEqual(['Zeki Su']);
+  });
+});
