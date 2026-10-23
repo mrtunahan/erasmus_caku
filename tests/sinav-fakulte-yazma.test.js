@@ -146,3 +146,13 @@ it('fakülte düzenlemesinden sonra gönderim parmak izini tazeleyebilir (merge)
       .izin
   ).toBe(true);
 });
+
+describe('gönderilmiş program kilidi', () => {
+  it('bölüm gönderilmiş programı kendisi geri çekemez; iade edilmişse yeniden gönderir', () => {
+    const mevcut = { bolumId: 'bilgisayar', durum: 'gonderildi' };
+    const geriCek = { ...gonder('bilgisayar', { durum: 'geri_cekildi' }), type: 'update' };
+    expect(sinavFakulteYazmaKarari(geriCek, mevcut, bolumYetkilisi).izin).toBe(false);
+    const iadeli = { bolumId: 'bilgisayar', durum: 'iade' };
+    expect(sinavFakulteYazmaKarari(gonder('bilgisayar'), iadeli, bolumYetkilisi).izin).toBe(true);
+  });
+});

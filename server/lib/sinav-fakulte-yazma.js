@@ -68,6 +68,11 @@ function gonderimKarari(op, mevcut, alan) {
     if (['iadeNotu', 'iadeEden', 'iadeTarihi'].some((k) => veri[k] !== undefined)) {
       return ret('İade bilgisini yalnız fakülte yetkilisi yazar.');
     }
+    // Gönderilmiş program yalnız fakültenin İADESİYLE bölüme döner: bölüm
+    // kendisi geri çekip kilidi açamaz.
+    if (metin(veri.durum) === 'geri_cekildi' && mevcut && metin(mevcut.durum) === 'gonderildi') {
+      return ret('Gönderilen program yalnız fakülte yetkilisinin iadesiyle bölüme döner.');
+    }
     // Fakültenin düzenleme damgası bölümce yazılamaz.
     if (['fakulteDuzenleyen', 'fakulteDuzenlemeTarihi'].some((k) => veri[k] !== undefined)) {
       return ret('Fakülte düzenleme bilgisini yalnız fakülte yetkilisi yazar.');
