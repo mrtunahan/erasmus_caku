@@ -16,6 +16,27 @@ const {
 } = require('../middleware/auth');
 
 const router = express.Router();
+const oturumIptal = require('../lib/oturum-iptal');
+
+// ── ŞİFRE DEĞİŞİNCE OTURUMLAR KAPANIR ──
+// Hesabı ele geçirilen kişi şifresini değiştirse de çalınan jeton 24 saat
+// geçerli kalıyordu. Şifre her değiştiğinde o hesabın ÖNCEKİ jetonları
+// geçersiz olur (lib/oturum-iptal.js). Kendi şifresini değiştiren kişiye
+// yeni jeton verilir: bu cihazdaki oturumu sürer, öbür cihazlar kapanır.
+async function sifreSonrasiOturumlar(res, anahtar, kendiYuk) {
+  try {
+    const db = await getDbSafe();
+    await oturumIptal.iptalEt(db, anahtar);
+  } catch (e) {
+    console.warn('[auth] oturum iptali yazılamadı:', e && e.message);
+  }
+  if (kendiYuk) {
+    const { iat, exp, ...yuk } = kendiYuk;
+    void iat;
+    void exp;
+    setTokenCookie(res, generateToken(yuk));
+  }
+}
 
 const BCRYPT_ROUNDS = 12;
 
@@ -788,6 +809,7 @@ router.post('/change-password', async (req, res) => {
       }
 
       await setPasswordDoc('student_passwords', { [identifier]: bcryptHash }, true);
+      await sifreSonrasiOturumlar(res, 'student:' + identifier, kendiHesabi ? authUser : null);
       await auditPasswordChange(
         authUser,
         'student',
@@ -809,6 +831,7 @@ router.post('/change-password', async (req, res) => {
         if (hata) return res.json({ success: false, error: hata });
       }
       await setPasswordDoc('admin', { password: bcryptHash, updatedAt: new Date() });
+      await sifreSonrasiOturumlar(res, 'admin:admin', adminHesabiKendi ? authUser : null);
       await auditPasswordChange(
         authUser,
         'admin',
@@ -833,6 +856,7 @@ router.post('/change-password', async (req, res) => {
         if (hata) return res.json({ success: false, error: hata });
       }
       await setPasswordDoc('professor_passwords', { [identifier]: bcryptHash }, true);
+      await sifreSonrasiOturumlar(res, 'professor:' + identifier, kendiHesabi ? authUser : null);
       await auditPasswordChange(
         authUser,
         'professor',
@@ -859,6 +883,11 @@ router.post('/change-password', async (req, res) => {
         if (hata) return res.json({ success: false, error: hata });
       }
       await setPasswordDoc('department_manager_passwords', { [identifier]: bcryptHash }, true);
+      await sifreSonrasiOturumlar(
+        res,
+        'bolum_yetkilisi:' + identifier,
+        kendiHesabi ? authUser : null
+      );
       await auditPasswordChange(
         authUser,
         'bolum_yetkilisi',
@@ -1094,9 +1123,11 @@ router.post('/admin-reset', async (req, res) => {
 
     if (targetRole === 'student' && targetIdentifier) {
       await setPasswordDoc('student_passwords', { [targetIdentifier]: bcryptHash }, true);
+      await sifreSonrasiOturumlar(res, 'student:' + targetIdentifier, null);
       return res.json({ success: true });
     } else if (targetRole === 'professor' && targetIdentifier) {
       await setPasswordDoc('professor_passwords', { [targetIdentifier]: bcryptHash }, true);
+      await sifreSonrasiOturumlar(res, 'professor:' + targetIdentifier, null);
       return res.json({ success: true });
     }
 
@@ -1121,6 +1152,14 @@ router.post('/default-professor-password', async (req, res) => {
     return res.status(400).json({ error: 'Şifre en az 6 karakter olmalıdır.' });
   }
 
+  // Bu uç da ADMIN ŞİFRESİNİ doğruluyor ve deneme sınırı yoktu: şifre
+  // burada sınırsız denenip doğru tahminle ortak akademisyen şifresi
+  // değiştirilebiliyordu. admin-reset ile AYNI sayaç (denemeler birikir).
+  const resetKey = 'admin-reset';
+  if (!checkRateLimit(resetKey)) {
+    return res.status(429).json({ error: 'Çok fazla deneme. 15 dakika sonra tekrar deneyin.' });
+  }
+
   try {
     const adminDoc = await getPasswordDoc('admin');
     if (!adminDoc.password) {
@@ -1129,8 +1168,10 @@ router.post('/default-professor-password', async (req, res) => {
 
     const adminValid = await verifyPassword(adminPassword, adminDoc.password, 'admin');
     if (!adminValid) {
+      recordAttempt(resetKey);
       return res.status(403).json({ error: 'Admin şifresi hatalı.' });
     }
+    clearAttempts(resetKey);
 
     const bcryptHash = await hashPassword(defaultPassword);
     await setPasswordDoc('defaults', { professorDefault: bcryptHash, updatedAt: new Date() }, true);

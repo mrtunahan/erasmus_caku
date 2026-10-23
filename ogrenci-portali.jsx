@@ -2066,7 +2066,9 @@ const CommentItem = ({
                 <div
                   className="portal-post-content"
                   style={{ fontSize: 13, color: PC.text, marginTop: 4, lineHeight: 1.5 }}
-                  dangerouslySetInnerHTML={{ __html: renderMentions(sanitizeHtml(comment.text)) }}
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeHtml(renderMentions(sanitizeHtml(comment.text))),
+                  }}
                 />
               ) : (
                 <div
@@ -3755,7 +3757,9 @@ const PostCard = ({
                     lineHeight: 1.7,
                     wordBreak: 'break-word',
                   }}
-                  dangerouslySetInnerHTML={{ __html: renderMentions(sanitizeHtml(displayContent)) }}
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizeHtml(renderMentions(sanitizeHtml(displayContent))),
+                  }}
                 />
               ) : (
                 <div
