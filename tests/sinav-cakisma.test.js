@@ -98,8 +98,9 @@ describe('cakismaAnahtari', () => {
 });
 
 describe('salon çakışması', () => {
-  it('KAPASİTE YETİYORSA şartlı kabul edilebilir', () => {
-    // Fakültede bir salonda iki bölümün sınavı bilerek birlikte yapılabiliyor.
+  it('KAPASİTE YETSE DE aynı salonda örtüşen iki oturum engeldir', () => {
+    // Aynı salonda saatleri örtüşen iki ayrı oturum olamaz; birlikte
+    // yapılacaksa ortak oturum olarak birleştirilir.
     const a = sinav({ id: 'a', studentCount: 20, room: 'M11101' });
     const b = sinav({
       id: 'b',
@@ -111,8 +112,8 @@ describe('salon çakışması', () => {
     const c = cakismalariBul([a, b], { salonKapasiteleri: KAPASITE });
     expect(c.length).toBe(1);
     expect(c[0].tur).toBe('salon');
-    expect(c[0].seviye).toBe('uyari');
-    expect(c[0].kabulEdilebilir).toBe(true);
+    expect(c[0].seviye).toBe('engel');
+    expect(c[0].kabulEdilebilir).toBe(false);
     expect(c[0].aciklama).toMatch(/farklı bölümler/);
   });
 
@@ -206,9 +207,19 @@ describe('sınıf çakışması', () => {
 });
 
 describe('şartlı kabul', () => {
+  // Kabul edilebilir (uyarı) çakışma: aynı hocanın iki bölümdeki sınavı,
+  // farklı salonlarda.
   const ciftBolum = () => [
-    sinav({ id: 'a', studentCount: 20, room: 'M11101' }),
-    sinav({ id: 'b', studentCount: 20, room: 'M11101', departmentId: 'elektrik', sinif: 2 }),
+    sinav({ id: 'a', studentCount: 20, room: 'M11101', professor: 'Dr. Ali Veli' }),
+    sinav({
+      id: 'b',
+      code: 'EEM201',
+      studentCount: 20,
+      room: 'M11102',
+      departmentId: 'elektrik',
+      sinif: 2,
+      professor: 'Dr. Ali Veli',
+    }),
   ];
 
   it('kabul kaydı çakışmaya işlenir', () => {
@@ -283,13 +294,15 @@ describe('özet ve hazırlık', () => {
   });
 
   it('hepsi kabul edilmişse hazır', () => {
-    const a = sinav({ id: 'a', studentCount: 20, room: 'M11101' });
+    const a = sinav({ id: 'a', studentCount: 20, room: 'M11101', professor: 'Dr. Ali Veli' });
     const b = sinav({
       id: 'b',
+      code: 'EEM201',
       studentCount: 20,
-      room: 'M11101',
+      room: 'M11102',
       departmentId: 'elektrik',
       sinif: 2,
+      professor: 'Dr. Ali Veli',
     });
     const ilk = cakismalariBul([a, b], { salonKapasiteleri: KAPASITE })[0];
     const k = kabulKaydi(ilk, 'Ortak salon kullanımı planlandı', { name: 'Yetkili' });

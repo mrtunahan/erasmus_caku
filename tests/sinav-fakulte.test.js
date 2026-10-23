@@ -863,3 +863,59 @@ describe('salon başına gözetmen, çakışma, yük sayacı', () => {
     expect(oneri.map((x) => x.ad)).toEqual(['Gül H']);
   });
 });
+
+describe('aynı salonda örtüşme engeli ve gözetmen görev listesi', () => {
+  const S = SFTum;
+  const e = (id, ek) => ({
+    id,
+    code: id.toUpperCase(),
+    name: 'Ders ' + id,
+    date: '2026-11-09',
+    timeSlot: '10:00',
+    duration: 60,
+    studentCount: 20,
+    departmentId: 'bil',
+    room: 'M1',
+    ...ek,
+  });
+  it('1 dakikalık örtüşme bile engeldir; bitişik saatler serbest', () => {
+    const l = [e('a'), e('b', { timeSlot: '11:00', room: 'M2' })];
+    expect(
+      S.degisiklikSalonCakismalari(l, [{ id: 'b', data: { room: 'M1', timeSlot: '10:59' } }])
+    ).toHaveLength(1);
+    expect(
+      S.degisiklikSalonCakismalari(l, [{ id: 'b', data: { room: 'M1', timeSlot: '11:00' } }])
+    ).toHaveLength(0);
+    // Farklı salon serbest
+    expect(
+      S.degisiklikSalonCakismalari(l, [{ id: 'b', data: { timeSlot: '10:00' } }])
+    ).toHaveLength(0);
+  });
+  it('birleşik oturum tek oturumdur; önceden var olan örtüşme ilgisiz değişikliği engellemez', () => {
+    const l = [e('a', { birlesimId: 'B1' }), e('b', { birlesimId: 'B1' }), e('c', { room: 'M1' })];
+    // c zaten a/b ile aynı salonda: gözetmen değişikliği engellenmez
+    expect(S.degisiklikSalonCakismalari(l, [{ id: 'c', data: { supervisor: 'X' } }])).toHaveLength(
+      0
+    );
+    // c birleşik oturuma katılırsa çakışma kalmaz
+    expect(S.degisiklikSalonCakismalari(l, [{ id: 'c', data: { birlesimId: 'B1' } }])).toHaveLength(
+      0
+    );
+  });
+  it('gözetmen listesi kişinin kendi salonunu yazar', () => {
+    const ot = S.fakulteOturumlari([
+      e('a', {
+        room: 'M1 - M2',
+        supervisor: 'Ayşe K, Can D',
+        salonGozetmenleri: [
+          { salon: 'M1', gozetmenler: ['Ayşe K'] },
+          { salon: 'M2', gozetmenler: ['Can D'] },
+        ],
+      }),
+    ]);
+    expect(S.gozetmenGorevListesi(ot)).toEqual([
+      { ad: 'Ayşe K', tarih: '2026-11-09', bas: '10:00', bit: '11:00', salon: 'M1' },
+      { ad: 'Can D', tarih: '2026-11-09', bas: '10:00', bit: '11:00', salon: 'M2' },
+    ]);
+  });
+});

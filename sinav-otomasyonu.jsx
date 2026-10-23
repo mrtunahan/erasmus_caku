@@ -3263,6 +3263,57 @@ function programSayfasi(XLSX, tablo, secenek) {
 
 // FAKÜLTE ÇIKTISI — fakülte yetkilisinin Excel'i: "Kısaltmalar" + gün başına
 // bir sayfa ("08.06"). Model lib/sinav-fakulte.js → fakulteKitabi.
+// Gözetmen görev listesi: yalnız gözetmen, tarih, gün, saat ve atandığı salon.
+async function exportGozetmenXLSX(satirlar, baslik, dosyaAdi) {
+  const XLSX = await xlsxYukle();
+  if (!XLSX) return;
+  const ince = { style: 'thin', color: { rgb: '000000' } };
+  const kenar = { top: ince, bottom: ince, left: ince, right: ince };
+  const gunAdi = (t) => new Date(t + 'T00:00:00').toLocaleDateString('tr-TR', { weekday: 'long' });
+  const tarihYaz = (t) => new Date(t + 'T00:00:00').toLocaleDateString('tr-TR');
+  const veri = [[baslik], ['Gözetmen', 'Tarih', 'Gün', 'Saat', 'Salon']];
+  const ilkSatirlar = [];
+  let onceki = '';
+  satirlar.forEach((x) => {
+    const yeni = x.ad !== onceki;
+    if (yeni) ilkSatirlar.push(veri.length);
+    veri.push([
+      yeni ? x.ad : '',
+      tarihYaz(x.tarih),
+      gunAdi(x.tarih),
+      x.bas + ' - ' + x.bit,
+      x.salon,
+    ]);
+    onceki = x.ad;
+  });
+  const ws = XLSX.utils.aoa_to_sheet(veri);
+  for (let r = 1; r < veri.length; r++) {
+    for (let c = 0; c < 5; c++) {
+      const a = XLSX.utils.encode_cell({ r, c });
+      if (!ws[a]) ws[a] = { v: '', t: 's' };
+      ws[a].s = {
+        font: { name: 'Times New Roman', bold: r === 1 || c === 0 },
+        fill: r === 1 ? { fgColor: { rgb: 'E2E8F0' } } : undefined,
+        border: {
+          ...kenar,
+          // Kişi değişince üstte kalın çizgi: kişiler birbirinden ayrılsın.
+          ...(ilkSatirlar.includes(r)
+            ? { top: { style: 'medium', color: { rgb: '000000' } } }
+            : {}),
+        },
+        alignment: { horizontal: c === 0 ? 'left' : 'center', vertical: 'center' },
+      };
+    }
+  }
+  const a0 = XLSX.utils.encode_cell({ r: 0, c: 0 });
+  ws[a0].s = { font: { name: 'Times New Roman', bold: true, sz: 13 } };
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+  ws['!cols'] = [{ wch: 38 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 22 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Gözetmenler');
+  XLSX.writeFile(wb, dosyaAdi + '.xlsx');
+}
+
 async function exportFakulteXLSX(kitap, dosyaAdi) {
   const XLSX = await xlsxYukle();
   if (!XLSX) return;
@@ -3788,6 +3839,7 @@ const OturumDuzenle = ({
   onBirlestir,
   kisiUyarisi,
   oneriBul,
+  salonKontrol,
 }) => {
   const SFk = window.SinavFakulte;
   const parca = (v) =>
@@ -3907,6 +3959,12 @@ const OturumDuzenle = ({
     });
   }
   const oneriler = oneriBul ? oneriBul(hedef) : [];
+  // Seçilen saat/salonda başka bir oturum var mı? (kaydı engeller)
+  const salonEngelListesi =
+    salonKontrol &&
+    (tarih !== oturum.date || saat !== oturum.timeSlot || salon !== oturum.salonlar.join(' - '))
+      ? salonKontrol(oturum, { date: tarih, timeSlot: saat, room: salon })
+      : [];
   const oneriEkle = (ad) => {
     if (cokSalon) {
       // En az gözetmenli salona.
@@ -4148,10 +4206,33 @@ const OturumDuzenle = ({
               </div>
             )}
           </div>
+          {salonEngelListesi.length > 0 && (
+            <div
+              data-salon-engeli
+              style={{
+                marginBottom: 10,
+                padding: '8px 10px',
+                background: '#FEF2F2',
+                border: '1px solid #FECACA',
+                borderRadius: 8,
+                fontSize: 12.5,
+                color: '#991B1B',
+                whiteSpace: 'pre-line',
+              }}
+            >
+              <b>Bu saatte seçilen salonda başka bir sınav var</b> — aynı salonda saatleri örtüşen
+              iki ayrı sınav olamaz (1 dakika bile).
+              {'\n' +
+                (window.SinavFakulte
+                  ? window.SinavFakulte.salonCakismaMetni(salonEngelListesi)
+                  : '')}
+              {'\n'}Birlikte yapılacaksa aşağıdan birleştirin; değilse başka saat ya da salon seçin.
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button
               type="button"
-              disabled={!degisti || kaydediliyor}
+              disabled={!degisti || kaydediliyor || salonEngelListesi.length > 0}
               onClick={async () => {
                 setKaydediliyor(true);
                 await onKaydet(oturum, {
@@ -4168,11 +4249,11 @@ const OturumDuzenle = ({
                 padding: '0 16px',
                 border: 'none',
                 borderRadius: 8,
-                background: degisti ? '#0F766E' : '#CBD5E1',
+                background: degisti && salonEngelListesi.length === 0 ? '#0F766E' : '#CBD5E1',
                 color: '#fff',
                 fontWeight: 700,
                 fontSize: 13,
-                cursor: degisti ? 'pointer' : 'default',
+                cursor: degisti && salonEngelListesi.length === 0 ? 'pointer' : 'default',
               }}
             >
               {kaydediliyor ? 'Kaydediliyor…' : 'Değişiklikleri kaydet'}
@@ -4686,8 +4767,29 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
       );
     }
   };
+  // Aynı salonda saatleri örtüşen (1 dk bile) iki ayrı oturum yazılamaz.
+  // Denetim bütün bölümlerin KAYITLI sınavları üzerinden yapılır (gizlenen
+  // taslaklar dahil); yalnız saati/salonu/oturumu değişen oturuma bakılır.
+  const salonEngeli = (ops) => {
+    if (!SF || !SF.degisiklikSalonCakismalari) return [];
+    return SF.degisiklikSalonCakismalari(
+      bolumDurumlari.flatMap((x) => x.sinavlar),
+      ops
+        .filter((o) => o.collection === 'sinav_programi' && o.type === 'update')
+        .map((o) => ({ id: o.docId, data: o.data }))
+    );
+  };
   const sinavYaz = async (ops, mesaj) => {
     if (ops.length === 0) return;
+    const engel = salonEngeli(ops);
+    if (engel.length > 0) {
+      alert(
+        'Kaydedilmedi: aynı salonda saatleri örtüşen iki ayrı sınav olamaz (1 dakika bile).\n\n' +
+          SF.salonCakismaMetni(engel) +
+          '\n\nBirlikte yapılacaksa oturumları birleştirin; değilse başka saat ya da salon seçin.'
+      );
+      return;
+    }
     try {
       for (let i = 0; i < ops.length; i += 50) await DBWrite.batch(ops.slice(i, i + 50));
       await gonderimImzasiniTazele(ops);
@@ -5004,6 +5106,21 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
         '_Programi' +
         (taslakDahilExcel ? '_TASLAK' : '')
       ).replace(/[^\wğüşıöçĞÜŞİÖÇ-]+/g, '_')
+    );
+  };
+
+  // Gözetmen çıktısı: ekrandaki programın gözetmenleri ve atandıkları salonlar.
+  const gozetmenCiktisi = () => {
+    if (!SF || !kitap || !SF.gozetmenGorevListesi) return;
+    const satirlar = SF.gozetmenGorevListesi(kitap.oturumlar);
+    if (satirlar.length === 0) {
+      alert('Ekrandaki programda gözetmen ataması yok.');
+      return;
+    }
+    exportGozetmenXLSX(
+      satirlar,
+      (grup ? grup.etiket + ' — ' : '') + 'Gözetmen Görev Listesi',
+      ('Gozetmen_Gorevleri_' + (grup ? grup.etiket : 'Sinav')).replace(/[^\wğüşıöçĞÜŞİÖÇ-]+/g, '_')
     );
   };
 
@@ -6318,6 +6435,26 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
           </Btn>
           <button
             type="button"
+            data-gozetmen-ciktisi
+            onClick={gozetmenCiktisi}
+            disabled={!kitap || kitap.oturumlar.length === 0}
+            title="Yalnız gözetmenler, görev tarih/saatleri ve atandıkları salonlar (ekrandaki program)"
+            style={{
+              height: 34,
+              padding: '0 10px',
+              border: '1px solid #0F766E',
+              borderRadius: 8,
+              background: '#fff',
+              color: '#0F766E',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            Gözetmen çıktısı
+          </button>
+          <button
+            type="button"
             onClick={() => excel(true)}
             disabled={!kitap || kitap.gunler.length === 0}
             title="Göndermemiş bölümlerin taslakları da (kesik çizgili) dahil"
@@ -6490,7 +6627,17 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                 )}
               {kitap &&
                 kitap.gunler.map((g) =>
-                  sekmeDugmesi('gun:' + g.tarih, g.kisa + ' ' + g.kisaGun, g.oturumSayisi || null)
+                  sekmeDugmesi(
+                    'gun:' + g.tarih,
+                    // Salonda örtüşen oturum varsa sekme işaretlenir.
+                    (g.tablo.satirlar.some((r) => r.hucreler.some((h) => h && h.cakisma))
+                      ? '⚠ '
+                      : '') +
+                      g.kisa +
+                      ' ' +
+                      g.kisaGun,
+                    g.oturumSayisi || null
+                  )
                 )}
               {yetkili && ayarTaslak && sekmeDugmesi('ayar', 'Ayarlar')}
             </div>
@@ -6551,6 +6698,16 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                 onKaydet={oturumKaydet}
                 kisiUyarisi={kisiUyarisi}
                 oneriBul={oneriBul}
+                salonKontrol={(o, d) =>
+                  salonEngeli(
+                    o.uyeler.map((u) => ({
+                      collection: 'sinav_programi',
+                      type: 'update',
+                      docId: u.id,
+                      data: { date: d.date, timeSlot: d.timeSlot, room: d.room },
+                    }))
+                  )
+                }
                 onAyir={ayir}
                 onBirlestir={(a, b) =>
                   birlestir([...a.uyeler, ...b.uyeler], { date: a.date, timeSlot: a.timeSlot })
