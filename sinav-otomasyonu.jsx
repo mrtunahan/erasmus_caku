@@ -4659,6 +4659,28 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
     );
     return { ...c, yukler, denge: SF.yukDengesi(yukler) };
   }, [SF, kitap, gozetmenSecenekleri]);
+  // Ders programıyla çakışma (uyarı) — ekrandaki oturumların sınavları.
+  const [dersOlaylari, setDersOlaylari] = useState([]);
+  useEffect(() => {
+    let canli = true;
+    if (window.dersProgramiOlaylariniOku) {
+      window.dersProgramiOlaylariniOku().then((l) => canli && setDersOlaylari(l || []));
+    }
+    return () => {
+      canli = false;
+    };
+  }, []);
+  const dersCakismalari = useMemo(
+    () =>
+      window.DersSinavCakisma && kitap && dersOlaylari.length
+        ? window.DersSinavCakisma.dersSinavCakismalari(
+            kitap.oturumlar.flatMap((o) => o.uyeler || []),
+            dersOlaylari,
+            { donemler: (veri && veri.donemler) || [] }
+          )
+        : [],
+    [kitap, dersOlaylari, veri]
+  );
   const kisiUyarisi = (ad, hedef) => {
     if (!SF || !kitap) return null;
     const m = SF.gozetmenMesgulMu(ad, hedef, kitap.oturumlar);
@@ -5570,6 +5592,22 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
             </div>
           )}
         </div>
+
+        {dersCakismalari.length > 0 && (
+          <div data-ders-cakisma-paneli>
+            <div style={{ fontWeight: 800, fontSize: 14, color: '#92400E', marginBottom: 6 }}>
+              Ders programıyla çakışmalar ({dersCakismalari.length}) — uyarı
+            </div>
+            <div style={{ display: 'grid', gap: 4, fontSize: 12.5, color: '#78350F' }}>
+              {dersCakismalari.slice(0, 60).map((c, i) => (
+                <div key={i}>
+                  {new Date(c.sinav.date + 'T00:00:00').toLocaleDateString('tr-TR')} · {c.mesaj}
+                </div>
+              ))}
+              {dersCakismalari.length > 60 && <div>… ve {dersCakismalari.length - 60} daha</div>}
+            </div>
+          </div>
+        )}
 
         <div data-gozetmen-yuk-paneli>
           <div style={{ fontWeight: 800, fontSize: 14, color: '#0F766E', marginBottom: 4 }}>
@@ -7866,6 +7904,27 @@ function SinavOtomasyonuApp({
   };
   const programKilitli = donemKilitli(activePeriod);
   const imzaTazeleRef = _useRef(0);
+  // ── Ders programıyla çakışma (uyarı): sınav salonunda o saatte ders var mı,
+  // gözetmen o saatte ders veriyor mu (lib/ders-sinav-cakisma.js) ──
+  const [dersOlaylari, setDersOlaylari] = useState([]);
+  useEffect(() => {
+    let canli = true;
+    if (window.dersProgramiOlaylariniOku) {
+      window.dersProgramiOlaylariniOku().then((l) => canli && setDersOlaylari(l || []));
+    }
+    return () => {
+      canli = false;
+    };
+  }, []);
+  const dersCakismalari = useMemo(
+    () =>
+      window.DersSinavCakisma && dersOlaylari.length
+        ? window.DersSinavCakisma.dersSinavCakismalari(periodExams, dersOlaylari, {
+            donemler: periods,
+          })
+        : [],
+    [periodExams, dersOlaylari, periods]
+  );
   useEffect(() => {
     if (!SF || !fakulteDuzeyi || !gonderimKaydi || gonderimKaydi.durum !== 'gonderildi') return;
     // Yalnız fakülte düzeyindeki kişinin bu ekrandaki son işleminden sonra
@@ -9449,6 +9508,39 @@ function SinavOtomasyonuApp({
                   </div>
                 </div>
               </Card>
+            )}
+
+            {dersCakismalari.length > 0 && (
+              <details
+                data-ders-cakisma
+                style={{
+                  marginBottom: 12,
+                  padding: '8px 14px',
+                  borderRadius: 10,
+                  background: '#FFFBEB',
+                  border: '1px solid #FDE68A',
+                  fontSize: 13,
+                  color: '#78350F',
+                }}
+              >
+                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>
+                  ⚠ Ders programıyla {dersCakismalari.length} çakışma (uyarı)
+                </summary>
+                <div style={{ marginTop: 6, display: 'grid', gap: 3 }}>
+                  {dersCakismalari.slice(0, 40).map((c, i) => (
+                    <div key={i}>
+                      {new Date(c.sinav.date + 'T00:00:00').toLocaleDateString('tr-TR')} · {c.mesaj}
+                    </div>
+                  ))}
+                  {dersCakismalari.length > 40 && (
+                    <div>… ve {dersCakismalari.length - 40} daha</div>
+                  )}
+                  <div style={{ fontSize: 12, color: '#92400E', marginTop: 4 }}>
+                    Uyarıdır: o hafta ders yapılmayacaksa ya da ders başka salona alındıysa
+                    görmezden gelebilirsiniz.
+                  </div>
+                </div>
+              </details>
             )}
 
             {programKilitli && (
