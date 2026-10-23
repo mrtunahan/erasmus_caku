@@ -4469,7 +4469,17 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
         (e) => e && ayniBolumMu(e.departmentId, b.id) && donemIdleri.has(e.periodId)
       );
       const kimlik = SF.gonderimKimligi(b.id, grup.anahtar);
-      const kayit = SF.gonderimKaydiBul(veri.gonderimler, b.id, grup.anahtar);
+      // Gönderim kaydı bölüm kimliğinin bütün biçimleriyle aranır (eski slug
+      // ile kaydedilmiş gönderim de bulunsun; iade doğru belgeye yazılsın).
+      const kayit =
+        [
+          String(b.id),
+          ...(Array.isArray(b.kimlikler) ? b.kimlikler : []),
+          ...(window.bolumKimlikleri ? window.bolumKimlikleri(String(b.id)) : []),
+        ]
+          .filter((v, i, l) => v && l.indexOf(v) === i)
+          .map((v) => SF.gonderimKaydiBul(veri.gonderimler, v, grup.anahtar))
+          .find(Boolean) || null;
       return {
         bolum: b,
         sinavlar,
