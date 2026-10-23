@@ -69,9 +69,14 @@ function gonderimKarari(op, mevcut, alan) {
       return ret('İade bilgisini yalnız fakülte yetkilisi yazar.');
     }
     // Gönderilmiş program yalnız fakültenin İADESİYLE bölüme döner: bölüm
-    // kendisi geri çekip kilidi açamaz.
-    if (metin(veri.durum) === 'geri_cekildi' && mevcut && metin(mevcut.durum) === 'gonderildi') {
-      return ret('Gönderilen program yalnız fakülte yetkilisinin iadesiyle bölüme döner.');
+    // kendisi geri çekemez, durumu başka bir değere çeviremez ve belgeyi
+    // "durum" alanı olmadan baştan yazıp silemez (kilit böyle açılıyordu).
+    if (mevcut && metin(mevcut.durum) === 'gonderildi') {
+      const sonDurum =
+        veri.durum !== undefined ? metin(veri.durum) : tumdenYazim ? '' : 'gonderildi';
+      if (sonDurum !== 'gonderildi') {
+        return ret('Gönderilen program yalnız fakülte yetkilisinin iadesiyle bölüme döner.');
+      }
     }
     // Fakültenin düzenleme damgası bölümce yazılamaz.
     if (['fakulteDuzenleyen', 'fakulteDuzenlemeTarihi'].some((k) => veri[k] !== undefined)) {

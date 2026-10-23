@@ -402,24 +402,75 @@ async function odaProgrami(db, oda) {
 
 // Dersin bu dönemki sınavları (Sınav Otomasyonu → sinav_programi). Okunamazsa
 // boş liste: oda yine açılır.
+//
+// ⚠ YALNIZ FAKÜLTEYE GÖNDERİLMİŞ PROGRAM GÖRÜNÜR. Taslak takvime bırakılan
+// (ya da fakülteden iade edilen) sınavın tarihi öğrenciye kesinmiş gibi
+// görünüyordu. Sınav, bölümünün o dönem grubu için gönderim kaydı
+// "gonderildi" ise listelenir. Ders koduyla eşleştirme de yalnız odanın
+// kendi bölümünün sınavları arasında yapılır (başka bölümün aynı kodlu
+// sınavı karışmasın).
+let sinavFakulteSozu = null;
+const sinavFakulte = () =>
+  (sinavFakulteSozu = sinavFakulteSozu || import('../../lib/sinav-fakulte.js'));
 async function odaSinavlariOku(db, oda) {
   try {
     const K = await kural();
+    const SFk = await sinavFakulte();
+    const H = require('../lib/bolum-kimlik');
+    const harita = H.bolumKimlikHaritasi(await db.collection('departments').find({}).toArray());
     const idler = K.odaDersKimlikleri(oda);
     let sinavlar = await db
       .collection('sinav_programi')
       .find({ courseId: { $in: idler } })
       .toArray();
-    // Ders başka bir kayıtla programa konmuşsa ders koduyla bulunur.
-    if (!sinavlar.length) {
+    // Ders başka bir kayıtla programa konmuşsa ders koduyla bulunur — yalnız
+    // odanın bölümünde.
+    const odaBolumu = metin(oda && oda.departmentId);
+    if (!sinavlar.length && odaBolumu) {
       sinavlar = await db
         .collection('sinav_programi')
-        .find({ code: { $exists: true } })
-        .project({ courseId: 1, code: 1, date: 1, timeSlot: 1, room: 1, periodId: 1, _docId: 1 })
+        .find({
+          departmentId: { $in: H.bolumVaryantlari(harita, odaBolumu) },
+          code: { $exists: true },
+        })
+        .project({
+          courseId: 1,
+          code: 1,
+          date: 1,
+          timeSlot: 1,
+          room: 1,
+          periodId: 1,
+          departmentId: 1,
+          _docId: 1,
+        })
         .toArray();
     }
     if (!sinavlar.length) return [];
     const donemler = await db.collection('sinav_donemler').find({}).toArray();
+    const donemOf = new Map(
+      donemler.map((d) => [metin(d._docId || d.id || (d._id && String(d._id))), d])
+    );
+    const gonderimler = await db
+      .collection('sinav_gonderimleri')
+      .find({ durum: 'gonderildi' }, { projection: { _docId: 1 } })
+      .toArray();
+    const gonderilmis = new Set();
+    gonderimler.forEach((g) => {
+      if (g._docId) gonderilmis.add(String(g._docId));
+      if (g._id) gonderilmis.add(String(g._id));
+    });
+    const yayinda = (x) => {
+      const d = donemOf.get(metin(x.periodId));
+      if (!d) return false;
+      const bolum = metin(x.departmentId) || metin(d.departmentId);
+      if (!bolum) return false;
+      const grup = SFk.donemGrubu(d);
+      return H.bolumVaryantlari(harita, bolum).some((v) =>
+        SFk.gonderimKimlikleri(v, grup).some((k) => gonderilmis.has(k))
+      );
+    };
+    sinavlar = sinavlar.filter(yayinda);
+    if (!sinavlar.length) return [];
     return K.odaSinavlari(oda, sinavlar, donemler);
   } catch (e) {
     console.warn('[oda] sınav programı okunamadı:', e && e.message);

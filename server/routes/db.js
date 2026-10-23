@@ -1567,6 +1567,17 @@ async function enforceWritePolicies(db, op, user) {
               ''
           );
           denetimler.push([bolum, donem]);
+          // Sınav başka bir döneme ya da bölüme TAŞINIYORSA hedef de kilitli
+          // olmamalı (açık dönemden gönderilmiş döneme taşıma).
+          const yeniPid = String(veri.periodId || '');
+          const yeniBolum = String(veri.departmentId || '');
+          if (mevcut && ((yeniPid && yeniPid !== pid) || (yeniBolum && yeniBolum !== bolum))) {
+            const hedefDonem =
+              yeniPid && yeniPid !== pid
+                ? await findDocByAnyId(db, 'sinav_donemler', yeniPid)
+                : donem;
+            denetimler.push([yeniBolum || bolum, hedefDonem]);
+          }
         } else {
           const bolum = String((mevcut && mevcut.departmentId) || veri.departmentId || '');
           if (mevcut) denetimler.push([bolum, mevcut]);
