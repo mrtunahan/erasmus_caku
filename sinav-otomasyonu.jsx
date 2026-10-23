@@ -2745,24 +2745,13 @@ async function exportDeptPrintable(
     return String(a.timeSlot || '').localeCompare(String(b.timeSlot || ''));
   });
 
-  const ek = atamaSecenek || {};
-  const { oneri } = otomatikAtamaHesapla({
-    sinavlar: sorted,
-    salonlar: customClassrooms && customClassrooms.length > 0 ? customClassrooms : null,
-    gozetmenAdlari: ek.gozetmenAdlari || [],
-    ekGozetmenAdlari: ek.ekGozetmenAdlari,
-    kurallar: ek.kurallar,
-    musaitsizlik: ek.musaitsizlik,
-    digerSinavlar: ek.digerSinavlar,
-    kapasiteler: ek.kapasiteler,
-    ortakUyeler: ek.ortakUyeler,
-  });
+  // Resmî çıktı yalnız KAYITLI salon ve gözetmeni basar: kaydedilmemiş
+  // otomatik öneri belgede kesinmiş gibi görünüyordu (fakülte tablosuyla da
+  // farklı kişi çıkabiliyordu). Boş alan çıktı öncesinde uyarılır.
+  void atamaSecenek;
   const enriched = sorted.map((exam) => {
-    // Elle girilen salon/gözetmen esastır; yoksa Dekanlık çıktısıyla aynı öneri.
-    const o = oneri[exam.id || exam.code + exam.date + exam.timeSlot] || {};
-    // Öneri, girilen salonu korur ve kapasite yetmiyorsa salon ekler.
-    const room = o.room && o.room !== 'TBD' ? o.room : exam.room || '';
-    const supervisors = (exam.supervisor || o.supervisor || '').trim();
+    const room = exam.room && exam.room !== 'TBD' ? exam.room : '';
+    const supervisors = (exam.supervisor || '').trim();
     const [sh, sm] = exam.timeSlot.split(':').map(Number);
     const totalMin = sh * 60 + sm + (exam.duration || 60);
     const eh = String(Math.floor(totalMin / 60)).padStart(2, '0');
@@ -3285,7 +3274,7 @@ async function exportGozetmenXLSX(satirlar, baslik, dosyaAdi) {
   const kenar = { top: ince, bottom: ince, left: ince, right: ince };
   const gunAdi = (t) => new Date(t + 'T00:00:00').toLocaleDateString('tr-TR', { weekday: 'long' });
   const tarihYaz = (t) => new Date(t + 'T00:00:00').toLocaleDateString('tr-TR');
-  const veri = [[baslik], ['Gözetmen', 'Tarih', 'Gün', 'Saat', 'Salon']];
+  const veri = [[baslik], ['Gözetmen', 'Tarih', 'Gün', 'Saat', 'Salon', 'Not']];
   const ilkSatirlar = [];
   let onceki = '';
   satirlar.forEach((x) => {
@@ -3297,12 +3286,13 @@ async function exportGozetmenXLSX(satirlar, baslik, dosyaAdi) {
       gunAdi(x.tarih),
       x.bas + ' - ' + x.bit,
       x.salon,
+      x.hoca ? 'Dersin hocası (kendi sınavı)' : '',
     ]);
     onceki = x.ad;
   });
   const ws = XLSX.utils.aoa_to_sheet(veri);
   for (let r = 1; r < veri.length; r++) {
-    for (let c = 0; c < 5; c++) {
+    for (let c = 0; c < 6; c++) {
       const a = XLSX.utils.encode_cell({ r, c });
       if (!ws[a]) ws[a] = { v: '', t: 's' };
       ws[a].s = {
@@ -3321,8 +3311,8 @@ async function exportGozetmenXLSX(satirlar, baslik, dosyaAdi) {
   }
   const a0 = XLSX.utils.encode_cell({ r: 0, c: 0 });
   ws[a0].s = { font: { name: 'Times New Roman', bold: true, sz: 13 } };
-  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
-  ws['!cols'] = [{ wch: 38 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 22 }];
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+  ws['!cols'] = [{ wch: 38 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 22 }, { wch: 28 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Gözetmenler');
   XLSX.writeFile(wb, dosyaAdi + '.xlsx');
@@ -3414,38 +3404,13 @@ async function exportToXLSX(
     return String(a.timeSlot || '').localeCompare(String(b.timeSlot || ''));
   });
 
-  // Salon + gözetmen: "Salon ve gözetmen ata" düğmesiyle AYNI hesap
-  // (otomatikAtamaHesapla). Elle girilen esastır; fakülte geneli doluluk
-  // (başka bölümlerin salon ve gözetmenleri) gözetilir.
-  const { oneri, uyarilar: gozetmenUyarilari } = otomatikAtamaHesapla({
-    sinavlar: sorted,
-    salonlar: customClassrooms,
-    gozetmenAdlari: customSupervisors || [],
-    ekGozetmenAdlari: ek.ekGozetmenAdlari,
-    kurallar: gozetmenKurallari,
-    musaitsizlik,
-    digerSinavlar: ek.digerSinavlar,
-    kapasiteler: ek.kapasiteler,
-    ortakUyeler: ek.ortakUyeler,
-  });
-  // Eksik atama sessiz geçmesin: çıktı yine üretilebilir ama yetkili bilerek
-  // üretir (gözetmen yetmedi, zorunlu hoca müsait değil, havuz boş…).
-  if (gozetmenUyarilari.length > 0) {
-    const devam = window.confirm(
-      'Salon ve gözetmen atamasında ' +
-        gozetmenUyarilari.length +
-        ' uyarı var:\n\n' +
-        window.Gozetmen.uyariMetni(gozetmenUyarilari) +
-        '\n\nÇıktı bu hâliyle üretilsin mi?'
-    );
-    if (!devam) return;
-  }
-
+  // Resmî çıktı yalnız KAYITLI salon ve gözetmeni basar (bkz. bölüm çıktısı).
+  void customSupervisors;
+  void gozetmenKurallari;
+  void musaitsizlik;
   const enriched = sorted.map((exam) => {
-    const key = exam.id || exam.code + exam.date + exam.timeSlot;
-    const room = (oneri[key] && oneri[key].room) || exam.room || '';
-    // Elle girilmiş gözetmen her zaman esastır.
-    const supervisors = (exam.supervisor || (oneri[key] && oneri[key].supervisor) || '').trim();
+    const room = exam.room && exam.room !== 'TBD' ? exam.room : '';
+    const supervisors = (exam.supervisor || '').trim();
     const [sh, sm] = exam.timeSlot.split(':').map(Number);
     const totalMin = sh * 60 + sm + (exam.duration || 60);
     const eh = String(Math.floor(totalMin / 60)).padStart(2, '0');
@@ -4788,8 +4753,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
   // taslaklar dahil); yalnız saati/salonu/oturumu değişen oturuma bakılır.
   const salonEngeli = (ops) => {
     if (!SF || !SF.degisiklikSalonCakismalari) return [];
+    // Bütün kayıtlı sınavlar: başka dönem grubundaki (ör. lisansüstü) aynı
+    // salon ve saatteki sınav da görülsün.
     return SF.degisiklikSalonCakismalari(
-      bolumDurumlari.flatMap((x) => x.sinavlar),
+      (veri && veri.sinavlar) || bolumDurumlari.flatMap((x) => x.sinavlar),
       ops
         .filter((o) => o.collection === 'sinav_programi' && o.type === 'update')
         .map((o) => ({ id: o.docId, data: o.data }))
@@ -8392,9 +8359,23 @@ function SinavOtomasyonuApp({
   };
 
   // ── Çıktılar ──
+  // Resmî çıktı yalnız kayıtlı salon/gözetmeni basar: eksikler önceden söylenir.
+  const eksikAtamaOnayi = () => {
+    const salonsuz = periodExams.filter((e) => !e.room || e.room === 'TBD').length;
+    const gozetmensiz = periodExams.filter((e) => !String(e.supervisor || '').trim()).length;
+    if (!salonsuz && !gozetmensiz) return true;
+    return window.confirm(
+      [salonsuz && salonsuz + ' sınavın salonu', gozetmensiz && gozetmensiz + ' sınavın gözetmeni']
+        .filter(Boolean)
+        .join(', ') +
+        ' kayıtlı değil; çıktıda bu alanlar boş basılacak.\n\n' +
+        'Önce "Salon ve gözetmen ata" ile atayıp kaydetmeniz önerilir. Yine de çıktı alınsın mı?'
+    );
+  };
   const dekanlikCiktisi = async () => {
     if (periodExams.length === 0) return;
     if (!(await cikisIzniVar())) return;
+    if (!eksikAtamaOnayi()) return;
     await exportToXLSX(
       periodExams,
       activePeriod.label,
@@ -8420,6 +8401,7 @@ function SinavOtomasyonuApp({
   const bolumCiktisi = async () => {
     if (periodExams.length === 0) return;
     if (!(await cikisIzniVar())) return;
+    if (!eksikAtamaOnayi()) return;
     await exportDeptPrintable(
       periodExams,
       activePeriod.label,
