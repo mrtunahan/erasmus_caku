@@ -105,6 +105,7 @@ import {
 import * as GozetmenKurallari from './lib/gozetmen.js';
 import * as SinavBirlesim from './lib/sinav-birlesim.js';
 import * as SinavFakulte from './lib/sinav-fakulte.js';
+import * as SinavYayilim from './lib/sinav-yayilim.js';
 import * as SalonKullanim from './lib/salon-kullanim.js';
 import { GozetmenKurallariPaneli } from './gozetmen-kurallari.jsx';
 import {
@@ -15663,6 +15664,339 @@ window.Gozetmen = GozetmenKurallari;
 window.DersOdasi = DersOdasi;
 window.SinavBirlesim = SinavBirlesim;
 window.SinavFakulte = SinavFakulte;
+window.SinavYayilim = SinavYayilim;
+
+// ── SINAVA YAYILIM: ortak akışlar (Ders Yönetimi, içe aktarma, Bölüm Yönetimi) ──
+// Kural lib/sinav-yayilim.js'te; burada okuma, soru ve yazma. Hiçbir şey
+// sorulmadan yazılmaz. Fakülteye gönderilmiş programın sınavı (fakülte düzeyi
+// dışındaki kullanıcı için) ayrılır ve dokunulmaz.
+window.sinavKilitBaglami = async () => {
+  const [donemler, gonderimler] = await Promise.all([
+    window.apiRead('sinav_donemler').catch(() => []),
+    window.apiRead('sinav_gonderimleri').catch(() => []),
+  ]);
+  return {
+    donemler: donemler || [],
+    gonderimler: gonderimler || [],
+    varyant: (b) => (window.bolumKimlikleri ? window.bolumKimlikleri(String(b)) : [String(b)]),
+  };
+};
+const yayilimBatch = async (ops) => {
+  for (let i = 0; i < ops.length; i += 50) await window.DBWrite.batch(ops.slice(i, i + 50));
+};
+const KILIT_NOTU = (n) =>
+  n > 0
+    ? '\n\n' +
+      n +
+      ' sınav fakülteye gönderilmiş programda; onlara dokunulmaz (değişiklik için fakülteden iade isteyin).'
+    : '';
+
+/**
+ * Ders bilgisi değişti → yerleşmiş sınavlara yaz (sorarak).
+ * @param {{eski:object, yeni:object}[]} ciftler   ders kimliği eski.id
+ * @param {{fakulteDuzeyi?:boolean}} [o]
+ */
+window.dersDegisikliginiSinavlaraYay = async (ciftler, o) => {
+  const Y = SinavYayilim;
+  const liste = (ciftler || []).filter((c) => c && c.eski && c.eski.id);
+  if (!liste.length) return;
+  const tum = (await window.apiRead('sinav_programi').catch(() => null)) || null;
+  if (!tum) return;
+  let yamalar = [];
+  liste.forEach((c) => {
+    const ders = String(c.eski.id);
+    const sinavlar = tum.filter((e) => e && String(e.courseId || '') === ders);
+    yamalar = yamalar.concat(Y.dersYayilimYamalari(c.eski, c.yeni, sinavlar));
+  });
+  if (!yamalar.length) return;
+  const bag = await window.sinavKilitBaglami();
+  const kilitli = o && o.fakulteDuzeyi ? [] : yamalar.filter((y) => Y.sinavKilitliMi(y.sinav, bag));
+  let acik = yamalar.filter((y) => !kilitli.includes(y));
+  // Süre uzarsa aynı salonda örtüşme olabilir: o sınavların süresi yazılmaz.
+  let ortusmeNotu = '';
+  if (acik.some((y) => 'duration' in y.data)) {
+    const c = SinavFakulte.degisiklikSalonCakismalari(
+      tum,
+      acik.map((y) => ({ id: y.id, data: y.data }))
+    );
+    if (c.length) {
+      acik = acik
+        .map((y) => {
+          if (!('duration' in y.data)) return y;
+          const { duration, ...kalan } = y.data;
+          void duration;
+          return { ...y, data: kalan };
+        })
+        .filter((y) => Object.keys(y.data).length > 0);
+      ortusmeNotu =
+        '\n\nYeni sınav süresi aynı salonda başka sınavla örtüşüyor; SÜRE sınavlara yazılmayacak:\n' +
+        SinavFakulte.salonCakismaMetni(c);
+    }
+  }
+  const ADLAR = {
+    code: 'ders kodu',
+    name: 'ders adı',
+    sinif: 'sınıf',
+    duration: 'sınav süresi',
+    professor: 'öğretim elemanı',
+    professors: 'öğretim elemanı',
+  };
+  if (!acik.length) {
+    if (kilitli.length || ortusmeNotu)
+      alert('Yerleşmiş sınavlar güncellenmedi.' + KILIT_NOTU(kilitli.length) + ortusmeNotu);
+    return;
+  }
+  const alanlar = [...new Set(acik.flatMap((y) => Object.keys(y.data)).map((k) => ADLAR[k] || k))];
+  if (
+    !window.confirm(
+      'Programa yerleşmiş ' +
+        acik.length +
+        ' sınavda dersin eski bilgisi var (' +
+        alanlar.join(', ') +
+        ').\nBu sınavlar da güncellensin mi?\n\n' +
+        '(Sınavda elle farklı girilmiş değerlere dokunulmaz.)' +
+        KILIT_NOTU(kilitli.length) +
+        ortusmeNotu
+    )
+  )
+    return;
+  try {
+    await yayilimBatch(
+      acik.map((y) => ({ collection: 'sinav_programi', type: 'update', docId: y.id, data: y.data }))
+    );
+  } catch (e) {
+    alert('Sınavlar güncellenemedi: ' + e.message);
+  }
+};
+
+/**
+ * Ders silinmeden önce: dersin sınavları varsa sor; onaylanırsa sınavlar
+ * (ortak oturumdan tek kalan üyenin bağı çözülerek) silinir.
+ * @returns {Promise<boolean>} ders silinebilir mi
+ */
+const bugunISO = () => new Date().toISOString().slice(0, 10);
+const bolumunMu = (e, bolumId) => {
+  if (!bolumId) return true;
+  const v = window.bolumKimlikleri ? window.bolumKimlikleri(String(bolumId)) : [String(bolumId)];
+  return [String(bolumId), ...v].includes(String((e && e.departmentId) || ''));
+};
+
+/**
+ * Salon adı değişti → sınavlarda ve ders programında da değiştir (sorarak).
+ * Hayır denirse eski ad kalır; uyarı bunu söyler.
+ */
+window.salonAdiDegisiminiYay = async (eskiAd, yeniAd, o) => {
+  const Y = SinavYayilim;
+  if (!eskiAd || !yeniAd || String(eskiAd).trim() === String(yeniAd).trim()) return;
+  const [tum, programlar] = await Promise.all([
+    window.apiRead('sinav_programi').catch(() => null),
+    window.apiRead('course_schedules').catch(() => []),
+  ]);
+  if (!tum) return;
+  let yamalar = Y.salonAdiYamalari(eskiAd, yeniAd, tum);
+  let kilitli = [];
+  if (!(o && o.fakulteDuzeyi) && yamalar.length) {
+    const bag = await window.sinavKilitBaglami();
+    kilitli = yamalar.filter((y) => Y.sinavKilitliMi(y.sinav, bag));
+    yamalar = yamalar.filter((y) => !kilitli.includes(y));
+  }
+  const programYamalari = (programlar || [])
+    .map((d) => ({ d, c: Y.programSalonCevir(d && d.slots, eskiAd, yeniAd) }))
+    .filter((x) => x.c.degisen > 0 && (x.d.id || x.d._docId));
+  if (!yamalar.length && !programYamalari.length) {
+    if (kilitli.length)
+      alert(
+        'Salonun adı değişti; eski adı taşıyan sınavlar güncellenemedi.' +
+          KILIT_NOTU(kilitli.length)
+      );
+    return;
+  }
+  const evet = window.confirm(
+    '“' +
+      eskiAd +
+      '” adını kullanan ' +
+      yamalar.length +
+      ' sınav ve ' +
+      programYamalari.reduce((t, x) => t + x.c.degisen, 0) +
+      ' ders programı satırı var. Salon adı onlarda da “' +
+      yeniAd +
+      '” olarak değiştirilsin mi?\n\n' +
+      'Hayır derseniz bu kayıtlarda eski ad kalır; çakışma denetimi iki adı ayrı salon sayar ve ' +
+      'aynı salon aynı saatte iki kez kullanılabilir.' +
+      KILIT_NOTU(kilitli.length)
+  );
+  if (!evet) return;
+  try {
+    await yayilimBatch([
+      ...yamalar.map((y) => ({
+        collection: 'sinav_programi',
+        type: 'update',
+        docId: y.id,
+        data: y.data,
+      })),
+      ...programYamalari.map((x) => ({
+        collection: 'course_schedules',
+        type: 'set',
+        merge: true,
+        docId: String(x.d.id || x.d._docId),
+        data: { slots: x.c.slots, updatedAt: new Date().toISOString() },
+      })),
+    ]);
+  } catch (e) {
+    alert('Salon adı kayıtlarda güncellenemedi: ' + e.message);
+  }
+};
+
+/** Salon silinmeden önce: kullanan sınav/ders programı varsa uyar. @returns {Promise<boolean>} */
+window.salonSilmeOnayi = async (salonAd) => {
+  const Y = SinavYayilim;
+  const [tum, programlar] = await Promise.all([
+    window.apiRead('sinav_programi').catch(() => []),
+    window.apiRead('course_schedules').catch(() => []),
+  ]);
+  const sinavlar = Y.salonuKullananlar(salonAd, tum || [], bugunISO());
+  const programSayisi = (programlar || []).reduce(
+    (t, d) => t + Y.programSalonCevir(d && d.slots, salonAd, salonAd + ' ').degisen,
+    0
+  );
+  if (!sinavlar.length && !programSayisi) return true;
+  const ilk = sinavlar.map((e) => e.date).sort()[0];
+  return window.confirm(
+    '“' +
+      salonAd +
+      '” salonunu ' +
+      (sinavlar.length
+        ? sinavlar.length +
+          ' gelecek sınav' +
+          (ilk ? ' (ilki ' + new Date(ilk + 'T00:00:00').toLocaleDateString('tr-TR') + ')' : '')
+        : '') +
+      (sinavlar.length && programSayisi ? ' ve ' : '') +
+      (programSayisi ? programSayisi + ' ders programı satırı' : '') +
+      ' kullanıyor.\n\nSalon silinirse bu kayıtlarda salon adı kalır, ama salon listede ve otomatik ' +
+      'atamada olmaz; kapasitesi bilinmediği için kapasite denetimi de yapılamaz.\n\nYine de silinsin mi?'
+  );
+};
+
+/**
+ * Kişi gözetmenlikten çıkarıldı ya da müsait olmadığı gün eklendi →
+ * OTOMATİK atamalarından çıkar (sorarak); elle girilenleri listele.
+ * @param {object} kisi  { name }
+ * @param {{bolumId?:string, gunler?:string[], fakulteDuzeyi?:boolean, neden:string}} o
+ */
+window.gozetmenAtamalariniGozden = async (kisi, o) => {
+  const Y = SinavYayilim;
+  const p = o || {};
+  const tum = await window.apiRead('sinav_programi').catch(() => null);
+  if (!tum || !kisi || !kisi.name) return;
+  const bugun = bugunISO();
+  const sinavlar = tum.filter((e) => e && String(e.date || '') >= bugun && bolumunMu(e, p.bolumId));
+  const plan = Y.gozetmenCikarmaPlani(kisi.name, sinavlar, p.gunler ? { gunler: p.gunler } : {});
+  let yamalar = plan.yamalar;
+  let kilitli = [];
+  if (!p.fakulteDuzeyi && yamalar.length) {
+    const bag = await window.sinavKilitBaglami();
+    kilitli = yamalar.filter((y) => Y.sinavKilitliMi(y.sinav, bag));
+    yamalar = yamalar.filter((y) => !kilitli.includes(y));
+  }
+  const satir = (e) =>
+    '• ' +
+    (e.code || '?') +
+    ' ' +
+    (e.date ? new Date(e.date + 'T00:00:00').toLocaleDateString('tr-TR') : '') +
+    ' ' +
+    (e.timeSlot || '');
+  const elleNotu = plan.elle.length
+    ? '\n\nElle girilmiş ' +
+      plan.elle.length +
+      ' atamasına dokunulmadı; gerekiyorsa sınav penceresinden değiştirin:\n' +
+      plan.elle.slice(0, 8).map(satir).join('\n') +
+      (plan.elle.length > 8 ? '\n…' : '')
+    : '';
+  if (!yamalar.length) {
+    if (plan.elle.length || kilitli.length)
+      alert(kisi.name + ' ' + p.neden + '.' + elleNotu + KILIT_NOTU(kilitli.length));
+    return;
+  }
+  if (
+    !window.confirm(
+      kisi.name +
+        ' ' +
+        p.neden +
+        '. Otomatik atanmış ' +
+        yamalar.length +
+        ' gözetmenliği var:\n' +
+        yamalar
+          .slice(0, 8)
+          .map((y) => satir(y.sinav))
+          .join('\n') +
+        (yamalar.length > 8 ? '\n…' : '') +
+        '\n\nBu atamalardan çıkarılsın mı? (Yeri "Salon ve gözetmen ata" ile yeniden doldurulur.)' +
+        elleNotu +
+        KILIT_NOTU(kilitli.length)
+    )
+  )
+    return;
+  try {
+    await yayilimBatch(
+      yamalar.map((y) => ({
+        collection: 'sinav_programi',
+        type: 'update',
+        docId: y.id,
+        data: y.data,
+      }))
+    );
+  } catch (e) {
+    alert('Atamalar güncellenemedi: ' + e.message);
+  }
+};
+
+window.dersSinavlariniSilOnayi = async (ders, o) => {
+  const Y = SinavYayilim;
+  const tum = await window.apiRead('sinav_programi').catch(() => null);
+  if (!tum) {
+    alert('Sınav programı okunamadı; dersin sınavları kontrol edilemediği için ders silinmedi.');
+    return false;
+  }
+  const sinavlar = tum.filter((e) => e && String(e.courseId || '') === String(ders.id));
+  if (!sinavlar.length) return true;
+  if (!(o && o.fakulteDuzeyi)) {
+    const bag = await window.sinavKilitBaglami();
+    const kilitli = sinavlar.filter((e) => Y.sinavKilitliMi(e, bag));
+    if (kilitli.length) {
+      alert(
+        'Bu dersin ' +
+          kilitli.length +
+          ' sınavı fakülteye gönderilmiş programda; ders silinemez. Önce fakülteden iade isteyin.'
+      );
+      return false;
+    }
+  }
+  if (
+    !window.confirm(
+      (ders.code || 'Bu ders') +
+        ' dersinin programa yerleşmiş ' +
+        sinavlar.length +
+        ' sınavı var. Ders silinirse bu sınavlar da silinecek (ortak oturumdaki öbür derslerin sınavları kalır).\n\nDevam edilsin mi?'
+    )
+  )
+    return false;
+  const plan = Y.dersSilmePlani(sinavlar, tum);
+  try {
+    await yayilimBatch([
+      ...plan.silinecek.map((id) => ({ collection: 'sinav_programi', type: 'delete', docId: id })),
+      ...plan.bagCoz.map((y) => ({
+        collection: 'sinav_programi',
+        type: 'update',
+        docId: y.id,
+        data: y.data,
+      })),
+    ]);
+    return true;
+  } catch (e) {
+    alert('Dersin sınavları silinemedi; ders silinmedi: ' + e.message);
+    return false;
+  }
+};
 // Salon sınavda mı, ders programında mı (Bölüm Yönetimi → Sınıf / Salon).
 window.SalonKullanim = SalonKullanim;
 window.GozetmenKurallariPaneli = GozetmenKurallariPaneli;

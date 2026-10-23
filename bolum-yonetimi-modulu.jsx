@@ -519,6 +519,12 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
             departmentId: activeDepartment,
             meta: { name: data.name },
           });
+        // Ad değiştiyse sınavlar ve ders programı eski adla kalmasın (sorarak).
+        if (window.salonAdiDegisiminiYay && editingItem.name && editingItem.name !== data.name) {
+          await window.salonAdiDegisiminiYay(editingItem.name, data.name, {
+            fakulteDuzeyi: isAdmin,
+          });
+        }
       }
       setEditingItem(null);
       loadData();
@@ -529,6 +535,8 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
   };
   const handleClassDelete = async (c) => {
     if (!confirm(`${c.name} silinecek, emin misiniz?`)) return;
+    // Salonu kullanan sınav/ders programı varsa ayrıca uyarılır.
+    if (window.salonSilmeOnayi && !(await window.salonSilmeOnayi(c.name))) return;
     await DBWrite.remove('department_classrooms', c.id);
     if (window.audit)
       window.audit('classroom_delete', 'department_classrooms', c.id, {
@@ -639,6 +647,17 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     setMusaitlikAcik({ ...sup, gozetmenMusaitsizGunler: yeni });
     setYeniGun('');
     await loadData();
+    // O gün otomatik atanmış gözetmenlikleri varsa (sorarak) çıkarılır.
+    if (window.gozetmenAtamalariniGozden) {
+      await window.gozetmenAtamalariniGozden(sup, {
+        bolumId: activeDepartment,
+        gunler: [g],
+        fakulteDuzeyi: isAdmin,
+        neden:
+          new Date(g + 'T00:00:00').toLocaleDateString('tr-TR') +
+          ' günü müsait değil olarak işaretlendi',
+      });
+    }
   };
 
   const musaitsizGunCikar = async (sup, gun) => {
@@ -660,6 +679,14 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     try {
       await gozetmenlikYaz(s, false);
       await loadData();
+      // Bu bölümdeki otomatik gözetmenlikleri (sorarak) çıkarılır.
+      if (window.gozetmenAtamalariniGozden) {
+        await window.gozetmenAtamalariniGozden(s, {
+          bolumId: activeDepartment,
+          fakulteDuzeyi: isAdmin,
+          neden: 'bu bölümün gözetmen listesinden çıkarıldı',
+        });
+      }
     } catch (e) {
       alert('Hata: ' + e.message);
     }
