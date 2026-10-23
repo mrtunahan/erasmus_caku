@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import * as SFTum from '../lib/sinav-fakulte.js';
 import {
   SAAT_DILIMLERI,
   sinavAdi,
@@ -760,5 +761,105 @@ describe('denetim düzeltmeleri — fakülte tablosu', () => {
     const h = t.satirlar.flatMap((r) => r.hucreler).find((x) => x && !x.gizli);
     expect(h.cakisma).toBe(false);
     expect(h.metin).not.toMatch(/ÇAKIŞMA/);
+  });
+});
+
+describe('salon başına gözetmen, çakışma, yük sayacı', () => {
+  const SFm = SFTum;
+  const uye = (ek) => ({
+    id: 'e' + Math.random().toString(36).slice(2, 7),
+    code: 'MAT101',
+    name: 'Matematik',
+    date: '2026-11-09',
+    timeSlot: '10:00',
+    duration: 60,
+    studentCount: 80,
+    professor: 'Dr. Ali Veli',
+    departmentId: 'bil',
+    ...ek,
+  });
+  it('kayıtlı dağılım yoksa hoca ilk salona, kalanlar eşit dağılır', () => {
+    const u = [uye({ room: 'M1 - M2', supervisor: 'Dr. Ali Veli, Ayşe K, Can D, Ece F' })];
+    const { dagilim, kayitli } = SFm.salonGozetmenDagilimi(
+      u,
+      ['M1', 'M2'],
+      ['Ayşe K', 'Dr. Ali Veli', 'Can D', 'Ece F']
+    );
+    expect(kayitli).toBe(false);
+    expect(dagilim[0]).toEqual({ salon: 'M1', gozetmenler: ['Dr. Ali Veli', 'Ayşe K'] });
+    expect(dagilim[1]).toEqual({ salon: 'M2', gozetmenler: ['Can D', 'Ece F'] });
+  });
+  it('geçerli kayıtlı dağılım kullanılır, kişiler değiştiyse yeniden türetilir', () => {
+    const kayit = [
+      { salon: 'M1', gozetmenler: ['Can D'] },
+      { salon: 'M2', gozetmenler: ['Ayşe K', 'Dr. Ali Veli'] },
+    ];
+    const u = [uye({ salonGozetmenleri: kayit })];
+    const g = ['Dr. Ali Veli', 'Ayşe K', 'Can D'];
+    expect(SFm.salonGozetmenDagilimi(u, ['M1', 'M2'], g).dagilim).toEqual(kayit);
+    expect(SFm.salonGozetmenDagilimi(u, ['M1', 'M2'], [...g, 'Yeni K']).kayitli).toBe(false);
+  });
+  it('tabloda her salon hücresi kendi gözetmenlerini yazar', () => {
+    const u = [
+      uye({
+        room: 'M1 - M2',
+        supervisor: 'Ayşe K, Can D',
+        salonGozetmenleri: [
+          { salon: 'M1', gozetmenler: ['Ayşe K'] },
+          { salon: 'M2', gozetmenler: ['Can D'] },
+        ],
+      }),
+    ];
+    const ot = SFm.fakulteOturumlari(u, { kisaltmalar: { 'Ayşe K': 'AK', 'Can D': 'CD' } });
+    expect(ot[0].salonMetinleri.M1).toMatch(/AK/);
+    expect(ot[0].salonMetinleri.M1).not.toMatch(/CD/);
+    const t = SFm.gunTablosu(ot, [{ name: 'M1' }, { name: 'M2' }]);
+    const hucreler = t.satirlar.flatMap((r) => r.hucreler).filter((h) => h && h.metin);
+    expect(hucreler.map((h) => h.metin.includes('CD'))).toEqual([false, true]);
+  });
+  it('aynı saatte iki oturumda ve iki salonda görevli kişi çakışma sayılır', () => {
+    const a = uye({ code: 'A1', room: 'M1', supervisor: 'Can D' });
+    const b = uye({ code: 'B1', timeSlot: '10:30', room: 'M3', supervisor: 'Can D, Ece F' });
+    const c = uye({ code: 'C1', timeSlot: '13:00', room: 'M3', supervisor: 'Ece F' });
+    const ot = SFm.fakulteOturumlari([a, b, c]);
+    const { liste } = SFm.gozetmenCakismalari(ot);
+    expect(liste.filter((x) => x.tur === 'saat').map((x) => x.ad)).toEqual(['Can D']);
+    const iki = SFm.fakulteOturumlari([
+      uye({
+        room: 'M1 - M2',
+        supervisor: 'Can D',
+        salonGozetmenleri: [
+          { salon: 'M1', gozetmenler: ['Can D'] },
+          { salon: 'M2', gozetmenler: ['Can D'] },
+        ],
+      }),
+    ]);
+    expect(SFm.gozetmenCakismalari(iki).liste.map((x) => x.tur)).toEqual(['iki_salon']);
+  });
+  it('yük sayacı hocanın kendi sınavını ayrı sayar, dengesizliği bulur, öneri boş ve az yüklüyü seçer', () => {
+    const l = [
+      uye({ code: 'A1', supervisor: 'Dr. Ali Veli, Can D' }),
+      uye({ code: 'A2', timeSlot: '13:00', supervisor: 'Can D' }),
+      uye({ code: 'A3', date: '2026-11-10', supervisor: 'Can D' }),
+      uye({ code: 'A4', date: '2026-11-10', timeSlot: '14:00', supervisor: 'Ece F' }),
+    ];
+    const ot = SFm.fakulteOturumlari(l);
+    const y = SFm.gozetmenYukleri(ot, ['Can D', 'Ece F', 'Gül H']);
+    const can = y.find((x) => x.ad === 'Can D');
+    expect(can.gorev).toBe(3);
+    expect(can.dakika).toBe(180);
+    expect(y.find((x) => x.ad === 'Dr. Ali Veli').kendiSinavi).toBe(1);
+    const d = SFm.yukDengesi(y);
+    expect(d.durum['Can D']).toBe('fazla');
+    expect(d.durum['Gül H']).toBe('az');
+    const hedef = ot.find((o) => o.kodSatiri === 'A1');
+    const oneri = SFm.gozetmenOnerileri({
+      oturum: hedef,
+      oturumlar: ot,
+      adaylar: ['Can D', 'Ece F', 'Gül H'],
+      yukler: y,
+      musaitsizlik: { 'Ece F': ['2026-11-09'] },
+    });
+    expect(oneri.map((x) => x.ad)).toEqual(['Gül H']);
   });
 });
