@@ -8930,11 +8930,16 @@ function SinavOtomasyonuApp({
                         aciklama: 'Yalnız otomatik yazılan salon/gözetmenleri siler',
                         onClick: otomatikAtamayiTemizle,
                       },
+                    // Kilitliyken yalnız "gönderimden sonra değişti" durumunda yeniden
+                    // gönderilebilir: program değişmez, yalnız fakültedeki kayıt
+                    // güncel hâliyle eşitlenir.
                     canManage &&
-                      !programKilitli &&
+                      (!programKilitli || gonderimDurumu === 'degisti') &&
                       periodExams.length > 0 && {
                         etiket:
-                          gonderimDurumu === 'gonderildi' ? 'Yeniden gönder' : 'Fakülteye gönder',
+                          gonderimDurumu === 'gonderildi' || gonderimDurumu === 'degisti'
+                            ? 'Yeniden gönder'
+                            : 'Fakülteye gönder',
                         aciklama: 'Programı fakülte yetkilisine iletir',
                         vurgu: true,
                         onClick: fakulteyeGonder,
