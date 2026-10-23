@@ -61,7 +61,9 @@ const akrFileHref = (u) => {
   const rel = String(u || '')
     .replace('/api/files/download/', '')
     .replace('/api/files/view/', '');
-  if (!rel) return '#';
+  // Yalnız sunucunun ürettiği güvenli göreli yol (server/routes/files.js ile
+  // aynı karakter kümesi); başka her şey bağlantıya dönüşmez.
+  if (!rel || !/^[a-zA-Z0-9_./-]+$/.test(rel) || rel.includes('..')) return '#';
   return /\.pdf$/i.test(rel)
     ? '/api/files/view/' + rel
     : '/api/files/download/' + rel + '?download=true';
@@ -471,11 +473,15 @@ function tableToText(table) {
 // havuzdaki kanıtlardan (metin/link/dosya/tablo/sistem) doğrudan belge üretir.
 // WordprocessingML el ile kurulur, JSZip ile paketlenir.
 // ══════════════════════════════════════════════════════════════
+// Tırnaklar da kaçırılır: değer öznitelik içine (href="…") de yazılıyor;
+// yalnız < > & kaçırılınca '"' ile öznitelikten çıkılıp betik eklenebiliyordu.
 const wEsc = (s) =>
   String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 // Paragraf — çok satırlı metin <w:br/> ile bölünür.
 function wP(text, opts = {}) {

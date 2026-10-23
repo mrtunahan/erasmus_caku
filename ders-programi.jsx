@@ -151,7 +151,9 @@ function detectConflicts(
           day,
           hour,
           classroom: room,
-          courses: roomEntries.map((e) => `${e.year}. Sınıf: ${e.courseCode} - ${e.courseName}`),
+          courses: roomEntries.map(
+            (e) => `${kac(e.year)}. Sınıf: ${kac(e.courseCode)} - ${kac(e.courseName)}`
+          ),
           message: `Bölüm derslik çakışması: ${room} — ${day} ${hour} — ${roomEntries.map((e) => e.courseCode + ' (' + e.year + '. Sınıf)').join(' & ')}`,
         });
       });
@@ -183,7 +185,7 @@ function detectConflicts(
           hour,
           instructor: prof,
           onayli,
-          courses: profEntries.map((e) => `${e.year}. Sınıf: ${e.courseCode}`),
+          courses: profEntries.map((e) => `${kac(e.year)}. Sınıf: ${kac(e.courseCode)}`),
           message: `Hoca çakışması: ${prof} — ${day} ${hour} — ${profEntries.map((e) => e.courseCode + ' (' + e.year + '. Sınıf)').join(' & ')}`,
         });
       });
@@ -229,7 +231,9 @@ function detectConflicts(
         day,
         hour: saatEtiketi(fakulteSaatleri, hi),
         classroom,
-        courses: entries.map((e) => `${e.deptName} (${e.year}. Sınıf): ${e.courseCode}`),
+        courses: entries.map(
+          (e) => `${kac(e.deptName)} (${kac(e.year)}. Sınıf): ${kac(e.courseCode)}`
+        ),
         message: `Fakülte çakışması: ${classroom} — ${day} ${saatEtiketi(fakulteSaatleri, hi)} — ${entries.map((e) => e.deptName + ':' + e.courseCode).join(' & ')}`,
       });
     });
@@ -484,7 +488,7 @@ function yazdirmaSatirlari(grid, saatler, hucreHTML) {
   let out = '';
   (saatler || HOURS).forEach((hour, hi) => {
     if (!DAYS.some((day) => (grid[day][hi] || []).length > 0)) return;
-    let row = `<tr><td style="padding:6px 8px;border:1px solid #94A3B8;font-weight:600;text-align:center;background:#F8FAFC;white-space:nowrap">${hour}</td>`;
+    let row = `<tr><td style="padding:6px 8px;border:1px solid #94A3B8;font-weight:600;text-align:center;background:#F8FAFC;white-space:nowrap">${kac(hour)}</td>`;
     DAYS.forEach((day) => {
       const entries = grid[day][hi] || [];
       row += entries.length
@@ -496,7 +500,22 @@ function yazdirmaSatirlari(grid, saatler, hucreHTML) {
   return out;
 }
 
+// Yazdırma penceresi uygulamayla aynı kökenden açılıyor: ders adı, hoca,
+// derslik gibi kayıt verisi HTML'e KAÇIRILARAK yazılır (yoksa kayda girilen
+// "<img onerror=…>" çıktıyı açan yetkilinin oturumunda çalışırdı).
+const kac = (v) =>
+  String(v == null ? '' : v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 function belgeHTML(baslik, ustBaslik, altBaslik, bilgi, tableRows) {
+  baslik = kac(baslik);
+  ustBaslik = kac(ustBaslik);
+  altBaslik = kac(altBaslik);
+  bilgi = kac(bilgi);
   return `<!DOCTYPE html>
 <html lang="tr">
 <head><meta charset="utf-8"><title>${baslik}</title>
@@ -546,10 +565,10 @@ function bolumYazdir(deptAllYearsSlots, deptName, semester, baglam) {
   const tableRows = yazdirmaSatirlari(grid, saatler, (e) => {
     const bg = GRADE_COLORS[e.sinif]?.bg || '#F1F5F9';
     return `<div style="padding:4px 6px;margin:1px 0;border-radius:4px;background:${bg}">
-      <div style="font-weight:700;font-size:11px">${e.courseCode} <span style="font-weight:400;color:#64748B">(${e.year}. Sınıf)</span></div>
-      <div style="font-size:10px;color:#334155">${e.courseName}</div>
-      ${e.instructor ? `<div style="font-size:9px;color:#64748B">${e.instructor}</div>` : ''}
-      ${e.classroom ? `<div style="font-size:9px;color:#0F766E;font-weight:600">${e.classroom}</div>` : ''}
+      <div style="font-weight:700;font-size:11px">${kac(e.courseCode)} <span style="font-weight:400;color:#64748B">(${kac(e.year)}. Sınıf)</span></div>
+      <div style="font-size:10px;color:#334155">${kac(e.courseName)}</div>
+      ${e.instructor ? `<div style="font-size:9px;color:#64748B">${kac(e.instructor)}</div>` : ''}
+      ${e.classroom ? `<div style="font-size:9px;color:#0F766E;font-weight:600">${kac(e.classroom)}</div>` : ''}
     </div>`;
   });
   return yazdirmaAc(
@@ -577,9 +596,9 @@ function fakulteYazdir(allFacultySlots, semester, baglam) {
   const tableRows = yazdirmaSatirlari(grid, saatler, (e) => {
     const bg = GRADE_COLORS[e.sinif]?.bg || '#F1F5F9';
     return `<div style="padding:3px 6px;margin:2px 0;border-radius:4px;background:${bg};font-size:9px;line-height:1.3">
-      <strong>${e.courseCode}</strong>
-      <span style="color:#475569;margin-left:3px">${e.deptName} ${e.year}.Sınıf</span>
-      ${e.classroom ? `<br/><span style="color:#0F766E;font-weight:600">${e.classroom}</span>` : ''}
+      <strong>${kac(e.courseCode)}</strong>
+      <span style="color:#475569;margin-left:3px">${kac(e.deptName)} ${kac(e.year)}.Sınıf</span>
+      ${e.classroom ? `<br/><span style="color:#0F766E;font-weight:600">${kac(e.classroom)}</span>` : ''}
     </div>`;
   });
   return yazdirmaAc(
@@ -1592,7 +1611,9 @@ const ProgramOnizlemeTablosu = ({ kaynaklar, saatler, bolumGoster }) => (
                       >
                         <strong>{e.courseCode}</strong>
                         <span style={{ color: '#475569', marginLeft: 3 }}>
-                          {bolumGoster ? `${e.deptName} ${e.year}.Sınıf` : `${e.year}. Sınıf`}
+                          {bolumGoster
+                            ? `${kac(e.deptName)} ${kac(e.year)}.Sınıf`
+                            : `${kac(e.year)}. Sınıf`}
                         </span>
                         {!bolumGoster && e.courseName && (
                           <div style={{ color: '#334155' }}>{e.courseName}</div>

@@ -33,6 +33,7 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const { getDbSafe } = require('../config/database');
 const { requireAuth, generateToken, setTokenCookie } = require('../middleware/auth');
+const oturumIptal = require('../lib/oturum-iptal');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const { adayNoMu } = require('../lib/aday-yetki');
 const { yetkiAlani, bolumAlanda, fakulteAlanda } = require('../lib/yetki-alani');
@@ -335,6 +336,9 @@ router.post(
         },
       }
     );
+    // Eski jetonlar geçersiz; bu cihaza yeni oturum (server/lib/oturum-iptal.js).
+    await oturumIptal.iptalEt(db, 'aday:' + a.adayNo);
+    oturumAc(res, a);
     return res.json({ success: true });
   })
 );
@@ -674,6 +678,8 @@ router.post('/sifre-sifirla', requireAuth, async (req, res) => {
         },
       }
     );
+    // Sıfırlanan hesabın açık oturumları kapanır.
+    await oturumIptal.iptalEt(db, 'aday:' + a.adayNo);
     return res.json({ success: true, geciciSifre: gecici });
   } catch (e) {
     console.error('[aday] sıfırlama:', e && e.message);
@@ -687,7 +693,12 @@ router.post(
   sar(async (req, res) => {
     const bulunan = await personelAdayi(req, res);
     if (!bulunan) return;
-    const { db, a } = bulunan;
+    const { db, a, kapsam, bolumler } = bulunan;
+    // Hesap kapatma yönetim işidir: sıradan akademisyen (okuma kapsamı)
+    // adayın hesabını kapatamaz (şifre sıfırlamadaki kuralla aynı).
+    if (!yonetimdeMi(kapsam, bolumler)) {
+      return res.status(403).json({ error: 'Aday hesabını yalnız bölüm yetkilisi kapatabilir.' });
+    }
     await db.collection(ADAYLAR).updateOne(
       { _id: a._id },
       {
@@ -712,7 +723,14 @@ router.post('/numara-aktar', requireAuth, async (req, res) => {
   try {
     const bulunan = await personelAdayi(req, res);
     if (!bulunan) return;
-    const { db, a } = bulunan;
+    const { db, a, kapsam, bolumler } = bulunan;
+    // Numara aktarma adayın başvurularını ve belgelerini o numaraya taşır:
+    // yalnız bölüm yetkilisi yapar.
+    if (!yonetimdeMi(kapsam, bolumler)) {
+      return res
+        .status(403)
+        .json({ error: 'Aday kayıtlarını öğrenci numarasına yalnız bölüm yetkilisi aktarabilir.' });
+    }
     const no = metin(req.body && req.body.ogrenciNo);
     if (!/^\d{9}$/.test(no)) {
       return res.status(400).json({ error: 'Öğrenci numarası 9 haneli olmalı.' });

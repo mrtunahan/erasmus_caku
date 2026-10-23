@@ -13734,7 +13734,12 @@ const ZenginMetinEditoru = ({ deger, onChange, yukseklik, yerTutucu }) => {
     const gelen = String(deger || '');
     if (sonDisDeger.current === gelen) return;
     sonDisDeger.current = gelen;
-    if (el.innerHTML !== gelen) el.innerHTML = gelen;
+    // Kayıtlı HTML (başkasının yazdığı duyuru olabilir) temizlenerek basılır;
+    // temizleyici yoksa düz metin olarak.
+    if (el.innerHTML !== gelen) {
+      if (window.DOMPurify) el.innerHTML = window.DOMPurify.sanitize(gelen);
+      else el.textContent = gelen.replace(/<[^>]*>/g, '');
+    }
   }, [deger]);
 
   const bildir = () => {

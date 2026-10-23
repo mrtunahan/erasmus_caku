@@ -150,10 +150,17 @@ const extractLimiterStaff = rateLimit({
 const extractLimiterStudent = rateLimit({
   windowMs: 60 * 1000,
   max: 6,
+  // Öğrenci başına (IP değil): aynı IP'yi paylaşan yurt/kampüs ağında
+  // öğrenciler birbirinin hakkını tüketmesin; tek öğrenci de IP değiştirerek
+  // sınırı aşamasın.
+  keyGenerator: (req) => 'ogr:' + String((req.user && req.user.identifier) || 'anon'),
   message: { error: 'Çok fazla belge işleme isteği. Lütfen biraz bekleyin.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
+// ⚠ Sınır kullanıcı TANINDIKTAN sonra uygulanır (rotada requireAuth'tan sonra):
+// önce konunca req.user hep boştu ve öğrenciye de personel sınırı (30/dk)
+// uygulanıyordu.
 function extractLimiter(req, res, next) {
   const f = req.user && req.user.role === 'student' ? extractLimiterStudent : extractLimiterStaff;
   return f(req, res, next);
@@ -302,7 +309,7 @@ function baglamCoz(req, body) {
 
 // POST /api/ai/extract — belgelerden form alanlarını doldur.
 // body: { module, docType, fields:[{id,label,hint,format}], dosyalar:[{fileName,name}] }
-router.post('/extract', extractLimiter, requireAuth, async (req, res) => {
+router.post('/extract', requireAuth, extractLimiter, async (req, res) => {
   try {
     if (!aiHazirMi(res)) return undefined;
     const b = req.body || {};
@@ -356,7 +363,7 @@ router.post('/extract', extractLimiter, requireAuth, async (req, res) => {
 
 // POST /api/ai/extract-rows — tablo/liste belgelerinden satır listesi.
 // body: { module, docType, satirAlanlari:[{id,label,hint}], satirTanimi, dosyalar[] }
-router.post('/extract-rows', extractLimiter, requireAuth, async (req, res) => {
+router.post('/extract-rows', requireAuth, extractLimiter, async (req, res) => {
   try {
     if (!aiHazirMi(res)) return undefined;
     const b = req.body || {};
@@ -412,7 +419,7 @@ router.post('/extract-rows', extractLimiter, requireAuth, async (req, res) => {
 
 // POST /api/ai/compare — formdaki/sistemdeki değerleri belgeyle kıyasla.
 // body: { module, docType, fields[], mevcutDegerler{}, dosyalar[] }
-router.post('/compare', extractLimiter, requireAuth, async (req, res) => {
+router.post('/compare', requireAuth, extractLimiter, async (req, res) => {
   try {
     if (!aiHazirMi(res)) return undefined;
     const b = req.body || {};
@@ -472,7 +479,7 @@ router.post('/compare', extractLimiter, requireAuth, async (req, res) => {
 
 // POST /api/ai/ders-eslestir — muafiyet için içerik kapsam değerlendirmesi.
 // body: { ciftler: [{ id, alinan:{ad,kod,akts,icerik}, hedef:{...} }] }
-router.post('/ders-eslestir', extractLimiter, requireAuth, async (req, res) => {
+router.post('/ders-eslestir', requireAuth, extractLimiter, async (req, res) => {
   try {
     if (!aiHazirMi(res)) return undefined;
     const b = req.body || {};
@@ -504,7 +511,7 @@ router.post('/ders-eslestir', extractLimiter, requireAuth, async (req, res) => {
 
 // POST /api/ai/verify — web araması ile iddia doğrulama (max 3 arama).
 // body: { module, docType, iddialar:[{id,metin}], izinliAlanlar:[] }
-router.post('/verify', extractLimiter, requireAuth, requireStaff, async (req, res) => {
+router.post('/verify', requireAuth, extractLimiter, requireStaff, async (req, res) => {
   try {
     if (!aiHazirMi(res)) return undefined;
     const b = req.body || {};

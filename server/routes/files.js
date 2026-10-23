@@ -247,6 +247,10 @@ const resolveSafePath = (relativePath) => {
   if (!SAFE_RELATIVE_PATH.test(relativePath)) return null;
   // ".." segmentini erken yakala — path.normalize öncesi de sonrası da.
   if (relativePath.includes('..')) return null;
+  // "." ya da boş parça ("./x", "a//b") reddedilir: sahiplik denetimi yolu
+  // parça parça okur; sunucu ise path.join ile sadeleştirip dosyayı yine
+  // bulurdu. İki taraf aynı yolu görmeli (server/lib/dosya-sahiplik.js).
+  if (relativePath.split('/').some((p, i) => p === '.' || (p === '' && i > 0))) return null;
 
   const filePath = path.join(UPLOAD_DIR, relativePath);
   const resolved = path.resolve(filePath);

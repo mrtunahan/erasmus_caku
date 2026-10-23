@@ -207,8 +207,18 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
       );
 
       // Gerçek dosya indirme - URL varsa aç
+      // Yalnız http(s) adresi açılır: kayda yazılmış "javascript:" adresi
+      // window.open ile açan kişinin oturumunda çalışırdı.
       if (resource.fileUrl) {
-        window.open(resource.fileUrl, '_blank');
+        let u = null;
+        try {
+          u = new URL(String(resource.fileUrl), window.location.origin);
+        } catch (_) {
+          u = null;
+        }
+        if (u && (u.protocol === 'https:' || u.protocol === 'http:')) {
+          window.open(u.href, '_blank', 'noopener');
+        }
       }
     } catch (e) {
       console.error('Indirme sayaci hatasi:', e);

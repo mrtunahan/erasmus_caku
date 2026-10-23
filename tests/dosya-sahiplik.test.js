@@ -120,3 +120,13 @@ describe('kişisel belge klasörleri (taşımadan sahiplik)', () => {
     expect(kayitlardaGeciyorMu('a.pdf', [{ x: 'a.pdf' }])).toBe(false);
   });
 });
+
+describe('yol sadeleştirme: ./ ile sahiplik atlanamaz', () => {
+  it('./staj_belgeler/<başkası> başkasının belgesi sayılır', () => {
+    const ogr = { role: 'student', identifier: '111' };
+    expect(dosyaErisebilirMi('./staj_belgeler/222/x.pdf', ogr, []).izin).toBe(false);
+    expect(dosyaErisebilirMi('staj_belgeler//222/x.pdf', ogr, []).izin).toBe(false);
+    expect(dosyaErisebilirMi('./staj_belgeler/111/x.pdf', ogr, []).izin).toBe(true);
+    expect(kisiselKlasorMu('./transkriptler/x.pdf')).toBe(true);
+  });
+});

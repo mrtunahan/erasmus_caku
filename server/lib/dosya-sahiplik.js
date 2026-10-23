@@ -23,6 +23,22 @@
 
 const metin = (v) => String(v == null ? '' : v).trim();
 
+// ── YOL SADELEŞTİRME ──
+// Sahiplik ilk klasör adından okunuyordu; `./staj_belgeler/<başkası>/x.pdf`
+// gibi bir yolda ilk parça '.' olduğu için denetim atlanıyor, dosya sunucu
+// tarafında yine bulunuyordu. Bütün kararlar SADELEŞTİRİLMİŞ yol üzerinden
+// verilir: '.' ve boş parçalar atılır, '..' içeren yol hiç çözülmez.
+const path = require('path');
+function yolSadele(yol) {
+  const ham = metin(yol).replace(/\\/g, '/');
+  if (!ham) return '';
+  if (ham.split('/').includes('..')) return '';
+  return path.posix
+    .normalize(ham)
+    .replace(/^(\.\/)+/, '')
+    .replace(/^\/+/, '');
+}
+
 /** Öğrenci numarasını klasör adında taşıyan kök klasörler. */
 const NUMARALI_KLASORLER = ['staj_belgeler'];
 
@@ -31,7 +47,7 @@ const NUMARALI_KLASORLER = ['staj_belgeler'];
  * `staj_belgeler/2021001/dosya.pdf` → '2021001'
  */
 function yolunOgrenciNumarasi(yol) {
-  const parcalar = metin(yol).replace(/\\/g, '/').split('/').filter(Boolean);
+  const parcalar = yolSadele(yol).split('/').filter(Boolean);
   if (parcalar.length < 2) return '';
   if (NUMARALI_KLASORLER.indexOf(parcalar[0]) < 0) return '';
   // Numara benzeri değilse (eski kayıtlarda ad olabilir) sahiplik çözülemez.
@@ -86,13 +102,13 @@ const KISISEL_KLASORLER = [
 
 /** Yol, kişisel belge klasörlerinden birinde mi? */
 function kisiselKlasorMu(yol) {
-  const ilk = metin(yol).replace(/\\/g, '/').split('/').filter(Boolean)[0] || '';
+  const ilk = yolSadele(yol).split('/').filter(Boolean)[0] || '';
   return KISISEL_KLASORLER.indexOf(ilk) >= 0;
 }
 
 /** Göreli yol (klasör/dosya) kayıtlardan birinin içinde geçiyor mu? */
 function kayitlardaGeciyorMu(yol, kayitlar) {
-  const aranan = metin(yol).replace(/\\/g, '/').replace(/^\/+/, '');
+  const aranan = yolSadele(yol);
   if (!aranan || aranan.indexOf('/') < 0) return false;
   return (Array.isArray(kayitlar) ? kayitlar : []).some((k) => {
     try {
@@ -126,6 +142,7 @@ function kisiselDosyaKarari(p) {
 }
 
 module.exports = {
+  yolSadele,
   NUMARALI_KLASORLER,
   KISISEL_KLASORLER,
   yolunOgrenciNumarasi,
