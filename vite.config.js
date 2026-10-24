@@ -128,6 +128,14 @@ export default defineConfig(async () => ({
           if (id.includes('/quill') || id.includes('parchment') || id.includes('quill-delta')) {
             return 'vendor-quill';
           }
+          // PDF üretimi (pdf-lib + fontkit, ~550 kB sıkıştırılmış) yalnız TTO
+          // belge ekranında, QR çözücü/üretici yalnız yoklama ve akademisyen
+          // sayfasında kullanılıyor. Ortak `vendor`a düşünce açılışta herkes
+          // indiriyordu — modüllerin geç açılmasının başlıca sebebiydi.
+          if (id.includes('pdf-lib') || id.includes('fontkit') || id.includes('pako')) {
+            return 'vendor-pdf';
+          }
+          if (id.includes('jsqr') || id.includes('qrcode-generator')) return 'vendor-qr';
           return 'vendor';
         },
       },

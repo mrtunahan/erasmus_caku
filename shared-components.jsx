@@ -2673,6 +2673,14 @@ async function fetchWithRetry(url, options = {}, maxRetries = 2) {
     try {
       const response = await fetch(url, options);
       if (response.ok) return response;
+      // Hız sınırı (429): okuma bekleyip yeniden denenir — hemen boş sonuç
+      // dönmek sağ menüden fakültelerin "kaybolmasına" yol açıyordu. Sunucu
+      // Retry-After verdiyse ona uyulur (en çok 5 sn). Yazmalar maxRetries=0.
+      if (response.status === 429 && attempt < maxRetries) {
+        const sn = Number(response.headers.get('Retry-After')) || attempt + 1;
+        await new Promise((r) => setTimeout(r, Math.min(5, Math.max(1, sn)) * 1000));
+        continue;
+      }
       // 5xx sunucu hatası ise yeniden dene
       if (response.status >= 500 && attempt < maxRetries) {
         await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
@@ -3077,6 +3085,12 @@ function fakulteAdlariniYukle() {
       } catch (_) {
         if (deneme === MAX) {
           _fakulteSozu = null; // sonraki çağrı yeniden denesin
+          // Vazgeçme: 30 sn sonra arka planda yeniden dene. Başarılı olunca
+          // 'faculties:loaded' yayılır ve açık ekranlar kendini tazeler —
+          // fakülte adları sayfa yenilemeden geri gelir.
+          setTimeout(() => {
+            if (!_fakulteAdlari) fakulteAdlariniYukle();
+          }, 30000);
           return {};
         }
         await new Promise((r) => setTimeout(r, deneme * 1000));
@@ -3095,8 +3109,14 @@ function useFakulteAdlari() {
     fakulteAdlariniYukle().then((h) => {
       if (!iptal) setAdlar(h || {});
     });
+    // İlk okuma başarısız olup arka planda sonradan tamamlanırsa güncellen.
+    const yuklendi = () => {
+      if (!iptal && _fakulteAdlari) setAdlar(_fakulteAdlari);
+    };
+    window.addEventListener('faculties:loaded', yuklendi);
     return () => {
       iptal = true;
+      window.removeEventListener('faculties:loaded', yuklendi);
     };
   }, []);
   return adlar;
