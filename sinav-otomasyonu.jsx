@@ -2785,6 +2785,8 @@ async function exportDeptPrintable(
       salon: e.assignedRoom || '',
       ogrenciSayisi: e.studentCount != null ? String(e.studentCount) : '',
       gozetmen: e.assignedSupervisors || e.supervisor || '',
+      // Sınıf rengi şablonlu çıktıda da satır zemini olur (şablonsuz Word ile aynı).
+      _zemin: SINIF_BG[e.sinif] || '',
     }));
     const res = await window.TemplateEngine.produceFromTemplate({
       module: 'sinav',

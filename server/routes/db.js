@@ -28,6 +28,7 @@ const {
   BASVURU_BOLUMU,
 } = require('../lib/yetki-alani');
 const { idSorgusu: bildirimIdSorgusu } = require('./bildirim');
+const { kimlikler: bolumKimlikleri } = require('../lib/bolum-kimlik');
 const personelKapsami = require('../lib/personel-kayit-kapsami');
 const { ogrenciAlanSuzgeci } = require('../lib/ogrenci-alan-suzgeci');
 
@@ -2531,7 +2532,13 @@ async function enforceWritePolicies(db, op, user) {
     try {
       const alan = await kullaniciAlani(db, user);
       if (kapsam && alan && alan.bolumler) {
-        kapsam.departmentIds = [...new Set([...(kapsam.departmentIds || []), ...alan.bolumler])];
+        // Bölüm düzeyinde YAZMA alanı yalnız ana bölümdür (salon ve program
+        // ayarıyla aynı): ek bölümünde ders veren yetkili orada sade
+        // akademisyendir, o bölümün gözetmen listesini değiştiremez.
+        kapsam.departmentIds =
+          kapsam.kapsamTuru === 'bolum'
+            ? [...alan.bolumler]
+            : [...new Set([...(kapsam.departmentIds || []), ...alan.bolumler])];
       }
     } catch (_) {
       /* alan okunamazsa ham kapsamla devam */
@@ -2542,6 +2549,7 @@ async function enforceWritePolicies(db, op, user) {
       flags,
       bolumYetkilisi: user.role === 'bolum_yetkilisi',
       kapsam,
+      bilinenBolumler: bolumler.flatMap((d) => bolumKimlikleri(d)),
     });
     if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
   }

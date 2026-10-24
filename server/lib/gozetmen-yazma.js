@@ -38,9 +38,11 @@ function oncekiListe(kayit) {
  * @param {object} p.flags     getActorFlags sonucu
  * @param {boolean} p.bolumYetkilisi  işlemi yapan bölüm yetkilisi mi (her iki giriş türü)
  * @param {{kapsamTuru:string, departmentIds:string[]}} p.kapsam  aktorKapsami
+ * @param {string[]} [p.bilinenBolumler]  bütün bölümlerin kimlikleri (fakülte
+ *        dışı kişiyi tanımak için; listede olmayan bölüm "bilinmiyor" sayılır)
  * @returns {{izin:boolean, hata?:string}}
  */
-function gozetmenYazmaKarari({ op, mevcut, flags, bolumYetkilisi, kapsam }) {
+function gozetmenYazmaKarari({ op, mevcut, flags, bolumYetkilisi, kapsam, bilinenBolumler }) {
   if (!op || op.collection !== 'professors') return { izin: true };
   const veri = op.data;
   if (!veri || typeof veri !== 'object' || !('gozetmenBolumleri' in veri)) return { izin: true };
@@ -79,6 +81,24 @@ function gozetmenYazmaKarari({ op, mevcut, flags, bolumYetkilisi, kapsam }) {
         ? 'Yalnız kendi fakültenizin bölümlerine gözetmen atayabilirsiniz.'
         : 'Yalnız kendi bölümünüzün gözetmen listesini değiştirebilirsiniz.',
     };
+  }
+  // Fakülte yetkilisi başka bölümden kişi atayabilir, ama ANA bölümü başka
+  // FAKÜLTEDE olan kişiyi değil: Sınav Otomasyonu'nun gözetmen havuzu o kişiyi
+  // saymaz (lib/sinav-fakulte.js → fakulteAkademisyeniMi), atama kâğıt üstünde
+  // kalır ve kişi hiçbir sınava düşmezdi. Kural havuzla birebir aynıdır:
+  // ana bölümü boş ya da hiçbir bölüm listesinde olmayan kişi engellenmez.
+  if (fakulte && eklenen.length > 0) {
+    const kisi = mevcut || veri;
+    const ana = metin(kisi && kisi.departmentId);
+    const bilinen = new Set(dizi(bilinenBolumler));
+    if (ana && !alanim.includes(ana) && bilinen.has(ana)) {
+      return {
+        izin: false,
+        hata:
+          'Ana bölümü başka fakültede olan akademisyen bu fakültenin gözetmeni yapılamaz ' +
+          '(Sınav Otomasyonu onu gözetmen havuzuna almaz).',
+      };
+    }
   }
   // Bölüm yetkilisi başka bölümün akademisyenini kendi listesine ekleyemez.
   if (!fakulte && eklenen.length > 0) {

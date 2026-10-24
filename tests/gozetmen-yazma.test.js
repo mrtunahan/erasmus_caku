@@ -89,6 +89,39 @@ describe('gozetmenYazmaKarari', () => {
     expect(r.izin).toBe(true);
   });
 
+  it('fakülte yetkilisi ana bölümü başka fakültede olan kişiyi atayamaz (havuzla aynı)', () => {
+    const bilinen = ['bil', '65f0aaaa', 'mak', 'kim'];
+    const kimyaci = gozetmenYazmaKarari({
+      op: op({ gozetmenBolumleri: ['bil'] }),
+      mevcut: { departmentId: 'kim' },
+      flags: { facManager: true },
+      kapsam: FAKULTE_KAPSAMI,
+      bilinenBolumler: bilinen,
+    });
+    expect(kimyaci.izin).toBe(false);
+    expect(kimyaci.hata).toMatch(/başka fakültede/);
+    // Ana bölümü boş ya da bilinmeyen kişi engellenmez (havuz da onu alır).
+    for (const departmentId of ['', 'tanimsiz']) {
+      const r = gozetmenYazmaKarari({
+        op: op({ gozetmenBolumleri: ['bil'] }),
+        mevcut: { departmentId },
+        flags: { facManager: true },
+        kapsam: FAKULTE_KAPSAMI,
+        bilinenBolumler: bilinen,
+      });
+      expect(r.izin).toBe(true);
+    }
+    // Daha önce eklenmiş fakülte dışı kişiyi listeden ÇIKARMAK serbest.
+    const cikar = gozetmenYazmaKarari({
+      op: op({ gozetmenBolumleri: [] }),
+      mevcut: { departmentId: 'kim', gozetmenBolumleri: ['bil'] },
+      flags: { facManager: true },
+      kapsam: FAKULTE_KAPSAMI,
+      bilinenBolumler: bilinen,
+    });
+    expect(cikar.izin).toBe(true);
+  });
+
   it('fakülte yetkilisi başka fakültenin bölümüne atayamaz', () => {
     const r = gozetmenYazmaKarari({
       op: op({ gozetmenBolumleri: ['hukuk'] }),

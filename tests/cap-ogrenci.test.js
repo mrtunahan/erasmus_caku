@@ -106,6 +106,32 @@ describe('caprazKisitli', () => {
     };
     expect(caprazKisitli(yetkili, 'elektrik')).toBe(true);
   });
+  const BOL = [
+    { id: 'bilgisayar', facultyId: 'muh' },
+    { id: 'elektrik', facultyId: 'muh' },
+    { id: 'kimya', facultyId: 'fen' },
+  ];
+  it('fakülte yetkilisi kendi fakültesindeki ek bölümünde kısıtlı DEĞİLDİR', () => {
+    const fy = {
+      role: 'professor',
+      isFacultyManager: true,
+      facultyId: 'muh',
+      departmentId: 'bilgisayar',
+      additionalDepartments: ['elektrik', 'kimya'],
+    };
+    expect(caprazKisitli(fy, 'elektrik', BOL)).toBe(false);
+    // Başka fakültedeki ek bölümde kısıt sürer.
+    expect(caprazKisitli(fy, 'kimya', BOL)).toBe(true);
+  });
+  it('üniversite yetkilisi ek bölümünde kısıtlı değildir', () => {
+    const uy = {
+      role: 'professor',
+      isUniversityAdmin: true,
+      departmentId: 'bilgisayar',
+      additionalDepartments: ['kimya'],
+    };
+    expect(caprazKisitli(uy, 'kimya', BOL)).toBe(false);
+  });
 });
 
 describe('ogrenciMi', () => {

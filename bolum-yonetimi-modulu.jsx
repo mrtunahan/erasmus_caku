@@ -315,6 +315,56 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
     [tumAkademisyenler, activeDepartment, aktifBolumAdi]
   );
 
+  // ── FAKÜLTE SÜZGECİ: Sınav Otomasyonu'nun gözetmen havuzuyla AYNI kural ──
+  // Havuz ana bölümü başka FAKÜLTEDE olan kişiyi saymaz (sinav-otomasyonu.jsx →
+  // bolumunFakulteBolumleri + SinavFakulte.fakulteAkademisyeniMi). Burada da
+  // aynısı uygulanmazsa kişi bu listede "gözetmen" görünür ama hiçbir sınava
+  // atanmaz. Bölüm/fakülte bilgisi çözülemezse süzgeç uygulanmaz (null).
+  const [fakulteKayitlari, setFakulteKayitlari] = useState([]);
+  useEffect(() => {
+    let iptal = false;
+    window
+      .apiRead('faculties')
+      .then((f) => !iptal && setFakulteKayitlari(f || []))
+      .catch(() => {});
+    return () => {
+      iptal = true;
+    };
+  }, []);
+  const fakulteAkademisyeniMi = useMemo(() => {
+    const SF = window.SinavFakulte;
+    if (!SF || !SF.fakulteAkademisyeniMi || !SF.fakulteListesi) return null;
+    const gomulu = (window.DEPARTMENTS || []).map((d) => ({
+      ...d,
+      facultyId: d.facultyId || 'muhendislik',
+    }));
+    const tum = [...(departments || []), ...gomulu].map((d) => {
+      const id = String(d._docId || d.id || d._id || '');
+      return {
+        id,
+        name: d.name,
+        facultyId: String(d.facultyId || '') || 'muhendislik',
+        kimlikler: [
+          ...new Set(
+            [
+              id,
+              String(d.id || ''),
+              ...(window.bolumKimlikleri ? window.bolumKimlikleri(id) : []),
+            ].filter(Boolean)
+          ),
+        ],
+      };
+    });
+    const secili = tum.find((d) => d.kimlikler.includes(String(activeDepartment)));
+    if (!secili) return null;
+    const birim = SF.fakulteListesi(fakulteKayitlari || [], gomulu).find((f) =>
+      f.kimlikler.includes(String(secili.facultyId))
+    );
+    const fakSet = new Set(birim ? birim.kimlikler : [secili.facultyId]);
+    const fakulte = tum.filter((d) => fakSet.has(d.facultyId));
+    return (p) => SF.fakulteAkademisyeniMi(p, fakulte, tum);
+  }, [departments, fakulteKayitlari, activeDepartment]);
+
   // Fakülte/üniversite yetkilisi BAŞKA bölümlerden de akademisyen seçebilir
   // (bir bölümün gözetmen açığı diğerinden kapatılır); bölüm yetkilisi yalnız
   // kendi bölümünden. Sunucu da aynı kuralı uygular (server/lib/gozetmen-yazma.js).
@@ -346,13 +396,21 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
       : professors.filter((p) => !p.isMemur);
     const kendi = new Set(professors.map((p) => p.id));
     return aday
-      .filter((p) => !gozetmenMi(p))
+      .filter((p) => !gozetmenMi(p) && (!fakulteAkademisyeniMi || fakulteAkademisyeniMi(p)))
       .sort(
         (a, b) =>
           (kendi.has(a.id) ? 0 : 1) - (kendi.has(b.id) ? 0 : 1) ||
           String(a.name || '').localeCompare(String(b.name || ''), 'tr')
       );
-  }, [tumAkademisyenler, professors, departments, kisiBolumAdi, activeDepartment, aktifBolumAdi]);
+  }, [
+    tumAkademisyenler,
+    professors,
+    departments,
+    kisiBolumAdi,
+    activeDepartment,
+    aktifBolumAdi,
+    fakulteAkademisyeniMi,
+  ]);
   const bolumunKendisi = useMemo(() => new Set(professors.map((p) => p.id)), [professors]);
 
   const gozetmenlikYaz = async (prof, ekle) => {
@@ -1172,6 +1230,16 @@ function BolumYonetimiModuluApp({ currentUser, activeDepartment }) {
                                       {kisiBolumAdi[s.id]
                                         ? kisiBolumAdi[s.id] + ' bölümünden'
                                         : 'başka bölümden'}
+                                    </BYRozet>
+                                  </span>
+                                )}
+                                {fakulteAkademisyeniMi && !fakulteAkademisyeniMi(s) && (
+                                  <span
+                                    style={{ marginLeft: 8 }}
+                                    title="Ana bölümü başka fakültede: Sınav Otomasyonu bu kişiyi gözetmen havuzuna almaz, otomatik atamada kullanılmaz. Listeden çıkarabilirsiniz."
+                                  >
+                                    <BYRozet renk="#B91C1C" zemin="#FEE2E2">
+                                      başka fakülte · sınavda kullanılmıyor
                                     </BYRozet>
                                   </span>
                                 )}
