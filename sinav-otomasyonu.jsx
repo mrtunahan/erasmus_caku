@@ -2774,6 +2774,12 @@ async function exportDeptPrintable(
       ? window.SinavBirlesim.ciktiSatirlariniBirlestir(enriched)
       : enriched;
 
+  // Renklerin hangi sınıfa ait olduğu belgenin altında yazar (yalnız
+  // belgede geçen sınıflar). Kâğıtta ekrandaki açıklama yoktur.
+  const lejant = [...new Set(satirlar.map((e) => Number(e.sinif)).filter((n) => SINIF_BG[n]))]
+    .sort((a, b) => a - b)
+    .map((n) => ({ renk: SINIF_BG[n], etiket: (SINIF_COLORS[n] || {}).label || n + '. Sınıf' }));
+
   // Önce Şablonlar modülüne atanmış sınav programı şablonunu dene
   if (window.TemplateEngine && window.TemplateEngine.produceFromTemplate) {
     const rows = satirlar.map((e) => ({
@@ -2799,6 +2805,13 @@ async function exportDeptPrintable(
       },
       rows,
       stripRowBold: true,
+      // Şablona sabit yazılmış başka bölüm adı bu bölümün adıyla değişir
+      // (paylaşılan şablonda her bölüm kendi adını görür).
+      otomatikBolumAdi: {
+        yeni: deptName || '',
+        adlar: (window.DEPARTMENTS || []).map((d) => d && d.name).filter(Boolean),
+      },
+      sonaEkle: window.renkLejantiXml ? window.renkLejantiXml(lejant) : '',
       filename:
         'Sinav_Programi_' + (deptName || 'bolum').replace(/[^\wğüşıöçĞÜŞİÖÇ]/g, '_') + '.docx',
     });
@@ -2836,6 +2849,7 @@ async function exportDeptPrintable(
         'Salon',
         'Gözetmen',
       ],
+      lejant,
       satirlar: satirlar.map((e) => ({
         renk: (SINIF_BG[e.sinif] || '').replace('#', ''),
         hucreler: [

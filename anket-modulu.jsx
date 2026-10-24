@@ -596,6 +596,65 @@ function YoneticiGorunumu({
     await load();
     toast.show('Anket silindi');
   };
+  // ── YAYIN: PASİFE ALMA ve SÜRE UZATMA (lib/anket-yayin.js) ──
+  // Pasif anket katılımcıya görünmez, zorunlu anket kapısını kilitlemez,
+  // yeni yanıt almaz; yanıtları ve paylaşımları SİLİNMEZ. Yetki anketi
+  // yönetme yetkisidir (sunucu da aynı kuralla denetler).
+  const pasifDegistir = async (s, pasif) => {
+    if (window.anketYonetilebilirMi && !window.anketYonetilebilirMi(s, yayinKapsami, currentUser)) {
+      alert(window.anketKilitSebebi(s, yayinKapsami, currentUser));
+      return;
+    }
+    if (
+      pasif &&
+      !confirm(
+        '“' +
+          (s.title || 'Anket') +
+          '” pasife alınsın mı?\n\nKatılımcılar anketi görmez ve yeni yanıt veremez. ' +
+          'Mevcut yanıtlar ve sonuçlar korunur; istediğiniz zaman yeniden yayına alabilirsiniz.'
+      )
+    )
+      return;
+    await window.DBWrite.update('surveys', s.id, {
+      pasif: !!pasif,
+      pasifDegistiren: currentUser?.name || '',
+      pasifDegisimTarihi: new Date().toISOString(),
+    });
+    await load();
+    toast.show(pasif ? 'Anket pasife alındı' : 'Anket yeniden yayında');
+  };
+  // Süre yalnız KULLANICININ yönetebildiği paylaşımlarda uzar (akademisyende
+  // kendi paylaşımları, yetkilide kapsamındakiler). Diğerleri olduğu gibi kalır.
+  const sureUzat = async (s, yeniTarih) => {
+    const AY = window.AnketYayin;
+    const hata = AY ? AY.sureUzatmaHatasi(yeniTarih) : '';
+    if (hata) throw new Error(hata);
+    const hedef = yonetilebilirAtamalar.filter((a) => a.surveyId === s.id);
+    if (hedef.length === 0) {
+      throw new Error('Bu anketin süresini uzatabileceğiniz bir paylaşımı yok.');
+    }
+    let basarisiz = 0;
+    for (const a of hedef) {
+      try {
+        await window.DBWrite.update('survey_assignments', a.id, { dueDate: yeniTarih });
+      } catch (_) {
+        basarisiz++;
+      }
+    }
+    await load();
+    const toplam = hedef.length - basarisiz;
+    if (toplam === 0) throw new Error('Süre uzatılamadı (yetki).');
+    toast.show(
+      'Son tarih ' +
+        yeniTarih.split('-').reverse().join('.') +
+        ' oldu (' +
+        toplam +
+        ' paylaşım' +
+        (basarisiz ? ', ' + basarisiz + ' paylaşım yetki dışı' : '') +
+        ')'
+    );
+  };
+
   // Anketi kopyala — sorular ve ders eşleştirmesiyle; atamalar kopyalanmaz
   const duplicateSurvey = async (s, yeniAd) => {
     const copy = {
@@ -712,6 +771,8 @@ function YoneticiGorunumu({
               onUpdate={updateSurvey}
               onRemove={removeSurvey}
               onDuplicate={duplicateSurvey}
+              onPasif={pasifDegistir}
+              onSureUzat={sureUzat}
               activeDepartment={activeDepartment}
               isAdmin={isAdmin}
               derslerim={akademisyenModu ? derslerim : null}
@@ -736,6 +797,7 @@ function YoneticiGorunumu({
           {tab === 'sonuclar' && (
             <SonuclarPaneli
               surveys={gorunenAnketler}
+              assignments={assignments}
               akademisyen={yayinKapsami.kapsamTuru === 'akademisyen'}
             />
           )}
@@ -1134,6 +1196,8 @@ function AnketlerPaneli({
   onUpdate,
   onRemove,
   onDuplicate,
+  onPasif,
+  onSureUzat,
   activeDepartment,
   isAdmin,
   kapsam,
@@ -1141,6 +1205,57 @@ function AnketlerPaneli({
   derslerim,
   olusturanAdi,
 }) {
+  // ── YÜKLÜ ANKETLER SÜZGECİ (lib/anket-yayin.js) ──
+  // Fakülte/üniversite yetkilisi bölüme (anketin sahibi birim), bölüm
+  // yetkilisi akademisyene göre süzer; durum süzgeci herkeste.
+  const AY = window.AnketYayin;
+  const bugun = AY ? AY.bugunTarihi() : '';
+  const [suzgec, setSuzgec] = useState({ durum: '', birim: '', akademisyen: '', arama: '' });
+  const suzgecDegis = (k, v) =>
+    setSuzgec((p) => ({ ...p, [k]: v, ...(k === 'birim' ? { akademisyen: '' } : {}) }));
+  const kapsamTuru = (kapsam && kapsam.kapsamTuru) || '';
+  const birimSuzgeci = kapsamTuru === 'universite' || kapsamTuru === 'fakulte';
+  const atamalariOf = useCallback(
+    (id) => (assignments || []).filter((a) => a.surveyId === id),
+    [assignments]
+  );
+  const secenekler = useMemo(
+    () => (AY ? AY.suzgecSecenekleri(surveys) : { birimler: [], akademisyenler: [] }),
+    [surveys]
+  );
+  // Akademisyen seçenekleri seçili birime göre daralır.
+  const akademisyenSecenekleri = useMemo(() => {
+    if (!AY) return [];
+    if (!suzgec.birim) return secenekler.akademisyenler;
+    return AY.suzgecSecenekleri(surveys.filter((x) => x._sahipBirim === suzgec.birim))
+      .akademisyenler;
+  }, [surveys, suzgec.birim, secenekler]);
+  const akademisyenSuzgeci =
+    kapsamTuru === 'bolum' || (birimSuzgeci && akademisyenSecenekleri.length > 1);
+  const sayilar = useMemo(
+    () => (AY ? AY.durumSayilari(surveys, atamalariOf, bugun) : null),
+    [surveys, atamalariOf, bugun]
+  );
+  const listelenen = useMemo(
+    () => (AY ? AY.anketListesiniSuz(surveys, suzgec, atamalariOf, bugun) : surveys),
+    [surveys, suzgec, atamalariOf, bugun]
+  );
+  const suzgecAcik = !!(suzgec.durum || suzgec.birim || suzgec.akademisyen || suzgec.arama);
+  // Süre uzatma penceresi
+  const [sureAnket, setSureAnket] = useState(null);
+  const [sureTarih, setSureTarih] = useState('');
+  const [sureKaydediliyor, setSureKaydediliyor] = useState(false);
+  const sureyiOnayla = async () => {
+    setSureKaydediliyor(true);
+    try {
+      await onSureUzat(sureAnket, sureTarih);
+      setSureAnket(null);
+    } catch (e) {
+      alert(e && e.message ? e.message : 'Süre uzatılamadı.');
+    } finally {
+      setSureKaydediliyor(false);
+    }
+  };
   // Çoğaltma penceresi: yeni anketin adı kopyalamadan ÖNCE yazılır.
   const [cogaltilan, setCogaltilan] = useState(null);
   const [cogaltAd, setCogaltAd] = useState('');
@@ -1446,13 +1561,117 @@ function AnketlerPaneli({
         )}
       </div>
 
-      <p style={labelStyle}>Yüklü anketler ({surveys.length})</p>
+      <p style={labelStyle}>
+        Yüklü anketler ({suzgecAcik ? listelenen.length + ' / ' + surveys.length : surveys.length})
+      </p>
+      {surveys.length > 0 && AY && (
+        <div
+          data-anket-suzgec
+          style={{
+            ...cardStyle,
+            padding: '12px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {[
+              ['', 'Tümü', surveys.length],
+              ['yayinda', 'Yayında', sayilar.yayinda],
+              ['suresi_doldu', 'Süresi doldu', sayilar.suresi_doldu],
+              ['pasif', 'Pasif', sayilar.pasif],
+              ['taslak', 'Paylaşılmadı', sayilar.taslak],
+            ].map(([k, ad, n]) => {
+              const on = suzgec.durum === k;
+              const r = YAYIN_RENK[k] || YAYIN_RENK.tumu;
+              return (
+                <button
+                  key={k || 'tumu'}
+                  onClick={() => suzgecDegis('durum', k)}
+                  className="ank-btn"
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: 16,
+                    border: '1px solid ' + (on ? r.renk : ANK.border),
+                    background: on ? r.zemin : 'white',
+                    color: on ? r.renk : ANK.textMuted,
+                    fontSize: 12,
+                    fontWeight: on ? 700 : 600,
+                    cursor: 'pointer',
+                    fontFamily: "'Inter', sans-serif",
+                  }}
+                >
+                  {ad} <span style={{ opacity: 0.75 }}>({n})</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {birimSuzgeci && secenekler.birimler.length > 1 && (
+              <select
+                data-anket-birim-suzgec
+                value={suzgec.birim}
+                onChange={(e) => suzgecDegis('birim', e.target.value)}
+                style={{ ...suzgecKutusu, flex: '1 1 200px' }}
+              >
+                <option value="">Tüm bölümler</option>
+                {secenekler.birimler.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            )}
+            {akademisyenSuzgeci && (
+              <select
+                data-anket-akademisyen-suzgec
+                value={suzgec.akademisyen}
+                onChange={(e) => suzgecDegis('akademisyen', e.target.value)}
+                style={{ ...suzgecKutusu, flex: '1 1 200px' }}
+              >
+                <option value="">Tüm akademisyenler</option>
+                {akademisyenSecenekleri.map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </select>
+            )}
+            <input
+              value={suzgec.arama}
+              onChange={(e) => suzgecDegis('arama', e.target.value)}
+              placeholder="Anket adı, ders kodu, kişi ara…"
+              style={{ ...suzgecKutusu, flex: '2 1 220px' }}
+            />
+            {suzgecAcik && (
+              <button
+                onClick={() => setSuzgec({ durum: '', birim: '', akademisyen: '', arama: '' })}
+                className="ank-btn"
+                style={{
+                  ...suzgecKutusu,
+                  cursor: 'pointer',
+                  color: ANK.textMuted,
+                  fontWeight: 600,
+                }}
+              >
+                Süzgeci temizle
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {surveys.length === 0 ? (
         <EmptyState text="Henüz anket yüklenmedi. Yukarıdaki şablonlardan ekleyin." />
+      ) : listelenen.length === 0 ? (
+        <EmptyState text="Süzgece uyan anket yok." />
       ) : (
         <div className="ank-grid">
-          {surveys.map((s) => {
+          {listelenen.map((s) => {
             const anketAtamalari = assignments.filter((a) => a.surveyId === s.id);
+            const yayinDurumu = AY ? AY.anketYayinDurumu(s, anketAtamalari, bugun) : '';
+            const sonTarih = AY ? AY.anketSonTarihi(anketAtamalari) : '';
+            const yr = YAYIN_RENK[yayinDurumu];
             const ac = anketAtamalari.length;
             // Anketin KİME paylaşıldığı (atamaların hedefi). Kapsam rozeti ise
             // anketin KİMİN olduğunu söyler; ikisi farklı sorular.
@@ -1613,6 +1832,62 @@ function AnketlerPaneli({
                     </div>
                   </div>
 
+                  {yr && (
+                    <div
+                      data-anket-yayin
+                      style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}
+                    >
+                      <span
+                        style={{
+                          padding: '3px 10px',
+                          borderRadius: 10,
+                          background: yr.zemin,
+                          color: yr.renk,
+                          fontSize: 11,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {window.AnketYayin.YAYIN_DURUMLARI[yayinDurumu]}
+                      </span>
+                      {ac > 0 && (
+                        <span style={{ fontSize: 11.5, color: ANK.textMuted }}>
+                          {sonTarih ? 'Son tarih: ' + fmtDueDate(sonTarih) : 'Süresiz'}
+                        </span>
+                      )}
+                      {s._yonetilebilir && (
+                        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
+                          {ac > 0 && yayinDurumu !== 'pasif' && (
+                            <button
+                              data-anket-sure-uzat
+                              onClick={() => {
+                                setSureAnket(s);
+                                setSureTarih(sonTarih && sonTarih >= bugun ? sonTarih : bugun);
+                              }}
+                              className="ank-btn"
+                              title="Paylaşımların son tarihini değiştir"
+                              style={kucukDugme(ANK.blue)}
+                            >
+                              Süre uzat
+                            </button>
+                          )}
+                          <button
+                            data-anket-pasif
+                            onClick={() => onPasif(s, yayinDurumu !== 'pasif')}
+                            className="ank-btn"
+                            title={
+                              yayinDurumu === 'pasif'
+                                ? 'Anketi yeniden katılımcılara aç'
+                                : 'Anketi katılımcılardan gizle (yanıtlar korunur)'
+                            }
+                            style={kucukDugme(yayinDurumu === 'pasif' ? '#047857' : '#B45309')}
+                          >
+                            {yayinDurumu === 'pasif' ? 'Yayına al' : 'Pasife al'}
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {(s.linkedCourses || []).length > 0 && (
                     <div
                       style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}
@@ -1754,6 +2029,78 @@ function AnketlerPaneli({
           derslerim={derslerim}
           olusturan={editing._isNew ? olusturanAdi : editing._olusturan || editing.createdBy || ''}
         />
+      )}
+
+      {sureAnket && (
+        <div
+          onClick={() => !sureKaydediliyor && setSureAnket(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1200,
+            padding: 16,
+          }}
+        >
+          <div
+            data-anket-sure
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: 14,
+              padding: 22,
+              width: '100%',
+              maxWidth: 420,
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: ANK.primary, margin: '0 0 6px' }}>
+              Anketin süresini uzat
+            </h3>
+            <p
+              style={{ fontSize: 12.5, color: ANK.textMuted, margin: '0 0 14px', lineHeight: 1.5 }}
+            >
+              “{sureAnket.title || 'Anket'}” için yönetebildiğiniz paylaşımların son tarihi değişir.
+              Süresi dolmuş anket bu tarihe kadar yeniden doldurulabilir olur.
+            </p>
+            <label style={{ fontSize: 12, fontWeight: 600, color: ANK.text }}>Yeni son tarih</label>
+            <input
+              type="date"
+              value={sureTarih}
+              min={bugun}
+              onChange={(e) => setSureTarih(e.target.value)}
+              style={{ ...suzgecKutusu, width: '100%', margin: '6px 0 16px' }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setSureAnket(null)}
+                disabled={sureKaydediliyor}
+                className="ank-btn"
+                style={{ ...suzgecKutusu, cursor: 'pointer', fontWeight: 600 }}
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={sureyiOnayla}
+                disabled={sureKaydediliyor || !sureTarih}
+                className="ank-btn"
+                style={{
+                  ...suzgecKutusu,
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  background: ANK.accent,
+                  color: 'white',
+                  border: 'none',
+                }}
+              >
+                {sureKaydediliyor ? 'Kaydediliyor…' : 'Süreyi uzat'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {cogaltilan && (
@@ -2673,6 +3020,35 @@ const iconBtn = (color) => ({
 });
 
 // Son tarih gösterimi: ISO (yyyy-mm-dd) → gg.aa.yyyy; boş/'—' → "Belirtilmedi".
+// Yayın durumu renkleri (lib/anket-yayin.js → YAYIN_DURUMLARI).
+const YAYIN_RENK = {
+  tumu: { renk: '#0F766E', zemin: '#CCFBF1' },
+  yayinda: { renk: '#047857', zemin: '#D1FAE5' },
+  suresi_doldu: { renk: '#B45309', zemin: '#FEF3C7' },
+  pasif: { renk: '#475569', zemin: '#E2E8F0' },
+  taslak: { renk: '#64748B', zemin: '#F1F5F9' },
+};
+const suzgecKutusu = {
+  padding: '7px 10px',
+  borderRadius: 8,
+  border: '1px solid #E2E8F0',
+  background: 'white',
+  fontSize: 12.5,
+  color: '#1E293B',
+  fontFamily: "'Inter', sans-serif",
+};
+const kucukDugme = (renk) => ({
+  padding: '4px 10px',
+  borderRadius: 8,
+  border: '1px solid ' + renk,
+  background: 'white',
+  color: renk,
+  fontSize: 11.5,
+  fontWeight: 700,
+  cursor: 'pointer',
+  fontFamily: "'Inter', sans-serif",
+});
+
 function fmtDueDate(d) {
   if (!d || d === '—') return 'Belirtilmedi';
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d));
@@ -4244,8 +4620,8 @@ function suzgecMetni(courseFilter, courseOptions) {
   return 'Ders: ' + (d && d.name && d.name !== d.code ? d.code + ' — ' + d.name : courseFilter);
 }
 
-function raporModeli(survey, responses, suzgec) {
-  return window.anketRaporu(survey, responses, { suzgec });
+function raporModeli(survey, responses, suzgec, baglam) {
+  return window.anketRaporu(survey, responses, { suzgec, ...(baglam || {}) });
 }
 
 /** Dosya adı: anket başlığı + ne olduğu. Türkçe harfler korunur. */
@@ -4268,8 +4644,8 @@ function downloadCSV(survey, responses) {
   URL.revokeObjectURL(a.href);
 }
 
-async function downloadExcel(survey, responses, suzgec) {
-  const rapor = raporModeli(survey, responses, suzgec);
+async function downloadExcel(survey, responses, suzgec, baglam) {
+  const rapor = raporModeli(survey, responses, suzgec, baglam);
   const sayfalar = window.anketRaporExcelSayfalari(rapor).map((sf) => ({
     ad: sf.ad,
     satirlar: sf.satirlar,
@@ -4279,20 +4655,245 @@ async function downloadExcel(survey, responses, suzgec) {
   await window.xlsxIndir(((survey && survey.title) || 'anket') + ' sonuc raporu', { sayfalar });
 }
 
-async function downloadWord(survey, responses, suzgec) {
-  const rapor = raporModeli(survey, responses, suzgec);
+async function downloadWord(survey, responses, suzgec, baglam) {
+  const rapor = raporModeli(survey, responses, suzgec, baglam);
   await window.wordIndir(
     ciktiAdi(survey, 'sonuc-raporu', 'docx'),
     window.anketRaporWordGovdesi(rapor)
   );
 }
 
-function SonuclarPaneli({ surveys, akademisyen }) {
+// ── Anketin künyesi: hangi bölümün, kimin, hangi ders(ler) ve hocalar için ──
+function AnketKunyesi({ survey, yayin, bagliDersler, yanitSayisi }) {
+  const yr = YAYIN_RENK[yayin.durum];
+  const satir = (etiket, deger) => (
+    <div style={{ minWidth: 0 }}>
+      <div
+        style={{
+          fontSize: 10.5,
+          fontWeight: 600,
+          color: ANK.textDim,
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+        }}
+      >
+        {etiket}
+      </div>
+      <div style={{ fontSize: 13, color: ANK.text, fontWeight: 600, marginTop: 2 }}>{deger}</div>
+    </div>
+  );
+  return (
+    <div data-anket-kunye style={{ ...cardStyle, padding: 16 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+          gap: '12px 18px',
+        }}
+      >
+        {satir('Bölüm / sahibi', survey._sahipBirim || 'Eski kayıt')}
+        {satir('Oluşturan', survey._olusturan || 'Belirtilmemiş')}
+        {satir(
+          'Yayın',
+          yr ? (
+            <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+              <span
+                style={{
+                  padding: '2px 9px',
+                  borderRadius: 10,
+                  background: yr.zemin,
+                  color: yr.renk,
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}
+              >
+                {window.AnketYayin.YAYIN_DURUMLARI[yayin.durum]}
+              </span>
+              <span style={{ fontSize: 11.5, color: ANK.textMuted, fontWeight: 500 }}>
+                {yayin.son ? 'son ' + fmtDueDate(yayin.son) : ''}
+              </span>
+            </span>
+          ) : (
+            '—'
+          )
+        )}
+        {satir('Gösterilen yanıt', yanitSayisi)}
+      </div>
+      {bagliDersler.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div
+            style={{
+              fontSize: 10.5,
+              fontWeight: 600,
+              color: ANK.textDim,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              marginBottom: 6,
+            }}
+          >
+            Bağlı dersler ve öğretim elemanları
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {bagliDersler.map((d) => (
+              <span
+                key={d.kod + d.ad}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 10,
+                  background: ANK.tealLight,
+                  color: ANK.teal,
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {d.kod}
+                {d.ad ? ' · ' + d.ad : ''}
+                {d.hocalar && (
+                  <span style={{ fontWeight: 500, opacity: 0.85 }}>{' — ' + d.hocalar}</span>
+                )}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Kırılım grafiği: grup başına ortalama (5 üzerinden) ve yanıt sayısı ──
+// Çubuk boyu ortalamayı, sağdaki sayı yanıt sayısını gösterir; ortalaması
+// olmayan grupta (sayısal soru yok) çubuk yanıt payını gösterir.
+function KirilimGrafigi({ kirilim }) {
+  const satirlar = kirilim.satirlar || [];
+  const sayisal = satirlar.some((x) => x.ortalama != null);
+  const enCokN = Math.max(1, ...satirlar.map((x) => x.n));
+  const [hepsi, setHepsi] = useState(false);
+  const gorunen = hepsi ? satirlar : satirlar.slice(0, 12);
+  const renk = (o) => (o == null ? ANK.blue : o >= 4 ? '#059669' : o >= 3 ? '#D97706' : '#DC2626');
+  return (
+    <div data-anket-kirilim={kirilim.id} style={{ ...cardStyle, padding: 16 }}>
+      <p style={{ fontSize: 14, fontWeight: 700, color: ANK.primary, margin: 0 }}>
+        {kirilim.baslik}
+      </p>
+      <p style={{ fontSize: 11.5, color: ANK.textMuted, margin: '2px 0 12px' }}>
+        {kirilim.aciklama}{' '}
+        {sayisal ? 'Çubuk: genel ortalama (5 üzerinden).' : 'Çubuk: yanıt sayısı.'}
+      </p>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {gorunen.map((x) => {
+          const oran = sayisal ? (x.ortalama != null ? (x.ortalama - 1) / 4 : 0) : x.n / enCokN;
+          const ek = kirilim.id === 'ders' ? x.hocalar : kirilim.id === 'hoca' ? x.dersler : '';
+          return (
+            <div
+              key={x.grup}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(120px, 38%) 1fr 92px',
+                gap: 10,
+                alignItems: 'center',
+              }}
+            >
+              <div style={{ minWidth: 0 }} title={x.etiket + (ek ? ' — ' + ek : '')}>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: ANK.text,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {x.etiket}
+                </div>
+                {ek && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: ANK.textMuted,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {ek}
+                  </div>
+                )}
+              </div>
+              <div
+                style={{ height: 12, borderRadius: 6, background: '#EEF2F7', overflow: 'hidden' }}
+              >
+                <div
+                  style={{
+                    width: Math.max(2, Math.round(Math.min(1, Math.max(0, oran)) * 100)) + '%',
+                    height: '100%',
+                    background: renk(sayisal ? x.ortalama : null),
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: ANK.text,
+                  textAlign: 'right',
+                  fontVariantNumeric: 'tabular-nums',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {sayisal && x.ortalama != null && <b>{sayiTr(x.ortalama)}</b>}
+                <span style={{ color: ANK.textMuted }}>
+                  {(sayisal ? ' · ' : '') + x.n + ' yanıt'}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {satirlar.length > 12 && (
+        <button
+          onClick={() => setHepsi((v) => !v)}
+          className="ank-btn"
+          style={{
+            marginTop: 10,
+            background: 'none',
+            border: 'none',
+            color: ANK.accent,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          {hepsi ? 'Daha az göster' : 'Tümünü göster (' + satirlar.length + ')'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SonuclarPaneli({ surveys, akademisyen, assignments }) {
   const [surveyId, setSurveyId] = useState('');
   const [responses, setResponses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [courseFilter, setCourseFilter] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [indirAcik, setIndirAcik] = useState(false);
+  // Ders kataloğu: dersin adı ve HOCASI raporda yazsın (lib/anket-kirilim.js).
+  const [dersKayitlari, setDersKayitlari] = useState([]);
+  useEffect(() => {
+    let iptal = false;
+    window
+      .apiRead('sinav_dersler')
+      .then((d) => !iptal && setDersKayitlari(d || []))
+      .catch(() => {});
+    return () => {
+      iptal = true;
+    };
+  }, []);
+  const dersKatalogu = useMemo(
+    () => (window.AnketKirilim ? window.AnketKirilim.dersKataloguHaritasi(dersKayitlari) : {}),
+    [dersKayitlari]
+  );
 
   useEffect(() => {
     setCourseFilter('');
@@ -4382,8 +4983,70 @@ function SonuclarPaneli({ surveys, akademisyen }) {
       setExporting(false);
     }
   };
-  const handleExcel = disaAktar(() => downloadExcel(survey, filtered, suzgec), 'Excel');
-  const handleWord = disaAktar(() => downloadWord(survey, filtered, suzgec), 'Word');
+  // ── Anketin künyesi ve kırılımlar: ekran, Word ve Excel AYNI veriyi kullanır ──
+  const bolumAdi = useCallback((id) => {
+    const d = (window.DEPARTMENTS || []).find(
+      (x) =>
+        String(x.id) === String(id) ||
+        (window.bolumKimlikleri ? window.bolumKimlikleri(x.id).includes(String(id)) : false)
+    );
+    return (d && d.name) || '';
+  }, []);
+  const kirilimlar = useMemo(
+    () =>
+      survey && window.AnketKirilim
+        ? window.AnketKirilim.anketKirilimlari(survey, filtered, { dersKatalogu, bolumAdi })
+        : [],
+    [survey, filtered, dersKatalogu, bolumAdi]
+  );
+  const anketAtamalari = useMemo(
+    () => (assignments || []).filter((a) => survey && a.surveyId === survey.id),
+    [assignments, survey]
+  );
+  const yayin = useMemo(() => {
+    const AY = window.AnketYayin;
+    if (!survey || !AY) return { durum: '', son: '' };
+    return {
+      durum: AY.anketYayinDurumu(survey, anketAtamalari),
+      son: AY.anketSonTarihi(anketAtamalari),
+    };
+  }, [survey, anketAtamalari]);
+  const bagliDersler = useMemo(
+    () =>
+      ((survey && survey.linkedCourses) || []).map((c) => {
+        const k = String(c.code || '')
+          .toLocaleUpperCase('tr-TR')
+          .replace(/\s+/g, '');
+        const kat = dersKatalogu[k] || {};
+        return {
+          kod: c.code || '',
+          ad: c.name || kat.ad || '',
+          hocalar: (kat.hocalar || []).join(', '),
+        };
+      }),
+    [survey, dersKatalogu]
+  );
+  const raporBaglami = useMemo(
+    () => ({
+      bolum: (survey && survey._sahipBirim) || '',
+      olusturan: (survey && survey._olusturan) || '',
+      dersler: bagliDersler
+        .map((d) => d.kod + (d.ad ? ' ' + d.ad : '') + (d.hocalar ? ' (' + d.hocalar + ')' : ''))
+        .join('; '),
+      yayin:
+        yayin.durum && window.AnketYayin
+          ? window.AnketYayin.YAYIN_DURUMLARI[yayin.durum] +
+            (yayin.son ? ' · son tarih ' + fmtDueDate(yayin.son) : '')
+          : '',
+      kirilimlar,
+    }),
+    [survey, bagliDersler, yayin, kirilimlar]
+  );
+  const handleExcel = disaAktar(
+    () => downloadExcel(survey, filtered, suzgec, raporBaglami),
+    'Excel'
+  );
+  const handleWord = disaAktar(() => downloadWord(survey, filtered, suzgec, raporBaglami), 'Word');
 
   const exportBtn = (onClick, label, primary) => (
     <button
@@ -4572,11 +5235,88 @@ function SonuclarPaneli({ surveys, akademisyen }) {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              {exportBtn(() => downloadCSV(survey, filtered), 'CSV indir', false)}
-              {exportBtn(handleWord, exporting ? 'Hazırlanıyor…' : 'Word raporu', false)}
-              {exportBtn(handleExcel, exporting ? 'Hazırlanıyor…' : 'Excel indir', true)}
+            {/* Çıktılar tek açılır menüde: Excel (tüm sayfalar), Word (okunacak
+                rapor), CSV (ham yanıtlar, başka programa aktarmak için). */}
+            <div
+              data-anket-indir
+              style={{ display: 'flex', justifyContent: 'flex-end', position: 'relative' }}
+            >
+              {exportBtn(
+                () => setIndirAcik((v) => !v),
+                exporting ? 'Hazırlanıyor…' : 'Raporu indir ▾',
+                true
+              )}
+              {indirAcik && (
+                <>
+                  <div
+                    onClick={() => setIndirAcik(false)}
+                    style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                  />
+                  <div
+                    role="menu"
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: '100%',
+                      marginTop: 6,
+                      zIndex: 41,
+                      background: 'white',
+                      border: '1px solid ' + ANK.border,
+                      borderRadius: 10,
+                      boxShadow: '0 10px 28px rgba(15,23,42,0.14)',
+                      minWidth: 250,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {[
+                      ['Excel', 'Özet, kırılımlar, yanıtlar, şık dağılımı', handleExcel],
+                      ['Word raporu', 'Okunacak / imzalanacak rapor', handleWord],
+                      [
+                        'CSV',
+                        'Ham yanıtlar (başka programa aktarım)',
+                        () => downloadCSV(survey, filtered),
+                      ],
+                    ].map(([ad, alt, is]) => (
+                      <button
+                        key={ad}
+                        role="menuitem"
+                        onClick={() => {
+                          setIndirAcik(false);
+                          is();
+                        }}
+                        className="ank-btn"
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '10px 14px',
+                          border: 'none',
+                          borderBottom: '1px solid ' + ANK.border,
+                          background: 'white',
+                          cursor: 'pointer',
+                          fontFamily: "'Inter', sans-serif",
+                        }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 700, color: ANK.primary }}>
+                          {ad}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: ANK.textMuted }}>{alt}</div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
+
+            <AnketKunyesi
+              survey={survey}
+              yayin={yayin}
+              bagliDersler={bagliDersler}
+              yanitSayisi={filtered.length}
+            />
+            {kirilimlar.map((k) => (
+              <KirilimGrafigi key={k.id} kirilim={k} />
+            ))}
 
             {/* Sorular arası kıyas + günlük katılım: tek soruya bakmadan önce
                 "hangi soru zayıf, katılım ne zaman geldi" cevaplanır. */}
@@ -4701,11 +5441,14 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive, acilacak
       // bölüm değil — hoca başka bölüme geçince o bölümün anketi ona düşmez).
       if (!kapsamdaMi(a)) return false;
       if (!matchesGroup(role, group)) return false;
+      // Pasif anket ve süresi dolan paylaşım katılımcıya görünmez (lib/anket-yayin.js).
+      const anket = surveys.find((x) => x.id === a.surveyId);
+      if (window.AnketYayin && !window.AnketYayin.atamaAcikMi(a, anket)) return false;
       if (seen.has(a.surveyId)) return false; // aynı anket birden fazla gruba atanmışsa tek göster
       seen.add(a.surveyId);
       return true;
     });
-  }, [assignments, myRole, kapsamdaMi, matchesGroup]);
+  }, [assignments, surveys, myRole, kapsamdaMi, matchesGroup]);
 
   // ⚠ SESSİZ ELEME OLMASIN. Sınıfı çözülemeyen öğrenci artık sınıf hedefli
   // anketleri görmüyor; bunu hiç söylemezsek "bana anket gelmedi" diye
@@ -5695,6 +6438,8 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
       if (!matchesGroup(role, group)) continue;
       if (completedIds.has(a.surveyId)) continue;
       const survey = surveys.find((s) => s.id === a.surveyId);
+      // Pasif ya da süresi dolmuş anket uygulamayı kilitlemez.
+      if (survey && window.AnketYayin && !window.AnketYayin.atamaAcikMi(a, survey)) continue;
       if (survey) return { assignment: a, survey };
     }
     return null;

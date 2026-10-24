@@ -45,6 +45,11 @@ function anketKurali() {
   if (!anketKuraliSozu) anketKuraliSozu = import('../../lib/anket-kapsam.js');
   return anketKuraliSozu;
 }
+let anketYayinSozu = null;
+function anketYayinKurali() {
+  if (!anketYayinSozu) anketYayinSozu = import('../../lib/anket-yayin.js');
+  return anketYayinSozu;
+}
 
 // Anket işlemlerinde yetkilinin kapsamı. Yönetici bayrağı olmayan
 // akademisyen 'akademisyen' kapsamındadır: yalnız kendi anketini yönetir,
@@ -1892,6 +1897,36 @@ async function enforceWritePolicies(db, op, user) {
         });
       }
       if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
+    }
+  }
+
+  // a2a-0') ANKET YANITI: pasif ya da süresi dolmuş ankete yeni yanıt girmez
+  // (lib/anket-yayin.js). Ekran bu anketleri zaten göstermiyor; kural, ekranı
+  // atlayan isteğe karşıdır. Hiç paylaşılmamış anket (önizleme) etkilenmez.
+  if (op.collection === 'survey_responses' && op.type === 'add' && op.data && user) {
+    const sid = String(op.data.surveyId || '');
+    if (sid) {
+      let anket = null;
+      let atamalar = [];
+      try {
+        anket = await findDocByAnyId(db, 'surveys', sid);
+        atamalar = await db
+          .collection('survey_assignments')
+          .find({ surveyId: sid }, { projection: { dueDate: 1, deadline: 1 } })
+          .toArray();
+      } catch (_) {
+        /* okunamazsa yanıt engellenmez */
+      }
+      if (anket) {
+        const AY = await anketYayinKurali();
+        const durum = AY.anketYayinDurumu(anket, atamalar);
+        if (durum === 'pasif') {
+          return { allow: false, status: 403, error: 'Bu anket yayından kaldırıldı.' };
+        }
+        if (durum === 'suresi_doldu') {
+          return { allow: false, status: 403, error: 'Bu anketin süresi doldu.' };
+        }
+      }
     }
   }
 
