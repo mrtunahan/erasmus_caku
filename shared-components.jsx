@@ -385,6 +385,8 @@ import {
   kapsamOzetMetni as anketKapsamOzetMetni,
   kapsamliMi as anketKapsamliMi,
 } from './lib/anket-kapsam.js';
+import * as AnketYayin from './lib/anket-yayin.js';
+import * as AnketKirilim from './lib/anket-kirilim.js';
 import {
   AKTS_TAVANI,
   dersAkts,
@@ -15515,6 +15517,10 @@ window.anketSecimEtiketi = anketSecimEtiketi;
 window.anketSahipBirimi = anketSahipBirimi;
 window.anketOlusturan = anketOlusturan;
 window.anketleriSuz = anketleriSuz;
+// Anketin yayın durumu (yayında / süresi doldu / pasif) — lib/anket-yayin.js
+window.AnketYayin = AnketYayin;
+// Sonuç kırılımları (ders / hoca / bölüm) — lib/anket-kirilim.js
+window.AnketKirilim = AnketKirilim;
 window.anketAtanabilirMi = anketAtanabilirMi;
 window.akademisyenDersleri = akademisyenDersleri;
 window.anketKapsamOzetMetni = anketKapsamOzetMetni;

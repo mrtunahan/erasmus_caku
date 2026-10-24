@@ -400,3 +400,29 @@ describe('raporDosyaAdi', () => {
     expect(raporDosyaAdi(null, 'docx')).toBe('anket_sonuc-raporu.docx');
   });
 });
+
+describe('anket raporu: bölüm künyesi ve kırılımlar', () => {
+  it('künyeye bölüm/oluşturan, Word ve Excel’e kırılım tablosu girer', async () => {
+    const { anketRaporu, raporExcelSayfalari, raporWordGovdesi } =
+      await import('../lib/anket-rapor.js');
+    const survey = { title: 'T', questions: [{ id: 'q1', type: 'likert', text: 'S' }] };
+    const r = anketRaporu(survey, [{ answers: { q1: 4 } }], {
+      bolum: 'Bilgisayar Mühendisliği',
+      olusturan: 'Dr. Ali',
+      kirilimlar: [
+        {
+          id: 'ders',
+          baslik: 'Ders bazında',
+          satirlar: [{ etiket: 'BLM101', n: 1, ortalama: 4, hocalar: 'Dr. Ali' }],
+        },
+      ],
+    });
+    expect(r.kunye.find((k) => k.etiket === 'Bölüm / sahibi').deger).toBe(
+      'Bilgisayar Mühendisliği'
+    );
+    expect(r.kirilimlar[0].tablo.satirlar[0]).toEqual(['BLM101', 1, '4,00', 'Dr. Ali']);
+    const sf = raporExcelSayfalari(r).find((x) => x.ad === 'Kırılımlar');
+    expect(sf.satirlar[1]).toEqual(['Ders bazında', 'BLM101', 1, 4, 'Dr. Ali']);
+    expect(raporWordGovdesi(r)).toContain('Kırılımlar');
+  });
+});
