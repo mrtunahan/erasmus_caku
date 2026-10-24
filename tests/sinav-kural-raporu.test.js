@@ -94,3 +94,51 @@ describe('sınav kural raporu', () => {
     expect(raporMetni(r)).toMatch(/AYNI SALONDA/);
   });
 });
+
+describe('biçimsel düzeltme sonrası gönderim imzası', () => {
+  it('imzası tutan gönderim yeni imzayı alır, zaten değişmiş olana dokunulmaz', async () => {
+    const { imzaTazelemeleri } = await import('../lib/sinav-kural-raporu.js');
+    const { programImzasi, donemGrubu, gonderimKimlikleri } =
+      await import('../lib/sinav-fakulte.js');
+    const donem = {
+      _docId: 'p1',
+      departmentId: 'bil',
+      label: 'Vize - Güz',
+      tur: 'vize',
+      semester: 'Güz 2026-2027',
+    };
+    const once = [
+      {
+        id: 'e1',
+        periodId: 'p1',
+        departmentId: 'bil',
+        code: 'BLM101',
+        date: '2026-11-09',
+        timeSlot: '09:00',
+        supervisor: 'Öğrt. Gör. Gökalp Saylam',
+      },
+    ];
+    const sonra = [{ ...once[0], supervisor: 'Öğr. Gör. GÖKALP SAYLAM' }];
+    const id = gonderimKimlikleri('bil', donemGrubu(donem))[0];
+    const tutan = { _docId: id, durum: 'gonderildi', imza: programImzasi(once) };
+    const r = imzaTazelemeleri({
+      once,
+      sonra,
+      donemler: [donem],
+      gonderimler: [tutan],
+      bolumler: [{ id: 'bil', kimlikler: [] }],
+    });
+    expect(r).toHaveLength(1);
+    expect(r[0].yeniImza).toBe(programImzasi(sonra));
+    const degismis = { ...tutan, imza: 'baska' };
+    expect(
+      imzaTazelemeleri({
+        once,
+        sonra,
+        donemler: [donem],
+        gonderimler: [degismis],
+        bolumler: [{ id: 'bil' }],
+      })
+    ).toEqual([]);
+  });
+});

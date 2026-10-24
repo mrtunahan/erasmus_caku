@@ -91,6 +91,16 @@ var PRJ_TITLES = [
   'Dr.',
   'Prof.',
 ];
+// Üye adı karşılaştırması Türkçe kurallarla: adlar büyük harf standardına
+// geçince "Ali Şimşek" (eski kayıt) ile "ALİ ŞİMŞEK" (yeni ad) `toLowerCase`
+// ile eşleşmiyordu ('İ' → 'i̇'). lib/tr-metin.js → trAnahtar.
+function uyeAnahtari(ad) {
+  return window.trAnahtar
+    ? window.trAnahtar(ad)
+    : String(ad || '')
+        .trim()
+        .toLocaleLowerCase('tr-TR');
+}
 function prjStripTitle(name) {
   if (!name) return '';
   var n = String(name).trim();
@@ -558,7 +568,7 @@ function ProjectCard({
 
   var myMemberIdx = -1;
   (project.members || []).forEach(function (m, idx) {
-    if (m.trim().toLowerCase() === userName.trim().toLowerCase()) myMemberIdx = idx;
+    if (uyeAnahtari(m) === uyeAnahtari(userName)) myMemberIdx = idx;
   });
   var myInviteStatus =
     myMemberIdx >= 0 && memberStatuses[myMemberIdx] ? memberStatuses[myMemberIdx] : null;
@@ -2944,13 +2954,13 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
   // ── Üyelik kontrolü: Bir kişi aynı derste zaten bir projede mi? ──
   var findMemberExistingProjectInCourse = function (memberName) {
     if (!memberName || !memberName.trim() || !selectedCourse) return null;
-    var nameLower = memberName.trim().toLowerCase();
+    var nameLower = uyeAnahtari(memberName);
     for (var i = 0; i < projects.length; i++) {
       var p = projects[i];
       if (
         p.members &&
         p.members.some(function (m) {
-          return m.trim().toLowerCase() === nameLower;
+          return uyeAnahtari(m) === nameLower;
         })
       ) {
         return p;
@@ -3266,14 +3276,14 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
 
       // Kontrol: Oluşturan kişi aynı derste zaten bir projede mi?
       var freshCourseProjects = await ProjDB.fetchProjects(selectedCourse.id);
-      var creatorNameLower = userName.trim().toLowerCase();
+      var creatorNameLower = uyeAnahtari(userName);
       var creatorExisting = null;
       for (var ci = 0; ci < freshCourseProjects.length; ci++) {
         var p = freshCourseProjects[ci];
         if (
           p.members &&
           p.members.some(function (m) {
-            return m.trim().toLowerCase() === creatorNameLower;
+            return uyeAnahtari(m) === creatorNameLower;
           })
         ) {
           creatorExisting = p;
@@ -3292,15 +3302,15 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
       // Kontrol: Eklenen diğer üyeler aynı derste zaten bir projede mi?
       for (var cj = 0; cj < data.members.length; cj++) {
         var mName = data.members[cj];
-        if (mName.trim().toLowerCase() === creatorNameLower) continue;
+        if (uyeAnahtari(mName) === creatorNameLower) continue;
         var memberExisting = null;
-        var mNameLower = mName.trim().toLowerCase();
+        var mNameLower = uyeAnahtari(mName);
         for (var k = 0; k < freshCourseProjects.length; k++) {
           var pp = freshCourseProjects[k];
           if (
             pp.members &&
             pp.members.some(function (m) {
-              return m.trim().toLowerCase() === mNameLower;
+              return uyeAnahtari(m) === mNameLower;
             })
           ) {
             memberExisting = pp;

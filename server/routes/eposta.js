@@ -29,6 +29,8 @@ const { profilBul } = require('../lib/akademisyen-kimlik');
 const K = require('../lib/eposta-kurali');
 const posta = require('../lib/posta');
 const oturumIptal = require('../lib/oturum-iptal');
+// Ad değişince (büyük harf standardı) eski adla kalan hesap kaydını taşır.
+const { guncelHesap, eskiAdliHesabiTasi } = require('../lib/hesap-ad-tasima');
 
 let adayKuralSozu = null;
 const adayKurali = () => (adayKuralSozu = adayKuralSozu || import('../../lib/aday-hesap.js'));
@@ -95,6 +97,7 @@ router.get('/durum', requireAuth, async (req, res) => {
   if (!hesap) return res.json({ destek: false, zorunlu: false });
   try {
     const db = await getDbSafe();
+    await eskiAdliHesabiTasi(db, hesap).catch(() => {});
     const kayit = await db.collection(HESAPLAR).findOne({ _id: hesap });
     const bekleyen = await db.collection(BEKLEYEN).findOne({ _id: hesap });
     // Öneri: akademisyende profildeki kurumsal adres, adayda kayıtta
@@ -297,7 +300,9 @@ router.post('/sifremi-unuttum', async (req, res) => {
       const hesaplar = await db.collection(HESAPLAR).find({ eposta }).limit(10).toArray();
       if (!hesaplar.length) await tani('dogrulanmis_hesap_yok');
       for (const h of hesaplar) {
-        const hesap = String(h._id);
+        // Eski adla kalmış akademisyen hesabı yeni adına taşınır: şifre
+        // doğru (bugünkü) adın kaydına yazılsın.
+        const hesap = await guncelHesap(db, String(h._id)).catch(() => String(h._id));
         if (!(await hesapKullanilabilirMi(db, hesap))) {
           await tani('hesap_kullanilamaz');
           continue;
@@ -383,6 +388,8 @@ router.post('/sifre-yenile', async (req, res) => {
         error: 'Bağlantının süresi dolmuş ya da daha önce kullanılmış. Yeni bağlantı isteyin.',
       });
     }
+    // Bağlantı ad değişikliğinden önce gönderildiyse şifre yeni ada yazılır.
+    k.hesap = await guncelHesap(db, k.hesap).catch(() => k.hesap);
     const c = K.anahtarCoz(k.hesap);
     if (c.rol === 'aday') {
       const A = await adayKurali();
