@@ -9,6 +9,8 @@
 // ══════════════════════════════════════════════════════════════
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+// Sayaç kişi başına (kampüs NAT'ı tek kişi sayılmasın) — lib/sinir-anahtari.js
+const kisiSiniri = require('../lib/sinir-anahtari').sinirAnahtariUret(rateLimit);
 const { requireAuth } = require('../middleware/auth');
 const { dosyaErisebilirMi } = require('../lib/dosya-sahiplik');
 const { urlToRelPath } = require('../lib/dosya-adres');
@@ -19,6 +21,7 @@ const router = express.Router();
 
 // AI çağrıları maliyetli — dakikada düşük limit (kötüye kullanım/kaza koruması).
 const aiLimiter = rateLimit({
+  keyGenerator: kisiSiniri,
   windowMs: 60 * 1000,
   max: 20,
   message: { error: 'Çok fazla AI isteği. Lütfen biraz bekleyin.' },
@@ -28,6 +31,7 @@ const aiLimiter = rateLimit({
 
 // Durum sorgusu ucuz ama yine de sınırlı (istemci açılışta bir kez çağırır).
 const statusLimiter = rateLimit({
+  keyGenerator: kisiSiniri,
   windowMs: 60 * 1000,
   max: 120,
   message: { error: 'Çok fazla istek. Lütfen biraz bekleyin.' },
@@ -141,6 +145,7 @@ const filesRouter = require('./files');
 // Belge işleme çağrıları PAHALIDIR. Öğrenci kendi formunu doldurduğu için
 // erişebilmeli, ama çok daha dar bir bantla.
 const extractLimiterStaff = rateLimit({
+  keyGenerator: kisiSiniri,
   windowMs: 60 * 1000,
   max: 30,
   message: { error: 'Çok fazla belge işleme isteği. Lütfen biraz bekleyin.' },

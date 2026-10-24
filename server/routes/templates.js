@@ -32,8 +32,20 @@ const router = express.Router();
 const softAuthMiddleware = softAuth(getDbSafe);
 
 // ── Rate Limit'ler ──
-const readLimiter = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true });
-const writeLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true });
+// Sayaç kişi başına (kampüs NAT'ı tek kişi sayılmasın) — lib/sinir-anahtari.js
+const kisiSiniri = require('../lib/sinir-anahtari').sinirAnahtariUret(rateLimit);
+const readLimiter = rateLimit({
+  keyGenerator: kisiSiniri,
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+});
+const writeLimiter = rateLimit({
+  keyGenerator: kisiSiniri,
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+});
 
 // ── Sabitler ──
 const TEMPLATES_DIR = path.join(__dirname, '..', 'uploads', 'templates');

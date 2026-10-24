@@ -357,7 +357,13 @@ const softAuthMiddleware = softAuth(getDbSafe);
 // Rate limiting — okuma ve yazma için ayrı limitler.
 // SPA sayfa açılışında 30-50 paralel apiRead yapıyor, bu yüzden okumalarda
 // yüksek tutuyoruz. Yazmalar daha hassas olduğu için düşük kalıyor.
+// Sayaç KİŞİ başına (IP başına değil): kampüsteki herkes aynı dış IP'den
+// çıkıyor, yoğun saatte bütün üniversite tek kişi sayılıp 429 alıyordu —
+// sağ menüden fakülteler kayboluyor, modüller geç açılıyordu.
+const sinirAnahtari = require('../lib/sinir-anahtari').sinirAnahtariUret(rateLimit);
+
 const readLimiter = rateLimit({
+  keyGenerator: sinirAnahtari,
   windowMs: 60 * 1000,
   max: 1200, // dakikada 1200 okuma — sayfa geçişleri ve refresh'lere yer bırakır
   message: { error: 'Çok fazla istek. Lütfen biraz bekleyin.' },
@@ -366,6 +372,7 @@ const readLimiter = rateLimit({
 });
 
 const writeLimiter = rateLimit({
+  keyGenerator: sinirAnahtari,
   windowMs: 60 * 1000,
   max: 120, // dakikada 120 yazma
   message: { error: 'Çok fazla istek. Lütfen biraz bekleyin.' },

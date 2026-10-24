@@ -5,6 +5,8 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { ObjectId } = require('mongodb');
 const rateLimit = require('express-rate-limit');
+// Sayaç kişi başına (kampüs NAT'ı tek kişi sayılmasın) — lib/sinir-anahtari.js
+const kisiSiniri = require('../lib/sinir-anahtari').sinirAnahtariUret(rateLimit);
 const { getDbSafe } = require('../config/database');
 const { zipYaz } = require('../lib/zip-yaz');
 // Dosya adı/adres dönüşümleri saf olduğu için ayrı dosyada: testleri bu
@@ -29,6 +31,7 @@ const fileAuth = FILES_AUTH_ENFORCED ? requireAuth : (req, res, next) => next();
 
 // Modül-bazlı rate limit'ler — yükleme/silme pahalı, indirme sık.
 const downloadLimiter = rateLimit({
+  keyGenerator: kisiSiniri,
   windowMs: 60 * 1000,
   max: 600,
   standardHeaders: true,
@@ -36,6 +39,7 @@ const downloadLimiter = rateLimit({
   message: { error: 'Çok fazla istek.' },
 });
 const uploadLimiter = rateLimit({
+  keyGenerator: kisiSiniri,
   windowMs: 60 * 1000,
   max: 60,
   standardHeaders: true,
@@ -43,6 +47,7 @@ const uploadLimiter = rateLimit({
   message: { error: 'Çok fazla yükleme isteği.' },
 });
 const deleteLimiter = rateLimit({
+  keyGenerator: kisiSiniri,
   windowMs: 60 * 1000,
   max: 30,
   standardHeaders: true,
@@ -932,6 +937,7 @@ router.ogrenciDosyayaErisebilirMi = ogrenciDosyayaErisebilirMi;
 // ══════════════════════════════════════════════════════════════
 const docxPdf = require('../lib/docx-pdf');
 const cevirLimiter = rateLimit({
+  keyGenerator: kisiSiniri,
   windowMs: 60 * 1000,
   max: 20,
   standardHeaders: true,

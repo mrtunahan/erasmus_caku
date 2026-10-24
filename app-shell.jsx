@@ -2363,10 +2363,15 @@ function AppShell() {
           if (cancelled) return;
           if (attempt === MAX_TRIES) {
             console.warn('DB bölümleri yüklenemedi (sabit listeyle devam):', e?.message);
-            // Okuma kalıcı olarak başarısız: liste eksik kalacak ama sonsuza
-            // kadar "yükleniyor" demek de doğru değil — denemeler bitti.
+            // Okuma şimdilik başarısız: liste eksik kalır ama sonsuza kadar
+            // "yükleniyor" demek de doğru değil. VAZGEÇİLMEZ: 30 sn sonra
+            // arka planda yeniden denenir; başarılı olunca sağ menü sayfa
+            // yenilemeden tamamlanır (eskiden F5'e kadar eksik kalıyordu).
             setDeptsLoaded(true);
             setDeptVersion((v) => v + 1);
+            setTimeout(() => {
+              if (!cancelled) mergeDbDepartments();
+            }, 30000);
             return;
           }
           // Artan bekleme (1s, 2s, 3s, 4s) ile yeniden dene.
