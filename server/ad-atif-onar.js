@@ -15,9 +15,11 @@
  *      fakülteye gönderilmiş programların imzası da tazelenir; aksi hâlde
  *      bu biçim düzeltmesi onları "gönderimden sonra değişti" gösterirdi.
  *
- * Ayrıca YALNIZ RAPOR eder (dokunmaz):
- *   • şifre kaydı olup akademisyeni bulunmayan adlar (girişi olmayan kişi)
- *   • bölüm yetkilisi listesinde akademisyeni bulunmayan adlar
+ *   3) ŞİFRE ANAHTARI eski adla: şifre yeni ada taşınır (yeni adın şifresi
+ *      yoksa) ya da kullanılmayan eski kayıt silinir.
+ *   4) BÖLÜM YETKİLİSİ adı eski biçimde: ad düzeltilir, giriş şifresi de
+ *      birlikte taşınır.
+ * Karşılığı belirsiz (iki kişiye uyan) ya da hiç olmayan adlara dokunmaz.
  *
  * Kullanım (proje kökünden):
  *   node server/ad-atif-onar.js              # kuru: yalnız rapor
@@ -65,8 +67,13 @@ const ONEK = 'professor:';
       if (adSet.has(ad)) continue;
       const yeniAd = yeniAdBul(ad, adlar);
       const yeni = yeniAd ? ONEK + yeniAd : '';
-      const dolu = yeni ? !!(await db.collection(kol).findOne({ _id: yeni })) : false;
-      tasinacak.push({ kol, eski, yeni, dolu, belge: d });
+      const hedef = yeni ? await db.collection(kol).findOne({ _id: yeni }) : null;
+      // Hedef doluysa kişi yeni adıyla zaten doğrulamış: adres aynıysa eski
+      // kayıt yinelenendir (şifremi unuttum iki ileti gönderiyordu), silinir.
+      const yinelenen =
+        !!hedef &&
+        String(hedef.eposta || '').toLowerCase() === String(d.eposta || '').toLowerCase();
+      tasinacak.push({ kol, eski, yeni, dolu: !!hedef, yinelenen, belge: d });
     }
   }
   console.log(`\n1) Eski adla kalmış e-posta hesabı: ${tasinacak.length}`);
@@ -74,7 +81,12 @@ const ONEK = 'professor:';
     console.log(
       `  • [${t.kol}] "${t.eski}" → ` +
         (t.yeni
-          ? `"${t.yeni}"` + (t.dolu ? '  (hedef DOLU — atlanır)' : '')
+          ? `"${t.yeni}"` +
+            (t.yinelenen
+              ? '  (yeni adla aynı adres zaten kayıtlı — eski yinelenen kayıt SİLİNECEK)'
+              : t.dolu
+                ? '  (yeni adla FARKLI adres kayıtlı — dokunulmaz, kişiye sorun)'
+                : '  (TAŞINACAK)')
           : 'karşılığı yok/belirsiz — atlanır')
     )
   );
@@ -131,33 +143,75 @@ const ONEK = 'professor:';
     .forEach(([k, n]) => console.log(`  • ${k}  (${n} yer)`));
   if (ornekler.size > 25) console.log(`  … ve ${ornekler.size - 25} farklı ad daha`);
 
-  // ── 3) Yalnız rapor ──
-  const sifre = await db.collection('passwords').findOne({ _id: 'professor_passwords' });
-  const sahipsiz = Object.keys(sifre || {}).filter(
-    (k) => k !== '_id' && k !== '_docId' && !adSet.has(k)
-  );
-  console.log(`\n3) Şifre kaydı olup akademisyeni bulunmayan ad: ${sahipsiz.length}`);
-  sahipsiz.slice(0, 30).forEach((k) => {
-    const y = yeniAdBul(k, adlar);
+  // ── 3) Şifre kayıtları ──
+  // Ad çevrilirken şifre anahtarı çevrilmemiş kişi eski şifresiyle giremez.
+  // Karşılığı TEK kişiye çözülen eski anahtar: yeni adın şifresi yoksa
+  // şifre yeni ada TAŞINIR (kişi aynı şifreyle girer); varsa eski kayıt
+  // kullanılmıyordur, silinir. Karşılığı olmayan adlara dokunulmaz — giriş
+  // artık akademisyen kaydı ister, bu anahtarlarla giriş yapılamaz.
+  const META = new Set(['_id', '_docId', '_firestoreId', 'updatedAt', 'createdAt']);
+  const sifre = (await db.collection('passwords').findOne({ _id: 'professor_passwords' })) || {};
+  const sifreIslem = []; // { eski, yeni, tur: 'tasi'|'sil'|'yok' }
+  Object.keys(sifre)
+    .filter((k) => !META.has(k) && !adSet.has(k))
+    .forEach((k) => {
+      const y = yeniAdBul(k, adlar);
+      sifreIslem.push({ eski: k, yeni: y, tur: !y ? 'yok' : sifre[y] ? 'sil' : 'tasi' });
+    });
+  console.log(`\n3) Şifre kaydı olup akademisyeni bulunmayan ad: ${sifreIslem.length}`);
+  sifreIslem.forEach((x) =>
     console.log(
-      `  • "${k}"` + (y ? `  (bugünkü adı muhtemelen "${y}" — şifresini yönetici sıfırlamalı)` : '')
-    );
-  });
+      `  • "${x.eski}"` +
+        (x.tur === 'tasi'
+          ? `  → şifre "${x.yeni}" adına TAŞINACAK`
+          : x.tur === 'sil'
+            ? `  → "${x.yeni}" kendi şifresini kullanıyor; eski kayıt SİLİNECEK`
+            : '  → akademisyen kaydı yok (giriş kapalı, dokunulmaz)')
+    )
+  );
+
+  // ── 4) Bölüm yetkilisi adları ──
+  // Ad bölüm yetkilisi GİRİŞİNİN kimliğidir; şifresi de bu adla tutulur.
+  // Ad düzeltilirken şifre anahtarı da birlikte taşınır, yoksa giriş kopar.
+  const yetkiliSifre =
+    (await db.collection('passwords').findOne({ _id: 'department_manager_passwords' })) || {};
   const bolumler = await db
     .collection('departments')
     .find({}, { projection: { name: 1, managerNames: 1, managerName: 1 } })
     .toArray();
-  const yetkiliEksik = [];
+  const yetkiliIslem = []; // { _id, bolum, eski, yeni, set }
   bolumler.forEach((d) => {
-    []
-      .concat(d.managerNames || [])
-      .concat(d.managerName ? [d.managerName] : [])
-      .forEach((m) => {
-        if (m && !adSet.has(String(m).trim())) yetkiliEksik.push(`${d.name}: "${m}"`);
-      });
+    const set = {};
+    const cevir = (m) => {
+      const t = String(m || '').trim();
+      if (!t || adSet.has(t)) return m;
+      const y = yeniAdBul(t, adlar);
+      if (y) yetkiliIslem.push({ bolum: d.name, eski: t, yeni: y });
+      return y || m;
+    };
+    if (Array.isArray(d.managerNames)) {
+      const yeni = d.managerNames.map(cevir);
+      if (yeni.some((x, i) => x !== d.managerNames[i])) set.managerNames = [...new Set(yeni)];
+    }
+    if (d.managerName) {
+      const y = cevir(d.managerName);
+      if (y !== d.managerName) set.managerName = y;
+    }
+    if (Object.keys(set).length) yetkiliIslem.push({ _id: d._id, set });
   });
-  console.log(`\n4) Bölüm yetkilisi listesinde akademisyeni bulunmayan ad: ${yetkiliEksik.length}`);
-  yetkiliEksik.slice(0, 30).forEach((x) => console.log('  • ' + x));
+  const yetkiliAd = yetkiliIslem.filter((x) => x.eski);
+  const yetkiliBelge = yetkiliIslem.filter((x) => x._id);
+  console.log(`\n4) Bölüm yetkilisi listesinde eski ad: ${yetkiliAd.length}`);
+  const gorulenYetkili = new Set();
+  yetkiliAd.forEach((x) => {
+    const k = x.bolum + x.eski;
+    if (gorulenYetkili.has(k)) return;
+    gorulenYetkili.add(k);
+    console.log(
+      `  • ${x.bolum}: "${x.eski}" → "${x.yeni}"` +
+        (yetkiliSifre[x.eski] && !yetkiliSifre[x.yeni] ? '  (giriş şifresi de taşınacak)' : '')
+    );
+  });
 
   if (!uygula) {
     console.log('\n[KURU ÇALIŞMA] Yazılmadı. Uygulamak için: UYGULA=1 node server/ad-atif-onar.js');
@@ -178,6 +232,11 @@ const ONEK = 'professor:';
           hesaplar: tasinacak.map((t) => ({ kol: t.kol, belge: t.belge })),
           listeler: listeDuzelt.map((l) => ({ kol: l.kol, _id: l._id, oncesi: l.oncesi })),
           imzalar: imzalar.map((x) => ({ _id: x.kayit._id, eskiImza: x.eskiImza })),
+          sifreler: sifre,
+          yetkiliSifreleri: yetkiliSifre,
+          bolumler: bolumler.filter((d) =>
+            yetkiliBelge.some((x) => String(x._id) === String(d._id))
+          ),
         },
         null,
         2
@@ -193,6 +252,14 @@ const ONEK = 'professor:';
   // ── YAZ ──
   let hesapN = 0;
   for (const t of tasinacak) {
+    if (t.yinelenen) {
+      await db.collection(t.kol).deleteOne({ _id: t.eski });
+      await db
+        .collection('sifre_sifirlama')
+        .updateMany({ hesap: t.eski }, { $set: { hesap: t.yeni } });
+      hesapN++;
+      continue;
+    }
     if (!t.yeni || t.dolu) continue;
     const { _id, ...govde } = t.belge;
     await db.collection(t.kol).insertOne({ _id: t.yeni, ...govde });
@@ -210,8 +277,39 @@ const ONEK = 'professor:';
       .collection('sinav_gonderimleri')
       .updateOne({ _id: x.kayit._id }, { $set: { imza: x.yeniImza } });
   }
+  // Şifre belgeleri bütünüyle yazılır: anahtarlar noktalı ad ("Prof. Dr.")
+  // olduğu için tek alan güncellemesi kullanılamıyor. Mesai dışında çalıştırın.
+  let sifreN = 0;
+  const yeniSifre = { ...sifre };
+  sifreIslem.forEach((x) => {
+    if (x.tur === 'yok') return;
+    if (x.tur === 'tasi') yeniSifre[x.yeni] = yeniSifre[x.eski];
+    delete yeniSifre[x.eski];
+    sifreN++;
+  });
+  if (sifreN) {
+    await db.collection('passwords').replaceOne({ _id: 'professor_passwords' }, yeniSifre);
+  }
+  const yeniYetkiliSifre = { ...yetkiliSifre };
+  let yetkiliSifreN = 0;
+  yetkiliAd.forEach((x) => {
+    if (yeniYetkiliSifre[x.eski] && !yeniYetkiliSifre[x.yeni]) {
+      yeniYetkiliSifre[x.yeni] = yeniYetkiliSifre[x.eski];
+      delete yeniYetkiliSifre[x.eski];
+      yetkiliSifreN++;
+    }
+  });
+  if (yetkiliSifreN) {
+    await db
+      .collection('passwords')
+      .replaceOne({ _id: 'department_manager_passwords' }, yeniYetkiliSifre);
+  }
+  for (const x of yetkiliBelge) {
+    await db.collection('departments').updateOne({ _id: x._id }, { $set: x.set });
+  }
   console.log(
-    `\n✓ Tamamlandı. Taşınan hesap: ${hesapN}, düzeltilen liste belgesi: ${listeDuzelt.length}, tazelenen imza: ${imzalar.length}.`
+    `\n✓ Tamamlandı. E-posta hesabı: ${hesapN}, liste belgesi: ${listeDuzelt.length}, ` +
+      `imza: ${imzalar.length}, şifre kaydı: ${sifreN}, bölüm yetkilisi: ${yetkiliBelge.length} bölüm.`
   );
   process.exit(0);
 })().catch((e) => {
