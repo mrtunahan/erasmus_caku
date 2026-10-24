@@ -469,7 +469,11 @@ const SINIF_LEJANTI = `
     <div class="legend-item"><div class="legend-box" style="background:#E1BEE7"></div>Seçmeli</div>
   </div>`;
 
+// ⚠ print-color-adjust: tarayıcı varsayılan ayarda yazdırırken ve PDF'e
+// kaydederken ARKA PLAN RENKLERİNİ atar ("Arka plan grafikleri" kapalı);
+// sınıf ve bölüm renkleri çıktıda kayboluyordu. `exact` renkleri korur.
 const YAZDIRMA_STILI = `
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @media print { body { margin: 0; } @page { size: A4 landscape; margin: 0.8cm; } }
   body { font-family: 'Times New Roman', serif; background: #e2e8f0; }
   .page { max-width: 1100px; margin: 20px auto; background: white; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
@@ -511,7 +515,7 @@ const kac = (v) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-function belgeHTML(baslik, ustBaslik, altBaslik, bilgi, tableRows) {
+function belgeHTML(baslik, ustBaslik, altBaslik, bilgi, tableRows, ekLejant) {
   baslik = kac(baslik);
   ustBaslik = kac(ustBaslik);
   altBaslik = kac(altBaslik);
@@ -534,6 +538,7 @@ function belgeHTML(baslik, ustBaslik, altBaslik, bilgi, tableRows) {
     <tbody>${tableRows}</tbody>
   </table>
   ${SINIF_LEJANTI}
+  ${ekLejant || ''}
   <div class="footer">Oluşturulma: ${new Date().toLocaleDateString('tr-TR')} — ÇAKÜ Ders Programı Otomasyonu</div>
 </div>
 </body></html>`;
@@ -593,10 +598,15 @@ function fakulteYazdir(allFacultySlots, semester, baglam) {
     saatler
   );
   const ozet = window.dpProgramOzeti(allFacultySlots);
+  // Bölüm rengi (Bölüm Yönetimi → Program Ayarları): Excel çıktısındaki gibi
+  // dersin hangi bölüme ait olduğunu gösterir — kodun rengi ve sol şerit.
+  const renkler = b.renkHaritasi || {};
+  const bolumRengi = (ad) => renkler[ad] || window.bolumRengiCoz({ bolumAdi: ad });
   const tableRows = yazdirmaSatirlari(grid, saatler, (e) => {
     const bg = GRADE_COLORS[e.sinif]?.bg || '#F1F5F9';
-    return `<div style="padding:3px 6px;margin:2px 0;border-radius:4px;background:${bg};font-size:9px;line-height:1.3">
-      <strong>${kac(e.courseCode)}</strong>
+    const br = bolumRengi(e.deptName);
+    return `<div style="padding:3px 6px;margin:2px 0;border-radius:4px;background:${bg};border-left:4px solid ${kac(br)};font-size:9px;line-height:1.3">
+      <strong style="color:${kac(window.renkKoyuMetin(br))}">${kac(e.courseCode)}</strong>
       <span style="color:#475569;margin-left:3px">${kac(e.deptName)} ${kac(e.year)}.Sınıf</span>
       ${e.classroom ? `<br/><span style="color:#0F766E;font-weight:600">${kac(e.classroom)}</span>` : ''}
     </div>`;
@@ -607,7 +617,15 @@ function fakulteYazdir(allFacultySlots, semester, baglam) {
       antetUst(b) + ' — BİRLEŞİK DERS PROGRAMI',
       `${buyuk(donem)} DÖNEMİ — ${ozet.bolumler.join(', ')}`,
       `${b.akademikYil || ''} ${b.seviyeAd || ''} · ${ozet.dersSayisi} ders, ${ozet.dersSaati} ders saati`,
-      tableRows
+      tableRows,
+      Object.keys(renkler).length > 1
+        ? `<div class="legend">${Object.entries(renkler)
+            .map(
+              ([ad, renk]) =>
+                `<div class="legend-item"><div class="legend-box" style="background:${kac(renk)}"></div>${kac(ad)}</div>`
+            )
+            .join('')}</div>`
+        : ''
     )
   );
 }

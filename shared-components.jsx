@@ -346,7 +346,12 @@ import {
   slotEgitmeniSec,
 } from './lib/ders-egitmenleri.js';
 import { XLSX_STIL, calismaKitabiParcalari, xlsxDosyaAdi } from './lib/xlsx-yaz.js';
-import { WORD_MIME, belgeDosyaAdi, wordPaketDosyalari } from './lib/word-belge.js';
+import {
+  WORD_MIME,
+  belgeDosyaAdi,
+  wordPaketDosyalari,
+  satirZeminiUygula,
+} from './lib/word-belge.js';
 import { TTO_SABLON_DEGISKENLERI } from './lib/tto-talep.js';
 import { ustAltSozluk, ustAltBilgiDoldur, UST_ALT_PARCA_RX } from './lib/docx-ust-alt-bilgi.js';
 import {
@@ -4230,7 +4235,8 @@ const TemplateEngine = (() => {
       const renderedRows = (rows || [])
         .map((rowData) => {
           const r = fillDataRow(markerRegion.dataTpl, markerRegion.cellVars, rowData);
-          return stripRowBold ? stripBoldRuns(r) : r;
+          // Satır rengi (`_zemin`, ör. sınıf rengi) şablonda yok; hücrelere yazılır.
+          return satirZeminiUygula(stripRowBold ? stripBoldRuns(r) : r, rowData._zemin);
         })
         .join('');
       const head = applyReplacements(
@@ -4295,6 +4301,7 @@ const TemplateEngine = (() => {
           });
           let r = applyReplacements(rowRegion.tpl, rowRepls.concat(rowStaticRels));
           if (stripRowBold) r = stripBoldRuns(r);
+          r = satirZeminiUygula(r, rowData._zemin);
           // vMerge enjeksiyonu — hücre indeksleri şablonla aynı kaldığından
           // (replacement yalnızca token metnini değiştirir) sondan başa uygula
           if (merge) {

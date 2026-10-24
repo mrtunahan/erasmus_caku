@@ -60,3 +60,31 @@ describe('ders × sınav çakışması', () => {
     expect(yariyilAnahtari(null, '2026-04-10')).toBe('bahar');
   });
 });
+
+describe('ders × sınav: kendi dersi ve tekrar', () => {
+  const olaylar = dersProgramiOlaylari([dok], { slotDersleri, saatler });
+  const s = (o) => ({
+    code: 'BLM101',
+    date: '2026-11-09',
+    timeSlot: '09:00',
+    duration: 60,
+    room: 'M1',
+    supervisor: 'Ali VELİ',
+    ...o,
+  });
+  it('sınavın kendi dersi (harf ve boşluk farkıyla da) çakışma sayılmaz', () => {
+    expect(dersSinavCakismalari([s({ id: 'a' })], olaylar, {})).toEqual([]);
+    expect(dersSinavCakismalari([s({ id: 'b', code: 'blm 101 / FİZ101' })], olaylar, {})).toEqual(
+      []
+    );
+  });
+  it('birleşik oturumun üyeleri aynı satırı bir kez üretir; liste tarih sırasında', () => {
+    const uye1 = s({ id: 'u1', code: 'FIZ101/FZK101' });
+    const uye2 = s({ id: 'u2', code: 'FIZ101/FZK101' });
+    const c = dersSinavCakismalari([uye1, uye2], olaylar, {});
+    expect(c.map((x) => x.tur).sort()).toEqual(['ders_gozetmen', 'ders_salon']);
+    const once = s({ id: 'o', code: 'X1', date: '2026-11-02' });
+    const sirali = dersSinavCakismalari([uye1, once], olaylar, {});
+    expect(sirali[0].sinav.date).toBe('2026-11-02');
+  });
+});
