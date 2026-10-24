@@ -299,10 +299,14 @@ router.post('/sifremi-unuttum', async (req, res) => {
     if (!adresSiniri) {
       const hesaplar = await db.collection(HESAPLAR).find({ eposta }).limit(10).toArray();
       if (!hesaplar.length) await tani('dogrulanmis_hesap_yok');
+      const islenen = new Set();
       for (const h of hesaplar) {
         // Eski adla kalmış akademisyen hesabı yeni adına taşınır: şifre
         // doğru (bugünkü) adın kaydına yazılsın.
         const hesap = await guncelHesap(db, String(h._id)).catch(() => String(h._id));
+        // Eski ve yeni adlı iki kayıt aynı hesaba çözülebilir: tek ileti.
+        if (islenen.has(hesap)) continue;
+        islenen.add(hesap);
         if (!(await hesapKullanilabilirMi(db, hesap))) {
           await tani('hesap_kullanilamaz');
           continue;

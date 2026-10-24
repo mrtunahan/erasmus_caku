@@ -385,6 +385,21 @@ router.post('/professor', async (req, res) => {
   }
 
   try {
+    // ── AKADEMİSYEN KAYDI ŞART ──
+    // Eskiden yalnız şifre kaydına bakılıyordu: şifresi olmayan HERHANGİ bir
+    // ad ortak varsayılan şifreyle giriş yapabiliyor, o ada şifre kaydı da
+    // açılıyordu ("TUĞÇE", "SSS" gibi kayıtlar böyle oluştu). Kaydı silinmiş
+    // kişi de eski şifresiyle girebiliyordu. Artık ad, bir akademisyen
+    // kaydının adıyla birebir aynı olmalı; yanıt aynı kalır (ad tahmini olmasın).
+    const dbProf = await getDbSafe();
+    const kayitli = await dbProf
+      .collection('professors')
+      .findOne({ name: professorName }, { projection: { _id: 1 } });
+    if (!kayitli) {
+      recordAttempt(rateLimitKey);
+      return res.json({ success: false, error: 'Giriş bilgileri hatalı!' });
+    }
+
     const doc = await getPasswordDoc('professor_passwords');
     const storedPassword = doc[professorName];
 
