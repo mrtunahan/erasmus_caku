@@ -351,7 +351,10 @@ import {
   belgeDosyaAdi,
   wordPaketDosyalari,
   satirZeminiUygula,
+  renkLejantiXml,
+  govdeSonunaEkle,
 } from './lib/word-belge.js';
+import { yabanciBolumAdiAlanlari } from './lib/sablon-bolum-adi.js';
 import { TTO_SABLON_DEGISKENLERI } from './lib/tto-talep.js';
 import { ustAltSozluk, ustAltBilgiDoldur, UST_ALT_PARCA_RX } from './lib/docx-ust-alt-bilgi.js';
 import {
@@ -4078,6 +4081,15 @@ const TemplateEngine = (() => {
   async function generateDocx(arrayBuffer, fields, staticData, rows, opts) {
     const stripRowBold = !!(opts && opts.stripRowBold);
     const { zip, xml } = await readDocumentXml(arrayBuffer);
+    // Şablona sabit yazılmış BAŞKA bölümün adı, çıktıyı alan bölümün adıyla
+    // değişir (lib/sablon-bolum-adi.js): paylaşılan şablonda her bölüm kendi
+    // adını görür. opts.otomatikBolumAdi = { yeni, adlar }.
+    const oba = opts && opts.otomatikBolumAdi;
+    if (oba && oba.yeni) {
+      const duz = xml.replace(/<[^>]+>/g, '');
+      const ek = yabanciBolumAdiAlanlari(duz, oba.yeni, oba.adlar || []);
+      if (ek.length) fields = (fields || []).concat(ek);
+    }
     const located = locateFields(xml, fields);
 
     const isRow = (f) => f.variable && f.variable.startsWith('row:');
@@ -4377,6 +4389,12 @@ const TemplateEngine = (() => {
       console.warn('[TemplateEngine] tablo sığdırma atlandı:', e && e.message);
     }
 
+    // Belgenin altına ek (ör. renk açıklaması) — gövdenin sonuna.
+    if (opts && opts.sonaEkle) {
+      const ekli = govdeSonunaEkle(out, opts.sonaEkle);
+      if (isTagBalanced(ekli)) out = ekli;
+    }
+
     zip.file('word/document.xml', out);
 
     // İsteğe bağlı: üst/alt bilgi yer tutucuları (opts.ustAltBilgi = { etiket: değer }).
@@ -4523,6 +4541,8 @@ const TemplateEngine = (() => {
     try {
       blob = await generateDocx(buf, tpl.fields, _staticData, _rows, {
         stripRowBold: !!opts.stripRowBold,
+        otomatikBolumAdi: opts.otomatikBolumAdi || null,
+        sonaEkle: opts.sonaEkle || '',
         ustAltBilgi: opts.ustAltBilgi || null,
       });
     } catch (e) {
@@ -14922,6 +14942,8 @@ window.XLSX_STIL = XLSX_STIL;
 // .docx'i doldurur, bu ise sıfırdan belge kurar (anket sonuç raporu gibi
 // kurumun yüklediği bir forma bağlı olmayan çıktılar için).
 // ══════════════════════════════════════════════════════════════
+// Belge altına renk açıklaması (lib/word-belge.js)
+window.renkLejantiXml = renkLejantiXml;
 window.wordIndir = async function wordIndir(dosyaAdi, govdeXml, secenek) {
   const JSZipYukle = async () => {
     if (window.JSZip) return window.JSZip;
