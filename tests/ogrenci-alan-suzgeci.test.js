@@ -205,3 +205,81 @@ describe('öğrenci kaydı', () => {
     expect(g.data.erasmusNotDurumu).toBe('onay-bekliyor');
   });
 });
+
+describe('staj belgesi yükleme kilidi', () => {
+  const dosya = { fileName: 'a.pdf', serverPath: '/u/a.pdf', status: 'yuklendi' };
+  const yeni = { fileName: 'b.pdf', serverPath: '/u/b.pdf', status: 'yuklendi' };
+  const harita = (s1, s3) => ({ steps: { 1: { status: s1 }, 3: { status: s3 } } });
+  it('adımı onaya gitmiş belge onaylı talep olmadan değişmez', () => {
+    const { r } = suz(
+      'internship_uploads',
+      { type: 'set', merge: true, data: { kimlik_fotokopisi: { ...yeni } } },
+      { kimlik_fotokopisi: dosya },
+      { yolHaritasi: harita('pending_approval', '') }
+    );
+    expect(r.izin).toBe(false);
+  });
+  it('onaylı talep varsa ya da adım gönderilmemişse değişir; talep açmak serbest', () => {
+    expect(
+      suz(
+        'internship_uploads',
+        { type: 'set', merge: true, data: { kimlik_fotokopisi: { ...yeni } } },
+        { kimlik_fotokopisi: { ...dosya, changeRequest: { status: 'approved' } } },
+        { yolHaritasi: harita('pending_approval', '') }
+      ).r.izin
+    ).toBe(true);
+    expect(
+      suz(
+        'internship_uploads',
+        { type: 'set', merge: true, data: { kimlik_fotokopisi: { ...yeni } } },
+        { kimlik_fotokopisi: dosya },
+        { yolHaritasi: harita('', '') }
+      ).r.izin
+    ).toBe(true);
+    expect(
+      suz(
+        'internship_uploads',
+        {
+          type: 'set',
+          merge: true,
+          data: { kimlik_fotokopisi: { ...dosya, changeRequest: { status: 'pending' } } },
+        },
+        { kimlik_fotokopisi: dosya },
+        { yolHaritasi: harita('pending_approval', '') }
+      ).r.izin
+    ).toBe(true);
+  });
+  it('adım 6 belgesi SGK adımı tamamlanmadan yüklenmez', () => {
+    const op = () => ({ type: 'set', merge: true, data: { staj_defteri: { ...yeni } } });
+    expect(suz('internship_uploads', op(), null, { yolHaritasi: harita('', '') }).r.izin).toBe(
+      false
+    );
+    expect(
+      suz('internship_uploads', op(), null, { yolHaritasi: harita('', 'completed') }).r.izin
+    ).toBe(true);
+  });
+});
+
+describe('portal moderasyonu', () => {
+  it('moderatör olmayan gönderiyi onaylı açamaz, sabitleyemez', () => {
+    const { data } = suz('portal_posts', {
+      type: 'add',
+      data: { title: 'T', status: 'approved', pinned: true, reviewedBy: 'ben' },
+    });
+    expect(data).toEqual({ title: 'T', status: 'pending' });
+    const g = suz(
+      'portal_posts',
+      { type: 'update', data: { status: 'approved' } },
+      { status: 'pending' }
+    );
+    expect(g.data.status).toBe('pending');
+  });
+  it('moderatör onaylı açar; şikâyet durumu moderatörde', () => {
+    const { data } = suz('portal_posts', { type: 'add', data: { status: 'approved' } }, null, {
+      moderator: true,
+    });
+    expect(data.status).toBe('approved');
+    const r = suz('portal_reports', { type: 'add', data: { status: 'resolved' } });
+    expect(r.data.status).toBe('pending');
+  });
+});

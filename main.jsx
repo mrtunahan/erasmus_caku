@@ -50,8 +50,24 @@ import './eposta-ekrani.jsx';
       autoConnect: true,
       reconnection: true,
       transports: ['websocket'],
+      // Sunucu bağlantıda oturum ister: çerez yoksa jeton da gönderilir.
+      auth: (cb) => {
+        let token = '';
+        try {
+          token = localStorage.getItem('caku_auth_token') || '';
+        } catch (_) {}
+        cb({ token });
+      },
     });
     window.__socket = socket;
+    // Giriş ekranında bağlantı reddedilir (oturum yok); sunucunun reddi
+    // otomatik yeniden denemeyi tetiklemediği için girişten sonra kanal
+    // açılsın diye aralıklı yeniden denenir.
+    socket.on('connect_error', () => {
+      setTimeout(() => {
+        if (!socket.connected) socket.connect();
+      }, 10000);
+    });
     socket.on('connect', () => {
       console.info('[realtime] bağlandı');
     });

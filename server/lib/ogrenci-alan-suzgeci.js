@@ -120,10 +120,51 @@ const BELGE_KARAR = [
 ];
 const META = new Set(['updatedAt', 'createdAt', '_owner', 'id', '_id', '_docId']);
 
-function stajBelgeleri(data, mevcut) {
+// Belgenin bağlı olduğu yol haritası adımı (staj-modulu.jsx → BELGE_ALANLARI).
+const BELGE_ADIMI = {
+  zorunlu_staj_formu: 2,
+  staj_basvuru_formu_ek1: 2,
+  kimlik_fotokopisi: 2,
+  staj_defteri: 6,
+  staj_teslim_belgesi: 6,
+  turnitin_raporu: 6,
+};
+const DOSYA_ALANLARI = ['fileName', 'serverPath', 'downloadURL', 'path', 'url'];
+const dosyaVar = (b) => nesneMi(b) && DOSYA_ALANLARI.some((a) => metin(b[a]));
+const dosyaDegisiyor = (yeni, eski) =>
+  nesneMi(yeni) &&
+  DOSYA_ALANLARI.some((a) => a in yeni && metin(yeni[a]) !== metin(eski && eski[a]));
+
+/**
+ * Yükleme kilidi (ekrandaki canUploadDocument kuralının sunucu karşılığı):
+ *   • Adım 6 belgeleri ancak adım 4 (SGK) tamamlandıktan sonra yüklenir.
+ *   • Yüklenmiş belgenin adımı onaya gönderildiyse dosya ancak ONAYLANMIŞ
+ *     değişiklik talebiyle değişir. Talep açmak (dosya aynı) serbesttir.
+ * @returns {string} hata metni ya da ''
+ */
+function yuklemeKilidi(belgeId, yeni, eski, yolHaritasi) {
+  const adim = BELGE_ADIMI[belgeId];
+  if (!adim || !dosyaDegisiyor(yeni, eski)) return '';
+  const adimlar = (yolHaritasi && yolHaritasi.steps) || {};
+  const durum = (i) => metin(adimlar[i] && adimlar[i].status);
+  if (adim === 6 && durum(3) !== 'completed') {
+    return 'Bu belge, SGK adımı tamamlandıktan sonra yüklenebilir.';
+  }
+  if (!dosyaVar(eski)) return '';
+  const gonderildi = ['pending_approval', 'completed'].includes(durum(adim - 1));
+  const izin = nesneMi(eski.changeRequest) && eski.changeRequest.status === 'approved';
+  if (gonderildi && !izin) {
+    return 'Bu belgenin adımı onaya gönderildi; değiştirmek için önce değişiklik talebi açın ve onay bekleyin.';
+  }
+  return '';
+}
+
+function stajBelgeleri(data, mevcut, yolHaritasi) {
+  let hata = '';
   Object.keys(data).forEach((k) => {
     if (META.has(k) || !nesneMi(data[k])) return;
     const eski = mevcut && nesneMi(mevcut[k]) ? mevcut[k] : null;
+    hata = hata || yuklemeKilidi(k, data[k], eski, yolHaritasi);
     const b = { ...data[k] };
     geriYukle(b, eski, BELGE_KARAR);
     degerSinirla(b, eski, 'status', ['yuklendi']);
@@ -136,6 +177,7 @@ function stajBelgeleri(data, mevcut) {
     }
     data[k] = b;
   });
+  return hata;
 }
 
 // ── KOLEKSİYON KURALLARI ──
@@ -155,12 +197,16 @@ const YATAY_KARAR = YATAY_KARAR_BOS.concat([
 const PROJE_KARAR = ['status', 'scheduleDate', 'scheduleTime'];
 const PROJELER = new Set(['projects', 'unides_projects', 'tubitak2209_projects']);
 const BILDIRIM_KARAR = ['cozuldu', 'cozulmeTarihi'];
+// Portal: gönderinin onayı, reddi ve sabitlenmesi moderatörün işidir. İstemci
+// "moderatör müyüm?" kararını tarayıcıda verip gönderiyi 'approved' açıyordu.
+const PORTAL_KARAR = ['status', 'reviewedBy', 'reviewedAt', 'rejectionReason', 'pinned'];
 
 /**
  * @param {string} koleksiyon
  * @param {{type:string, merge?:boolean, data?:object}} op
  * @param {object|null} mevcut  kaydın şimdiki hâli (yeni kayıtta null)
- * @param {{ident?:string, simdi?:Date}} [s]
+ * @param {{ident?:string, simdi?:Date, yolHaritasi?:object, moderator?:boolean}} [s]
+ *        yolHaritasi: staj belgesinde başvurunun yol haritası (yükleme kilidi)
  * @returns {{izin:boolean, hata?:string}}
  */
 function ogrenciAlanSuzgeci(koleksiyon, op, mevcut, s) {
@@ -190,9 +236,11 @@ function ogrenciAlanSuzgeci(koleksiyon, op, mevcut, s) {
     case 'internship_roadmap':
       yolHaritasi(data, mevcut);
       break;
-    case 'internship_uploads':
-      stajBelgeleri(data, mevcut);
+    case 'internship_uploads': {
+      const hata = stajBelgeleri(data, mevcut, o.yolHaritasi);
+      if (hata) return { izin: false, hata };
       break;
+    }
     case 'cap_yandal_basvurular':
       if (yeni) {
         data.status = 'pending';
@@ -207,6 +255,18 @@ function ogrenciAlanSuzgeci(koleksiyon, op, mevcut, s) {
           } else delete data[a];
         });
       } else geriYukle(data, mevcut, YATAY_KARAR, tam);
+      break;
+    case 'portal_posts':
+      if (o.moderator) break;
+      if (yeni) {
+        data.status = 'pending';
+        PORTAL_KARAR.filter((a) => a !== 'status').forEach((a) => delete data[a]);
+      } else geriYukle(data, mevcut, PORTAL_KARAR, tam);
+      break;
+    case 'portal_reports':
+      if (o.moderator) break;
+      if (yeni) data.status = 'pending';
+      else geriYukle(data, mevcut, ['status'], tam);
       break;
     case 'student_notifications':
       if (yeni) {

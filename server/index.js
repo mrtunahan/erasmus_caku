@@ -64,6 +64,28 @@ try {
     path: '/socket.io',
   });
   app.set('io', io);
+  // ── KİMLİK ŞARTI ──
+  // Kanal yalnız "şu koleksiyon değişti" bilgisi taşıyor (veri yok), ama
+  // giriş yapmamış biri de bağlanıp sistemdeki hareketi izleyebiliyordu.
+  // Bağlantı oturum çerezini (ya da istemcinin verdiği jetonu) ister;
+  // giriş ekranındaki istemci reddedilir ve girişten sonra yeniden bağlanır.
+  const { verifyToken } = require('./middleware/auth');
+  io.use((socket, next) => {
+    try {
+      const cerez = String((socket.handshake.headers && socket.handshake.headers.cookie) || '');
+      const m = /(?:^|;\s*)caku_auth=([^;]+)/.exec(cerez);
+      const jeton =
+        (m && decodeURIComponent(m[1])) ||
+        (socket.handshake.auth && typeof socket.handshake.auth.token === 'string'
+          ? socket.handshake.auth.token
+          : '');
+      if (!jeton) return next(new Error('giris-gerekli'));
+      socket.data.user = verifyToken(jeton);
+      return next();
+    } catch (_) {
+      return next(new Error('giris-gerekli'));
+    }
+  });
   io.on('connection', (socket) => {
     // bağlanmış istemci sayısını izlemek istersek burada loglarız
     socket.on('subscribe', (rooms) => {

@@ -178,7 +178,11 @@ const {
   memurMuafiyetKaydiniGorurMu,
   memurMuafiyetKayitlariniSuz,
   memuraGonderilenMuafiyetKayitlari,
+  memurBolumModulleri,
 } = require('../lib/memur-kapsam');
+// Personelin öğrenci verisi okuması bölüm kapsamında (KVKK).
+const personelOgrenciOkuma = require('../lib/personel-ogrenci-okuma');
+const { personelMuafiyetSatirKarari } = require('../lib/muafiyet-personel-yazma');
 const { kapsamNumaralari } = require('../lib/ogrenci-baglanti');
 const { duyuruyaDokunabilir } = require('../lib/duyuru-sahip');
 // Öğrenci okumasında başkasının kaydını slot alanlarına indirger — randevu
@@ -1116,7 +1120,42 @@ async function isPortalModerator(db, identifier) {
     const doc = await db.collection('portal_moderators').findOne({
       $or: [{ _id: identifier }, { _docId: identifier }, { userId: identifier }],
     });
-    return !!doc;
+    if (doc) return true;
+    // ── MODERATÖR KAYDI ADLA TUTULUYOR ──
+    // Portal moderatörü öğrencinin `e-posta || ad` kimliğiyle atar
+    // (ogrenci-portali.jsx → getUserId); öğrenci oturumunda e-posta olmadığı
+    // için kayıt fiilen öğrencinin ADIYLA açılıyor. Numarayla arayan sunucu
+    // gerçek moderatörü tanımıyordu. Öğrencinin kayıttaki adı ve e-postası
+    // da denenir; ad büyük harf standardından önceki biçimde kalmış olabilir.
+    const ogr = await db
+      .collection('students')
+      .findOne(
+        { studentNumber: String(identifier) },
+        { projection: { firstName: 1, lastName: 1, name: 1, email: 1 } }
+      );
+    if (!ogr) return false;
+    const norm = (v) =>
+      String(v || '')
+        .toLocaleUpperCase('tr-TR')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const adlar = new Set(
+      [norm((ogr.firstName || '') + ' ' + (ogr.lastName || '')), norm(ogr.name)].filter(Boolean)
+    );
+    const eposta = String(ogr.email || '')
+      .trim()
+      .toLowerCase();
+    const modlar = await db
+      .collection('portal_moderators')
+      .find({}, { projection: { _id: 1, _docId: 1, userId: 1 } })
+      .limit(1000)
+      .toArray();
+    return modlar.some((m) =>
+      [m._id, m._docId, m.userId].some((v) => {
+        const t = String(v == null ? '' : v);
+        return (eposta && t.trim().toLowerCase() === eposta) || adlar.has(norm(t));
+      })
+    );
   } catch (_) {
     return false;
   }
@@ -1865,6 +1904,11 @@ async function enforceWritePolicies(db, op, user) {
         });
       } else if (op.collection === 'muafiyet_records') {
         karar = await muafiyetPersonelKarari(db, op, mevcut, user);
+        // Satır düzeltme/çıkarma yalnız üniversite yetkilisinde (bu blok
+        // sistem ve üniversite yetkilisini zaten dışarıda bırakıyor).
+        if (karar.izin && mevcut && op.type !== 'delete') {
+          karar = personelMuafiyetSatirKarari(op.data, mevcut);
+        }
       } else {
         const yonetici = user.role === 'bolum_yetkilisi' || flags.facManager || flags.deptManager;
         const [yazmaAlani, okumaAlani] = await Promise.all([
@@ -3057,6 +3101,36 @@ async function enforceWritePolicies(db, op, user) {
       return { allow: true };
     }
 
+    // Portal moderasyonu: moderatör başkasının gönderisini onaylar/reddeder,
+    // sabitler; şikâyeti sonuçlandırır. Yalnız moderasyon alanları — içerik
+    // değiştirilemez. (Silme istisnası aşağıda.)
+    if (
+      !op.subCollection &&
+      (op.collection === 'portal_posts' || op.collection === 'portal_reports') &&
+      (op.type === 'update' || (op.type === 'set' && op.merge === true)) &&
+      op.data &&
+      typeof op.data === 'object'
+    ) {
+      const MODERASYON = new Set([
+        'status',
+        'reviewedBy',
+        'reviewedAt',
+        'rejectionReason',
+        'pinned',
+        'resolvedBy',
+        'resolvedAt',
+        'updatedAt',
+      ]);
+      const alanlar = Object.keys(op.data);
+      if (
+        alanlar.length > 0 &&
+        alanlar.every((a) => MODERASYON.has(a)) &&
+        (await isPortalModerator(db, ident))
+      ) {
+        return { allow: true };
+      }
+    }
+
     // Portal içeriği silme: sahip değilse moderatör olmalı
     if (op.type === 'delete' && STUDENT_DELETE_OWNED.has(op.collection)) {
       if (await isPortalModerator(db, ident)) return { allow: true };
@@ -3160,7 +3234,15 @@ async function memurKimligi(db, user) {
 // Alt koleksiyon ana koleksiyonun kuralına girmez.
 async function ogrenciKararAlanlari(db, op, mevcut, ident) {
   if (op.subCollection) return { izin: true };
-  return ogrenciAlanSuzgeci(op.collection, op, mevcut, { ident });
+  // Portal gönderisi/şikâyeti: onay ve sabitleme yalnız moderatörde.
+  const portal = op.collection === 'portal_posts' || op.collection === 'portal_reports';
+  const moderator = portal ? await isPortalModerator(db, ident) : false;
+  // Staj belgesinde yükleme kilidi yol haritasına bakar (aynı başvuru kimliği).
+  let yolHaritasi = null;
+  if (op.collection === 'internship_uploads' && op.docId) {
+    yolHaritasi = await findDocByAnyId(db, 'internship_roadmap', op.docId).catch(() => null);
+  }
+  return ogrenciAlanSuzgeci(op.collection, op, mevcut, { ident, yolHaritasi, moderator });
 }
 
 // Muafiyet başvurusu: personel YALNIZ OKUYABİLDİĞİ kayda yazar. Okuma kuralının
@@ -3188,6 +3270,54 @@ async function muafiyetPersonelKarari(db, op, mevcut, user) {
   }
   return { izin: true };
 }
+
+// ── PERSONELİN ÖĞRENCİ VERİSİ OKUMASI (server/lib/personel-ogrenci-okuma.js) ──
+// Öğrenci kapsamda mı? Tam erişim: sistem/üniversite yetkilisi ve staj
+// yetkilisi (SGK işlemi fakülte çapında). Memurda atandığı bölümler eklenir.
+async function personelOgrenciKapsami(db, user) {
+  const flags = await getActorFlags(db, user);
+  const memur = await memurKimligi(db, user);
+  const tamErisim =
+    user.role === 'admin' ||
+    flags.admin ||
+    flags.uniAdmin ||
+    flags.stajYetkilisi ||
+    !!(memur && memur.isStajCoordinator);
+  if (tamErisim) return personelOgrenciOkuma.kapsamKarari({ tamErisim: true });
+  const alan = await kullaniciAlani(db, user, true);
+  const ekBolumler = [];
+  if (memur) {
+    const atamalar = await memurAtamalari(db);
+    const atanan = atamalar
+      .map((a) => String(a.departmentId || ''))
+      .filter((b) => b && memurBolumModulleri(atamalar, b, memur).length > 0);
+    if (memur.departmentId) atanan.push(memur.departmentId);
+    // Atama kimliği bölümün başka biçiminde yazılmış olabilir: bütün biçimler.
+    const depts = await db.collection('departments').find({}).toArray();
+    atanan.forEach((b) => {
+      ekBolumler.push(b);
+      const d = depts.find((x) => bolumKimlikleri(x).includes(b));
+      if (d) ekBolumler.push(...bolumKimlikleri(d));
+    });
+  }
+  return personelOgrenciOkuma.kapsamKarari({ alan, alanda: bolumAlandaFn, ekBolumler });
+}
+
+// Öğrenci profillerinin sahibi öğrencilerin bölüm bilgisi (numara → kayıt).
+async function profilOgrencileri(db, nolar) {
+  const liste = [...new Set(nolar.filter(Boolean).map(String))];
+  if (liste.length === 0) return new Map();
+  const sayilar = liste.map(Number).filter((n) => Number.isFinite(n));
+  const kayitlar = await db
+    .collection('students')
+    .find(
+      { studentNumber: { $in: liste.concat(sayilar) } },
+      { projection: { studentNumber: 1, departmentId: 1, additionalDepartments: 1 } }
+    )
+    .toArray();
+  return new Map(kayitlar.map((k) => [String(k.studentNumber), k]));
+}
+const profilNo = (d) => String((d && (d.studentNumber || d._docId || d.id)) || '');
 
 async function memurAtamalari(db) {
   if (memurAtamaCache && Date.now() - memurAtamaCache.ts < 60 * 1000) {
@@ -4266,6 +4396,29 @@ router.get('/:collection', async (req, res) => {
       docs = basvurulariSuz(collection, docs, await kullaniciAlani(db, user, true));
     }
 
+    // Personel: öğrenci kimlik/nüfus verisi yalnız yetki alanındaki bölümün
+    // öğrencisinde. Kapsam dışı öğrenci kaydı temel alanlara iner, profili
+    // hiç dönmez (server/lib/personel-ogrenci-okuma.js).
+    if (
+      DB_AUTH_ENFORCED &&
+      user &&
+      user.role !== 'student' &&
+      (collection === 'students' || collection === 'student_profiles')
+    ) {
+      const icinde = await personelOgrenciKapsami(db, user);
+      if (collection === 'students') {
+        docs = docs.map((d) =>
+          icinde(d) ? d : { _id: d._id, ...personelOgrenciOkuma.temelAlanlar(d) }
+        );
+      } else {
+        const sahipler = await profilOgrencileri(db, docs.map(profilNo));
+        docs = docs.filter((d) => {
+          const o = sahipler.get(profilNo(d));
+          return o ? icinde(o) : icinde({ departmentId: '__bilinmiyor__' });
+        });
+      }
+    }
+
     // Yoklama oturumları ve kayıtları kendi `id`'leriyle ('yk-…') birbirine
     // bağlıdır (kayıt.oturumId === oturum.id). Bu kayıtlar /api/yoklama
     // tarafından `_docId` olmadan yazıldığından aşağıdaki `_docId || _id`
@@ -4438,6 +4591,28 @@ router.get('/:collection/:docId', async (req, res) => {
       const alan = await kullaniciAlani(db, user, true);
       if (basvurulariSuz(collection, [doc], alan).length === 0) {
         return res.status(403).json({ error: 'Bu başvuru sizin yetki alanınızda değil.' });
+      }
+    }
+
+    // Personel: öğrenci verisi tek belge olarak da bölüm kapsamında.
+    if (
+      DB_AUTH_ENFORCED &&
+      user &&
+      user.role !== 'student' &&
+      (collection === 'students' || collection === 'student_profiles')
+    ) {
+      const icinde = await personelOgrenciKapsami(db, user);
+      if (collection === 'students' && !icinde(doc)) {
+        doc = { _id: doc._id, ...personelOgrenciOkuma.temelAlanlar(doc) };
+      } else if (collection === 'student_profiles') {
+        const sahip = (await profilOgrencileri(db, [profilNo(doc) || docId])).get(
+          profilNo(doc) || String(docId)
+        );
+        if (!(sahip ? icinde(sahip) : icinde({ departmentId: '__bilinmiyor__' }))) {
+          return res
+            .status(403)
+            .json({ error: 'Bu öğrencinin kişisel bilgileri yetki alanınızda değil.' });
+        }
       }
     }
 

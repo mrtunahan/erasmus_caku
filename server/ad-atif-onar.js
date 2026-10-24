@@ -21,9 +21,14 @@
  *      birlikte taşınır.
  * Karşılığı belirsiz (iki kişiye uyan) ya da hiç olmayan adlara dokunmaz.
  *
+ * İsteğe bağlı: akademisyen kaydı OLMAYAN adların şifre kayıtları (silinmiş
+ * kişiler, uydurma adlarla açılmış kayıtlar) SAHIPSIZ_SIL=1 ile silinir. Bu
+ * adlarla giriş zaten kapalıdır; silinen kayıt yedek dosyasında durur.
+ *
  * Kullanım (proje kökünden):
  *   node server/ad-atif-onar.js              # kuru: yalnız rapor
  *   UYGULA=1 node server/ad-atif-onar.js     # yedek al + yaz
+ *   UYGULA=1 SAHIPSIZ_SIL=1 node server/ad-atif-onar.js   # + sahipsiz şifreleri sil
  */
 require('dotenv').config();
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
@@ -39,6 +44,8 @@ const ONEK = 'professor:';
 (async () => {
   const { getDbSafe } = require('./config/database');
   const uygula = process.env.UYGULA === '1';
+  // Akademisyen kaydı olmayan adların şifre kayıtları: yalnız açıkça istenirse silinir.
+  const sahipsizSil = process.env.SAHIPSIZ_SIL === '1';
   const db = await getDbSafe();
   console.log(
     uygula ? '▶ UYGULA: yedek alınıp yazılacak.' : '▶ KURU ÇALIŞMA: hiçbir şey yazılmaz.'
@@ -166,7 +173,9 @@ const ONEK = 'professor:';
           ? `  → şifre "${x.yeni}" adına TAŞINACAK`
           : x.tur === 'sil'
             ? `  → "${x.yeni}" kendi şifresini kullanıyor; eski kayıt SİLİNECEK`
-            : '  → akademisyen kaydı yok (giriş kapalı, dokunulmaz)')
+            : sahipsizSil
+              ? '  → akademisyen kaydı yok; şifre kaydı SİLİNECEK (SAHIPSIZ_SIL=1)'
+              : '  → akademisyen kaydı yok (giriş kapalı, dokunulmaz)')
     )
   );
 
@@ -282,7 +291,7 @@ const ONEK = 'professor:';
   let sifreN = 0;
   const yeniSifre = { ...sifre };
   sifreIslem.forEach((x) => {
-    if (x.tur === 'yok') return;
+    if (x.tur === 'yok' && !sahipsizSil) return;
     if (x.tur === 'tasi') yeniSifre[x.yeni] = yeniSifre[x.eski];
     delete yeniSifre[x.eski];
     sifreN++;

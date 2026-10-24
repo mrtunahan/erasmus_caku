@@ -101,7 +101,7 @@ const loginAttempts = new Map();
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000;
 
-function checkRateLimit(key) {
+function checkRateLimit(key, enCok) {
   const now = Date.now();
   const record = loginAttempts.get(key);
   if (!record) return true;
@@ -109,7 +109,7 @@ function checkRateLimit(key) {
     loginAttempts.delete(key);
     return true;
   }
-  return record.count < MAX_ATTEMPTS;
+  return record.count < (enCok || MAX_ATTEMPTS);
 }
 
 function recordAttempt(key) {
@@ -124,6 +124,25 @@ function recordAttempt(key) {
 
 function clearAttempts(key) {
   loginAttempts.delete(key);
+}
+
+// ── YÖNETİCİ ŞİFRESİ DENEMELERİ ──
+// Yönetici şifresini doğrulayan bütün uçlar (giriş, admin-reset, varsayılan
+// akademisyen şifresi) AYNI iki katmanlı sayacı kullanır: IP başına 5 yanlış
+// deneme ve bütün adreslerden toplam 50. Tek ortak anahtar herkesin 5 yanlış
+// denemeyle yönetici işlemlerini kilitlemesine izin veriyordu.
+const ADMIN_GENEL = 'admin-genel';
+const ADMIN_GENEL_SINIR = 50;
+function adminDenemesi(req) {
+  const ipAnahtari = 'admin-ip:' + String((req && req.ip) || 'bilinmeyen');
+  return {
+    izinli: () => checkRateLimit(ipAnahtari) && checkRateLimit(ADMIN_GENEL, ADMIN_GENEL_SINIR),
+    yanlis: () => {
+      recordAttempt(ipAnahtari);
+      recordAttempt(ADMIN_GENEL);
+    },
+    dogru: () => clearAttempts(ipAnahtari),
+  };
 }
 
 // ── MongoDB Helpers ──
@@ -331,9 +350,8 @@ router.post('/admin', async (req, res) => {
     return res.status(400).json({ error: 'Şifre gerekli.' });
   }
 
-  const rateLimitKey = 'admin';
-
-  if (!checkRateLimit(rateLimitKey)) {
+  const deneme = adminDenemesi(req);
+  if (!deneme.izinli()) {
     return res
       .status(429)
       .json({ error: 'Çok fazla giriş denemesi. 15 dakika sonra tekrar deneyin.' });
@@ -348,7 +366,7 @@ router.post('/admin', async (req, res) => {
     const isValid = await verifyPassword(password, doc.password, 'admin');
 
     if (isValid) {
-      clearAttempts(rateLimitKey);
+      deneme.dogru();
       if (!isBcryptHash(doc.password)) {
         const bcryptHash = await hashPassword(password);
         await setPasswordDoc('admin', { password: bcryptHash, updatedAt: new Date() });
@@ -357,7 +375,7 @@ router.post('/admin', async (req, res) => {
       setTokenCookie(res, token);
       return res.json({ success: true, token });
     } else {
-      recordAttempt(rateLimitKey);
+      deneme.yanlis();
       return res.json({ success: false, error: 'Giriş bilgileri hatalı!' });
     }
   } catch (error) {
@@ -1116,8 +1134,8 @@ router.post('/admin-reset', async (req, res) => {
   // Bu uç ADMIN ŞİFRESİNİ doğruluyor ve hiçbir hız sınırı yoktu: tek bir
   // parolayı sınırsız deneyerek kurumun tüm hesaplarını sıfırlama yetkisi
   // elde etmek mümkündü. Giriş uçlarıyla aynı sınıra bağlandı.
-  const resetKey = 'admin-reset';
-  if (!checkRateLimit(resetKey)) {
+  const deneme = adminDenemesi(req);
+  if (!deneme.izinli()) {
     return res.status(429).json({ error: 'Çok fazla deneme. 15 dakika sonra tekrar deneyin.' });
   }
 
@@ -1129,10 +1147,10 @@ router.post('/admin-reset', async (req, res) => {
 
     const adminValid = await verifyPassword(adminPassword, adminDoc.password, 'admin');
     if (!adminValid) {
-      recordAttempt(resetKey);
+      deneme.yanlis();
       return res.status(403).json({ error: 'Admin şifresi hatalı.' });
     }
-    clearAttempts(resetKey);
+    deneme.dogru();
 
     const bcryptHash = await hashPassword(newPassword);
 
@@ -1170,8 +1188,8 @@ router.post('/default-professor-password', async (req, res) => {
   // Bu uç da ADMIN ŞİFRESİNİ doğruluyor ve deneme sınırı yoktu: şifre
   // burada sınırsız denenip doğru tahminle ortak akademisyen şifresi
   // değiştirilebiliyordu. admin-reset ile AYNI sayaç (denemeler birikir).
-  const resetKey = 'admin-reset';
-  if (!checkRateLimit(resetKey)) {
+  const deneme = adminDenemesi(req);
+  if (!deneme.izinli()) {
     return res.status(429).json({ error: 'Çok fazla deneme. 15 dakika sonra tekrar deneyin.' });
   }
 
@@ -1183,10 +1201,10 @@ router.post('/default-professor-password', async (req, res) => {
 
     const adminValid = await verifyPassword(adminPassword, adminDoc.password, 'admin');
     if (!adminValid) {
-      recordAttempt(resetKey);
+      deneme.yanlis();
       return res.status(403).json({ error: 'Admin şifresi hatalı.' });
     }
-    clearAttempts(resetKey);
+    deneme.dogru();
 
     const bcryptHash = await hashPassword(defaultPassword);
     await setPasswordDoc('defaults', { professorDefault: bcryptHash, updatedAt: new Date() }, true);
@@ -1220,7 +1238,7 @@ module.exports.sifreYaz = async function sifreYaz(rol, kimlik, yeniSifre) {
     clearAttempts('dept_manager:' + k);
   } else if (rol === 'admin') {
     await setPasswordDoc('admin', { password: hash, updatedAt: new Date() });
-    clearAttempts('admin');
+    clearAttempts(ADMIN_GENEL);
   } else {
     return false;
   }
