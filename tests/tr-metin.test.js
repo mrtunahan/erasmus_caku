@@ -63,3 +63,12 @@ describe('eşitlik ve sıralama', () => {
     expect(trAnahtar('  Öğrenci   İşleri ')).toBe('ogrenci isleri');
   });
 });
+
+describe('büyük harfli adlarda arama (İ)', () => {
+  it('önceden toLowerCase ile küçültülmüş aranan metin de bulur', async () => {
+    const { trIcerir, trEsit } = await import('../lib/tr-metin.js');
+    expect(trIcerir('İBRAHİM YILMAZ', 'İbrahim'.toLowerCase())).toBe(true);
+    expect(trIcerir('Dr. MEHMET ALİ ŞİMŞEK', 'Ali Şimşek'.toLowerCase())).toBe(true);
+    expect(trEsit('ALİ ŞİMŞEK', 'Ali Şimşek')).toBe(true);
+  });
+});

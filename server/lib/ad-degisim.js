@@ -111,4 +111,90 @@ function planOzeti(plan) {
   return o;
 }
 
-module.exports = { adDegisimPlani, planOzeti, listeMetniCevir, DOKUNULMAZ };
+// ══════════════════════════════════════════════════════════════
+// LİSTEDE KALMIŞ ESKİ AD BİÇİMLERİ (ad standardı sonrası onarım)
+//
+// Ad standardı (server/ad-standart-gecis.js) yalnız adın TAMAMINA eşit
+// metinleri çevirdi; "A, B" gözetmen listesi, "A / B" ortak ders hocası ya
+// da program slotundaki liste olduğu gibi kaldı. Eşleştirme kişi anahtarıyla
+// yapıldığı için iş akışı bozulmadı, ama çıktılarda aynı kişi iki biçimde
+// ("Öğrt. Gör. Gökalp Saylam" / "Öğr. Gör. GÖKALP SAYLAM") görünüyor.
+// Yalnız KİŞİ ALANLARINDAKİ parçalar, TEK bir akademisyene uyuyorsa onun
+// bugünkü adıyla değiştirilir; ayraçlar ve boşluklar korunur.
+// ══════════════════════════════════════════════════════════════
+
+const KISI_ALANLARI = new Set([
+  'supervisor',
+  'professor',
+  'professors',
+  'instructor',
+  'instructors',
+  'gozetmen',
+  'gozetmenler',
+  'hoca',
+  'hocalar',
+]);
+
+/** Kişi anahtarı → bugünkü ad (yalnız tek kişiye çözülen anahtarlar). */
+function anahtarHaritasi(adlar) {
+  const say = new Map();
+  [...new Set((adlar || []).map(metin).filter(Boolean))].forEach((ad) => {
+    const k = kisiAnahtari(ad);
+    if (!k) return;
+    if (!say.has(k)) say.set(k, []);
+    say.get(k).push(ad);
+  });
+  const h = new Map();
+  say.forEach((liste, k) => {
+    if (liste.length === 1) h.set(k, liste[0]);
+  });
+  return h;
+}
+
+function kisiMetniStandartla(deger, harita, degisimler) {
+  if (typeof deger !== 'string' || deger.length > 300) return deger;
+  return deger
+    .split(/(\s*[,;/]\s*)/)
+    .map((parca, i) => {
+      if (i % 2 === 1) return parca; // ayraç
+      const t = metin(parca);
+      const yeni = t && harita.get(kisiAnahtari(t));
+      if (!yeni || yeni === t) return parca;
+      degisimler.push([t, yeni]);
+      return parca.replace(t, yeni);
+    })
+    .join('');
+}
+
+/**
+ * @param {*} belge
+ * @param {Map<string,string>} harita  anahtarHaritasi çıktısı
+ * @returns {{deger:*, degisimler:Array<[string,string]>}}
+ */
+function listeAdlariniStandartla(belge, harita) {
+  const degisimler = [];
+  const yuru = (v, kisiAlani) => {
+    if (kisiAlani && typeof v === 'string') return kisiMetniStandartla(v, harita, degisimler);
+    if (Array.isArray(v)) return v.map((x) => yuru(x, kisiAlani));
+    if (v && typeof v === 'object' && v.constructor === Object) {
+      const n = {};
+      Object.keys(v).forEach((k) => {
+        n[k] = yuru(v[k], KISI_ALANLARI.has(k));
+      });
+      return n;
+    }
+    return v;
+  };
+  const deger = yuru(belge, false);
+  return { deger, degisimler };
+}
+
+module.exports = {
+  adDegisimPlani,
+  planOzeti,
+  listeMetniCevir,
+  DOKUNULMAZ,
+  anahtarHaritasi,
+  listeAdlariniStandartla,
+  KISI_ALANLARI,
+};

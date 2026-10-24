@@ -44,3 +44,29 @@ describe('akademisyen ad değişimi planı', () => {
     });
   });
 });
+
+describe('listede kalmış eski ad biçimleri', () => {
+  it('yalnız kişi alanlarında, tek kişiye uyan parçalar; ayraçlar korunur', async () => {
+    const { anahtarHaritasi, listeAdlariniStandartla } =
+      await import('../server/lib/ad-degisim.js');
+    const h = anahtarHaritasi([
+      'Öğr. Gör. GÖKALP SAYLAM',
+      'Dr. Öğr. Üyesi PEMBE KARABULUT',
+      'Prof. Dr. ALİ VELİ',
+      'Doç. Dr. ALİ VELİ',
+    ]);
+    const belge = {
+      code: 'INS231',
+      name: 'Gökalp Saylam', // kişi alanı değil: dokunulmaz
+      supervisor: 'Öğrt. Gör. Gökalp Saylam, Dr. Pembe Karabulut',
+      professor: 'Gökalp Saylam / Ali Veli', // Ali Veli iki kişiye uyuyor
+      salonGozetmenleri: [{ salon: 'Z04', gozetmenler: ['Pembe Karabulut'] }],
+    };
+    const { deger, degisimler } = listeAdlariniStandartla(belge, h);
+    expect(deger.name).toBe('Gökalp Saylam');
+    expect(deger.supervisor).toBe('Öğr. Gör. GÖKALP SAYLAM, Dr. Öğr. Üyesi PEMBE KARABULUT');
+    expect(deger.professor).toBe('Öğr. Gör. GÖKALP SAYLAM / Ali Veli');
+    expect(deger.salonGozetmenleri[0].gozetmenler).toEqual(['Dr. Öğr. Üyesi PEMBE KARABULUT']);
+    expect(degisimler.length).toBe(4);
+  });
+});
