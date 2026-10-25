@@ -30,6 +30,7 @@ const {
 const { idSorgusu: bildirimIdSorgusu } = require('./bildirim');
 const { kimlikler: bolumKimlikleri } = require('../lib/bolum-kimlik');
 const personelKapsami = require('../lib/personel-kayit-kapsami');
+const { mukerrerSorgusu } = require('../lib/anket-mukerrer');
 const { ogrenciAlanSuzgeci } = require('../lib/ogrenci-alan-suzgeci');
 
 // Personel yazmasında bölüm sınırı uygulanan koleksiyonlar (a2-personel).
@@ -2005,6 +2006,45 @@ async function enforceWritePolicies(db, op, user) {
       bolumler = [user.departmentId].filter(Boolean).map(String);
     }
     op.data.yanitlayanBolumleri = [...new Set(bolumler)];
+  }
+
+  // a2a-0'') ANKET YANITI: kimlik damgası + mükerrer yanıt engeli
+  // (server/lib/anket-mukerrer.js). Öğrenci yanıtı numarasız gelirse numara
+  // jetondan yazılır: aynı adlı iki öğrencinin yanıtları ayrışsın.
+  if (op.collection === 'survey_responses' && op.type === 'add' && op.data && user) {
+    let kimlikler = [];
+    if (user.role === 'student') {
+      if (!String(op.data.studentNumber || '').trim()) {
+        const no = String(user.studentNumber || user.identifier || '').trim();
+        if (no) op.data.studentNumber = no;
+      }
+    } else {
+      if (user.identifier) op.data.yanitlayanKimlik = String(user.identifier).trim();
+      if (user.role === 'professor') {
+        const prof = await profilBul(db, user.identifier).catch(() => null);
+        if (prof) kimlikler = [prof._docId, prof.id, prof._id && String(prof._id)];
+      }
+    }
+    let onceki = null;
+    try {
+      const anket = await findDocByAnyId(db, 'surveys', String(op.data.surveyId || ''));
+      const sorgu = mukerrerSorgusu({
+        user,
+        data: op.data,
+        anket,
+        kimlikler: kimlikler.filter(Boolean).map(String),
+      });
+      if (sorgu) {
+        onceki = await db
+          .collection('survey_responses')
+          .findOne(sorgu, { projection: { _docId: 1 } });
+      }
+    } catch (_) {
+      onceki = null; // denetlenemezse yanıt engellenmez
+    }
+    if (onceki) {
+      return { allow: false, status: 409, error: 'Bu anketi zaten yanıtladınız.' };
+    }
   }
 
   // a2a-1) ANKET ATAMASI (survey_assignments): kim, hangi anketi, nereye?
