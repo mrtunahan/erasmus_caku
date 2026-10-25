@@ -37,6 +37,9 @@ const KIMLIK_ALANLARI = [
   'name',
   'email',
   'yanitlayanKimlik',
+  // Öğrencinin açtığı her kayda sunucu `_owner` olarak NUMARASINI yazar;
+  // düşmezse "anonim" sonuçta öğrenci numarası görünürdü.
+  '_owner',
 ];
 
 /** Yanıtı anonimleştirir (yeni nesne). */

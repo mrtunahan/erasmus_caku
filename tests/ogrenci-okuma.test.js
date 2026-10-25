@@ -71,6 +71,22 @@ describe('anket yanıtı — eski kayıtlar adla yazılmış', () => {
     ).toBeNull();
     expect(ogrenciKaydi({ userId: '2021002' }, kural, BEN)).toBeNull();
   });
+
+  it('aynı adlı başka öğrencinin NUMARALI yanıtı görünmez', () => {
+    expect(
+      ogrenciKaydi({ userId: 'Ayşe Yılmaz', studentNumber: '2021009' }, kural, BEN)
+    ).toBeNull();
+    expect(ogrenciKaydi({ userId: 'Ayşe Yılmaz', _owner: '2021009' }, kural, BEN)).toBeNull();
+    expect(
+      ogrenciKaydi({ userId: 'Ayşe Yılmaz', studentNumber: '2021001' }, kural, BEN)
+    ).toBeTruthy();
+  });
+
+  it('personel yanıtı ad benzerliğiyle öğrenciye geçmez', () => {
+    expect(
+      ogrenciKaydi({ userId: 'Ayşe Yılmaz', yanitlayanKimlik: 'Ayşe Yılmaz' }, kural, BEN)
+    ).toBeNull();
+  });
 });
 
 describe('merkezî bildirim alıcı kuralı', () => {

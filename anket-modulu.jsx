@@ -8,6 +8,14 @@
 // ══════════════════════════════════════════════════════════════
 
 const { useState, useEffect, useMemo, useCallback } = React;
+// Katılımcı rolü / "bu yanıt benim mi" (lib/anket-katilimci.js).
+const AK = window.AnketKatilimci || {
+  katilimciRolu: (u) => (u ? u.role : undefined),
+  katilimciKimligi: (u) => (u && (u.id || u._id || u.identifier || u.name)) || 'anon',
+  yanitBenimMi: (r, u) =>
+    !!r && !!u && r.userId === (u.id || u._id || u.identifier || u.name || 'anon'),
+  yoneticiKatilimciMi: () => false,
+};
 
 const ANK = {
   primary: '#0F172A',
@@ -249,7 +257,11 @@ function AnketModulu({ currentUser, activeDepartment, departmentInfo }) {
   const responsive = window.useResponsive ? window.useResponsive() : { val: (_a, _b, c) => c };
   // Yönetici bayrağı olmayan akademisyen: kendine gelen anketleri doldurur;
   // ayrıca verdiği derslere bağlı anketleri bölümünün öğrencilerine paylaşır.
-  const [akademisyenSekme, setAkademisyenSekme] = useState('doldur');
+  // Akademisyen kökenli yetkili (fakülte/bölüm yetkilisi) yönetim sekmesiyle açılır.
+  const yoneticiKatilimci = isManager && AK.yoneticiKatilimciMi(currentUser);
+  const [akademisyenSekme, setAkademisyenSekme] = useState(() =>
+    yoneticiKatilimci ? 'ders' : 'doldur'
+  );
   // Zildeki "anket atandı" bildirimi: doldurma görünümünde o anket açılır.
   const [acilacakAnket, setAcilacakAnket] = useState(null);
   (window.useBildirimHedefi || (() => {}))('anket', (h) => {
@@ -259,7 +271,19 @@ function AnketModulu({ currentUser, activeDepartment, departmentInfo }) {
     setAcilacakAnket({ id, zaman: Date.now() });
   });
 
-  if (!isManager && role === 'professor') {
+  // Akademisyen ve akademisyen kökenli yetkili (fakülte/bölüm yetkilisi):
+  // iki sekme — kendine gelen anketleri doldurur + yönetim/ders anketleri.
+  if ((!isManager && role === 'professor') || yoneticiKatilimci) {
+    const sekmeler = yoneticiKatilimci
+      ? [
+          ['ders', 'Anket yönetimi'],
+          ['doldur', 'Bana gelen anketler'],
+        ]
+      : [
+          ['doldur', 'Bana gelen anketler'],
+          ['ders', 'Ders anketlerim'],
+        ];
+    const sekme = akademisyenSekme;
     return (
       <div>
         <div
@@ -267,21 +291,18 @@ function AnketModulu({ currentUser, activeDepartment, departmentInfo }) {
           style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}
           data-akademisyen-anket-sekme
         >
-          {[
-            ['doldur', 'Bana gelen anketler'],
-            ['ders', 'Ders anketlerim'],
-          ].map(([id, ad]) => (
+          {sekmeler.map(([id, ad]) => (
             <button
               key={id}
               role="tab"
-              aria-selected={akademisyenSekme === id}
+              aria-selected={sekme === id}
               onClick={() => setAkademisyenSekme(id)}
               style={{
                 padding: '8px 14px',
                 borderRadius: 999,
-                border: '1px solid ' + (akademisyenSekme === id ? ANK.accent : ANK.border),
-                background: akademisyenSekme === id ? ANK.accentPale : 'white',
-                color: akademisyenSekme === id ? ANK.accent : ANK.textMuted,
+                border: '1px solid ' + (sekme === id ? ANK.accent : ANK.border),
+                background: sekme === id ? ANK.accentPale : 'white',
+                color: sekme === id ? ANK.accent : ANK.textMuted,
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -292,13 +313,13 @@ function AnketModulu({ currentUser, activeDepartment, departmentInfo }) {
             </button>
           ))}
         </div>
-        {akademisyenSekme === 'ders' ? (
+        {sekme === 'ders' ? (
           <YoneticiGorunumu
             currentUser={currentUser}
             activeDepartment={activeDepartment}
             departmentInfo={departmentInfo}
             responsive={responsive}
-            akademisyenModu
+            akademisyenModu={!yoneticiKatilimci}
           />
         ) : (
           <KatilimciGorunumu
@@ -5358,9 +5379,14 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive, acilacak
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
-  const myRole = currentUser?.role; // 'student' | 'professor'
-  const myId =
-    currentUser?.id || currentUser?._id || currentUser?.identifier || currentUser?.name || 'anon';
+  // Yetkili ve memur da akademisyendir: katılımcı rolü baseRole'dan çözülür
+  // (lib/anket-katilimci.js).
+  const myRole = AK.katilimciRolu(currentUser); // 'student' | 'professor'
+  const myId = AK.katilimciKimligi(currentUser);
+  // Yükleme işlevi kullanıcı nesnesine bağlanmaz: çapraz bölümde nesne her
+  // çizimde yeniden kuruluyor, bağımlılık olsaydı yükleme döngüye girerdi.
+  const kullaniciRef = React.useRef(currentUser);
+  kullaniciRef.current = currentUser;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -5372,7 +5398,7 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive, acilacak
       ]);
       setAssignments(a || []);
       setSurveys(s || []);
-      setMyResponses((r || []).filter((x) => x.userId === myId));
+      setMyResponses((r || []).filter((x) => AK.yanitBenimMi(x, kullaniciRef.current)));
     } catch (e) {
       console.error('Anketler yüklenemedi:', e);
     } finally {
@@ -5494,18 +5520,31 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive, acilacak
       toast.show('Bu anketi zaten yanıtladınız.');
       return;
     }
-    await window.DBWrite.add('survey_responses', {
-      surveyId,
-      userId: myId,
-      // ⚠ KİMLİK NUMARAYLA DA YAZILIR. `userId` öğrencide ADA düşüyor
-      // (currentUser'da id alanı yok). Sunucu yanıtı sahibine daraltırken adı
-      // kayıttan çözmek zorunda kalıyordu; yeni kayıtlar numarayı da taşır,
-      // eskiler adla eşleşmeye devam eder (server/lib/ogrenci-okuma.js).
-      ...(currentUser?.studentNumber ? { studentNumber: currentUser.studentNumber } : {}),
-      role: myRole,
-      answers,
-      submittedAt: new Date().toISOString(),
-    });
+    try {
+      await window.DBWrite.add('survey_responses', {
+        surveyId,
+        userId: myId,
+        // ⚠ KİMLİK NUMARAYLA DA YAZILIR. `userId` öğrencide ADA düşüyor
+        // (currentUser'da id alanı yok). Sunucu yanıtı sahibine daraltırken adı
+        // kayıttan çözmek zorunda kalıyordu; yeni kayıtlar numarayı da taşır,
+        // eskiler adla eşleşmeye devam eder (server/lib/ogrenci-okuma.js).
+        ...(currentUser?.studentNumber ? { studentNumber: currentUser.studentNumber } : {}),
+        role: myRole,
+        answers,
+        submittedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      // Sunucu mükerrer yanıtı reddeder (server/lib/anket-mukerrer.js):
+      // başka sekmede gönderilmiş olabilir — liste yenilenir. Başka hatada
+      // form açık kalır, yazılan cevaplar kaybolmaz.
+      const mesaj = String((e && e.message) || '');
+      if (/zaten yanıtladınız/i.test(mesaj)) {
+        setActiveId(null);
+        await load();
+      }
+      toast.show(mesaj || 'Anket gönderilemedi, lütfen tekrar deneyin.');
+      return;
+    }
     setActiveId(null);
     await load();
     toast.show('Anket gönderildi. Teşekkürler!');
@@ -6363,9 +6402,10 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
   const [surveys, setSurveys] = useState([]);
   const [myResponses, setMyResponses] = useState([]);
 
-  const myRole = currentUser?.role;
-  const myId =
-    currentUser?.id || currentUser?._id || currentUser?.identifier || currentUser?.name || 'anon';
+  const myRole = AK.katilimciRolu(currentUser);
+  const myId = AK.katilimciKimligi(currentUser);
+  const kullaniciRef = React.useRef(currentUser);
+  kullaniciRef.current = currentUser;
 
   const isAlumni = !!(
     currentUser?.isAlumni ||
@@ -6381,7 +6421,7 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
       ]);
       setAssignments(a || []);
       setSurveys(s || []);
-      setMyResponses((r || []).filter((x) => x.userId === myId));
+      setMyResponses((r || []).filter((x) => AK.yanitBenimMi(x, kullaniciRef.current)));
     } catch (e) {
       console.error('Zorunlu anket kontrolü başarısız:', e);
     } finally {
@@ -6447,18 +6487,25 @@ function AnketZorunluGate({ currentUser, activeDepartment }) {
 
   const submit = async (surveyId, answers) => {
     if (!myId || myId === 'anon') return;
-    await window.DBWrite.add('survey_responses', {
-      surveyId,
-      userId: myId,
-      // ⚠ KİMLİK NUMARAYLA DA YAZILIR. `userId` öğrencide ADA düşüyor
-      // (currentUser'da id alanı yok). Sunucu yanıtı sahibine daraltırken adı
-      // kayıttan çözmek zorunda kalıyordu; yeni kayıtlar numarayı da taşır,
-      // eskiler adla eşleşmeye devam eder (server/lib/ogrenci-okuma.js).
-      ...(currentUser?.studentNumber ? { studentNumber: currentUser.studentNumber } : {}),
-      role: myRole,
-      answers,
-      submittedAt: new Date().toISOString(),
-    });
+    try {
+      await window.DBWrite.add('survey_responses', {
+        surveyId,
+        userId: myId,
+        // ⚠ KİMLİK NUMARAYLA DA YAZILIR (bkz. KatilimciGorunumu.submit).
+        ...(currentUser?.studentNumber ? { studentNumber: currentUser.studentNumber } : {}),
+        role: myRole,
+        answers,
+        submittedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      // Mükerrer yanıtta (başka sekmede gönderilmiş) kapı yenilenince kapanır;
+      // başka bir hata sessiz kalmasın — kapı kapatılamadığı için kullanıcı
+      // nedenini bilmeli.
+      const mesaj = String((e && e.message) || '');
+      if (!/zaten yanıtladınız/i.test(mesaj)) {
+        window.alert('Anket gönderilemedi: ' + (mesaj || 'bilinmeyen hata'));
+      }
+    }
     await load();
   };
 

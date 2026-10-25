@@ -120,6 +120,17 @@ function ogrenciOkumaKurali(koleksiyon) {
 function sahibiMi(kayit, kural, kimlik) {
   const k = kimlik || {};
   const alanlar = (kural && kural.alanlar) || [];
+  // Kayıt bir öğrenci NUMARASI taşıyorsa sahiplik yalnız numarayla çözülür.
+  // Ad yalnız numarasız eski kayıtlar içindir; yoksa aynı adlı iki öğrenci
+  // birbirinin anket yanıtını görüyor, biri doldurunca öteki için anket
+  // "yanıtlandı" sayılıyordu.
+  const no = kayit ? metin(kayit.studentNumber) || metin(kayit._owner) : '';
+  // Personel yanıtı (sunucu `yanitlayanKimlik` damgalar) öğrenciye ad
+  // benzerliğiyle de geçmez.
+  const personel = kayit ? metin(kayit.yanitlayanKimlik) : '';
+  if ((no || personel) && kural && kural.adKabul) {
+    return esit(no, k.no) || alanlar.some((alan) => esit(kayit[alan], k.no));
+  }
   return alanlar.some((alan) => {
     const deger = kayit ? kayit[alan] : '';
     if (esit(deger, k.no)) return true;

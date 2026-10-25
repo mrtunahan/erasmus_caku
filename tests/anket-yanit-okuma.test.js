@@ -26,6 +26,11 @@ const HEPSI = [y('1', 'bil'), y('2', 'kim'), y('3', 'orm')];
 const idler = (l) => l.map((x) => x.id);
 
 describe('anket yanıtı okuma (personel)', () => {
+  it('anonim yanıtta sunucunun _owner damgası (öğrenci no) da düşer', () => {
+    const [x] = yanitlariSuz([y('1', 'bil', { _owner: '240901' })], { kapsam: UNI, ben: 'R' });
+    expect(x._owner).toBeUndefined();
+  });
+
   it('üniversite yetkilisi hepsini görür, kimliksiz', () => {
     const l = yanitlariSuz(HEPSI, { kapsam: UNI, ben: 'Rektör' });
     expect(idler(l)).toEqual(['1', '2', '3']);
