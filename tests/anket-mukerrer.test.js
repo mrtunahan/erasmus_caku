@@ -25,15 +25,23 @@ describe('mükerrer anket yanıtı sorgusu', () => {
     ]);
   });
 
-  it('derse bağlı ankette eşleşme ders başınadır', () => {
+  it('çok dersli ankette eşleşme ders başınadır', () => {
     const anket = { infoFields: [{ key: 'dk', source: 'courseCode' }] };
     expect(dersKoduAlani(anket)).toBe('dk');
     const q = mukerrerSorgusu({
       user: { role: 'student', identifier: '1' },
       data: { surveyId: 's1', answers: { dk: 'BM101' } },
       anket,
+      dersBasina: true,
     });
     expect(q['answers.dk']).toBe('BM101');
+    // Tek dersli / ders bağsız ankette eski kural: anket başına tek yanıt.
+    const tek = mukerrerSorgusu({
+      user: { role: 'student', identifier: '1' },
+      data: { surveyId: 's1', answers: { dk: 'BM101' } },
+      anket,
+    });
+    expect(tek['answers.dk']).toBeUndefined();
   });
 
   it('kimlik ya da anket yoksa sorgu yok', () => {

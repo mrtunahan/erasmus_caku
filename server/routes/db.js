@@ -46,10 +46,15 @@ function anketKurali() {
   if (!anketKuraliSozu) anketKuraliSozu = import('../../lib/anket-kapsam.js');
   return anketKuraliSozu;
 }
-let anketYayinSozu = null;
-function anketYayinKurali() {
-  if (!anketYayinSozu) anketYayinSozu = import('../../lib/anket-yayin.js');
-  return anketYayinSozu;
+let anketDersSozu = null;
+function anketDersKurali() {
+  if (!anketDersSozu) anketDersSozu = import('../../lib/anket-ders-coklu.js');
+  return anketDersSozu;
+}
+let anketHedefSozu = null;
+function anketHedefKurali() {
+  if (!anketHedefSozu) anketHedefSozu = import('../../lib/anket-hedef-uyum.js');
+  return anketHedefSozu;
 }
 
 // Anket işlemlerinde yetkilinin kapsamı. Yönetici bayrağı olmayan
@@ -1952,34 +1957,67 @@ async function enforceWritePolicies(db, op, user) {
     }
   }
 
-  // a2a-0') ANKET YANITI: pasif ya da süresi dolmuş ankete yeni yanıt girmez
-  // (lib/anket-yayin.js). Ekran bu anketleri zaten göstermiyor; kural, ekranı
-  // atlayan isteğe karşıdır. Hiç paylaşılmamış anket (önizleme) etkilenmez.
+  // a2a-0') ANKET YANITI: yanıtlayan HEDEF KİTLEDE mi, ona uyan paylaşım
+  // AÇIK mı? (lib/anket-hedef-uyum.js — ekranla aynı yardımcılar). Pasif,
+  // hiç paylaşılmamış, kişiye paylaşılmamış ya da kişinin grubu için süresi
+  // dolmuş ankete yanıt girmez.
   if (op.collection === 'survey_responses' && op.type === 'add' && op.data && user) {
     const sid = String(op.data.surveyId || '');
-    if (sid) {
-      let anket = null;
-      let atamalar = [];
-      try {
-        anket = await findDocByAnyId(db, 'surveys', sid);
-        atamalar = await db
-          .collection('survey_assignments')
-          .find({ surveyId: sid }, { projection: { dueDate: 1, deadline: 1 } })
-          .toArray();
-      } catch (_) {
-        /* okunamazsa yanıt engellenmez */
-      }
+    let karar = { izin: true };
+    try {
+      const anket = sid ? await findDocByAnyId(db, 'surveys', sid) : null;
       if (anket) {
-        const AY = await anketYayinKurali();
-        const durum = AY.anketYayinDurumu(anket, atamalar);
-        if (durum === 'pasif') {
-          return { allow: false, status: 403, error: 'Bu anket yayından kaldırıldı.' };
+        const [atamalar, bolumDoklari, HU] = await Promise.all([
+          db.collection('survey_assignments').find({ surveyId: sid }).toArray(),
+          db.collection('departments').find({}).toArray(),
+          anketHedefKurali(),
+        ]);
+        // Bölüm kimlik varyantları (slug / ObjectId / eski kimlik) eklenir:
+        // atama bir biçimde, kişi kaydı ötekinde olabilir.
+        const varyantli = (liste) => {
+          const out = new Set(liste.filter(Boolean).map(String));
+          liste.forEach((b) => {
+            const d = bolumDoklari.find((x) => bolumKimlikleri(x).includes(String(b)));
+            if (d) bolumKimlikleri(d).forEach((v) => out.add(v));
+          });
+          return [...out];
+        };
+        let kisi = { rol: user.role };
+        const kisiler = [];
+        if (user.role === 'student') {
+          const no = String(user.studentNumber || user.identifier || '').trim();
+          const ogr = (await db.collection('students').findOne({ studentNumber: no })) || {};
+          const ana = String(ogr.departmentId || user.departmentId || 'bilgisayar');
+          kisi = {
+            ...ogr,
+            rol: 'student',
+            studentNumber: no,
+            departmentId: ana,
+            additionalDepartments: varyantli(
+              [ana, user.departmentId].concat(ogr.additionalDepartments || [])
+            ),
+          };
+          // Sınıf numaradan da çözülür (ekrandaki oturum kaydı gibi).
+          kisiler.push({ studentNumber: no });
+        } else if (user.role === 'professor') {
+          const prof = (await profilBul(db, user.identifier).catch(() => null)) || {};
+          const ana = String(prof.departmentId || user.departmentId || '');
+          kisi = {
+            ...prof,
+            rol: 'professor',
+            departmentId: ana,
+            additionalDepartments: varyantli(
+              [ana, user.departmentId].concat(prof.additionalDepartments || [])
+            ),
+          };
+          kisiler.push({ name: user.identifier });
         }
-        if (durum === 'suresi_doldu') {
-          return { allow: false, status: 403, error: 'Bu anketin süresi doldu.' };
-        }
+        karar = HU.yanitHedefKarari(anket, atamalar, kisi, { kisiler });
       }
+    } catch (_) {
+      karar = { izin: true }; // okunamazsa yanıt engellenmez
     }
+    if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
   }
 
   // a2a-0) ANKET YANITI: yanıtlayanın BÖLÜMÜ sunucuda damgalanır.
@@ -2026,13 +2064,24 @@ async function enforceWritePolicies(db, op, user) {
       }
     }
     let onceki = null;
+    let gecersizDers = false;
     try {
       const anket = await findDocByAnyId(db, 'surveys', String(op.data.surveyId || ''));
+      // Çok dersli ankette her ders ayrı yanıtlanır; ders kodu ankete bağlı
+      // derslerden olmalı (lib/anket-ders-coklu.js).
+      const DC = await anketDersKurali();
+      const dersBasina = DC.cokDersliMi(anket);
+      if (dersBasina) {
+        const cevaplar =
+          (op.data.answers && typeof op.data.answers === 'object' && op.data.answers) || {};
+        gecersizDers = !DC.dersKoduGecerliMi(anket, cevaplar[DC.dersKoduAlani(anket)]);
+      }
       const sorgu = mukerrerSorgusu({
         user,
         data: op.data,
         anket,
         kimlikler: kimlikler.filter(Boolean).map(String),
+        dersBasina,
       });
       if (sorgu) {
         onceki = await db
@@ -2041,6 +2090,9 @@ async function enforceWritePolicies(db, op, user) {
       }
     } catch (_) {
       onceki = null; // denetlenemezse yanıt engellenmez
+    }
+    if (gecersizDers) {
+      return { allow: false, status: 400, error: 'Seçilen ders bu ankete bağlı değil.' };
     }
     if (onceki) {
       return { allow: false, status: 409, error: 'Bu anketi zaten yanıtladınız.' };

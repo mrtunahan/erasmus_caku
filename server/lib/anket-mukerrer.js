@@ -10,8 +10,9 @@
 //   öğrenci  → studentNumber / _owner (ikisini de sunucu yazar)
 //   personel → yanitlayanKimlik (sunucu damgası) ya da eski kayıtlarda
 //              userId (profil kaydı id'si / ad), öğrenci yanıtları hariç
-// Derse bağlı ankette (bilgi alanı source:'courseCode') eşleşme DERS
-// başınadır: aynı ders iki kez değerlendirilemez, başka ders değerlendirilebilir.
+// Çok dersli ankette (lib/anket-ders-coklu.js → cokDersliMi; çağıran
+// `dersBasina` ile bildirir) eşleşme DERS başınadır: aynı ders iki kez
+// değerlendirilemez, başka ders değerlendirilebilir.
 //
 // Kimliği çözülemeyen eski biçimli kayıtlar (yalnız ad taşıyan öğrenci
 // yanıtları) eşleşmez — yanlışlıkla engellemektense geçirmek tercih edildi.
@@ -34,6 +35,7 @@ function dersKoduAlani(anket) {
  * @param {object} p.data        yazılacak yanıt (sunucu damgaları uygulanmış)
  * @param {object} [p.anket]     anket kaydı (ders alanı için)
  * @param {string[]} [p.kimlikler] personelin profil kaydı id'leri
+ * @param {boolean} [p.dersBasina] çok dersli anket: eşleşme ders başına
  */
 function mukerrerSorgusu(p) {
   const o = p || {};
@@ -53,7 +55,7 @@ function mukerrerSorgusu(p) {
     kim = [{ yanitlayanKimlik: ident }, { userId: { $in: idler }, role: { $ne: 'student' } }];
   }
   const sorgu = { surveyId: sid, $or: kim };
-  const alan = dersKoduAlani(o.anket);
+  const alan = o.dersBasina ? dersKoduAlani(o.anket) : '';
   if (alan) {
     const cevaplar = (data.answers && typeof data.answers === 'object' && data.answers) || {};
     const kod = metin(cevaplar[alan]);

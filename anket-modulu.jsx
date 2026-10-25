@@ -16,6 +16,14 @@ const AK = window.AnketKatilimci || {
     !!r && !!u && r.userId === (u.id || u._id || u.identifier || u.name || 'anon'),
   yoneticiKatilimciMi: () => false,
 };
+// Çok dersli anket (lib/anket-ders-coklu.js). Yüklenmemişse eski kural: tek yanıt.
+const DC = window.AnketDersCoklu || {
+  cokDersliMi: () => false,
+  degerlendirilenKodlar: () => new Set(),
+  kalanDersSayisi: () => 0,
+  dersKoduAlani: () => '',
+  kodAnahtari: (v) => String(v == null ? '' : v).trim(),
+};
 
 const ANK = {
   primary: '#0F172A',
@@ -5491,6 +5499,11 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive, acilacak
   }, [assignments, myRole, isAlumni, sinifDurumu, kapsamdaMi, currentUser]);
 
   const completed = (surveyId) => myResponses.some((r) => r.surveyId === surveyId);
+  // Çok dersli ankette her ders ayrı yanıtlanır (lib/anket-ders-coklu.js):
+  // bir ders değerlendirilince anket tamamlanmış sayılır, kalan dersler
+  // "Başka ders değerlendir" ile açılır.
+  const yanitlarim = (surveyId) => myResponses.filter((r) => r.surveyId === surveyId);
+  const kalanDers = (s) => (s ? DC.kalanDersSayisi(s, yanitlarim(s.id)) : 0);
 
   // İki sütunlu görünümde ana alan boş kalmasın: aktif anket yoksa ilk
   // tamamlanmamış anketi otomatik seç (gönderim sonrası bir sonrakine geçer).
@@ -5515,7 +5528,15 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive, acilacak
     }
     // Mükerrer gönderim koruması: kart açıkken (iki sekme / geç yüklenen
     // myResponses / tekrar tıklama) sunucuya ikinci yanıt gitmesini engelle.
-    if (completed(surveyId)) {
+    // Çok dersli ankette denetim ders başınadır.
+    const anket = surveys.find((x) => x.id === surveyId);
+    if (DC.cokDersliMi(anket)) {
+      const kod = DC.kodAnahtari(answers && answers[DC.dersKoduAlani(anket)]);
+      if (kod && DC.degerlendirilenKodlar(anket, yanitlarim(surveyId)).has(kod)) {
+        toast.show('Bu dersi zaten değerlendirdiniz.');
+        return;
+      }
+    } else if (completed(surveyId)) {
       setActiveId(null);
       toast.show('Bu anketi zaten yanıtladınız.');
       return;
@@ -5602,13 +5623,18 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive, acilacak
           <div style={{ minWidth: 0 }}>
             {activeSurvey ? (
               <AnketDoldurma
-                key={activeSurvey.id}
+                key={activeSurvey.id + ':' + yanitlarim(activeSurvey.id).length}
                 survey={activeSurvey}
                 onSubmit={submit}
                 onCancel={null}
                 responsive={responsive}
                 activeDepartment={activeDepartment}
                 embedded
+                haricKodlar={
+                  DC.cokDersliMi(activeSurvey)
+                    ? DC.degerlendirilenKodlar(activeSurvey, yanitlarim(activeSurvey.id))
+                    : null
+                }
               />
             ) : (
               <EmptyState text="Sağdaki listeden bir anket seçin." />
@@ -5769,7 +5795,29 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive, acilacak
                             size={16}
                             color={ANK.green}
                           />
-                          <span style={{ fontSize: 13, color: ANK.text }}>{s.title}</span>
+                          <span style={{ fontSize: 13, color: ANK.text, flex: 1, minWidth: 0 }}>
+                            {s.title}
+                          </span>
+                          {kalanDers(s) > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveId(s.id)}
+                              title="Bu ankete bağlı başka bir dersi değerlendirin"
+                              style={{
+                                border: '1px solid ' + ANK.border,
+                                background: 'white',
+                                color: ANK.accent,
+                                borderRadius: 999,
+                                padding: '3px 9px',
+                                fontSize: 11.5,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              Başka ders ({kalanDers(s)})
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -5793,7 +5841,14 @@ function KatilimciGorunumu({ currentUser, activeDepartment, responsive, acilacak
 //                        codeKey alanına ders kodunu da yazar
 //         'courseCode' → ders seçimiyle otomatik dolan, salt-okunur alan
 //         (tanımsız)   → düz metin girişi (cinsiyet, sınıf vb.)
-function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCourses }) {
+function InfoFieldsForm({
+  fields,
+  values,
+  onChange,
+  activeDepartment,
+  linkedCourses,
+  haricKodlar,
+}) {
   const departments = window.DEPARTMENTS || [];
   const [courses, setCourses] = useState([]);
   const [deptId, setDeptId] = useState(activeDepartment || '');
@@ -5833,7 +5888,9 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
   // kodsuz eşleştirmeler ad üzerinden bulunur. Hiçbir ders bulunamazsa
   // (ders silinmiş/yeniden adlandırılmış) katılımcıyı kilitlememek için
   // tüm derslere geri dönülür.
-  const deptCourses = useMemo(() => {
+  // Çok dersli ankette daha önce değerlendirilen dersler listeden çıkar.
+  const haric = haricKodlar instanceof Set ? haricKodlar : null;
+  const dersAdaylari = useMemo(() => {
     const base = courses.filter((c) => !deptId || (c.departmentId || '') === deptId);
     if (!linkedCourses || linkedCourses.length === 0) return base;
     const codeKeys = new Set(linkedCourses.filter((l) => l.code).map((l) => l.code));
@@ -5846,6 +5903,13 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
     if (anyDept.length > 0) return anyDept;
     return base;
   }, [courses, deptId, linkedCourses]);
+  const deptCourses = useMemo(
+    () =>
+      haric && haric.size
+        ? dersAdaylari.filter((c) => !haric.has(DC.kodAnahtari(c.code)))
+        : dersAdaylari,
+    [dersAdaylari, haric]
+  );
 
   const selectStyle = { ...inputStyle, cursor: 'pointer' };
   const fieldLabel = { fontSize: 12, color: ANK.textMuted, display: 'block', marginBottom: 4 };
@@ -5901,7 +5965,13 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
           }}
           style={{ ...selectStyle, background: deptId ? 'white' : '#F1F5F9' }}
         >
-          <option value="">{deptId ? '— Ders seçin —' : 'Önce bölüm seçin'}</option>
+          <option value="">
+            {!deptId
+              ? 'Önce bölüm seçin'
+              : deptCourses.length
+                ? '— Ders seçin —'
+                : 'Değerlendirilecek ders kalmadı'}
+          </option>
           {deptCourses.map((c) => (
             <option key={c.id} value={c.id}>
               {c.code ? c.code + ' — ' : ''}
@@ -5972,7 +6042,15 @@ function InfoFieldsForm({ fields, values, onChange, activeDepartment, linkedCour
   );
 }
 
-function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced, embedded }) {
+function AnketDoldurma({
+  survey,
+  onSubmit,
+  onCancel,
+  activeDepartment,
+  forced,
+  embedded,
+  haricKodlar,
+}) {
   const [answers, setAnswers] = useState({});
   const [info, setInfo] = useState({});
   const [saving, setSaving] = useState(false);
@@ -6109,6 +6187,7 @@ function AnketDoldurma({ survey, onSubmit, onCancel, activeDepartment, forced, e
               onChange={setInfoField}
               activeDepartment={activeDepartment}
               linkedCourses={survey.linkedCourses}
+              haricKodlar={haricKodlar}
             />
           </div>
         )}
