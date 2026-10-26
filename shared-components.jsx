@@ -106,7 +106,6 @@ import * as GozetmenKurallari from './lib/gozetmen.js';
 import * as SinavBirlesim from './lib/sinav-birlesim.js';
 import * as SinavFakulte from './lib/sinav-fakulte.js';
 import * as SinavYayilim from './lib/sinav-yayilim.js';
-import * as DersSinavCakisma from './lib/ders-sinav-cakisma.js';
 import * as SalonKullanim from './lib/salon-kullanim.js';
 import { GozetmenKurallariPaneli } from './gozetmen-kurallari.jsx';
 import {
@@ -15747,24 +15746,6 @@ window.DersOdasi = DersOdasi;
 window.SinavBirlesim = SinavBirlesim;
 window.SinavFakulte = SinavFakulte;
 window.SinavYayilim = SinavYayilim;
-window.DersSinavCakisma = DersSinavCakisma;
-// Ders programı olayları (bütün bölümler) — sınav ekranları ders/sınav
-// çakışmasını uyarı olarak gösterir. Okunamazsa boş liste.
-window.dersProgramiOlaylariniOku = async () => {
-  try {
-    const [dokumanlar, ayarlar] = await Promise.all([
-      window.apiRead('course_schedules').catch(() => []),
-      window.bolumAyarlariniYukle ? window.bolumAyarlariniYukle().catch(() => ({})) : {},
-    ]);
-    return DersSinavCakisma.dersProgramiOlaylari(dokumanlar || [], {
-      slotDersleri: window.slotDersleri,
-      saatler: (bolum, seviye) =>
-        window.bolumSaatleri ? window.bolumSaatleri((ayarlar || {})[bolum], seviye) : [],
-    });
-  } catch (_) {
-    return [];
-  }
-};
 
 /**
  * Akademisyen adını BÜTÜN atıflarla birlikte değiştirir (sunucu:

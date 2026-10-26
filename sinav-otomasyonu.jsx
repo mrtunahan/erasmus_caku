@@ -83,39 +83,6 @@ const ALL_FACULTY_CLASSROOMS = [
 ];
 
 // Genel salon atama fonksiyonu: tek salon → 2'li kombinasyon → 3+ salon (greedy)
-// ── Ders programı çakışmaları: SINAV başına tek blok ──
-// (lib/ders-sinav-cakisma.js → cakismaOzeti). Satır satır liste aynı sınav
-// için onlarca tekrar eden satır üretiyordu.
-function DersCakismaListesi({ cakismalar, sinir }) {
-  const ozet =
-    window.DersSinavCakisma && window.DersSinavCakisma.cakismaOzeti
-      ? window.DersSinavCakisma.cakismaOzeti(cakismalar)
-      : [];
-  const gorunen = ozet.slice(0, sinir || 40);
-  return (
-    <div style={{ display: 'grid', gap: 6 }}>
-      {gorunen.map((g, i) => (
-        <div key={i} style={{ lineHeight: 1.5 }}>
-          <b>
-            {new Date(g.tarih + 'T00:00:00').toLocaleDateString('tr-TR')} · {g.kod} ({g.saat})
-          </b>
-          {g.salonlar.map((x) => (
-            <div key={'s' + x.salon} style={{ paddingLeft: 12 }}>
-              Salon <b>{x.salon}</b>: o saatte {x.dersler.join(', ')} dersi var.
-            </div>
-          ))}
-          {g.gozetmenler.map((x) => (
-            <div key={'g' + x.kisi} style={{ paddingLeft: 12 }}>
-              Gözetmen <b>{x.kisi}</b>: o saatte {x.dersler.join(', ')} dersini veriyor.
-            </div>
-          ))}
-        </div>
-      ))}
-      {ozet.length > gorunen.length && <div>… ve {ozet.length - gorunen.length} sınav daha</div>}
-    </div>
-  );
-}
-
 function assignClassroomFromList(rooms, studentCount) {
   if (!rooms || rooms.length === 0) return 'TBD';
   if (!studentCount || studentCount <= 0) return rooms[0].name;
@@ -4718,28 +4685,6 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
     );
     return { ...c, yukler, denge: SF.yukDengesi(yukler) };
   }, [SF, kitap, gozetmenSecenekleri]);
-  // Ders programıyla çakışma (uyarı) — ekrandaki oturumların sınavları.
-  const [dersOlaylari, setDersOlaylari] = useState([]);
-  useEffect(() => {
-    let canli = true;
-    if (window.dersProgramiOlaylariniOku) {
-      window.dersProgramiOlaylariniOku().then((l) => canli && setDersOlaylari(l || []));
-    }
-    return () => {
-      canli = false;
-    };
-  }, []);
-  const dersCakismalari = useMemo(
-    () =>
-      window.DersSinavCakisma && kitap && dersOlaylari.length
-        ? window.DersSinavCakisma.dersSinavCakismalari(
-            kitap.oturumlar.flatMap((o) => o.uyeler || []),
-            dersOlaylari,
-            { donemler: (veri && veri.donemler) || [] }
-          )
-        : [],
-    [kitap, dersOlaylari, veri]
-  );
   const kisiUyarisi = (ad, hedef) => {
     if (!SF || !kitap) return null;
     const m = SF.gozetmenMesgulMu(ad, hedef, kitap.oturumlar);
@@ -5651,17 +5596,6 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
             </div>
           )}
         </div>
-
-        {dersCakismalari.length > 0 && (
-          <div data-ders-cakisma-paneli>
-            <div style={{ fontWeight: 800, fontSize: 14, color: '#92400E', marginBottom: 6 }}>
-              Ders programıyla çakışmalar — uyarı
-            </div>
-            <div style={{ fontSize: 12.5, color: '#78350F' }}>
-              <DersCakismaListesi cakismalar={dersCakismalari} sinir={60} />
-            </div>
-          </div>
-        )}
 
         <div data-gozetmen-yuk-paneli>
           <div style={{ fontWeight: 800, fontSize: 14, color: '#0F766E', marginBottom: 4 }}>
@@ -7958,34 +7892,6 @@ function SinavOtomasyonuApp({
   };
   const programKilitli = donemKilitli(activePeriod);
   const imzaTazeleRef = _useRef(0);
-  // ── Ders programıyla çakışma (uyarı): sınav salonunda o saatte ders var mı,
-  // gözetmen o saatte ders veriyor mu (lib/ders-sinav-cakisma.js) ──
-  const [dersOlaylari, setDersOlaylari] = useState([]);
-  useEffect(() => {
-    let canli = true;
-    if (window.dersProgramiOlaylariniOku) {
-      window.dersProgramiOlaylariniOku().then((l) => canli && setDersOlaylari(l || []));
-    }
-    return () => {
-      canli = false;
-    };
-  }, []);
-  const dersCakismalari = useMemo(
-    () =>
-      window.DersSinavCakisma && dersOlaylari.length
-        ? window.DersSinavCakisma.dersSinavCakismalari(periodExams, dersOlaylari, {
-            donemler: periods,
-          })
-        : [],
-    [periodExams, dersOlaylari, periods]
-  );
-  const dersCakismaSinavSayisi = useMemo(
-    () =>
-      window.DersSinavCakisma && window.DersSinavCakisma.cakismaOzeti
-        ? window.DersSinavCakisma.cakismaOzeti(dersCakismalari).length
-        : dersCakismalari.length,
-    [dersCakismalari]
-  );
   useEffect(() => {
     if (!SF || !fakulteDuzeyi || !gonderimKaydi || gonderimKaydi.durum !== 'gonderildi') return;
     // Yalnız fakülte düzeyindeki kişinin bu ekrandaki son işleminden sonra
@@ -9569,32 +9475,6 @@ function SinavOtomasyonuApp({
                   </div>
                 </div>
               </Card>
-            )}
-
-            {dersCakismalari.length > 0 && (
-              <details
-                data-ders-cakisma
-                style={{
-                  marginBottom: 12,
-                  padding: '8px 14px',
-                  borderRadius: 10,
-                  background: '#FFFBEB',
-                  border: '1px solid #FDE68A',
-                  fontSize: 13,
-                  color: '#78350F',
-                }}
-              >
-                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>
-                  ⚠ Ders programıyla çakışan {dersCakismaSinavSayisi} sınav (uyarı)
-                </summary>
-                <div style={{ marginTop: 6, display: 'grid', gap: 3 }}>
-                  <DersCakismaListesi cakismalar={dersCakismalari} sinir={40} />
-                  <div style={{ fontSize: 12, color: '#92400E', marginTop: 4 }}>
-                    Uyarıdır: o hafta ders yapılmayacaksa ya da ders başka salona alındıysa
-                    görmezden gelebilirsiniz.
-                  </div>
-                </div>
-              </details>
             )}
 
             {programKilitli && (
