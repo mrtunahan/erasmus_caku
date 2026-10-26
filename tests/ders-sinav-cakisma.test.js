@@ -3,6 +3,7 @@ import {
   dersProgramiOlaylari,
   dersSinavCakismalari,
   yariyilAnahtari,
+  cakismaOzeti,
 } from '../lib/ders-sinav-cakisma.js';
 import { slotDersleri } from '../lib/ders-slot.js';
 
@@ -86,5 +87,42 @@ describe('ders × sınav: kendi dersi ve tekrar', () => {
     const once = s({ id: 'o', code: 'X1', date: '2026-11-02' });
     const sirali = dersSinavCakismalari([uye1, once], olaylar, {});
     expect(sirali[0].sinav.date).toBe('2026-11-02');
+  });
+});
+
+describe('tekrar eden uyarılar ve sınav başına özet', () => {
+  // İki saatlik ders (iki slot) + aynı servis dersi iki bölümün programında.
+  const iki = (bolum) => ({
+    id: bolum + '_guz_1',
+    slots: {
+      Pazartesi_0: { courseCode: 'FZK181', instructor: 'Dr. A', classroom: 'M1' },
+      Pazartesi_1: { courseCode: 'FZK181', instructor: 'Dr. A', classroom: 'M1' },
+    },
+  });
+  const olaylar = dersProgramiOlaylari([iki('bil'), iki('mak')], { slotDersleri, saatler });
+  const s = {
+    id: 's1',
+    code: 'MAT165',
+    date: '2026-11-09',
+    timeSlot: '08:30',
+    duration: 90,
+    room: 'M1',
+    supervisor: 'Dr. A',
+  };
+  it('aynı salon/ders ve aynı gözetmen/ders bir kez yazılır', () => {
+    const c = dersSinavCakismalari([s], olaylar, {});
+    expect(c.map((x) => x.tur).sort()).toEqual(['ders_gozetmen', 'ders_salon']);
+  });
+  it('özet sınav başına tek blok', () => {
+    const o = cakismaOzeti(dersSinavCakismalari([s], olaylar, {}));
+    expect(o).toEqual([
+      {
+        tarih: '2026-11-09',
+        saat: '08:30',
+        kod: 'MAT165',
+        salonlar: [{ salon: 'M1', dersler: ['FZK181'] }],
+        gozetmenler: [{ kisi: 'Dr. A', dersler: ['FZK181 (M1)'] }],
+      },
+    ]);
   });
 });
