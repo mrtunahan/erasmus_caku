@@ -3610,7 +3610,13 @@ function AppShell() {
               : undefined
           }
           commissionModules={commissionModules}
-          studentLocked={currentUser?.role === 'student' && !studentHasCourses}
+          // Denetim bitene kadar da kilitli sayılır: yoksa sayfa yenilenince
+          // bütün menü bir an görünüp kayboluyordu.
+          studentLocked={
+            currentUser?.role === 'student' &&
+            !currentUser?.aday &&
+            (!studentCoursesChecked || !studentHasCourses)
+          }
           ogrenciDikeyKaydi={ogrenciDikeyKaydi}
           adminScope={adminScope}
         />

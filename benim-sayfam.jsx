@@ -1329,8 +1329,17 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           }}
         >
           <strong>{bsTermLabel(term.academicYear, term.donem)} dönemi ders seçimi.</strong> Bu
-          yarıyılda aldığınız dersleri seçip kaydedin. Her dönem ayrı seçim yaparsınız; seçiminizi
-          istediğinizde güncelleyebilirsiniz.
+          yarıyılda aldığınız dersleri ve danışmanınızı seçip kaydedin. Her dönem ayrı seçim
+          yaparsınız. Kaydettiğinizde seçim kilitlenir; değişiklik için bölüm yetkilinize başvurun.
+          {/* ⚠ Menü kapısı: ilk ders seçimi kaydedilene kadar sol menüde yalnız
+              "Benim Sayfam" görünür (app-shell → studentHasCourses). Öğrenci
+              bunu bilmediği için "Proje Grupları menüsü yok" diye soruyordu. */}
+          {!locked && (
+            <div style={{ marginTop: 6, fontWeight: 600 }}>
+              Ders seçiminizi kaydedene kadar sol menüdeki diğer modüller (Proje Grupları, Staj,
+              Erasmus, Formlar…) açılmaz.
+            </div>
+          )}
         </div>
 
         {/* Dönem seçici */}
