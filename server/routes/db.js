@@ -853,6 +853,14 @@ const STUDENT_OWNED_STRICT = new Set([
 const APP_OWNED = new Set(['internship_roadmap', 'internship_uploads']);
 // Öğrenci SİLMEsi sahibine (veya moderatöre) kısıtlı koleksiyonlar
 const STUDENT_DELETE_OWNED = new Set(['portal_posts', 'portal_posts_comments']);
+// Belge kimliği öğrenci numarasını taşıyan koleksiyonlar: öğrenci yalnız
+// kendi numarasını taşıyan kimliğe yazar (bkz. öğrenci dalı).
+const DOCID_SAHIPLI = new Set([
+  'student_courses',
+  'student_profiles',
+  'ogrenci_akademik_kayit',
+  'club_followers',
+]);
 
 // Öğrencilerin hiç okuyamayacağı koleksiyonlar (personel modülleri)
 const STUDENT_READ_DENY = new Set([
@@ -2918,6 +2926,24 @@ async function enforceWritePolicies(db, op, user) {
       delete op.data.sunumBitis;
       delete op.data.sunumAtayan;
       delete op.data.sunumAtandiAt;
+    }
+
+    // ── KİMLİĞİ NUMARA TAŞIYAN KAYITLAR ──
+    // Bu koleksiyonlarda belge kimliği öğrenci numarasını taşır ve okuyanlar
+    // kaydı KİMLİKLE bulur ("2021001__2026-guz", "2021001",
+    // "<kulüp>__2021001"). Öğrenci yalnız kendi numarasını taşıyan kimliğe
+    // yazar. Aksi hâlde başkasının henüz açılmamış kaydını önceden açabilir:
+    //   • student_courses  → kilitli boş seçim; sahibi ders seçemez, menüsü açılmaz
+    //   • student_profiles → sahte TC/adres; staj ve muafiyet belgeleri onu basar
+    // ve kayıt artık onun "sahipli" kaydı olduğu için gerçek sahibi düzeltemezdi.
+    if (DOCID_SAHIPLI.has(op.collection) && op.docId) {
+      if (!docIdSahibiMi(op.docId, await ogrenciKapsami(db, ident))) {
+        return {
+          allow: false,
+          status: 403,
+          error: 'Bu kayıt başka bir öğrenciye ait.',
+        };
+      }
     }
 
     // student_courses: sahiplik alanı her zaman JWT kimliğine sabitlenir —
