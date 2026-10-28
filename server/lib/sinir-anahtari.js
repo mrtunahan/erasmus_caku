@@ -9,8 +9,7 @@
 const { verifyToken } = require('../middleware/auth');
 
 function sinirAnahtariUret(rateLimit) {
-  const ipAnahtari =
-    (rateLimit && rateLimit.ipKeyGenerator) || ((ip) => String(ip == null ? '' : ip));
+  const rl = rateLimit || {};
   return function sinirAnahtari(req) {
     let jeton = (req.cookies && req.cookies.caku_auth) || '';
     const h = req.headers && req.headers.authorization;
@@ -23,7 +22,10 @@ function sinirAnahtariUret(rateLimit) {
         /* geçersiz jeton: IP'ye düşer */
       }
     }
-    return 'ip:' + ipAnahtari(req.ip || '');
+    // `ipKeyGenerator` adı bu işlevin İÇİNDE geçmeli: express-rate-limit
+    // anahtar işlevinin kaynağını tarayıp IPv6 yardımcısını göremezse her
+    // açılışta "ERR_ERL_KEY_GEN_IPV6" uyarısı basıyordu (davranış doğruydu).
+    return 'ip:' + (rl.ipKeyGenerator ? rl.ipKeyGenerator(req.ip || '') : String(req.ip || ''));
   };
 }
 
