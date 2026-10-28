@@ -5,6 +5,13 @@
 // sessizce yok sayılıyordu.
 require('dotenv').config();
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+// ── SAAT DİLİMİ ──
+// "Bugün" hesapları (anket son günü, yoklama oturumu, sınıf yılı) sunucunun
+// YEREL saatiyle yapılıyor. Sunucu yurt dışında (UTC) çalıştığında Türkiye
+// saatiyle 00:00–03:00 arası bir önceki gün sayılıyordu: son günü dolan anket
+// üç saat geç kapanıyordu. Ortamda TZ verilmişse o geçerlidir. Kayıtlı
+// tarihler (Date / ISO) UTC tutulduğu için bu ayar mevcut veriyi değiştirmez.
+process.env.TZ = process.env.TZ || 'Europe/Istanbul';
 const express = require('express');
 const http = require('http');
 const cors = require('cors');

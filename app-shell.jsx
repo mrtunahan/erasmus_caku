@@ -643,59 +643,27 @@ const Sidebar = ({
       return DEPARTMENT_MODULES.filter((m) => adayMods.includes(m.id));
     }
 
-    // Çapraz-bölümde (ana bölümü değil ek bölüm) — yetkili/admin olsa bile
-    // sadece DERSE BAĞLI 3 modül: kendi dersini ders programına ekler, sınav
-    // programına yerleştirir, proje modülünde kendi dersi için işlem yapar.
-    if (isOnExtraDept) {
-      // Bölüm/fakülte yetkilisi BAŞKA FAKÜLTENİN bölümünde: Ders Odaları yok.
-      const crossAllowed = window.caprazModulleri
-        ? window.caprazModulleri(currentUser, activeDepartment)
-        : ['dersprogrami', 'sinav', 'projeler', 'dersodalari'];
-      return DEPARTMENT_MODULES.filter((m) => crossAllowed.includes(m.id));
-    }
-
-    // Yetkililer (admin / bölüm yetkilisi / hierarchy yetkilisi) — yetkili oldukları
-    // bölümde TÜM bölüm modüllerini görürler. AKADEMISYENLER modülünü de görürler
-    // (kendisi de akademisyen, bilgi amaçlı). 'Benim Sayfam' hariç.
-    if (isAdmin || isDeptManager || isHierarchyManager) {
-      return DEPARTMENT_MODULES.filter((m) => m.id !== 'benim');
-    }
-
-    // Saf akademisyen
-    if (isProfessor) {
-      const base = [
-        'benimakademik',
-        'sinav',
-        'formlar',
-        'dersprogrami',
-        'lisansustu',
-        'dersodalari',
-        'projeler',
-        'staj',
-        'performans',
-      ];
-      const allowed = base.concat(commissionModules);
-      return DEPARTMENT_MODULES.filter((m) => allowed.includes(m.id));
-    }
+    // Rol → modül listesi tek yerde (lib/modul-izinleri.js); rota koruması
+    // aynı listeyi okur. Çapraz bölümde (ek bölüm) yalnız derse bağlı
+    // modüller; bölüm/fakülte yetkilisi BAŞKA FAKÜLTEDE Ders Odaları'nı görmez.
+    const yonetici = isAdmin || isDeptManager || isHierarchyManager;
     // Öğrenci: ders seçimi yapılana kadar yalnızca "Benim Sayfam" görünür
-    if (studentLocked) return DEPARTMENT_MODULES.filter((m) => m.id === 'benim');
-    const stdBase = [
-      'benim',
-      'erasmus',
-      'dersodalari',
-      'projeler',
-      'formlar',
-      'staj',
-      'muafiyet',
-      'capyandal',
-      'yataygecis',
-      // Dikey geçiş aday hesabının işidir; numaralı öğrencide yalnız
-      // numarasına aktarılmış kaydı varsa (salt görüntüleme) görünür.
-      ...(ogrenciDikeyKaydi ? ['dikeygecis'] : []),
-      'gelenbelgeler',
-    ];
-    const stdAllowed = stdBase.concat(commissionModules);
-    return DEPARTMENT_MODULES.filter((m) => stdAllowed.includes(m.id));
+    if (!isOnExtraDept && !yonetici && !isProfessor && studentLocked) {
+      return DEPARTMENT_MODULES.filter((m) => m.id === 'benim');
+    }
+    const izinli = window.bolumModulIzinleri({
+      capraz: isOnExtraDept,
+      caprazListe: window.caprazModulleri
+        ? window.caprazModulleri(currentUser, activeDepartment)
+        : undefined,
+      yonetici,
+      akademisyen: isProfessor,
+      dikeyKaydi: ogrenciDikeyKaydi,
+      tumIdler: DEPARTMENT_MODULES.map((m) => m.id),
+    });
+    // Komisyon üyeliğiyle gelen modüller akademisyen ve öğrenciye eklenir.
+    const allowed = isOnExtraDept || yonetici ? izinli : izinli.concat(commissionModules);
+    return DEPARTMENT_MODULES.filter((m) => allowed.includes(m.id));
   };
 
   const visibleModules = getVisibleModules();
@@ -3044,37 +3012,16 @@ function AppShell() {
     //   • Yetkili (admin/dept mgr/hier mgr) → akademisyen modülü dahil tümü (benim hariç)
     //   • Saf akademisyen → eski set
     //   • Öğrenci → eski set
-    const allowedDeptModules = isOnExtraDept
-      ? window.caprazModulleri
+    const allowedDeptModules = window.bolumModulIzinleri({
+      capraz: isOnExtraDept,
+      caprazListe: window.caprazModulleri
         ? window.caprazModulleri(currentUser, activeDepartment)
-        : ['dersprogrami', 'sinav', 'projeler', 'dersodalari']
-      : isDeptManager || isAdmin || isHierarchyManager
-        ? DEPARTMENT_MODULES.filter((m) => m.id !== 'benim').map((m) => m.id)
-        : isProfessor
-          ? [
-              'benimakademik',
-              'sinav',
-              'formlar',
-              'dersprogrami',
-              'lisansustu',
-              'dersodalari',
-              'projeler',
-              'staj',
-              'performans',
-            ]
-          : [
-              'benim',
-              'erasmus',
-              'dersodalari',
-              'projeler',
-              'formlar',
-              'staj',
-              'muafiyet',
-              'capyandal',
-              'yataygecis',
-              ...(ogrenciDikeyKaydi ? ['dikeygecis'] : []),
-              'gelenbelgeler',
-            ]; // student
+        : undefined,
+      yonetici: isDeptManager || isAdmin || isHierarchyManager,
+      akademisyen: isProfessor,
+      dikeyKaydi: ogrenciDikeyKaydi,
+      tumIdler: DEPARTMENT_MODULES.map((m) => m.id),
+    });
 
     // Çapraz-bölümde Ortak/Yönetim/Hiyerarşi modülleri tamamen gizli.
     // İstisna: üniversite dışı akademisyen eklendiği bölümde Öğrenci Portalı'na erişir.

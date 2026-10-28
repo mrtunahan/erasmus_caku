@@ -19,6 +19,7 @@ import {
   mezOlcekDogrula,
 } from './lib/mezuniyet.js';
 import { satirlariAyir, satirlariYerlestir, veriSatiriSec } from './lib/xlsx-satir.js';
+import { bolumModulIzinleri } from './lib/modul-izinleri.js';
 import {
   atlananOzeti,
   birlesikAraliklar,
@@ -15564,6 +15565,8 @@ window.anketleriSuz = anketleriSuz;
 window.AnketYayin = AnketYayin;
 // Katılımcı rolü ve "bu yanıt benim mi" — lib/anket-katilimci.js
 window.AnketKatilimci = AnketKatilimci;
+// Rol → bölüm modülleri (menü ve rota koruması aynı listeyi okur) — lib/modul-izinleri.js
+window.bolumModulIzinleri = bolumModulIzinleri;
 // Çok dersli anket: her ders ayrı değerlendirilir — lib/anket-ders-coklu.js
 window.AnketDersCoklu = AnketDersCoklu;
 // Sonuç kırılımları (ders / hoca / bölüm) — lib/anket-kirilim.js
