@@ -34,6 +34,14 @@ const TEMEL_ALANLAR = [
   'additionalDepartments',
   'bagliOgrenciNolar',
   'sinif',
+  // Sınıfın kaynağı ve program süresi: sınıf numaradan doğru türetilsin
+  // (işaretsiz önbellek değeri "elle girilmiş" sanılmasın).
+  'sinifKaynagi',
+  'programYili',
+  // Cinsiyet resmî devam listesinin bir sütunu: başka bölümden servis
+  // dersine gelen öğrencinin satırı boş basılıyordu.
+  'cinsiyet',
+  'gender',
   'status',
 ];
 

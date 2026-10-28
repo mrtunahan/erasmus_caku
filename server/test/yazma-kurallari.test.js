@@ -246,3 +246,42 @@ test('akademisyen anketi başka bölüme paylaşamaz', async () => {
     assert.equal(r.durum, 403);
   }
 });
+
+async function oku(token, yol) {
+  const r = await fetch(taban + '/api/db/' + yol, {
+    headers: { authorization: 'Bearer ' + token },
+  });
+  return { durum: r.status, j: await r.json().catch(() => null) };
+}
+
+test('randevu talepleri: akademisyen başkasının talebinin konusunu/öğrencisini görmez', async () => {
+  await db.collection('randevu_talepleri').insertMany([
+    {
+      _docId: 'r1',
+      akademisyen: 'Dr. Ali VELİ',
+      studentNumber: '2021001',
+      konu: 'not itirazı',
+      gun: 'Pazartesi',
+      saat: '10:00',
+      durum: 'bekliyor',
+    },
+    {
+      _docId: 'r2',
+      akademisyen: 'Prof. Dr. Can DEMİR',
+      studentNumber: '2021002',
+      konu: 'devamsızlık sorunum',
+      gun: 'Salı',
+      saat: '11:00',
+      durum: 'bekliyor',
+    },
+  ]);
+  const { durum, j } = await oku(HOCA, 'randevu_talepleri');
+  assert.equal(durum, 200);
+  const liste = Array.isArray(j) ? j : j.data || j.docs || [];
+  const kendi = liste.find((x) => x.saat === '10:00');
+  const baskasi = liste.find((x) => x.saat === '11:00');
+  assert.equal(kendi.konu, 'not itirazı', 'kendi talebi açık');
+  assert.ok(baskasi, 'başkasının slotu görünür');
+  assert.equal(baskasi.konu, undefined);
+  assert.equal(baskasi.studentNumber, undefined);
+});
