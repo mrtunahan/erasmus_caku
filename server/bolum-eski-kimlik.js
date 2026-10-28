@@ -23,9 +23,13 @@
  * bağlamak, hiç bağlamamaktan kötüdür.
  *
  * Kullanım:
- *   DRY_RUN=1 node server/bolum-eski-kimlik.js   # hiçbir şey yazmaz (ÖNCE BUNU)
- *   node server/bolum-eski-kimlik.js             # yedek alır, sonra yazar
- *   YEDEK_DIZIN=/root/yedek node server/bolum-eski-kimlik.js
+ *   node server/bolum-eski-kimlik.js             # KURU: hiçbir şey yazmaz (varsayılan)
+ *   UYGULA=1 node server/bolum-eski-kimlik.js    # yedek alır, sonra yazar
+ *   UYGULA=1 YEDEK_DIZIN=/root/yedek node server/bolum-eski-kimlik.js
+ *
+ * ⚠ Varsayılan eskiden YAZMAKTI (kuru çalışma DRY_RUN=1 ile açılıyordu);
+ * öteki bakım betikleriyle aynı olsun diye kuru çalışmaya çevrildi.
+ * DRY_RUN=1 hâlâ tanınır.
  */
 const fs = require('fs');
 const path = require('path');
@@ -51,7 +55,7 @@ const adAnahtari = (s) =>
 (async () => {
   const { getDbSafe } = require('./config/database');
   const db = await getDbSafe();
-  const dry = process.env.DRY_RUN === '1';
+  const dry = process.env.UYGULA !== '1' || process.env.DRY_RUN === '1';
 
   const bolumler = await db.collection('departments').find({}).toArray();
   console.log(`departments: ${bolumler.length} kayıt\n`);
@@ -89,7 +93,9 @@ const adAnahtari = (s) =>
   });
 
   if (dry) {
-    console.log('\nDRY_RUN=1 — hiçbir şey yazılmadı.');
+    console.log(
+      '\nKuru çalışma — hiçbir şey yazılmadı. Yazmak için: UYGULA=1 node server/bolum-eski-kimlik.js'
+    );
     process.exit(0);
   }
 
