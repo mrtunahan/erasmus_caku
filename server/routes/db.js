@@ -31,6 +31,7 @@ const { idSorgusu: bildirimIdSorgusu } = require('./bildirim');
 const { kimlikler: bolumKimlikleri } = require('../lib/bolum-kimlik');
 const personelKapsami = require('../lib/personel-kayit-kapsami');
 const { mukerrerSorgusu } = require('../lib/anket-mukerrer');
+const { personelRandevuGorunumu } = require('../lib/randevu-personel-okuma');
 const { ogrenciAlanSuzgeci } = require('../lib/ogrenci-alan-suzgeci');
 
 // Personel yazmasında bölüm sınırı uygulanan koleksiyonlar (a2-personel).
@@ -4476,6 +4477,15 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
+    // ── PERSONELİN RANDEVU OKUMASI: başkasının talebi yalnız slot ──
+    // (server/lib/randevu-personel-okuma.js)
+    if (DB_AUTH_ENFORCED && collection === 'randevu_talepleri' && user && user.role !== 'student') {
+      const flags = await getActorFlags(db, user);
+      if (!flags.admin && !flags.uniAdmin) {
+        docs = docs.map((d) => personelRandevuGorunumu(d, user.identifier));
+      }
+    }
+
     // ── PERSONELİN ANKET YANITI OKUMASI: kapsam + anonimlik ──
     // Yetkili yalnız kendi alanındaki bölümlerin yanıtlarını, kimliksiz görür
     // (server/lib/anket-yanit-okuma.js).
@@ -4665,6 +4675,11 @@ router.get('/:collection/:docId', async (req, res) => {
     // Gizli alanlar hiçbir rol için bu kapıdan çıkmaz (bkz. lib/gizli-alanlar.js).
     gizliAlanlariCikar(doc, collection);
     if (collection === 'students') doc = ogrenciAdlariniBuyut(doc);
+
+    if (DB_AUTH_ENFORCED && user && user.role !== 'student' && collection === 'randevu_talepleri') {
+      const flags = await getActorFlags(db, user);
+      if (!flags.admin && !flags.uniAdmin) doc = personelRandevuGorunumu(doc, user.identifier);
+    }
 
     // Anket yanıtı tek belge olarak da liste kuralıyla okunur (kapsam + anonim).
     if (DB_AUTH_ENFORCED && user && user.role !== 'student' && collection === 'survey_responses') {
