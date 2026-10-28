@@ -1,5 +1,12 @@
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
-const { MongoClient } = require('mongodb');
+// dotenv ve mongodb yalnız SUNUCU paketinde kurulu. Kök dizindeki birim
+// testleri (ör. tests/eposta-kurali.test.js) bu dosyayı dolaylı olarak
+// yüklüyor ve bağlantı kurmuyor; paketler orada yok diye CI kırılıyordu.
+// Sunucuda ikisi de kurulu olduğundan davranış aynıdır.
+try {
+  require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+} catch (_) {
+  /* dotenv yok (kök test ortamı) — ortam değişkenleri olduğu gibi */
+}
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/erasmus_caku';
 
@@ -292,6 +299,7 @@ async function connect() {
       db = null;
     }
 
+    const { MongoClient } = require('mongodb');
     client = new MongoClient(MONGODB_URI, {
       maxPoolSize: 10,
       minPoolSize: 2,
