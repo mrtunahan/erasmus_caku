@@ -28,6 +28,7 @@ describe('anket kırılımları', () => {
   const k = anketKirilimlari(survey, yanitlar, {
     dersKatalogu: katalog,
     bolumAdi: (id) => ({ bil: 'Bilgisayar', mak: 'Makine' })[id],
+    anonimEsik: 1,
   });
   const bul = (id) => k.find((x) => x.id === id);
   it('ders kırılımı kodu normalleştirir, adı ve hocayı ekler', () => {
@@ -57,5 +58,32 @@ describe('anket kırılımları', () => {
   it('katalog yoksa hoca kırılımı çıkmaz; boş grup dışarıda kalır', () => {
     expect(anketKirilimlari(survey, yanitlar).some((x) => x.id === 'hoca')).toBe(false);
     expect(grupla(survey, [{ answers: {} }], () => '')).toEqual([]);
+  });
+});
+
+describe('anonimlik eşiği', () => {
+  const r = (bolum, cins, puan) => ({
+    yanitlayanBolumleri: [bolum],
+    answers: { cins, q1: puan },
+  });
+  const s = {
+    questions: [{ id: 'q1', type: 'likert5' }],
+    infoFields: [{ key: 'cins', label: 'Cinsiyet' }],
+  };
+  it('iki yanıtlı ankette bölüm ve cinsiyet kırılımı hiç çıkmaz', () => {
+    const k = anketKirilimlari(s, [r('bil', 'Kadın', 3), r('ins', 'Erkek', 5)]);
+    expect(k.find((x) => x.id === 'bolum')).toBeUndefined();
+    expect(k.find((x) => x.id === 'bilgi:cins')).toBeUndefined();
+  });
+  it('küçük gruplar eşiği aşan tek "Diğer" satırında birleşir', () => {
+    const l = [1, 2, 3, 4]
+      .map(() => r('bil', 'Kadın', 4))
+      .concat([r('ins', 'Erkek', 2), r('mak', 'Erkek', 2), r('kim', 'Erkek', 2)]);
+    const b = anketKirilimlari(s, l).find((x) => x.id === 'bolum');
+    expect(b.satirlar.map((x) => [x.etiket, x.n])).toEqual([
+      ['bil', 4],
+      ['Diğer (az yanıtlı 3 grup)', 3],
+    ]);
+    expect(b.aciklama).toMatch(/kimlik açmasın/);
   });
 });

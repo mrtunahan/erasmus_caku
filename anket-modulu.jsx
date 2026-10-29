@@ -3385,6 +3385,25 @@ function AtamaPaneli({
     : secimCoz(secim);
   const seciliKapsamBolumu = seciliKapsam.tur === 'bolum' ? seciliKapsam.id : '';
 
+  // ⚠ VARSAYILAN KAPSAM ANKETİN KENDİ BÖLÜMÜ. Kutu boş kalınca "yetki
+  // alanının tamamı" seçiliyordu: fakülte yetkilisinin paylaştığı bir bölüm
+  // memnuniyet anketi bütün fakülteye gidiyor, sonuçlara başka bölümlerin
+  // öğrencileri karışıyordu. Anket tek bölüme aitse o bölüm önceden seçilir;
+  // daha geniş paylaşım kutudan bilerek seçilir.
+  useEffect(() => {
+    if (tekBolum || !surveyId) return;
+    const anket = (surveys || []).find((x) => x.id === surveyId);
+    const ids = Array.isArray(anket && anket.kapsamDepartmentIds)
+      ? anket.kapsamDepartmentIds.map(String)
+      : [];
+    const bolum =
+      anket && anket.kapsamTuru === 'bolum' && ids.length === 1
+        ? kapsamBolumleri.find((d) => String(d.id) === ids[0])
+        : null;
+    setSecim(bolum ? 'bol:' + bolum.id : '');
+    // Yalnız anket değişince; kullanıcının sonraki seçimi korunur.
+  }, [surveyId]);
+
   // Seçilebilir fakülteler: kapsamdaki bölümlerin fakülteleri. Bölüm
   // yetkilisinde tek fakülte çıkar ve zaten seçim kutusu gösterilmez.
   const fakulteAdlari = window.useFakulteAdlari ? window.useFakulteAdlari() : {};
@@ -3606,6 +3625,15 @@ function AtamaPaneli({
                     );
                   })}
                 </select>
+              )}
+              {!tekBolum && !secim && kapsamTuru !== 'bolum' && (
+                <div
+                  data-genis-kapsam-uyarisi
+                  style={{ marginTop: 6, fontSize: 12.5, color: '#92400E', lineHeight: 1.5 }}
+                >
+                  ⚠ Bu paylaşım <b>{tumEtiket.toLocaleLowerCase('tr-TR')}</b> gidecek. Yalnız bir
+                  bölüme göndermek için listeden o bölümü seçin.
+                </div>
               )}
             </div>
 
