@@ -32,6 +32,8 @@ const { kimlikler: bolumKimlikleri } = require('../lib/bolum-kimlik');
 const personelKapsami = require('../lib/personel-kayit-kapsami');
 const { mukerrerSorgusu } = require('../lib/anket-mukerrer');
 const { personelRandevuGorunumu } = require('../lib/randevu-personel-okuma');
+const { davetYanitiKarari } = require('../lib/proje-davet');
+const PROJE_KOLEKSIYONLARI = new Set(['projects', 'unides_projects', 'tubitak2209_projects']);
 const { ogrenciAlanSuzgeci } = require('../lib/ogrenci-alan-suzgeci');
 
 // Personel yazmasında bölüm sınırı uygulanan koleksiyonlar (a2-personel).
@@ -3106,6 +3108,27 @@ async function enforceWritePolicies(db, op, user) {
           Array.isArray(op.data.readBy);
         if (yalnizOkuma) return { allow: true };
       }
+    }
+
+    // ── PROJE GRUBU DAVETİ ──
+    // Davet edilen üye, liderin kaydında yalnız KENDİ davet durumunu
+    // yanıtlar (server/lib/proje-davet.js). Sahiplik denetimi bunu
+    // "başkasının kaydı" sayıyordu; davet hiç kabul edilemiyordu.
+    if (
+      PROJE_KOLEKSIYONLARI.has(op.collection) &&
+      op.data &&
+      Object.keys(op.data).length === 1 &&
+      'memberStatus' in op.data &&
+      String(existing.createdBy || '') !== ident
+    ) {
+      const ogr = await db.collection('students').findOne({ studentNumber: ident });
+      const ad = ogr
+        ? [ogr.firstName, ogr.lastName].filter(Boolean).join(' ').trim() || String(ogr.name || '')
+        : '';
+      const { trAnahtar } = await import('../../lib/tr-metin.js');
+      const karar = davetYanitiKarari({ op, mevcut: existing, ogrenciAdi: ad, anahtar: trAnahtar });
+      if (karar.izin) return { allow: true };
+      return { allow: false, status: 403, error: karar.hata };
     }
 
     // Mevcut dokümanda sahiplik ara
