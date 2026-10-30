@@ -5049,16 +5049,27 @@ function SonuclarPaneli({ surveys, akademisyen, assignments }) {
     );
     return (d && d.name) || '';
   }, []);
-  const kirilimlar = useMemo(
-    () =>
-      survey && window.AnketKirilim
-        ? window.AnketKirilim.anketKirilimlari(survey, filtered, { dersKatalogu, bolumAdi })
-        : [],
-    [survey, filtered, dersKatalogu, bolumAdi]
-  );
   const anketAtamalari = useMemo(
     () => (assignments || []).filter((a) => survey && a.surveyId === survey.id),
     [assignments, survey]
+  );
+  // Anketin paylaşıldığı bölümler: ÇAP/yandal öğrencisi bu bölümün öğrencisi
+  // olarak sayılır (ana bölümüne değil) — bkz. lib/anket-kirilim.js.
+  const hedefBolumler = useMemo(() => {
+    const l = [].concat((survey && survey.kapsamDepartmentIds) || []);
+    anketAtamalari.forEach((a) => l.push(...(a.kapsamDepartmentIds || []), a.departmentId));
+    return [...new Set(l.filter(Boolean).map(String))];
+  }, [survey, anketAtamalari]);
+  const kirilimlar = useMemo(
+    () =>
+      survey && window.AnketKirilim
+        ? window.AnketKirilim.anketKirilimlari(survey, filtered, {
+            dersKatalogu,
+            bolumAdi,
+            hedefBolumler,
+          })
+        : [],
+    [survey, filtered, dersKatalogu, bolumAdi, hedefBolumler]
   );
   const yayin = useMemo(() => {
     const AY = window.AnketYayin;

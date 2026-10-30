@@ -87,3 +87,23 @@ describe('anonimlik eşiği', () => {
     expect(b.aciklama).toMatch(/kimlik açmasın/);
   });
 });
+
+describe('ÇAP / yandal öğrencisi', () => {
+  it('paylaşılan bölüm ikinci bölümüyse o bölümde ÇAP olarak sayılır', () => {
+    const s = { questions: [{ id: 'q1', type: 'likert5' }] };
+    const y = (l) => ({ yanitlayanBolumleri: l, answers: { q1: 4 } });
+    const k = anketKirilimlari(
+      s,
+      [y(['insaat', 'elektrik']), y(['bilgisayar', 'elektrik']), y(['elektrik'])],
+      {
+        hedefBolumler: ['elektrik'],
+        bolumAdi: (id) => ({ elektrik: 'Elektrik' })[id],
+        anonimEsik: 1,
+      }
+    );
+    expect(k.find((x) => x.id === 'bolum').satirlar.map((x) => [x.etiket, x.n])).toEqual([
+      ['Elektrik (ÇAP/yandal öğrencisi)', 2],
+      ['Elektrik', 1],
+    ]);
+  });
+});
