@@ -285,3 +285,49 @@ test('randevu talepleri: akademisyen başkasının talebinin konusunu/öğrencis
   assert.equal(baskasi.konu, undefined);
   assert.equal(baskasi.studentNumber, undefined);
 });
+
+test('proje grubu daveti: davetli yalnız kendi satırını yanıtlar', async () => {
+  await db.collection('students').insertOne({
+    _docId: 's3',
+    studentNumber: '2021003',
+    firstName: 'CEYDA',
+    lastName: 'GELMEZ',
+    departmentId: 'bilgisayar',
+  });
+  await db.collection('projects').insertOne({
+    _docId: 'prj1',
+    name: 'ELİF NUR - CEYDA',
+    createdBy: '2021001',
+    members: ['Ayşe Yılmaz', 'Ceyda Gelmez', 'Mehmet Demir'],
+    memberStatus: ['accepted', 'pending', 'pending'],
+    status: 'pending',
+  });
+  const CEYDA = jeton({ role: 'student', identifier: '2021003', departmentId: 'bilgisayar' });
+  const yanit = (token, durumlar) =>
+    yaz(token, {
+      collection: 'projects',
+      type: 'update',
+      docId: 'prj1',
+      data: { memberStatus: durumlar },
+    });
+
+  // Başkasının satırını değiştiremez; başka alan yazamaz.
+  assert.equal((await yanit(CEYDA, ['accepted', 'accepted', 'accepted'])).durum, 403);
+  const alan = await yaz(CEYDA, {
+    collection: 'projects',
+    type: 'update',
+    docId: 'prj1',
+    data: { memberStatus: ['accepted', 'accepted', 'pending'], status: 'approved' },
+  });
+  assert.equal(alan.durum, 403);
+  // Davetli olmayan öğrenci yanıt veremez.
+  assert.equal((await yanit(OGR2, ['accepted', 'pending', 'accepted'])).durum, 403);
+
+  const kabul = await yanit(CEYDA, ['accepted', 'accepted', 'pending']);
+  assert.equal(kabul.durum, 200, JSON.stringify(kabul.j));
+  const k = await bul('projects', { _docId: 'prj1' });
+  assert.deepEqual(k.memberStatus, ['accepted', 'accepted', 'pending']);
+  assert.equal(k.status, 'pending');
+  // Verilmiş yanıt tekrar değiştirilemez.
+  assert.equal((await yanit(CEYDA, ['accepted', 'rejected', 'pending'])).durum, 403);
+});
