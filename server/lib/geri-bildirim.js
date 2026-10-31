@@ -64,6 +64,99 @@ function girdiTemizle(govde) {
   };
 }
 
+// ── MODÜL YETKİSİ ──
+// Herkes yalnız GÖRDÜĞÜ modüller için bildirim gönderir. Ekran listeyi sol
+// menünün o an gösterdiği modüllerden kurar; sunucu da kaba bir sınır koyar:
+//   öğrenci        → öğrenci modülleri + öğrenciye açık ortak modüller
+//   yönetici değil → yönetim / hiyerarşi modülleri hariç
+// (Öğrenci listesi lib/modul-izinleri.js → ogrenciModulleri ile aynı olmalı;
+// test bunu denetler.)
+const HER_ZAMAN = ['genel', 'diger'];
+const OGRENCI_MODULLERI = [
+  'benim',
+  'erasmus',
+  'dersodalari',
+  'projeler',
+  'formlar',
+  'staj',
+  'muafiyet',
+  'capyandal',
+  'yataygecis',
+  'dikeygecis',
+  'gelenbelgeler',
+];
+const OGRENCI_ORTAK = ['portal', 'roadmaps', 'yolharitalari', 'kulupler', 'anket'];
+const YONETIM_MODULLERI = [
+  'kullanici',
+  'bolumyonetimi',
+  'dersyonetimi',
+  'komisyonlar',
+  'akademiktakvim',
+  'sablonlar',
+  'tabanpuan',
+  'audit',
+  'univ',
+  'tanitim',
+  'fakulte',
+  'akreditasyon',
+  'yapayzeka',
+];
+
+/**
+ * @param {string} modul
+ * @param {{rol:string, yonetici:boolean}} kisi
+ */
+function modulIzinliMi(modul, kisi) {
+  const m = metin(modul);
+  if (!m) return false;
+  if (HER_ZAMAN.includes(m)) return true;
+  const k = kisi || {};
+  if (k.rol === 'student') return OGRENCI_MODULLERI.includes(m) || OGRENCI_ORTAK.includes(m);
+  if (!k.yonetici && YONETIM_MODULLERI.includes(m)) return false;
+  return /^[a-z0-9_-]{2,40}$/i.test(m);
+}
+
+const DESTEK_ROLLER = {
+  ogrenci: 'Öğrenci',
+  akademisyen: 'Akademisyen',
+  personel: 'İdari personel',
+  aday: 'Aday',
+  diger: 'Diğer',
+};
+const EPOSTA = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** Giriş ekranındaki destek talebi (oturumsuz). */
+function destekTemizle(govde) {
+  const g = govde && typeof govde === 'object' ? govde : {};
+  const ad = metin(g.ad).replace(/\s+/g, ' ').slice(0, 100);
+  if (ad.length < 3) return { hata: 'Adınızı ve soyadınızı yazın.' };
+  const eposta = metin(g.eposta).toLowerCase().slice(0, 120);
+  if (!EPOSTA.test(eposta))
+    return { hata: 'Geçerli bir e-posta adresi yazın; yanıt oraya gelecek.' };
+  const rol = DESTEK_ROLLER[metin(g.rol)] ? metin(g.rol) : 'diger';
+  const konu = metin(g.konu).replace(/\s+/g, ' ');
+  if (konu.length < 3) return { hata: 'Kısa bir konu yazın.' };
+  if (konu.length > SINIR.konu)
+    return { hata: 'Konu en çok ' + SINIR.konu + ' karakter olabilir.' };
+  const aciklama = metin(g.metin);
+  if (aciklama.length < 10) return { hata: 'Sorununuzu biraz daha açıklayın.' };
+  if (aciklama.length > SINIR.metin) {
+    return { hata: 'Açıklama en çok ' + SINIR.metin + ' karakter olabilir.' };
+  }
+  return {
+    veri: {
+      ad,
+      eposta,
+      rol,
+      rolAd: DESTEK_ROLLER[rol],
+      numara: metin(g.numara).slice(0, 30),
+      bolum: metin(g.bolum).slice(0, 100),
+      konu,
+      metin: aciklama,
+    },
+  };
+}
+
 /** Mesaj metni (yanıt / ek bilgi). */
 function mesajTemizle(v) {
   const m = metin(v);
@@ -178,6 +271,12 @@ function gorunum(kayit, kim, alan) {
 }
 
 module.exports = {
+  OGRENCI_MODULLERI,
+  OGRENCI_ORTAK,
+  YONETIM_MODULLERI,
+  modulIzinliMi,
+  destekTemizle,
+  DESTEK_ROLLER,
   TURLER,
   DURUMLAR,
   ELLE_DURUMLAR,

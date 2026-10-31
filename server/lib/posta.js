@@ -120,7 +120,7 @@ async function kayitYaz(kayit) {
  * (ör. şifremi unuttum) kullanıcıya her durumda aynı yanıtı verebilsin.
  * Kayıtta adres MASKELİ, içerik (kod/bağlantı) hiç tutulmaz.
  */
-async function gonder({ kime, konu, tur = 'genel', ...icerik }) {
+async function gonder({ kime, konu, tur = 'genel', yanitAdresi, ...icerik }) {
   const alici = String(kime || '').trim();
   if (!alici) return { ok: false, hata: 'alıcı yok' };
   const html = sablon(icerik);
@@ -140,7 +140,16 @@ async function gonder({ kime, konu, tur = 'genel', ...icerik }) {
     const r = await fetch(RESEND_URL, {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + anahtar(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: gonderen(), to: [alici], subject: konu, html, text }),
+      // `yanitAdresi`: "Yanıtla" denince iletinin gideceği adres (ör. destek
+      // talebini gönderen kişi). Gönderen adres yine sabittir.
+      body: JSON.stringify({
+        from: gonderen(),
+        to: [alici],
+        subject: konu,
+        html,
+        text,
+        ...(yanitAdresi ? { reply_to: String(yanitAdresi).trim() } : {}),
+      }),
       signal: AbortSignal.timeout(15000),
     });
     const j = await r.json().catch(() => ({}));

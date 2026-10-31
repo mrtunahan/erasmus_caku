@@ -552,6 +552,165 @@ export function SifremiUnuttumPaneli({ onGeri }) {
   );
 }
 
+// ── GİRİŞ EKRANINDAN DESTEK TALEBİ ──
+// Giriş yapamayan kişi (şifresini bilmeyen, hesabı olmayan, hata alan)
+// üniversite yetkilisine yazar: talep e-postayla gider ve yetkilinin
+// "Hata / Öneri" gelen kutusuna düşer; yanıt yazılan e-postaya gelir
+// (server/routes/geri-bildirim.js → /destek).
+const DESTEK_ROLLER = [
+  ['ogrenci', 'Öğrenci'],
+  ['akademisyen', 'Akademisyen'],
+  ['personel', 'İdari personel'],
+  ['aday', 'Aday'],
+  ['diger', 'Diğer'],
+];
+export function DestekTalebiPaneli({ onGeri }) {
+  const [f, setF] = useState({
+    ad: '',
+    eposta: '',
+    rol: 'ogrenci',
+    numara: '',
+    bolum: '',
+    konu: '',
+    metin: '',
+    web: '',
+  });
+  const [hata, setHata] = useState('');
+  const [tamam, setTamam] = useState(false);
+  const [mesgul, setMesgul] = useState(false);
+  const alan = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+
+  const gonder = async (e) => {
+    e.preventDefault();
+    setHata('');
+    if (!EPOSTA_KALIBI.test(metin(f.eposta).toLowerCase())) {
+      setHata('Geçerli bir e-posta adresi yazın; yanıt oraya gelecek.');
+      return;
+    }
+    setMesgul(true);
+    try {
+      const r = await fetch('/api/geri-bildirim/destek', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...f, tarayici: navigator.userAgent }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Talep gönderilemedi.');
+      setTamam(true);
+    } catch (err) {
+      setHata(err.message);
+    } finally {
+      setMesgul(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} data-destek-talebi-panel>
+      <div style={{ color: '#FFFFFF', fontSize: 17, fontWeight: 700, textAlign: 'center' }}>
+        Destek talebi
+      </div>
+      {tamam ? (
+        <div style={lgBilgi} data-destek-talebi-tamam>
+          Talebiniz üniversite yetkilisine iletildi. Yanıt yazdığınız e-posta adresine gelecek.
+        </div>
+      ) : (
+        <form
+          onSubmit={gonder}
+          noValidate
+          style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+        >
+          <div style={lgBilgi}>
+            Sisteme giriş yapamıyorsanız ya da bir sorun yaşıyorsanız yazın; talebiniz üniversite
+            yetkilisine iletilir. Şifrenizi unuttuysanız önce “Şifremi unuttum”u deneyin.
+          </div>
+          {/* Bot tuzağı: ekranda görünmez; dolu gelirse talep yok sayılır. */}
+          <input
+            type="text"
+            value={f.web}
+            onChange={alan('web')}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            style={{ position: 'absolute', left: -9999, width: 1, height: 1, opacity: 0 }}
+          />
+          <div>
+            <label className="lg-label">Ad Soyad</label>
+            <input className="lg-input" value={f.ad} onChange={alan('ad')} maxLength={100} />
+          </div>
+          <div>
+            <label className="lg-label">E-posta (yanıt buraya gelir)</label>
+            <input
+              className="lg-input"
+              type="email"
+              value={f.eposta}
+              onChange={alan('eposta')}
+              placeholder="ornek@karatekin.edu.tr"
+              autoComplete="email"
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 140px' }}>
+              <label className="lg-label">Rolünüz</label>
+              <select className="lg-input" value={f.rol} onChange={alan('rol')}>
+                {DESTEK_ROLLER.map(([id, ad]) => (
+                  <option key={id} value={id}>
+                    {ad}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: '1 1 140px' }}>
+              <label className="lg-label">Öğrenci no (varsa)</label>
+              <input
+                className="lg-input"
+                value={f.numara}
+                onChange={alan('numara')}
+                maxLength={30}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="lg-label">Bölüm (varsa)</label>
+            <input className="lg-input" value={f.bolum} onChange={alan('bolum')} maxLength={100} />
+          </div>
+          <div>
+            <label className="lg-label">Konu</label>
+            <input className="lg-input" value={f.konu} onChange={alan('konu')} maxLength={150} />
+          </div>
+          <div>
+            <label className="lg-label">Açıklama</label>
+            <textarea
+              className="lg-input"
+              rows={4}
+              value={f.metin}
+              onChange={alan('metin')}
+              maxLength={4000}
+              style={{ resize: 'vertical', fontFamily: 'inherit' }}
+            />
+          </div>
+          <LgHata mesaj={hata} />
+          <button
+            type="submit"
+            className="lg-btn lg-btn-primary"
+            disabled={mesgul}
+            data-destek-talebi-gonder
+          >
+            {mesgul ? 'Gönderiliyor…' : 'Talebi gönder'}
+          </button>
+        </form>
+      )}
+      <button
+        type="button"
+        className="lg-btn lg-btn-secondary"
+        style={{ padding: '10px 16px', fontSize: 13 }}
+        onClick={onGeri}
+      >
+        ← Girişe dön
+      </button>
+    </div>
+  );
+}
+
 export function SifreYenilePaneli({ jeton, onBitti }) {
   const [kontrol, setKontrol] = useState({ yukleniyor: true });
   const [sifre, setSifre] = useState('');
@@ -678,4 +837,5 @@ export function SifreYenilePaneli({ jeton, onBitti }) {
 window.useEpostaDurumu = useEpostaDurumu;
 window.EpostaPenceresi = EpostaPenceresi;
 window.SifremiUnuttumPaneli = SifremiUnuttumPaneli;
+window.DestekTalebiPaneli = DestekTalebiPaneli;
 window.SifreYenilePaneli = SifreYenilePaneli;
