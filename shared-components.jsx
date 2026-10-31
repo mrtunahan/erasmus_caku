@@ -7390,8 +7390,12 @@ const Notify = {
       zaman: Date.now(),
     };
     window.__bildirimHedefi = hedef;
-    if (onNavigate) onNavigate(n.link);
-    else window.location.hash = '#' + n.link;
+    // Hata/öneri bildirimi bir sayfa değil, üst çubuktan açılan bir panel:
+    // gezinmeden yalnız olay yayınlanır (bkz. app-shell → GeriBildirimDugmesi).
+    if (n.link !== 'geribildirim') {
+      if (onNavigate) onNavigate(n.link);
+      else window.location.hash = '#' + n.link;
+    }
     setTimeout(() => {
       try {
         window.dispatchEvent(new CustomEvent('bildirim:ac', { detail: hedef }));

@@ -30,6 +30,132 @@ const IDLE_LIMIT_MS = 30 * 60 * 1000;
 const IDLE_UYARI_MS = 60 * 1000;
 const IDLE_ACTIVITY_KEY = 'caku_last_activity';
 
+// ── HATA / ÖNERİ BİLDİR düğmesi (üst çubuk) ──
+// Panel (geri-bildirim.jsx) ilk tıklamada yüklenir. Yetkiliye (fakülte /
+// üniversite / bölüm) ilgilenmesi beklenen kayıt sayısı rozet olarak görünür.
+// Zildeki "geri bildirim" bildirimine tıklanınca panel o kayıtla açılır.
+function GeriBildirimDugmesi({ currentUser, currentRoute, isMobile }) {
+  const [Panel, setPanel] = React.useState(null);
+  const [acik, setAcik] = React.useState(false);
+  const [kayit, setKayit] = React.useState('');
+  const [rozet, setRozet] = React.useState(0);
+  const ogrenci = currentUser && currentUser.role === 'student';
+
+  const rozetYukle = React.useCallback(() => {
+    if (ogrenci) return;
+    let token = '';
+    try {
+      token = localStorage.getItem('caku_auth_token') || '';
+    } catch (_) {
+      token = '';
+    }
+    fetch('/api/geri-bildirim/ozet', {
+      credentials: 'include',
+      headers: token ? { Authorization: 'Bearer ' + token } : {},
+    })
+      .then((r) => (r.ok ? r.json() : { acik: 0 }))
+      .then((j) => setRozet(Number(j.acik) || 0))
+      .catch(() => {});
+  }, [ogrenci]);
+  React.useEffect(() => {
+    rozetYukle();
+    if (ogrenci) return undefined;
+    const t = setInterval(rozetYukle, 120000);
+    return () => clearInterval(t);
+  }, [rozetYukle, ogrenci]);
+
+  const ac = React.useCallback(
+    (kayitId) => {
+      setKayit(kayitId || '');
+      setAcik(true);
+      if (!Panel) {
+        import('./geri-bildirim.jsx')
+          .then((m) => setPanel(() => m.default || window.GeriBildirimPaneli))
+          .catch(() => alert('Bildirim penceresi yüklenemedi. Sayfayı yenileyip tekrar deneyin.'));
+      }
+    },
+    [Panel]
+  );
+  (window.useBildirimHedefi || (() => {}))('geribildirim', (h) => {
+    ac(String((h && h.meta && h.meta.kayitId) || ''));
+  });
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => ac('')}
+        title="Hata / öneri bildir"
+        aria-label="Hata / öneri bildir"
+        data-geri-bildirim-dugmesi
+        style={{
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: isMobile ? '6px 8px' : '7px 12px',
+          border: '1px solid rgba(255,255,255,0.25)',
+          background: 'transparent',
+          color: 'rgba(255,255,255,0.85)',
+          borderRadius: 8,
+          cursor: 'pointer',
+          fontSize: 12,
+          fontWeight: 500,
+        }}
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+          <line x1="12" y1="8" x2="12" y2="11" />
+          <line x1="12" y1="14" x2="12.01" y2="14" />
+        </svg>
+        {!isMobile && 'Hata / Öneri'}
+        {rozet > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: -6,
+              right: -6,
+              minWidth: 18,
+              height: 18,
+              borderRadius: 9,
+              background: '#DC2626',
+              color: 'white',
+              fontSize: 10.5,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 4px',
+            }}
+          >
+            {rozet > 99 ? '99+' : rozet}
+          </span>
+        )}
+      </button>
+      {acik && Panel && (
+        <Panel
+          currentRoute={currentRoute}
+          acilacakKayit={kayit}
+          onKapat={() => {
+            setAcik(false);
+            rozetYukle();
+          }}
+          onDegisti={rozetYukle}
+        />
+      )}
+    </>
+  );
+}
+
 // Sidebar/RightSidebar/route-guard için ortak: kullanıcının erişebileceği
 // bölümler. Kurallar:
 //   • Öğrenci → kendi bölümü + ÇAP/yandal ek bölümleri
@@ -230,6 +356,7 @@ const TopHeader = ({
   onNavigate,
   availableDepts = [],
   onDepartmentChange,
+  currentRoute,
 }) => {
   const dept = DEPARTMENTS.find((d) => d.id === activeDepartment);
   const [deptMenuOpen, setDeptMenuOpen] = React.useState(false);
@@ -452,6 +579,13 @@ const TopHeader = ({
 
       {/* Right: Bildirim + User info + Logout */}
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
+        {currentUser && !currentUser.aday && (
+          <GeriBildirimDugmesi
+            currentUser={currentUser}
+            currentRoute={currentRoute}
+            isMobile={isMobile}
+          />
+        )}
         {window.BellMenu && currentUser && (
           <window.BellMenu
             currentUser={currentUser}
@@ -3538,6 +3672,7 @@ function AppShell() {
         onNavigate={navigate}
         availableDepts={topAvailableDepts}
         onDepartmentChange={handleDepartmentChange}
+        currentRoute={route}
       />
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
