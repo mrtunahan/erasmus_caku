@@ -167,6 +167,8 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/yoklama', yoklamaRoutes);
 // Navbar bildirim zili: kişiye özel liste, okundu, sil (bkz. routes/bildirim.js).
 app.use('/api/bildirim', bildirimRoutes);
+// Hata / öneri bildirimi: gönderen → fakülte yetkilisi → bölüm yetkilisi.
+app.use('/api/geri-bildirim', require('./routes/geri-bildirim'));
 // Numarasız aday (dikey / kurumlararası / merkezi yerleştirme) hesabı.
 // Hız sınırı yalnız kimliksiz uçlarda; personel listesi ve /ben bunu tüketmesin.
 app.use('/api/aday/kayit', authRateLimiter());
