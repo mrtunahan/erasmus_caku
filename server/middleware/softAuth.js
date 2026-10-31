@@ -17,6 +17,7 @@ const { logger } = require('../lib/logger');
 const { JWT_SECRET } = require('./auth');
 const { jetonKullanicisi } = require('../lib/aday-yetki');
 const oturumIptal = require('../lib/oturum-iptal');
+const { istemciIp } = require('../lib/istemci-ip');
 
 function extractToken(req) {
   if (req.cookies && req.cookies.caku_auth) return req.cookies.caku_auth;
@@ -26,12 +27,7 @@ function extractToken(req) {
 }
 
 function actorIp(req) {
-  return (
-    (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
-    req.ip ||
-    req.socket?.remoteAddress ||
-    null
-  );
+  return istemciIp(req) || null;
 }
 
 function softAuth(getDb) {

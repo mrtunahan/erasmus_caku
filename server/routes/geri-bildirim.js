@@ -19,6 +19,7 @@ const { requireAuth } = require('../middleware/auth');
 const { profilBul } = require('../lib/akademisyen-kimlik');
 const { bolumKimlikHaritasi, bolumVaryantlari } = require('../lib/bolum-kimlik');
 const K = require('../lib/geri-bildirim');
+const { istemciIp } = require('../lib/istemci-ip');
 
 const router = express.Router();
 const KOL = 'geri_bildirimler';
@@ -386,8 +387,7 @@ router.post(
   '/destek',
   sar(async (req, res) => {
     const g = req.body && typeof req.body === 'object' ? req.body : {};
-    const ip =
-      metin((req.headers['x-forwarded-for'] || '').toString().split(',')[0]) || metin(req.ip);
+    const ip = istemciIp(req);
     if (metin(g.web)) return res.json({ ok: true }); // bot tuzağı
     const t = K.destekTemizle(g);
     if (t.hata) return res.status(400).json({ error: t.hata });
