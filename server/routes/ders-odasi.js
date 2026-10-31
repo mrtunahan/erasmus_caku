@@ -192,7 +192,7 @@ async function hocaMi(oda, user) {
 // Kartta: ödev / duyuru / öğrenci sayısı, haftalık ders saatleri, en yakın
 // teslim, son paylaşım; öğrenciye kendi bekleyen ödev sayısı, akademisyene
 // notlanmayı bekleyen teslim sayısı.
-async function odaKartOzeti(db, oda, rol, user) {
+async function odaKartOzeti(db, oda, rol, user, baglam) {
   const K = await kural();
   const icerikler = await db
     .collection(ICERIK)
@@ -220,7 +220,7 @@ async function odaKartOzeti(db, oda, rol, user) {
     duyuruSayisi: icerikler.length - odevler.length,
     dosyaSayisi: icerikler.reduce((t, i) => t + (i.ekler || []).length, 0),
     ogrenciSayisi: (await odaOgrencileri(db, oda)).length,
-    program: await odaProgrami(db, oda),
+    program: await odaProgrami(db, oda, baglam),
     yaklasan: yaklasan ? { baslik: metin(yaklasan.baslik), sonTarih: yaklasan.sonTarih } : null,
     sonPaylasim: son
       ? { tur: son.tur, baslik: metin(son.baslik), tarih: metin(son.olusturuldu) }
@@ -360,29 +360,48 @@ async function odaOgrencileri(db, oda, secenek) {
  * Yetkili (bölüm/fakülte/üniversite) odayı görür ama ödev, not ve teslim
  * işlemleri dersin hocasınındır.
  */
-async function odaRolu(db, oda, user) {
+async function odaRolu(db, oda, user, baglam) {
   if (!oda || !user || user.aday) return null;
   if (ogrenciMi(user)) {
-    const dersler = await donemDersleri(db, ogrenciNo(user), oda.donem);
+    // Oda listesinde öğrencinin dönem seçimi zaten okundu (baglam).
+    const dersler =
+      baglam && baglam.ogrenciDersleri && baglam.donem === oda.donem
+        ? baglam.ogrenciDersleri
+        : await donemDersleri(db, ogrenciNo(user), oda.donem);
     const K = await kural();
     return K.dersSeciliMi(oda, dersler) ? 'ogrenci' : null;
   }
   if (!personelMi(user)) return null;
   if (await hocaMi(oda, user)) return 'hoca';
-  const alan = await yetkiliAlani(db, user);
+  // Yetki alanı istek başına bir kez çözülür (her oda için değil).
+  if (baglam && !baglam.alanSozu) baglam.alanSozu = yetkiliAlani(db, user);
+  const alan = await (baglam ? baglam.alanSozu : yetkiliAlani(db, user));
   if (alan && alan.tur !== 'yok' && bolumAlanda(alan, oda.departmentId)) return 'yetkili';
   return null;
 }
 
 // Dersin haftalık saatleri ve derslikleri (ders programından). Program
 // yoksa ya da okunamazsa boş liste: oda yine açılır.
-async function odaProgrami(db, oda) {
+// Bütün ders programı ve bölüm saat ayarları. Oda listesinde her oda için
+// AYRI AYRI okunuyordu: 50 odalı bir bölümde koleksiyonun tamamı 50 kez
+// taranıyordu (listenin geç açılmasının asıl sebebi). `baglam` verilirse
+// istek boyunca bir kez okunur.
+function programVerisi(db, baglam) {
+  if (baglam && baglam.programSozu) return baglam.programSozu;
+  const soz = Promise.all([
+    db.collection('course_schedules').find({}).toArray(),
+    db.collection('bolum_program_ayarlari').find({}).toArray(),
+  ]);
+  if (baglam) baglam.programSozu = soz;
+  return soz;
+}
+
+async function odaProgrami(db, oda, baglam) {
   try {
     const K = await kural();
     const [Slot, Saat] = await programKurali();
     const yari = metin(oda.donem).split('_')[1] || '';
-    const dokumanlar = await db.collection('course_schedules').find({}).toArray();
-    const ayarlar = await db.collection('bolum_program_ayarlari').find({}).toArray();
+    const [dokumanlar, ayarlar] = await programVerisi(db, baglam);
     const ayar = new Map();
     ayarlar.forEach((k) => {
       const id = metin(k.id || k._docId || k.departmentId);
@@ -658,8 +677,12 @@ router.get(
       : K.donemAnahtari();
     const db = await getDbSafe();
     let dersler = [];
+    // İstek boyunca paylaşılan okumalar (ders programı, yetki alanı, öğrencinin
+    // seçimi): oda başına tekrar okunmaz.
+    const baglam = { donem };
     if (ogrenciMi(user)) {
       const ids = await donemDersleri(db, ogrenciNo(user), donem);
+      baglam.ogrenciDersleri = ids;
       if (ids.length) {
         dersler = await db.collection('sinav_dersler').find(dersSorgusu(ids)).toArray();
       }
@@ -689,13 +712,28 @@ router.get(
     } else {
       return res.status(403).json({ error: 'Yetkiniz yok.' });
     }
+    // Odalar SIRAYLA değil, küçük gruplar hâlinde birlikte hazırlanır: her
+    // oda kendi içinde birkaç sorgu atıyor ve sırayla beklemek 50 odalı bir
+    // listede saniyeler sürüyordu. Grup boyu veritabanı havuzunu (10)
+    // boğmayacak kadar küçük tutulur.
     const odalar = [];
-    for (const d of dersler) {
-      if (!dersKimligi(d)) continue;
-      const oda = await odaKaydet(db, d, donem);
-      const rol = await odaRolu(db, oda, user);
-      if (!rol) continue;
-      odalar.push({ ...oda, id: oda._id, rol, ...(await odaKartOzeti(db, oda, rol, user)) });
+    const GRUP = 6;
+    const gecerli = dersler.filter((d) => dersKimligi(d));
+    for (let i = 0; i < gecerli.length; i += GRUP) {
+      const parca = await Promise.all(
+        gecerli.slice(i, i + GRUP).map(async (d) => {
+          const oda = await odaKaydet(db, d, donem);
+          const rol = await odaRolu(db, oda, user, baglam);
+          if (!rol) return null;
+          return {
+            ...oda,
+            id: oda._id,
+            rol,
+            ...(await odaKartOzeti(db, oda, rol, user, baglam)),
+          };
+        })
+      );
+      parca.forEach((o) => o && odalar.push(o));
     }
     odalar.sort((a, b) => metin(a.dersKod).localeCompare(metin(b.dersKod), 'tr'));
     res.json({ donem, odalar });
