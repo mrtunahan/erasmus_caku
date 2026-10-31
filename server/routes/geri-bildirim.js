@@ -219,16 +219,29 @@ router.get(
   })
 );
 
-// ── Rozet: yetkilinin ilgilenmesi beklenen kayıt sayısı ──
+// ── Rozet ──
+//   acik      → yetkilinin ilgilenmesi beklenen kayıt sayısı
+//   yeniYanit → kişinin KENDİ kayıtlarından, yetkilinin son hareketini
+//               (yanıt, durum, yönlendirme) henüz açıp görmediği sayı.
+// Gönderen yanıtı zilden kaçırırsa menüdeki düğme yine haber verir.
 router.get(
   '/ozet',
   requireAuth,
   sar(async (req, res) => {
     const user = req.user;
-    if (user.aday || user.role === 'student') return res.json({ acik: 0 });
+    if (user.aday) return res.json({ acik: 0, yeniYanit: 0 });
     const db = await getDbSafe();
+    const kim = kimOf(user);
+    const benim = await db
+      .collection(KOL)
+      .find({ 'gonderen.kimlik': kim.kimlik, 'gonderen.rol': kim.rol })
+      .project({ sonYetkiliHareket: 1, gonderenOkudu: 1 })
+      .limit(200)
+      .toArray();
+    const yeniYanit = benim.filter((k) => K.yeniYanitVarMi(k)).length;
+    if (user.role === 'student') return res.json({ acik: 0, yeniYanit });
     const alan = await alanOf(db, user);
-    if (alan.tur === 'yok') return res.json({ acik: 0 });
+    if (alan.tur === 'yok') return res.json({ acik: 0, yeniYanit });
     const l = await db
       .collection(KOL)
       .find({ durum: { $in: ['yeni', 'yonlendirildi', 'incelemede'] } })
@@ -241,7 +254,24 @@ router.get(
       if (!s) return false;
       return s === 'bolum' ? true : k.durum !== 'yonlendirildi';
     }).length;
-    res.json({ acik });
+    res.json({ acik, yeniYanit });
+  })
+);
+
+// ── Gönderen kaydını açtı: "yeni yanıt" işareti kalkar ──
+router.post(
+  '/:id/okundu',
+  requireAuth,
+  sar(async (req, res) => {
+    const db = await getDbSafe();
+    const kim = kimOf(req.user);
+    await db
+      .collection(KOL)
+      .updateOne(
+        { _id: metin(req.params.id), 'gonderen.kimlik': kim.kimlik, 'gonderen.rol': kim.rol },
+        { $set: { gonderenOkudu: simdi() } }
+      );
+    res.json({ ok: true });
   })
 );
 
@@ -457,6 +487,8 @@ router.post(
     const set = { guncellendi: simdi() };
     // Yetkilinin ilk yanıtı kaydı "inceleniyor"a alır.
     if (karar.rol === 'yetkili' && kayit.durum === 'yeni') set.durum = 'incelemede';
+    // Gönderen için "yeni yanıt" işareti (rozet + listede etiket).
+    if (karar.rol === 'yetkili') set.sonYetkiliHareket = simdi();
     await db
       .collection(KOL)
       .updateOne({ _id: kayit._id }, { $push: { mesajlar: mesaj }, $set: set });
@@ -468,7 +500,10 @@ router.post(
       db,
       alicilar.filter((a) => a !== kim.kimlik),
       {
-        title: 'Bildiriminize yanıt · ' + kayit.modulAd,
+        title:
+          karar.rol === 'yetkili'
+            ? 'Bildiriminize yanıt geldi: ' + kayit.konu
+            : 'Bildirime ek mesaj: ' + kayit.konu,
         body: g.ad + ': ' + m.metin.slice(0, 140),
       },
       kayit._id
@@ -506,7 +541,7 @@ router.post(
     await db.collection(KOL).updateOne(
       { _id: kayit._id },
       {
-        $set: { durum, guncellendi: simdi() },
+        $set: { durum, guncellendi: simdi(), sonYetkiliHareket: simdi() },
         $push: { gecmis: { olay: 'durum', detay: durum, kim: g.ad, zaman: simdi() } },
       }
     );
@@ -546,6 +581,7 @@ router.post(
         yonlendirilenBolum: hedefBolum,
         yonlendirilenBolumAd: bolumAd,
         yonlendiren: g.ad,
+        sonYetkiliHareket: simdi(),
         guncellendi: simdi(),
       },
       $push: {

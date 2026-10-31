@@ -236,3 +236,24 @@ test('öğrenci modül listesi istemcinin listesiyle aynı (lib/modul-izinleri.j
   const { ogrenciModulleri } = await import('../../lib/modul-izinleri.js');
   assert.deepEqual([...K.OGRENCI_MODULLERI].sort(), [...ogrenciModulleri(true)].sort());
 });
+
+test('gönderene "yeni yanıt" rozeti: yetkili hareketiyle artar, açınca söner', async () => {
+  const y = await istek(OGR, '', {
+    tur: 'soru',
+    modul: 'staj',
+    konu: 'Rozet denemesi',
+    metin: 'Yanıt gelince rozet görünmeli mi?',
+  });
+  const id = y.j.kayit.id;
+  const sayi = async () => (await istek(OGR, '/ozet')).j.yeniYanit;
+  const once = await sayi();
+  await istek(FAK, '/' + id + '/mesaj', { metin: 'Evet, görünmeli.' });
+  assert.equal(await sayi(), once + 1);
+  const liste = (await istek(OGR, '')).j.benim;
+  assert.equal(liste.find((k) => k.id === id).yeniYanit, true);
+  // Başkası "okundu" diyemez; sahibi açınca söner.
+  await istek(OGR2, '/' + id + '/okundu', {});
+  assert.equal(await sayi(), once + 1);
+  await istek(OGR, '/' + id + '/okundu', {});
+  assert.equal(await sayi(), once);
+});

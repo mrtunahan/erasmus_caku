@@ -610,8 +610,46 @@ export function DestekTalebiPaneli({ onGeri }) {
         Destek talebi
       </div>
       {tamam ? (
-        <div style={lgBilgi} data-destek-talebi-tamam>
-          Talebiniz üniversite yetkilisine iletildi. Yanıt yazdığınız e-posta adresine gelecek.
+        <div
+          style={{
+            ...lgBilgi,
+            textAlign: 'center',
+            display: 'grid',
+            gap: 8,
+            justifyItems: 'center',
+          }}
+          data-destek-talebi-tamam
+        >
+          <span
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              background: 'rgba(127,231,220,0.18)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#7FE7DC"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          </span>
+          <b style={{ color: '#FFFFFF' }}>Talebiniz iletildi</b>
+          <span>
+            Üniversite yetkilisi talebinizi aldı. Yanıt, yazdığınız <b>{metin(f.eposta)}</b>{' '}
+            adresine e-postayla gelecek.
+          </span>
         </div>
       ) : (
         <form

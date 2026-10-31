@@ -46,14 +46,14 @@ function GeriBildirimMerkezi({ currentUser, currentRoute }) {
   const [Panel, setPanel] = React.useState(null);
   const [acik, setAcik] = React.useState(false);
   const [kayit, setKayit] = React.useState('');
-  const ogrenci = currentUser && currentUser.role === 'student';
 
+  // Rozet = yetkilinin bekleyen kayıtları + kişinin kendi kayıtlarına gelen,
+  // henüz açıp görmediği yanıtlar (öğrenci dahil herkes).
   const rozetYukle = React.useCallback(() => {
     const yayinla = (n) => {
       window.__geriBildirimRozet = n;
       window.dispatchEvent(new CustomEvent(GB_ROZET, { detail: n }));
     };
-    if (ogrenci) return yayinla(0);
     let token = '';
     try {
       token = localStorage.getItem('caku_auth_token') || '';
@@ -65,12 +65,11 @@ function GeriBildirimMerkezi({ currentUser, currentRoute }) {
       headers: token ? { Authorization: 'Bearer ' + token } : {},
     })
       .then((r) => (r.ok ? r.json() : { acik: 0 }))
-      .then((j) => yayinla(Number(j.acik) || 0))
+      .then((j) => yayinla((Number(j.acik) || 0) + (Number(j.yeniYanit) || 0)))
       .catch(() => {});
-  }, [ogrenci]);
+  }, []);
   React.useEffect(() => {
     rozetYukle();
-    if (ogrenci) return undefined;
     const t = setInterval(rozetYukle, 120000);
     // Yeni bildirim gelince (zil tazelenince) rozet de tazelenir.
     const h = () => rozetYukle();
@@ -79,7 +78,7 @@ function GeriBildirimMerkezi({ currentUser, currentRoute }) {
       clearInterval(t);
       window.removeEventListener('realtime:notifications', h);
     };
-  }, [rozetYukle, ogrenci]);
+  }, [rozetYukle, currentUser]);
 
   const ac = React.useCallback(
     (kayitId) => {
@@ -132,6 +131,7 @@ function GeriBildirimMenuDugmesi({ isMobile, onClose }) {
         if (isMobile && onClose) onClose();
       }}
       data-geri-bildirim-dugmesi
+      title={rozet > 0 ? rozet + ' bildirim sizi bekliyor (yeni yanıt ya da açık kayıt)' : ''}
       style={{
         width: '100%',
         display: 'flex',
