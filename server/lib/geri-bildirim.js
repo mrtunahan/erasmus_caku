@@ -193,6 +193,12 @@ function yetkiliSifati(kayit, alan) {
   return '';
 }
 
+/** Gönderenin henüz görmediği yetkili hareketi (yanıt, durum, yönlendirme) var mı? */
+function yeniYanitVarMi(kayit) {
+  const son = metin(kayit && kayit.sonYetkiliHareket);
+  return !!son && son > metin(kayit && kayit.gonderenOkudu);
+}
+
 /** Görme kararı: gönderen ya da yetkili. */
 function gorebilirMi(kayit, kim, alan) {
   return gonderenMi(kayit, kim) || !!yetkiliSifati(kayit, alan);
@@ -265,6 +271,7 @@ function gorunum(kayit, kim, alan) {
     olusturuldu: k.olusturuldu,
     guncellendi: k.guncellendi,
     benim: gonderenMi(k, kim),
+    yeniYanit: gonderenMi(k, kim) && yeniYanitVarMi(k),
     sifat,
     yonlendirebilir: sifat === 'universite' || sifat === 'fakulte',
   };
@@ -275,6 +282,7 @@ module.exports = {
   OGRENCI_ORTAK,
   YONETIM_MODULLERI,
   modulIzinliMi,
+  yeniYanitVarMi,
   destekTemizle,
   DESTEK_ROLLER,
   TURLER,
