@@ -5,6 +5,8 @@
 // Kimse alanı dışındaki kaydı göremez / yönlendiremez.
 // ══════════════════════════════════════════════════════════════
 process.env.NODE_ENV = 'test';
+process.env.POSTA_TEST_KUTUSU = '1';
+delete process.env.RESEND_API_KEY;
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
@@ -75,7 +77,11 @@ test.before(async () => {
     },
     { _docId: 'p2', name: 'Dr. BÖLÜM YETKİLİ', isDeptManager: true, departmentId: 'kimya' },
     { _docId: 'p3', name: 'Dr. SADE HOCA', departmentId: 'kimya' },
+    { _docId: 'p4', name: 'Prof. Dr. ÜNİVERSİTE YETKİLİ', isUniversityAdmin: true },
   ]);
+  await db
+    .collection('hesap_epostalari')
+    .insertOne({ _id: 'professor:Prof. Dr. ÜNİVERSİTE YETKİLİ', eposta: 'uni@example.edu.tr' });
   await new Promise((ok) => {
     sunucu = app.listen(0, '127.0.0.1', ok);
   });
@@ -161,4 +167,72 @@ test('günlük sınır', async () => {
     });
   }
   assert.equal(son.durum, 429);
+});
+
+test('modül yetkisi: öğrenci yönetim / personel modülü için gönderemez', async () => {
+  const govde = (modul) => ({
+    tur: 'hata',
+    modul,
+    konu: 'Deneme konusu',
+    metin: 'Bu bir deneme açıklamasıdır, yeterince uzun.',
+  });
+  assert.equal((await istek(OGR, '', govde('kullanici'))).durum, 403);
+  assert.equal((await istek(OGR, '', govde('sinav'))).durum, 403);
+  // Sade akademisyen yönetim modülü için gönderemez, sınav için gönderir.
+  assert.equal((await istek(HOCA, '', govde('bolumyonetimi'))).durum, 403);
+  assert.equal((await istek(HOCA, '', govde('sinav'))).durum, 200);
+  // Fakülte yetkilisi yönetim modülü için gönderebilir (hedef: üniversite).
+  const f = await istek(FAK, '', govde('bolumyonetimi'));
+  assert.equal(f.durum, 200);
+  assert.equal(f.j.kayit.hedef, 'universite');
+});
+
+test('giriş ekranı destek talebi: oturumsuz, üniversite yetkilisine e-posta + gelen kutusu', async () => {
+  const posta = require('../lib/posta');
+  const once = posta.testKutusu.length;
+  const destek = (govde) =>
+    fetch(taban + '/api/geri-bildirim/destek', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.9.9.9' },
+      body: JSON.stringify(govde),
+    }).then(async (r) => ({ durum: r.status, j: await r.json().catch(() => null) }));
+  const temel = {
+    ad: 'Zeynep Yılmaz',
+    eposta: 'zeynep@example.com',
+    rol: 'ogrenci',
+    numara: '2023001',
+    konu: 'Giriş yapamıyorum',
+    metin: 'Şifremi unuttum ve e-posta adresim kayıtlı değil.',
+  };
+  assert.equal((await destek({ ...temel, eposta: 'gecersiz' })).durum, 400);
+  // Bot tuzağı doluysa sessizce yok sayılır.
+  assert.equal((await destek({ ...temel, web: 'http://spam' })).durum, 200);
+  assert.equal((await destek(temel)).durum, 200);
+
+  const iletiler = posta.testKutusu.slice(once);
+  assert.equal(iletiler.length, 1, 'yalnız gerçek talep e-posta üretir');
+  assert.equal(iletiler[0].kime, 'uni@example.edu.tr');
+  assert.match(iletiler[0].metin, /Zeynep Yılmaz/);
+
+  const UNI = jeton({ role: 'professor', identifier: 'Prof. Dr. ÜNİVERSİTE YETKİLİ' });
+  const gelen = (await istek(UNI, '')).j.gelen;
+  const k = gelen.find((x) => x.konu === 'Giriş yapamıyorum');
+  assert.ok(k, 'üniversite yetkilisinin gelen kutusunda');
+  // Fakülte yetkilisi görmez (hedef üniversite).
+  assert.ok(!(await istek(FAK, '')).j.gelen.some((x) => x.konu === 'Giriş yapamıyorum'));
+
+  // Yetkilinin yanıtı gönderenin e-postasına gider.
+  const y = await istek(UNI, '/' + k.id + '/mesaj', {
+    metin: 'Şifreniz sıfırlandı, giriş yapabilirsiniz.',
+  });
+  assert.equal(y.durum, 200);
+  const yanitIleti = posta.testKutusu.slice(once).find((m) => m.kime === 'zeynep@example.com');
+  assert.ok(yanitIleti, 'yanıt e-postası');
+  assert.match(yanitIleti.metin, /sıfırlandı/);
+});
+
+test('öğrenci modül listesi istemcinin listesiyle aynı (lib/modul-izinleri.js)', async () => {
+  const K = require('../lib/geri-bildirim');
+  const { ogrenciModulleri } = await import('../../lib/modul-izinleri.js');
+  assert.deepEqual([...K.OGRENCI_MODULLERI].sort(), [...ogrenciModulleri(true)].sort());
 });

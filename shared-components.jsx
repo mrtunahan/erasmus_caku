@@ -10297,11 +10297,15 @@ const LoginModal = ({ onLogin }) => {
 
           {/* Right panel — form */}
           <div className="lg-right">
-            <h2 className="lg-right-heading">{hesapModu ? 'Hesap Kurtarma' : 'Giriş Yap'}</h2>
+            <h2 className="lg-right-heading">
+              {hesapModu === 'destek' ? 'Destek' : hesapModu ? 'Hesap Kurtarma' : 'Giriş Yap'}
+            </h2>
             <p className="lg-right-sub">
-              {hesapModu
-                ? 'Şifrenizi e-posta adresinizle yenileyin.'
-                : 'Devam etmek için hesabınızla oturum açın.'}
+              {hesapModu === 'destek'
+                ? 'Üniversite yetkilisine yazın.'
+                : hesapModu
+                  ? 'Şifrenizi e-posta adresinizle yenileyin.'
+                  : 'Devam etmek için hesabınızla oturum açın.'}
             </p>
 
             {hesapModu === 'yenile' && window.SifreYenilePaneli ? (
@@ -10311,6 +10315,8 @@ const LoginModal = ({ onLogin }) => {
               />
             ) : hesapModu === 'unuttum' && window.SifremiUnuttumPaneli ? (
               <window.SifremiUnuttumPaneli onGeri={() => setHesapModu(null)} />
+            ) : hesapModu === 'destek' && window.DestekTalebiPaneli ? (
+              <window.DestekTalebiPaneli onGeri={() => setHesapModu(null)} />
             ) : (
               <>
                 {activeTab === 'admin' && (
@@ -11363,9 +11369,18 @@ const LoginModal = ({ onLogin }) => {
                   </form>
                 )}
 
-                {/* Şifremi unuttum — bütün sekmeler için tek bağlantı (yalnız e-posta ister). */}
+                {/* Şifremi unuttum — bütün sekmeler için tek bağlantı (yalnız e-posta ister).
+                    Yanında: giriş yapamayanlar için üniversite yetkilisine destek talebi. */}
                 {window.SifremiUnuttumPaneli && !registerMode && !setupPasswordMode && (
-                  <div style={{ textAlign: 'center', marginTop: 16 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      gap: 18,
+                      flexWrap: 'wrap',
+                      marginTop: 16,
+                    }}
+                  >
                     <button
                       type="button"
                       onClick={() => setHesapModu('unuttum')}
@@ -11383,6 +11398,25 @@ const LoginModal = ({ onLogin }) => {
                     >
                       Şifremi unuttum
                     </button>
+                    {window.DestekTalebiPaneli && (
+                      <button
+                        type="button"
+                        onClick={() => setHesapModu('destek')}
+                        data-destek-talebi
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          color: '#7FE7DC',
+                          fontWeight: 600,
+                          fontSize: 13,
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        Destek talebi
+                      </button>
+                    )}
                   </div>
                 )}
               </>

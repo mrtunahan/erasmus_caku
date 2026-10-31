@@ -270,6 +270,10 @@ router.post(
     const g = await gonderenBilgisi(db, user);
     const bilgi = await bolumBilgisi(db);
     const benimAlan = await alanOf(db, user);
+    // Yalnız yetki alanındaki (gördüğü) modüller için bildirim.
+    if (!K.modulIzinliMi(t.veri.modul, { rol: user.role, yonetici: benimAlan.tur !== 'yok' })) {
+      return res.status(403).json({ error: 'Bu modül için bildirim gönderemezsiniz.' });
+    }
     // Fakülte yetkilisinin kendi bildirimi üniversiteye gider.
     const fakulteYet = benimAlan.tur === 'fakulte' ? [] : await fakulteYetkilileri(db, g.bolumId);
     const hedef = fakulteYet.length ? 'fakulte' : 'universite';
@@ -300,6 +304,123 @@ router.post(
       kayit._id
     );
     res.json({ ok: true, kayit: K.gorunum(kayit, kim, benimAlan) });
+  })
+);
+
+// ── GİRİŞ EKRANINDAN DESTEK TALEBİ (oturum gerekmez) ──
+// Giriş yapamayan kişi (şifresini bilmeyen, hesabı olmayan, hata alan)
+// üniversite yetkilisine yazar: e-posta olarak gider ve yetkilinin "Gelen
+// kutusu"na da düşer. Kimlik doğrulanmadığı için sınırlar sıkıdır: IP başına
+// saatte 5, sistem genelinde günde 100; bot tuzağı alanı (web) doluysa
+// sessizce yok sayılır.
+const destekSayac = new Map();
+let destekGun = { gun: '', n: 0 };
+function destekSiniri(ip) {
+  const simdiMs = Date.now();
+  const bugun = new Date().toISOString().slice(0, 10);
+  if (destekGun.gun !== bugun) destekGun = { gun: bugun, n: 0 };
+  if (destekGun.n >= 100) return true;
+  const k = destekSayac.get(ip);
+  if (!k || simdiMs - k.bas > 3600 * 1000) {
+    destekSayac.set(ip, { bas: simdiMs, n: 1 });
+  } else if (++k.n > 5) {
+    return true;
+  }
+  if (destekSayac.size > 5000) destekSayac.clear();
+  destekGun.n++;
+  return false;
+}
+
+async function universiteYetkiliEpostalari(db) {
+  const adlar = await universiteYetkilileri(db);
+  const kayitlar = adlar.length
+    ? await db
+        .collection('hesap_epostalari')
+        .find({ _id: { $in: adlar.map((a) => 'professor:' + a) } })
+        .toArray()
+    : [];
+  const ekstra = metin(process.env.DESTEK_EPOSTA)
+    .split(/[,;\s]+/)
+    .filter(Boolean);
+  return [
+    ...new Set(
+      kayitlar
+        .map((k) => metin(k.eposta))
+        .concat(ekstra)
+        .filter(Boolean)
+    ),
+  ];
+}
+
+router.post(
+  '/destek',
+  sar(async (req, res) => {
+    const g = req.body && typeof req.body === 'object' ? req.body : {};
+    const ip =
+      metin((req.headers['x-forwarded-for'] || '').toString().split(',')[0]) || metin(req.ip);
+    if (metin(g.web)) return res.json({ ok: true }); // bot tuzağı
+    const t = K.destekTemizle(g);
+    if (t.hata) return res.status(400).json({ error: t.hata });
+    if (destekSiniri(ip || 'bilinmiyor')) {
+      return res.status(429).json({ error: 'Çok fazla talep gönderildi. Bir süre sonra deneyin.' });
+    }
+    const db = await getDbSafe();
+    const v = t.veri;
+    const kayit = {
+      _id: yeniKimlik(),
+      tur: 'soru',
+      modul: 'genel',
+      modulAd: 'Giriş / destek talebi',
+      konu: v.konu,
+      metin: v.metin,
+      sayfa: 'giris',
+      tarayici: metin(g.tarayici).slice(0, 300),
+      gonderen: {
+        rol: 'ziyaretci',
+        kimlik: 'destek:' + v.eposta,
+        ad: v.ad,
+        etiket: v.rolAd + (v.numara ? ' · ' + v.numara : '') + ' · ' + v.eposta,
+        eposta: v.eposta,
+      },
+      bolumId: '',
+      bolumAd: v.bolum,
+      hedef: 'universite',
+      durum: 'yeni',
+      yonlendirilenBolum: '',
+      mesajlar: [],
+      gecmis: [{ olay: 'olusturuldu', kim: v.ad + ' (giriş ekranı)', zaman: simdi() }],
+      olusturuldu: simdi(),
+      guncellendi: simdi(),
+      ip,
+    };
+    await db.collection(KOL).insertOne(kayit);
+    await bildir(
+      req,
+      db,
+      await universiteYetkilileri(db),
+      { title: 'Giriş ekranından destek talebi', body: v.ad + ': ' + v.konu },
+      kayit._id
+    );
+    const posta = require('../lib/posta');
+    const alicilar = await universiteYetkiliEpostalari(db);
+    for (const kime of alicilar) {
+      await posta.gonder({
+        kime,
+        konu: 'Destek talebi: ' + v.konu,
+        tur: 'destek_talebi',
+        yanitAdresi: v.eposta,
+        baslik: 'Giriş ekranından destek talebi',
+        paragraflar: [
+          'Gönderen: ' + v.ad + ' (' + v.rolAd + (v.numara ? ', ' + v.numara : '') + ')',
+          'E-posta: ' + v.eposta + (v.bolum ? ' · Bölüm: ' + v.bolum : ''),
+          'Konu: ' + v.konu,
+          v.metin,
+        ],
+        altNot:
+          'Bu iletiyi "Yanıtla" ile doğrudan gönderene cevaplayabilirsiniz. Talep sistemde "Hata / Öneri" gelen kutusunda da durur.',
+      });
+    }
+    res.json({ ok: true });
   })
 );
 
@@ -352,6 +473,19 @@ router.post(
       },
       kayit._id
     );
+    // Giriş ekranından gelen talebin sahibi sisteme giremiyor olabilir:
+    // yetkilinin yanıtı e-postasına da gider.
+    if (karar.rol === 'yetkili' && kayit.gonderen && kayit.gonderen.rol === 'ziyaretci') {
+      const posta = require('../lib/posta');
+      await posta.gonder({
+        kime: kayit.gonderen.eposta,
+        konu: 'Destek talebiniz: ' + kayit.konu,
+        tur: 'destek_yaniti',
+        baslik: 'Destek talebinize yanıt',
+        paragraflar: [m.metin],
+        altNot: 'Bu ileti Offline Asistan destek talebiniz üzerine gönderildi.',
+      });
+    }
     const yeni = await db.collection(KOL).findOne({ _id: kayit._id });
     res.json({ ok: true, kayit: K.gorunum(yeni, kim, alan) });
   })

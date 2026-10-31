@@ -52,8 +52,18 @@ async function istek(yol, govde) {
   return j;
 }
 
-/** Seçilebilir modüller: uygulamanın modül listeleri + genel başlıklar. */
-function modulSecenekleri() {
+/**
+ * Seçilebilir modüller. `gorunen` sol menünün o an gösterdiği modüllerdir
+ * (app-shell → Sidebar): herkes yalnız gördüğü modül için bildirim gönderir.
+ * Verilmezse (ör. test) uygulamanın modül listesi kullanılır.
+ */
+function modulSecenekleri(gorunen) {
+  if (Array.isArray(gorunen) && gorunen.length) {
+    const gorulen = new Set(['genel', 'diger']);
+    return [{ id: 'genel', ad: 'Genel (giriş, hesap, şifre)' }]
+      .concat(gorunen.filter((m) => m && m.id && !gorulen.has(m.id) && gorulen.add(m.id)))
+      .concat([{ id: 'diger', ad: 'Diğer' }]);
+  }
   const gorulen = new Set();
   const out = [{ id: 'genel', ad: 'Genel (giriş, hesap, şifre)' }];
   []
@@ -124,8 +134,8 @@ function DurumRozeti({ durum, ad }) {
   );
 }
 
-function YeniBildirim({ currentRoute, onGonderildi }) {
-  const moduller = useMemo(modulSecenekleri, []);
+function YeniBildirim({ currentRoute, gorunenModuller, onGonderildi }) {
+  const moduller = useMemo(() => modulSecenekleri(gorunenModuller), [gorunenModuller]);
   const [tur, setTur] = useState('hata');
   const [modul, setModul] = useState(() =>
     moduller.some((m) => m.id === currentRoute) ? currentRoute : 'genel'
@@ -368,6 +378,12 @@ function KayitAyrinti({ kayit, bolumler, onGeri, onGuncellendi }) {
         ))}
         {kayit.durum !== 'kapatildi' || yetkili ? (
           <div style={{ display: 'grid', gap: 6 }}>
+            {yetkili && kayit.gonderen && kayit.gonderen.rol === 'ziyaretci' && (
+              <div style={{ fontSize: 12.5, color: '#92400E' }}>
+                Bu talep giriş ekranından geldi; yanıtınız gönderene e-postayla da iletilir
+                {kayit.gonderen.eposta ? ' (' + kayit.gonderen.eposta + ')' : ''}.
+              </div>
+            )}
             <textarea
               rows={3}
               value={mesaj}
@@ -471,7 +487,7 @@ function KayitAyrinti({ kayit, bolumler, onGeri, onGuncellendi }) {
   );
 }
 
-function GeriBildirimPaneli({ currentRoute, acilacakKayit, onKapat, onDegisti }) {
+function GeriBildirimPaneli({ currentRoute, acilacakKayit, moduller, onKapat, onDegisti }) {
   const [sekme, setSekme] = useState(acilacakKayit ? 'liste' : 'yeni');
   const [veri, setVeri] = useState({ benim: [], gelen: [], yetkili: false, bolumler: [] });
   const [secili, setSecili] = useState(acilacakKayit || '');
@@ -611,6 +627,7 @@ function GeriBildirimPaneli({ currentRoute, acilacakKayit, onKapat, onDegisti })
           ) : (
             <YeniBildirim
               currentRoute={currentRoute}
+              gorunenModuller={moduller}
               onGonderildi={() => {
                 setTesekkur(true);
                 yukle();

@@ -30,19 +30,30 @@ const IDLE_LIMIT_MS = 30 * 60 * 1000;
 const IDLE_UYARI_MS = 60 * 1000;
 const IDLE_ACTIVITY_KEY = 'caku_last_activity';
 
-// ── HATA / ÖNERİ BİLDİR düğmesi (üst çubuk) ──
-// Panel (geri-bildirim.jsx) ilk tıklamada yüklenir. Yetkiliye (fakülte /
-// üniversite / bölüm) ilgilenmesi beklenen kayıt sayısı rozet olarak görünür.
-// Zildeki "geri bildirim" bildirimine tıklanınca panel o kayıtla açılır.
-function GeriBildirimDugmesi({ currentUser, currentRoute, isMobile }) {
+// ── HATA / ÖNERİ BİLDİR ──
+// İki parça:
+//   • GeriBildirimMerkezi — uygulama kökünde HER ZAMAN takılı: paneli
+//     (geri-bildirim.jsx, ilk açılışta yüklenir) tutar, zildeki "geri
+//     bildirim" bildirimini dinler (telefonda sol menü kapalıyken de çalışsın
+//     diye menüde değil), yetkilinin bekleyen kayıt sayısını (rozet) çeker.
+//   • GeriBildirimMenuDugmesi — sol menüde, "E-posta Adresim"in üstünde.
+// Modül listesi sol menünün o an GÖSTERDİĞİ modüllerdir: herkes yalnız
+// gördüğü modül için bildirim gönderir (sunucu da kaba sınır koyar).
+const GB_AC = 'geri-bildirim:ac';
+const GB_ROZET = 'geri-bildirim:rozet';
+
+function GeriBildirimMerkezi({ currentUser, currentRoute }) {
   const [Panel, setPanel] = React.useState(null);
   const [acik, setAcik] = React.useState(false);
   const [kayit, setKayit] = React.useState('');
-  const [rozet, setRozet] = React.useState(0);
   const ogrenci = currentUser && currentUser.role === 'student';
 
   const rozetYukle = React.useCallback(() => {
-    if (ogrenci) return;
+    const yayinla = (n) => {
+      window.__geriBildirimRozet = n;
+      window.dispatchEvent(new CustomEvent(GB_ROZET, { detail: n }));
+    };
+    if (ogrenci) return yayinla(0);
     let token = '';
     try {
       token = localStorage.getItem('caku_auth_token') || '';
@@ -54,14 +65,20 @@ function GeriBildirimDugmesi({ currentUser, currentRoute, isMobile }) {
       headers: token ? { Authorization: 'Bearer ' + token } : {},
     })
       .then((r) => (r.ok ? r.json() : { acik: 0 }))
-      .then((j) => setRozet(Number(j.acik) || 0))
+      .then((j) => yayinla(Number(j.acik) || 0))
       .catch(() => {});
   }, [ogrenci]);
   React.useEffect(() => {
     rozetYukle();
     if (ogrenci) return undefined;
     const t = setInterval(rozetYukle, 120000);
-    return () => clearInterval(t);
+    // Yeni bildirim gelince (zil tazelenince) rozet de tazelenir.
+    const h = () => rozetYukle();
+    window.addEventListener('realtime:notifications', h);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('realtime:notifications', h);
+    };
   }, [rozetYukle, ogrenci]);
 
   const ac = React.useCallback(
@@ -76,83 +93,97 @@ function GeriBildirimDugmesi({ currentUser, currentRoute, isMobile }) {
     },
     [Panel]
   );
+  React.useEffect(() => {
+    const h = (e) => ac(String((e && e.detail && e.detail.kayitId) || ''));
+    window.addEventListener(GB_AC, h);
+    return () => window.removeEventListener(GB_AC, h);
+  }, [ac]);
   (window.useBildirimHedefi || (() => {}))('geribildirim', (h) => {
     ac(String((h && h.meta && h.meta.kayitId) || ''));
   });
 
+  if (!acik || !Panel) return null;
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => ac('')}
-        title="Hata / öneri bildir"
-        aria-label="Hata / öneri bildir"
-        data-geri-bildirim-dugmesi
-        style={{
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: isMobile ? '6px 8px' : '7px 12px',
-          border: '1px solid rgba(255,255,255,0.25)',
-          background: 'transparent',
-          color: 'rgba(255,255,255,0.85)',
-          borderRadius: 8,
-          cursor: 'pointer',
-          fontSize: 12,
-          fontWeight: 500,
-        }}
+    <Panel
+      currentRoute={currentRoute}
+      acilacakKayit={kayit}
+      moduller={window.__geriBildirimModulleri || null}
+      onKapat={() => {
+        setAcik(false);
+        rozetYukle();
+      }}
+      onDegisti={rozetYukle}
+    />
+  );
+}
+
+function GeriBildirimMenuDugmesi({ isMobile, onClose }) {
+  const [rozet, setRozet] = React.useState(() => window.__geriBildirimRozet || 0);
+  React.useEffect(() => {
+    const h = (e) => setRozet(Number(e && e.detail) || 0);
+    window.addEventListener(GB_ROZET, h);
+    return () => window.removeEventListener(GB_ROZET, h);
+  }, []);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        window.dispatchEvent(new CustomEvent(GB_AC, { detail: {} }));
+        if (isMobile && onClose) onClose();
+      }}
+      data-geri-bildirim-dugmesi
+      style={{
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '10px 12px',
+        borderRadius: 8,
+        border: '1px solid #E2E8F0',
+        background: 'white',
+        color: '#B45309',
+        fontSize: 13,
+        fontWeight: 500,
+        fontFamily: "'Inter', sans-serif",
+        cursor: 'pointer',
+      }}
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-          <line x1="12" y1="8" x2="12" y2="11" />
-          <line x1="12" y1="14" x2="12.01" y2="14" />
-        </svg>
-        {!isMobile && 'Hata / Öneri'}
-        {rozet > 0 && (
-          <span
-            style={{
-              position: 'absolute',
-              top: -6,
-              right: -6,
-              minWidth: 18,
-              height: 18,
-              borderRadius: 9,
-              background: '#DC2626',
-              color: 'white',
-              fontSize: 10.5,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 4px',
-            }}
-          >
-            {rozet > 99 ? '99+' : rozet}
-          </span>
-        )}
-      </button>
-      {acik && Panel && (
-        <Panel
-          currentRoute={currentRoute}
-          acilacakKayit={kayit}
-          onKapat={() => {
-            setAcik(false);
-            rozetYukle();
+        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+        <line x1="12" y1="8" x2="12" y2="11" />
+        <line x1="12" y1="14" x2="12.01" y2="14" />
+      </svg>
+      Hata / Öneri Bildir
+      {rozet > 0 && (
+        <span
+          style={{
+            marginLeft: 'auto',
+            minWidth: 20,
+            height: 20,
+            borderRadius: 10,
+            background: '#DC2626',
+            color: 'white',
+            fontSize: 11,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0 5px',
           }}
-          onDegisti={rozetYukle}
-        />
+        >
+          {rozet > 99 ? '99+' : rozet}
+        </span>
       )}
-    </>
+    </button>
   );
 }
 
@@ -356,7 +387,6 @@ const TopHeader = ({
   onNavigate,
   availableDepts = [],
   onDepartmentChange,
-  currentRoute,
 }) => {
   const dept = DEPARTMENTS.find((d) => d.id === activeDepartment);
   const [deptMenuOpen, setDeptMenuOpen] = React.useState(false);
@@ -579,13 +609,6 @@ const TopHeader = ({
 
       {/* Right: Bildirim + User info + Logout */}
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
-        {currentUser && !currentUser.aday && (
-          <GeriBildirimDugmesi
-            currentUser={currentUser}
-            currentRoute={currentRoute}
-            isMobile={isMobile}
-          />
-        )}
         {window.BellMenu && currentUser && (
           <window.BellMenu
             currentUser={currentUser}
@@ -801,6 +824,35 @@ const Sidebar = ({
   };
 
   const visibleModules = getVisibleModules();
+  // Hata / öneri bildiriminde seçilebilecek modüller: menünün aşağıda
+  // GÖSTERDİĞİ bölümler (bölüm, ortak, yönetim, hiyerarşi) — aynı koşullar.
+  const ortakGorunur =
+    !isStajYetkilisi &&
+    !isMemur &&
+    !studentLocked &&
+    !currentUser?.aday &&
+    (!isOnExtraDept || isExternalUser)
+      ? isOnExtraDept && isExternalUser
+        ? COMMON_MODULES.filter((m) => m.id === 'portal')
+        : COMMON_MODULES.filter((m) =>
+            window.ortakModulGorunurMu ? window.ortakModulGorunurMu(m, currentUser) : true
+          )
+      : [];
+  const yonetimGorunur =
+    !isStajYetkilisi && !isOnExtraDept && (isAdmin || isDeptManager || isHierarchyManager)
+      ? ADMIN_MODULES.filter((m) => m.id !== 'audit' || uniAdminMi)
+      : [];
+  const hiyerarsiGorunur =
+    !isStajYetkilisi && !isOnExtraDept
+      ? HIERARCHY_MODULES.filter((m) => currentUser && currentUser[m.flag])
+      : [];
+  window.__geriBildirimModulleri = (() => {
+    const gorulen = new Set();
+    return visibleModules
+      .concat(ortakGorunur, yonetimGorunur, hiyerarsiGorunur)
+      .filter((m) => m && m.id && !gorulen.has(m.id) && gorulen.add(m.id))
+      .map((m) => ({ id: m.id, ad: m.label || m.id }));
+  })();
   const activeDept = DEPARTMENTS.find((d) => d.id === activeDepartment);
 
   const sidebarWidth = 260;
@@ -1167,6 +1219,7 @@ const Sidebar = ({
           gap: 8,
         }}
       >
+        {!currentUser?.aday && <GeriBildirimMenuDugmesi isMobile={isMobile} onClose={onClose} />}
         {onRequestEposta && (
           <button
             onClick={() => {
@@ -3662,6 +3715,7 @@ function AppShell() {
           anket zorunlu, duyuru bilgilendirme. */}
       {window.DuyuruPopup && !currentUser?.aday && <window.DuyuruPopup currentUser={currentUser} />}
 
+      {!currentUser.aday && <GeriBildirimMerkezi currentUser={currentUser} currentRoute={route} />}
       <TopHeader
         currentUser={currentUser}
         onLogout={handleLogout}
@@ -3672,7 +3726,6 @@ function AppShell() {
         onNavigate={navigate}
         availableDepts={topAvailableDepts}
         onDepartmentChange={handleDepartmentChange}
-        currentRoute={route}
       />
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
