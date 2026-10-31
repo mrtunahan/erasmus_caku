@@ -2,6 +2,7 @@
 // "audit_logs" adında YENİ bir koleksiyona yazar; mevcut verilere
 // dokunmaz. Fire-and-forget — log yazımındaki hata uygulamayı etkilemez.
 
+const { istemciIp } = require('../lib/istemci-ip');
 const { logger } = require('../lib/logger');
 
 const AUDIT_COLLECTION = 'audit_logs';
@@ -13,11 +14,7 @@ const AUDIT_COLLECTION = 'audit_logs';
 //   - actorDetail: zengin obje — sorgulama/forensik için
 function actorFrom(req) {
   const u = req.user || {};
-  const ip =
-    (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
-    req.ip ||
-    req.socket?.remoteAddress ||
-    null;
+  const ip = istemciIp(req) || null;
   // JWT payload'da kullanıcı adı `identifier` alanında tutulur (akademiyende
   // ad-soyad, öğrencide öğrenci no). Aktör olarak bunu tercih et — IP'ye
   // düşmeyi engeller.

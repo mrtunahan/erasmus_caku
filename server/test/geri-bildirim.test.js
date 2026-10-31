@@ -257,3 +257,22 @@ test('gönderene "yeni yanıt" rozeti: yetkili hareketiyle artar, açınca söne
   await istek(OGR, '/' + id + '/okundu', {});
   assert.equal(await sayi(), once);
 });
+
+test('destek talebi IP sınırı X-Forwarded-For değiştirilerek aşılamaz', async () => {
+  let son = 0;
+  for (let i = 0; i < 7; i++) {
+    const r = await fetch(taban + '/api/geri-bildirim/destek', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.' + i },
+      body: JSON.stringify({
+        ad: 'Deneme Kişi',
+        eposta: 'deneme' + i + '@example.com',
+        konu: 'Sınır denemesi',
+        metin: 'IP başlığı değiştirilerek sınır aşılmamalı.',
+      }),
+    });
+    son = r.status;
+    if (son === 429) break;
+  }
+  assert.equal(son, 429);
+});

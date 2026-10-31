@@ -1,5 +1,6 @@
 const { adBuyukHarf } = require('../lib/ad-bicim');
 const express = require('express');
+const { istemciIp } = require('../lib/istemci-ip');
 const { adayNoMu } = require('../lib/aday-yetki');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
@@ -806,10 +807,7 @@ router.post('/change-password', async (req, res) => {
             actor: 'anonim',
             target: 'student_passwords',
             targetId: identifier,
-            ip:
-              (req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim() ||
-              req.ip ||
-              null,
+            ip: istemciIp(req) || null,
             userAgent: req.headers['user-agent'] || null,
           });
           const sifreBildirimi = {

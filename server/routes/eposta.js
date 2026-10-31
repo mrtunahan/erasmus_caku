@@ -29,6 +29,7 @@ const { profilBul } = require('../lib/akademisyen-kimlik');
 const K = require('../lib/eposta-kurali');
 const posta = require('../lib/posta');
 const oturumIptal = require('../lib/oturum-iptal');
+const { istemciIp } = require('../lib/istemci-ip');
 // Ad değişince (büyük harf standardı) eski adla kalan hesap kaydını taşır.
 const { guncelHesap, eskiAdliHesabiTasi } = require('../lib/hesap-ad-tasima');
 
@@ -58,10 +59,8 @@ function sinirAsildi(anahtar, enCok, pencereDk) {
   k.n++;
   return k.n > enCok;
 }
-const ipOf = (req) =>
-  metin((req.headers['x-forwarded-for'] || '').toString().split(',')[0]) ||
-  metin(req.ip) ||
-  'bilinmiyor';
+// Gerçek istemci IP'si (X-Forwarded-For'un ilk değeri istemcinin yazdığıdır).
+const ipOf = (req) => istemciIp(req) || 'bilinmiyor';
 
 /** Bu ortamda e-posta doğrulaması girişte zorunlu mu? */
 function zorunluMu() {
