@@ -300,6 +300,8 @@ function computeAvailableDepts(currentUser, adminScope, memurAtamalari) {
 const BOLUMDEN_BAGIMSIZ_MODULLER = new Set([
   // TTO talebi kişiye aittir, bölüm seçimine bağlı değildir.
   'tto',
+  // Buluş bildirimi de kişiye aittir.
+  'patent',
   'univ',
   'tanitim',
   'fakulte',
@@ -2825,6 +2827,7 @@ function AppShell() {
       isDeptManager: user.isDeptManager || false,
       isStajCoordinator: user.isStajCoordinator || false,
       isTtoYoneticisi: user.isTtoYoneticisi || false,
+      isPatentYoneticisi: user.isPatentYoneticisi || false,
       // Memur rolü — yenileme sonrası da korunmalı (aksi halde rol/erişim kaybolur).
       isMemur: user.isMemur || false,
       memurModules: Array.isArray(user.memurModules) ? user.memurModules : [],
@@ -3507,6 +3510,7 @@ function AppShell() {
         yapayzeka: window.YapayZekaApp,
         yolharitalari: window.YolHaritalariApp,
         tto: window.TtoApp,
+        patent: window.PatentApp,
         yataygecis: window.YatayGecisApp,
         tabanpuan: window.TabanPuanModuluApp,
         dikeygecis: window.DikeyGecisApp,

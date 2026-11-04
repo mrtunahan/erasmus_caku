@@ -321,6 +321,23 @@ function ttoKurali() {
   return ttoKuraliSozu;
 }
 
+// Patent & FSMH kuralları: istemciyle AYNI dosya (lib/patent-fsmh.js).
+let patentKuraliSozu = null;
+function patentKurali() {
+  if (!patentKuraliSozu) patentKuraliSozu = import('../../lib/patent-fsmh.js');
+  return patentKuraliSozu;
+}
+
+// Patent & FSMH yöneticileri: üniversite yetkilisinin atadığı akademisyenler.
+// Gelen buluş bildirimi zil bildirimi bunlara gider.
+async function patentYoneticileri(db) {
+  const liste = await db
+    .collection('professors')
+    .find({ isPatentYoneticisi: true }, { projection: { name: 1 } })
+    .toArray();
+  return [...new Set(liste.map((p) => String((p && p.name) || '').trim()).filter(Boolean))];
+}
+
 // TTO ödeme defteri kuralları: istemciyle AYNI dosya (lib/tto-odeme.js).
 let ttoOdemeKuraliSozu = null;
 function ttoOdemeKurali() {
@@ -592,7 +609,27 @@ const ALLOWED_COLLECTIONS = [
   'tto_projeler',
   'tto_oranlar',
   'tto_is_kayitlari',
+  // PATENT & FSMH — akademisyenin buluş bildirimleri ve yöneticinin portföyü
+  // (patent-otomasyon/). Kurallar lib/patent-fsmh.js'te; öğrenciye kapalı.
+  'patent_bildirimleri',
+  'patent_kayitlari',
+  'patent_basvuru_sahipleri',
+  'patent_bolumler',
+  'patent_vekil_firmalar',
+  'patent_fsmh_turleri',
 ];
+
+// Patent & FSMH portföyü: okuma VE yazma yalnız üniversite yetkilisinin atadığı
+// Patent & FSMH yöneticisine (isPatentYoneticisi) ve sistem yöneticisine.
+// Liste lib/patent-fsmh.js → PATENT_KOLEKSIYONLARI ile aynıdır (burada
+// eşzamanlı gerekli olduğu için kopyalandı; değişirse ikisi birden).
+const PATENT_PORTFOY_KOLEKSIYONLARI = new Set([
+  'patent_kayitlari',
+  'patent_basvuru_sahipleri',
+  'patent_bolumler',
+  'patent_vekil_firmalar',
+  'patent_fsmh_turleri',
+]);
 
 // TTO ödeme defteri: IBAN, firma vergi bilgisi ve ödeme tutarları taşır.
 // Sıradan akademisyen de, öğrenci de, bölüm/fakülte/üniversite yetkilisi de
@@ -679,13 +716,21 @@ const STAFF_ROLES = new Set(['professor', 'bolum_yetkilisi', 'admin']);
 // alanlar mevcut değerlerine SABİTLENİR — böylece sıradan bir akademisyenin
 // kendi kaydına isUniversityAdmin:true yazarak admin'e yükselmesi engellenir,
 // tam-doküman güncelleyen meşru akışlar ise bozulmaz.
-const PRIV_FIELDS = ['isUniversityAdmin', 'isFacultyManager', 'isDeptManager', 'isTtoYoneticisi'];
+const PRIV_FIELDS = [
+  'isUniversityAdmin',
+  'isFacultyManager',
+  'isDeptManager',
+  'isTtoYoneticisi',
+  // Patent & FSMH yöneticisini yalnız üniversite yetkilisi atar.
+  'isPatentYoneticisi',
+];
 
 const PRIV_ETIKET = {
   isUniversityAdmin: 'üniversite yetkilisi',
   isFacultyManager: 'fakülte yetkilisi',
   isDeptManager: 'bölüm yetkilisi',
   isTtoYoneticisi: 'TTO yöneticisi',
+  isPatentYoneticisi: 'Patent & FSMH yöneticisi',
 };
 
 // Yapısal koleksiyonlar: bayraksız (sade) professor rolü yazamaz
@@ -886,6 +931,13 @@ const STUDENT_READ_DENY = new Set([
   'tto_projeler',
   'tto_oranlar',
   'tto_is_kayitlari',
+  // Patent & FSMH: buluş bildirimleri ve portföy personelin işidir.
+  'patent_bildirimleri',
+  'patent_kayitlari',
+  'patent_basvuru_sahipleri',
+  'patent_bolumler',
+  'patent_vekil_firmalar',
+  'patent_fsmh_turleri',
   // Memur belge kutusu: başka öğrencilerin resmî çıktıları ve dilekçe
   // adresleri. Hiçbir öğrenci ekranı bu koleksiyonu kullanmıyor; kenar
   // çubuğu sayacı 403'ü sessizce boş liste sayar (lib/api-hata.js).
@@ -1004,6 +1056,7 @@ async function getActorFlags(db, user) {
     deptManager: false,
     stajYetkilisi: false,
     ttoYonetici: false,
+    patentYonetici: false,
   };
   if (!user) return yok;
   if (user.role === 'admin')
@@ -1014,6 +1067,7 @@ async function getActorFlags(db, user) {
       deptManager: true,
       stajYetkilisi: true,
       ttoYonetici: true,
+      patentYonetici: true,
     };
   if (user.role !== 'professor' || !user.identifier) return yok;
   const hit = actorFlagsCache.get(user.identifier);
@@ -1036,6 +1090,8 @@ async function getActorFlags(db, user) {
         // TTO yöneticisi: TTO birimine kayıtlı akademisyen (ayrı bayrak
         // atanmaz — server/lib/tto-birim.js); bütün TTO taleplerini görür.
         ttoYonetici: false,
+        // Patent & FSMH yöneticisi: üniversite yetkilisinin atadığı bayrak.
+        patentYonetici: !!prof.isPatentYoneticisi,
       };
       try {
         flags.ttoYonetici = await ttoBirimUyesi(db, user.identifier);
@@ -1471,6 +1527,91 @@ async function enforceWritePolicies(db, op, user) {
     }
     const karar = await ttoOdemeYazmaKarari(db, op);
     if (!karar.izin) return { allow: false, status: 400, error: karar.hata };
+  }
+
+  // a0e) Patent & FSMH portföyü — yalnız Patent & FSMH yöneticisi ve admin;
+  // alan kuralları lib/patent-fsmh.js'te. Kayıt numarası (no) benzersizdir:
+  // iki yönetici aynı anda ekleyince ikincisi reddedilir, istemci yeniden dener.
+  if (PATENT_PORTFOY_KOLEKSIYONLARI.has(op.collection)) {
+    const flags = await getActorFlags(db, user);
+    if (!flags.admin && !flags.patentYonetici) {
+      return {
+        allow: false,
+        status: 403,
+        error: 'Patent & FSMH kayıtlarını yalnız Patent & FSMH yöneticisi düzenleyebilir.',
+      };
+    }
+    if (op.type !== 'delete') {
+      const P = await patentKurali();
+      const tam = op.type === 'add' || (op.type === 'set' && !op.merge);
+      const hata = P.portfoyKaydiHatasi(op.collection, op.data, tam, op.type === 'add');
+      if (hata) return { allow: false, status: 400, error: hata };
+      if (op.data && 'no' in op.data) {
+        const ayni = await db
+          .collection(op.collection)
+          .findOne({ no: op.data.no }, { projection: { _id: 1, _docId: 1 } });
+        const kendisi =
+          ayni && op.docId && (String(ayni._id) === op.docId || ayni._docId === op.docId);
+        if (ayni && !kendisi) {
+          return {
+            allow: false,
+            status: 409,
+            error: 'Kayıt numarası çakıştı; lütfen yeniden deneyin.',
+          };
+        }
+      }
+    }
+  }
+
+  // a0f) Buluş bildirimleri — sahip yalnız kendi bildirimini, durum kurallarına
+  // göre yazar; yönetici başkasınınkinde yalnız karar alanlarını yazar.
+  if (op.collection === 'patent_bildirimleri') {
+    const flags = await getActorFlags(db, user);
+    if (!flags.admin) {
+      if (user.role === 'student') {
+        return { allow: false, status: 403, error: 'Buluş bildirimi personele açıktır.' };
+      }
+      let mevcutBildirim = null;
+      try {
+        mevcutBildirim = op.docId ? await findExistingDoc(db, op) : null;
+      } catch (_) {
+        mevcutBildirim = null;
+      }
+      if (op.type === 'set' && mevcutBildirim) op.merge = true;
+      const P = await patentKurali();
+      let sahipKurali = true;
+      if (flags.patentYonetici) {
+        const yk = P.yoneticiBildirimYazmaKarari({
+          tur: op.type,
+          mevcut: mevcutBildirim,
+          veri: op.data,
+          kimlik: user.identifier,
+        });
+        if (!yk.izin) return { allow: false, status: 403, error: yk.hata };
+        sahipKurali = !!yk.sahipKurali;
+      }
+      if (sahipKurali) {
+        const karar = P.sahipBildirimYazmaKarari({
+          tur: op.type,
+          mevcut: mevcutBildirim,
+          veri: op.data,
+          kimlik: user.identifier,
+        });
+        if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
+      }
+      Object.defineProperty(op, '_patentOnce', {
+        value: mevcutBildirim || {},
+        enumerable: false,
+      });
+    } else {
+      let mevcutBildirim = null;
+      try {
+        mevcutBildirim = op.docId ? await findExistingDoc(db, op) : null;
+      } catch (_) {
+        mevcutBildirim = null;
+      }
+      Object.defineProperty(op, '_patentOnce', { value: mevcutBildirim || {}, enumerable: false });
+    }
   }
 
   // a1) Bölüm yetkilisi ROLÜ (bolum_yetkilisi) yapısal koleksiyonlarda yalnız
@@ -3586,6 +3727,16 @@ async function readDecision(collection, user, getDb) {
     }
     return { allow: false, status: 403, error: 'Bu veriye erişim yetkiniz yok.' };
   }
+  if (PATENT_PORTFOY_KOLEKSIYONLARI.has(collection)) {
+    if (!user) return { allow: false, status: 401, error: 'Bu veri için giriş gereklidir.' };
+    const flags = await getActorFlags(await getDb(), user);
+    if (flags.admin || flags.patentYonetici) return { allow: true };
+    return {
+      allow: false,
+      status: 403,
+      error: 'Patent & FSMH portföyünü yalnız Patent & FSMH yöneticisi görebilir.',
+    };
+  }
   if (TTO_ODEME_KOLEKSIYONLARI.has(collection)) {
     if (!user) return { allow: false, status: 401, error: 'Bu veri için giriş gereklidir.' };
     const flags = await getActorFlags(await getDb(), user);
@@ -3762,6 +3913,49 @@ async function ttoBildirimleriGonder(db, op, sonuc, user, touched) {
     if (touched) touched.add('notifications');
   } catch (e) {
     console.warn('[tto] bildirim gönderilemedi:', e && e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// PATENT & FSMH BİLDİRİMLERİ — yazma BAŞARIYLA bittikten sonra.
+// Plan: lib/patent-fsmh.js → bildirimZilPlani. Zil yazılamazsa asıl işlem
+// geri alınmaz; yalnız günlüğe düşer.
+// ══════════════════════════════════════════════════════════════
+async function patentBildirimleriGonder(db, op, sonuc, user, touched) {
+  if (!op || op.collection !== 'patent_bildirimleri' || !op._patentOnce) return;
+  if (op.type === 'delete') return;
+  try {
+    const P = await patentKurali();
+    const once = op._patentOnce;
+    const yeni = Object.assign({}, once, op.data || {}, {
+      id: String(op.docId || (sonuc && sonuc.id) || once.id || ''),
+    });
+    const gonderildi = yeni.durum === 'bekliyor' && once.durum !== 'bekliyor';
+    const plan = P.bildirimZilPlani({
+      eski: once,
+      yeni,
+      yapan: String((user && user.identifier) || ''),
+      yoneticiler: gonderildi ? await patentYoneticileri(db) : [],
+    });
+    if (plan.length === 0) return;
+    const simdi = new Date().toISOString();
+    await db.collection('notifications').insertMany(
+      plan.map((b) => ({
+        recipientType: 'user',
+        recipientId: b.recipientId,
+        module: 'patent',
+        type: b.type,
+        title: b.title,
+        body: b.body,
+        link: 'patent',
+        meta: b.meta,
+        readBy: [],
+        createdAt: simdi,
+      }))
+    );
+    if (touched) touched.add('notifications');
+  } catch (e) {
+    console.warn('[patent] bildirim gönderilemedi:', e && e.message);
   }
 }
 
@@ -4204,6 +4398,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       const result = await executeSingleOp(db, operations[0]);
       addTouched(operations[0]);
       await ttoBildirimleriGonder(db, operations[0], result, req.user, touched);
+      await patentBildirimleriGonder(db, operations[0], result, req.user, touched);
       await kopruBildirimleriGonder(db, operations[0], result, touched, req.user);
       await zilEsitle(db, operations[0], result, touched, req.user);
       emitDbWrite(req, touched);
@@ -4215,6 +4410,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       const result = await executeSingleOp(db, op);
       addTouched(op);
       await ttoBildirimleriGonder(db, op, result, req.user, touched);
+      await patentBildirimleriGonder(db, op, result, req.user, touched);
       await kopruBildirimleriGonder(db, op, result, touched, req.user);
       await zilEsitle(db, op, result, touched, req.user);
       if (result.id) addedIds.push(result.id);
@@ -4471,6 +4667,15 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
+    // Buluş bildirimleri: akademisyen YALNIZ kendi bildirimini görür; bütün
+    // bildirimleri yalnız Patent & FSMH yöneticisi görür.
+    if (DB_AUTH_ENFORCED && user && collection === 'patent_bildirimleri') {
+      const flags = await getActorFlags(db, user);
+      if (!flags.admin && !flags.patentYonetici) {
+        filter.sahip = { $eq: String(user.identifier || '') };
+      }
+    }
+
     // Gizli alanlar (ör. yoklama anahtarı) veritabanından HİÇ okunmaz.
     const gizliProj = gizliAlanProjeksiyonu(collection);
     let cursor = gizliProj ? col.find(filter, { projection: gizliProj }) : col.find(filter);
@@ -4718,6 +4923,15 @@ router.get('/:collection/:docId', async (req, res) => {
       const gonderilmis = !!doc.durum && doc.durum !== 'taslak';
       if (!flags.admin && !kendisinin && !(flags.ttoYonetici && gonderilmis)) {
         return res.status(403).json({ error: 'Bu talebe erişim yetkiniz yok.' });
+      }
+    }
+
+    // Buluş bildirimi: başkasınınki tek belge olarak da okunamaz.
+    if (DB_AUTH_ENFORCED && user && collection === 'patent_bildirimleri') {
+      const flags = await getActorFlags(db, user);
+      const kendisinin = String(doc.sahip || '') === String(user.identifier || '');
+      if (!flags.admin && !flags.patentYonetici && !kendisinin) {
+        return res.status(403).json({ error: 'Bu bildirime erişim yetkiniz yok.' });
       }
     }
 

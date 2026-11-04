@@ -4,6 +4,8 @@
 //   • Fakülte oluştur / düzenle / sil (faculties koleksiyonu)
 //   • Her fakülteye "Fakülte Yetkilisi" ata (bir akademisyenin
 //     isFacultyManager + facultyId bayraklarını set eder)
+//   • Patent & FSMH modülünün yöneticilerini ata (isPatentYoneticisi —
+//     bayrağı yalnız üniversite yetkilisi yazabilir, sunucu PRIV_FIELDS)
 // ══════════════════════════════════════════════════════════════
 
 const { useState, useEffect, useMemo, useCallback } = React;
@@ -132,6 +134,101 @@ function ProfPicker({ professors, onPick, placeholder }) {
   );
 }
 
+// Patent & FSMH yöneticileri: modülde gelen buluş bildirimlerini karara bağlar
+// ve Patent & FSMH Takibi (portföy) ekranlarını açar. Bayrak kişiye aittir,
+// fakülteye bağlı değildir.
+function PatentYoneticileriKarti({ professors, onAta, onKaldir }) {
+  const yoneticiler = professors.filter((p) => p.isPatentYoneticisi);
+  const adaylar = professors.filter((p) => !p.isPatentYoneticisi);
+  return (
+    <div style={{ ...uCard, marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <div
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 10,
+            background: UNV.blueLight,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <UIcon
+            path="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+            size={20}
+            color={UNV.blue}
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 15, fontWeight: 700, color: UNV.primary, margin: 0 }}>
+            Patent &amp; FSMH Yöneticileri
+          </p>
+          <p style={{ fontSize: 12, color: UNV.textMuted, margin: '2px 0 0', lineHeight: 1.5 }}>
+            Atanan akademisyen Patent &amp; FSMH modülünde gelen buluş bildirimlerini karara bağlar
+            ve Patent &amp; FSMH Takibi ekranlarını (portföy, başvuru sahipleri, vekil firmalar)
+            kullanır.
+          </p>
+        </div>
+      </div>
+      <div style={uLabel}>Yönetici</div>
+      {yoneticiler.length === 0 ? (
+        <p style={{ fontSize: 12.5, color: UNV.textMuted, margin: '0 0 10px' }}>
+          Henüz atanmış Patent &amp; FSMH yöneticisi yok.
+        </p>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+          {yoneticiler.map((p) => (
+            <span
+              key={p.id}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 8px 6px 12px',
+                borderRadius: 999,
+                background: UNV.blueLight,
+                color: UNV.blue,
+                fontSize: 12.5,
+                fontWeight: 600,
+              }}
+            >
+              {p.name}
+              <button
+                type="button"
+                title="Yöneticilikten al"
+                aria-label={p.name + ' Patent & FSMH yöneticiliğinden alınsın'}
+                onClick={() => onKaldir(p)}
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 999,
+                  border: 'none',
+                  background: 'white',
+                  color: UNV.red,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                }}
+              >
+                <UIcon path="M18 6L6 18M6 6l12 12" size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <ProfPicker
+        professors={adaylar}
+        onPick={onAta}
+        placeholder="Patent & FSMH yöneticisi olarak atanacak akademisyeni ara…"
+      />
+    </div>
+  );
+}
+
 function UnvYonetimiApp({ currentUser }) {
   const responsive = window.useResponsive ? window.useResponsive() : { val: (_a, _b, c) => c };
   const [faculties, setFaculties] = useState([]);
@@ -253,6 +350,27 @@ function UnvYonetimiApp({ currentUser }) {
       await window.DBWrite.set('professors', prof.id, { isFacultyManager: false }, true);
       await load();
       showMsg('Fakülte yetkiliği kaldırıldı.');
+    } catch (e) {
+      showMsg('İşlem hatası: ' + e.message, 'error');
+    }
+  };
+
+  const assignPatentManager = async (prof) => {
+    try {
+      await window.DBWrite.set('professors', prof.id, { isPatentYoneticisi: true }, true);
+      await load();
+      showMsg(`${prof.name} Patent & FSMH yöneticisi yapıldı.`);
+    } catch (e) {
+      showMsg('Atama hatası: ' + e.message, 'error');
+    }
+  };
+
+  const revokePatentManager = async (prof) => {
+    if (!confirm(`${prof.name} Patent & FSMH yöneticiliğinden alınsın mı?`)) return;
+    try {
+      await window.DBWrite.set('professors', prof.id, { isPatentYoneticisi: false }, true);
+      await load();
+      showMsg('Patent & FSMH yöneticiliği kaldırıldı.');
     } catch (e) {
       showMsg('İşlem hatası: ' + e.message, 'error');
     }
@@ -395,7 +513,7 @@ function UnvYonetimiApp({ currentUser }) {
             Üniversite Yönetimi
           </h1>
           <p style={{ fontSize: 13, color: UNV.textMuted, marginTop: 4 }}>
-            Fakülteleri yönet ve fakülte yetkilisi ata
+            Fakülteleri yönet, fakülte yetkilisi ve Patent &amp; FSMH yöneticisi ata
           </p>
         </div>
         <button
@@ -433,6 +551,12 @@ function UnvYonetimiApp({ currentUser }) {
           {msg.text}
         </div>
       )}
+
+      <PatentYoneticileriKarti
+        professors={professors}
+        onAta={assignPatentManager}
+        onKaldir={revokePatentManager}
+      />
 
       {faculties.length === 0 ? (
         <div style={{ ...uCard, textAlign: 'center', color: UNV.textMuted, padding: 40 }}>

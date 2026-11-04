@@ -1,0 +1,211 @@
+/*
+ * Patent & FSMH Takibi ekranlarının stili.
+ *
+ * Kendi Tailwind yapılandırmasıyla derlenir (bkz. tailwind.config.cjs): bütün
+ * yardımcı sınıflar `.patent-kok` altına kapsanır, Offline Asistan'ın geri
+ * kalanına dokunmaz (tto-otomasyon/tto.css ile aynı yaklaşım).
+ */
+@config "./tailwind.config.cjs";
+@tailwind utilities;
+
+/*
+ * Temel sıfırlama — `.patent-kok` altına kapsanmış preflight. Kök uygulamada
+ * preflight KAPALI; Patent ekranları onu varsayar (ör. `border` sınıfı ancak
+ * border-style: solid ile görünür).
+ */
+.patent-kok {
+  /* Orijinal uygulamanın gövde değerleri (body: font-body-md text-body-md). */
+  font-size: 14px;
+  line-height: 20px;
+  -webkit-text-size-adjust: 100%;
+  tab-size: 4;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial,
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: auto;
+  color: #2e3040;
+  background: #e8eaf0;
+  -webkit-font-smoothing: antialiased;
+}
+.patent-kok *,
+.patent-kok ::after,
+.patent-kok ::before,
+.patent-kok ::backdrop,
+.patent-kok ::file-selector-button {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0 solid;
+}
+.patent-kok hr {
+  height: 0;
+  color: inherit;
+  border-top-width: 1px;
+}
+.patent-kok h1,
+.patent-kok h2,
+.patent-kok h3,
+.patent-kok h4,
+.patent-kok h5,
+.patent-kok h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+.patent-kok a {
+  color: inherit;
+  -webkit-text-decoration: inherit;
+  text-decoration: inherit;
+}
+.patent-kok b,
+.patent-kok strong {
+  font-weight: bolder;
+}
+.patent-kok code,
+.patent-kok kbd,
+.patent-kok samp,
+.patent-kok pre {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  font-size: 1em;
+}
+.patent-kok small {
+  font-size: 80%;
+}
+.patent-kok table {
+  text-indent: 0;
+  border-color: inherit;
+  border-collapse: collapse;
+}
+.patent-kok ol,
+.patent-kok ul,
+.patent-kok menu {
+  list-style: none;
+}
+.patent-kok img,
+.patent-kok svg,
+.patent-kok video,
+.patent-kok canvas,
+.patent-kok audio,
+.patent-kok iframe,
+.patent-kok embed,
+.patent-kok object {
+  display: block;
+  vertical-align: middle;
+}
+.patent-kok img,
+.patent-kok video {
+  max-width: 100%;
+  height: auto;
+}
+.patent-kok button,
+.patent-kok input,
+.patent-kok select,
+.patent-kok optgroup,
+.patent-kok textarea,
+.patent-kok ::file-selector-button {
+  font: inherit;
+  font-feature-settings: inherit;
+  font-variation-settings: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  border-radius: 0;
+  background-color: transparent;
+  opacity: 1;
+}
+.patent-kok ::placeholder {
+  opacity: 1;
+  color: color-mix(in oklab, currentcolor 50%, transparent);
+}
+.patent-kok textarea {
+  resize: vertical;
+}
+.patent-kok ::-webkit-search-decoration {
+  -webkit-appearance: none;
+}
+.patent-kok ::-webkit-date-and-time-value {
+  min-height: 1lh;
+  text-align: inherit;
+}
+.patent-kok ::-webkit-datetime-edit {
+  display: inline-flex;
+}
+.patent-kok ::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+.patent-kok ::-webkit-calendar-picker-indicator {
+  line-height: 1;
+}
+.patent-kok button,
+.patent-kok input:where([type='button'], [type='reset'], [type='submit']),
+.patent-kok ::file-selector-button {
+  appearance: button;
+}
+.patent-kok ::-webkit-inner-spin-button,
+.patent-kok ::-webkit-outer-spin-button {
+  height: auto;
+}
+.patent-kok [hidden]:where(:not([hidden='until-found'])) {
+  display: none !important;
+}
+
+/* Orijinal uygulama Tailwind v3 preflight'ı kullanıyordu: düğmeler el imleci gösterir. */
+.patent-kok button,
+.patent-kok [role='button'] {
+  cursor: pointer;
+}
+.patent-kok :disabled {
+  cursor: default;
+}
+
+/* Özet kartı hapı başlığı (neumorfik zeminde hafif kabartma) */
+.patent-kok .emboss-text {
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Bildirim (toast) animasyonu */
+@keyframes patent-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.patent-kok .animate-fadeIn {
+  animation: patent-fadeIn 0.2s ease-out;
+}
+
+/* Kaydırma çubuğu (WebKit) */
+.patent-kok ::-webkit-scrollbar,
+.patent-kok::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.patent-kok ::-webkit-scrollbar-track,
+.patent-kok::-webkit-scrollbar-track {
+  background: #e8eaf0;
+}
+.patent-kok ::-webkit-scrollbar-thumb,
+.patent-kok::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, #6366f1 45%, transparent);
+  border-radius: 3px;
+}
+
+/* Material Symbols Outlined: ikon yazı tipi (App.jsx bağlantıyı bir kez ekler) */
+.patent-kok .material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+  display: inline-block;
+  line-height: 1;
+  user-select: none;
+}

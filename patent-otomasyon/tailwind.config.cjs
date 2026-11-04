@@ -1,0 +1,162 @@
+// ══════════════════════════════════════════════════════════════
+// Patent & FSMH Takibi ekranlarının Tailwind yapılandırması
+//
+// Ekranlar ayrı uygulamadan (mrtunahan/patent — kendi tema tokenları:
+// space-md, label-lg, shadow-raised …) BİREBİR taşındı. Kök yapılandırma
+// (tailwind.config.js) bu tokenları tanımıyor; o yüzden patent.css kendi
+// yapılandırmasıyla derlenir (@config) ve her yardımcı sınıf `.patent-kok`
+// altına kapsanır (important: '.patent-kok') — tto-otomasyon/ ile aynı yol:
+//   • Patent sınıfları yalnız Patent kapsayıcısının İÇİNDE geçerlidir;
+//   • kapsayıcı içinde kök sınıflardan daha özgüldür, orijinal değerler kazanır.
+// Tema bölümü orijinal frontend/tailwind.config.js ile aynıdır.
+// ══════════════════════════════════════════════════════════════
+const path = require('path');
+
+const SANS = [
+  '-apple-system',
+  'BlinkMacSystemFont',
+  '"Segoe UI"',
+  'Roboto',
+  '"Helvetica Neue"',
+  '"Noto Sans"',
+  'Arial',
+  'sans-serif',
+];
+
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [path.join(__dirname, '**/*.{jsx,js}')],
+  important: '.patent-kok',
+  // Temel sıfırlama patent.css'te `.patent-kok` altına kapsanmış olarak durur;
+  // Tailwind'in kendi preflight'ı bütün sayfaya uygulanırdı.
+  corePlugins: { preflight: false },
+  theme: {
+    extend: {
+      // TTO Otomasyonu neumorfik gölgeleri: kabarık (raised) yüzeyler ve gömük (inset) alanlar.
+      boxShadow: {
+        raised: '4px 4px 10px rgba(0,0,0,0.04), -4px -4px 10px rgba(255,255,255,0.6)',
+        'raised-sm': '3px 3px 6px rgba(0,0,0,0.06), -3px -3px 6px rgba(255,255,255,0.6)',
+        card: '6px 6px 12px rgba(0,0,0,0.08), -6px -6px 12px rgba(255,255,255,0.6)',
+        inset: 'inset 4px 4px 8px rgba(0,0,0,0.06), inset -4px -4px 8px rgba(255,255,255,0.7)',
+        'inset-sm': 'inset 2px 2px 4px rgba(0,0,0,0.06), inset -2px -2px 4px rgba(255,255,255,0.6)',
+        modal: '10px 10px 30px rgba(0,0,0,0.12), -10px -10px 30px rgba(255,255,255,0.8)',
+        sidebar: '6px 0 16px rgba(0,0,0,0.04), -2px 0 8px rgba(255,255,255,0.7)',
+        header: '0 4px 12px rgba(0,0,0,0.03)',
+        emboss: 'inset 2px 2px 4px rgba(0,0,0,0.06), inset -2px -2px 4px rgba(255,255,255,0.6)',
+      },
+      colors: {
+        // Adım 14: FSMH türü renk grupları (hap zemini / metin / nokta-şerit)
+        type: {
+          patent: { bg: '#e4def6', fg: '#33267a', dot: '#5b4bb5' },
+          tasarim: { bg: '#f1dcf6', fg: '#66287a', dot: '#a24ab8' },
+          faydali: { bg: '#d3efec', fg: '#0f5753', dot: '#1a9a92' },
+          marka: { bg: '#fce8c6', fg: '#794800', dot: '#d98c00' },
+          telif: { bg: '#d6e8fa', fg: '#0b4878', dot: '#2c88de' },
+          other: { bg: '#e4e1e7', fg: '#4b454d', dot: '#7c757e' },
+        },
+        // TTO Otomasyonu "Stitch" paleti (Offline Asistan > TTO Modülü ile birebir aynı)
+        'surface-bright': '#edeef4',
+        'tertiary-container': '#a78bfa',
+        'surface-variant': '#dcdee4',
+        'secondary-fixed-dim': '#b8baca',
+        'surface-container-high': '#dcdee4',
+        'surface-container-lowest': '#f0f2f8',
+        'secondary-container': '#d8dae6',
+        'surface-container': '#e2e4ea',
+        'on-tertiary-fixed': '#2e1065',
+        background: '#e8eaf0',
+        'on-surface-variant': '#585a68',
+        primary: '#6366f1',
+        'surface-container-highest': '#d6d8de',
+        'outline-variant': '#d0d2dc',
+        'on-surface': '#2e3040',
+        'inverse-on-surface': '#e8eaf0',
+        tertiary: '#7c3aed',
+        'on-tertiary-container': '#3b1f63',
+        'on-tertiary-fixed-variant': '#5b21b6',
+        'on-tertiary': '#ffffff',
+        'on-error-container': '#991b1b',
+        secondary: '#6c6e7e',
+        'secondary-fixed': '#d8dae6',
+        'tertiary-fixed-dim': '#c4b5fd',
+        'on-primary-container': '#e0e2ff',
+        'primary-container': '#818cf8',
+        'error-container': '#fee2e2',
+        'tertiary-fixed': '#ede9fe',
+        'on-primary-fixed': '#1e1b4b',
+        'on-secondary-container': '#585a68',
+        'on-secondary-fixed': '#1a1b26',
+        'inverse-primary': '#a5b4fc',
+        'on-error': '#ffffff',
+        'inverse-surface': '#2e3040',
+        'on-primary-fixed-variant': '#4338ca',
+        'primary-fixed': '#e0e2ff',
+        'on-primary': '#ffffff',
+        'on-secondary': '#ffffff',
+        'on-secondary-fixed-variant': '#404252',
+        'surface-dim': '#d4d6dc',
+        error: '#dc2626',
+        outline: '#8a8c9a',
+        'primary-fixed-dim': '#a5b4fc',
+        'surface-tint': '#6366f1',
+        'surface-container-low': '#e5e7ed',
+        surface: '#e8eaf0',
+        'on-background': '#2e3040',
+      },
+      borderRadius: { DEFAULT: '0.25rem', lg: '0.5rem', xl: '0.75rem', full: '9999px' },
+      spacing: {
+        gutter: '1.25rem',
+        'space-xl': '2.5rem',
+        margin: '2rem',
+        'space-sm': '0.5rem',
+        'gutter-mobile': '0.75rem',
+        'space-md': '1rem',
+        'space-xs': '0.25rem',
+        'space-lg': '1.5rem',
+        'margin-mobile': '1rem',
+      },
+      // TTO Otomasyonu gibi sistem yazı tipi; mevcut font-* sınıf adları bu tek aileye bağlıdır.
+      fontFamily: {
+        'serif-head': SANS,
+        'sans-body': SANS,
+        'headline-md': SANS,
+        'headline-sm': SANS,
+        'headline-lg': SANS,
+        'headline-lg-mobile': SANS,
+        'display-lg': SANS,
+        'display-lg-mobile': SANS,
+        'title-lg': SANS,
+        headline: SANS,
+        display: SANS,
+        'label-md': SANS,
+        'label-sm': SANS,
+        'label-lg': SANS,
+        'body-lg': SANS,
+        'body-md': SANS,
+        'body-sm': SANS,
+        'title-md': SANS,
+        'title-sm': SANS,
+        body: SANS,
+        label: SANS,
+      },
+      fontSize: {
+        'headline-md': ['24px', { lineHeight: '32px', fontWeight: '600' }],
+        'label-md': ['12px', { lineHeight: '16px', fontWeight: '500' }],
+        'label-sm': ['11px', { lineHeight: '14px', fontWeight: '500' }],
+        'body-lg': ['16px', { lineHeight: '24px', fontWeight: '400' }],
+        'headline-sm': ['20px', { lineHeight: '28px', fontWeight: '600' }],
+        'label-lg': ['14px', { lineHeight: '20px', fontWeight: '500' }],
+        'display-lg': ['44px', { lineHeight: '52px', fontWeight: '700' }],
+        'title-md': ['16px', { lineHeight: '24px', fontWeight: '600' }],
+        'headline-lg-mobile': ['24px', { lineHeight: '32px', fontWeight: '600' }],
+        'display-lg-mobile': ['32px', { lineHeight: '40px', fontWeight: '700' }],
+        'title-lg': ['18px', { lineHeight: '24px', fontWeight: '600' }],
+        'title-sm': ['14px', { lineHeight: '20px', fontWeight: '600' }],
+        'headline-lg': ['32px', { lineHeight: '40px', fontWeight: '600' }],
+        'body-sm': ['12px', { lineHeight: '16px', fontWeight: '400' }],
+        'body-md': ['14px', { lineHeight: '20px', fontWeight: '400' }],
+      },
+    },
+  },
+  plugins: [],
+};
