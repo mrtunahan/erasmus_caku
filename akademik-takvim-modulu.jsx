@@ -22,11 +22,11 @@ const AT_KIND_LABEL = {
   tatil: 'Tatil',
 };
 const AT_KIND_COLOR = {
-  takvim: { bg: '#F0FDFA', text: '#115E59' },
+  takvim: { bg: '#EEF3FF', text: '#0A47D1' },
   duyuru: { bg: '#FEF3C7', text: '#92400E' },
   etkinlik: { bg: '#DCFCE7', text: '#166534' },
   sinav: { bg: '#FEE2E2', text: '#B91C1C' },
-  tatil: { bg: '#CCFBF1', text: '#115E59' },
+  tatil: { bg: '#DCE7FF', text: '#0A47D1' },
 };
 const AT_SCOPE_LABEL = {
   university: 'Üniversite Geneli',
@@ -270,7 +270,7 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
         <h2 style={{ color: '#DC2626', fontSize: 20, marginBottom: 8 }}>Erişim Reddedildi</h2>
-        <p style={{ color: '#64748B' }}>
+        <p style={{ color: '#5F6368' }}>
           Akademik takvim yönetimi yalnızca fakülte/bölüm/üniversite yetkililerine açıktır.
         </p>
       </div>
@@ -287,7 +287,7 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
     <div
       style={{
         fontFamily: "'Inter', sans-serif",
-        color: '#1E293B',
+        color: '#1F2329',
         maxWidth: 1400,
         margin: '0 auto',
         padding: '0 4px 40px',
@@ -306,7 +306,7 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
       >
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Akademik Takvim</h2>
-          <p style={{ fontSize: 13, color: '#64748B', margin: '4px 0 0' }}>{scopeHint}</p>
+          <p style={{ fontSize: 13, color: '#5F6368', margin: '4px 0 0' }}>{scopeHint}</p>
         </div>
         <ATBtn onClick={startNew}>
           {isDeptMgr ? '+ Duyuru / Etkinlik Ekle' : '+ Takvim Etkinliği Ekle'}
@@ -316,12 +316,12 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
       {isDeptMgr && (
         <div
           style={{
-            background: '#F8FAFC',
-            border: '1px solid #E2E8F0',
+            background: '#F7F7F7',
+            border: '1px solid #E2E2E2',
             borderRadius: 10,
             padding: '10px 14px',
             fontSize: 12.5,
-            color: '#475569',
+            color: '#4A4F57',
             margin: '12px 0 16px',
           }}
         >
@@ -332,16 +332,16 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
       )}
 
       {loading ? (
-        <p style={{ color: '#64748B', padding: 24, textAlign: 'center' }}>Yükleniyor…</p>
+        <p style={{ color: '#5F6368', padding: 24, textAlign: 'center' }}>Yükleniyor…</p>
       ) : visibleEvents.length === 0 ? (
         <div
           style={{
             background: 'white',
-            border: '1px dashed #CBD5E1',
+            border: '1px dashed #CFCFCF',
             borderRadius: 12,
             padding: '40px 24px',
             textAlign: 'center',
-            color: '#64748B',
+            color: '#5F6368',
             marginTop: 8,
           }}
         >
@@ -357,7 +357,7 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
                 key={ev.id}
                 style={{
                   background: 'white',
-                  border: '1px solid #E2E8F0',
+                  border: '1px solid #E2E2E2',
                   borderRadius: 12,
                   padding: 16,
                   display: 'flex',
@@ -372,10 +372,10 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
                     textAlign: 'center',
                     padding: '8px 0',
                     borderRadius: 10,
-                    background: '#F1F5F9',
+                    background: '#EDEDED',
                   }}
                 >
-                  <div style={{ fontSize: 18, fontWeight: 700, color: '#1E293B', lineHeight: 1 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#1F2329', lineHeight: 1 }}>
                     {(() => {
                       try {
                         return new Date(ev.date).getDate();
@@ -384,7 +384,7 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
                       }
                     })()}
                   </div>
-                  <div style={{ fontSize: 10, color: '#64748B', textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: 10, color: '#5F6368', textTransform: 'uppercase' }}>
                     {(() => {
                       try {
                         return new Date(ev.date).toLocaleDateString('tr-TR', { month: 'short' });
@@ -397,7 +397,7 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 15, fontWeight: 600, color: '#1E293B' }}>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: '#1F2329' }}>
                       {ev.title}
                     </span>
                     <span
@@ -418,14 +418,14 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
                         fontWeight: 600,
                         padding: '2px 8px',
                         borderRadius: 999,
-                        background: '#F1F5F9',
-                        color: '#475569',
+                        background: '#EDEDED',
+                        color: '#4A4F57',
                       }}
                     >
                       {scopeBadgeText(ev)}
                     </span>
                   </div>
-                  <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 4 }}>
+                  <div style={{ fontSize: 12.5, color: '#5F6368', marginTop: 4 }}>
                     {atFormatDate(ev.date)}
                     {ev.endDate && ev.endDate !== ev.date ? ` – ${atFormatDate(ev.endDate)}` : ''}
                     {ev.description ? ` · ${ev.description}` : ''}
@@ -437,7 +437,7 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
                     <button
                       onClick={() => startEdit(ev)}
                       title="Düzenle"
-                      style={atIconBtnStyle('#E2E8F0', '#64748B')}
+                      style={atIconBtnStyle('#E2E2E2', '#5F6368')}
                     >
                       ✎
                     </button>
@@ -504,11 +504,11 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
                   width: '100%',
                   padding: '10px 14px',
                   borderRadius: 8,
-                  border: '1px solid #CBD5E1',
-                  background: '#F8FAFC',
+                  border: '1px solid #CFCFCF',
+                  background: '#F7F7F7',
                   fontSize: 14,
                   fontWeight: 500,
-                  color: '#334155',
+                  color: '#363A42',
                   boxSizing: 'border-box',
                 }}
               >
@@ -522,7 +522,7 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
                   width: '100%',
                   padding: '10px 14px',
                   borderRadius: 8,
-                  border: '1px solid #CBD5E1',
+                  border: '1px solid #CFCFCF',
                   fontSize: 14,
                   fontFamily: "'Inter', sans-serif",
                   boxSizing: 'border-box',
@@ -546,7 +546,7 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
                 width: '100%',
                 padding: '10px 14px',
                 borderRadius: 8,
-                border: '1px solid #CBD5E1',
+                border: '1px solid #CFCFCF',
                 fontSize: 14,
                 fontFamily: "'Inter', sans-serif",
                 resize: 'vertical',
@@ -557,8 +557,8 @@ function AkademikTakvimApp({ currentUser, activeDepartment, departmentInfo }) {
           <div
             style={{
               fontSize: 12,
-              color: '#64748B',
-              background: '#F8FAFC',
+              color: '#5F6368',
+              background: '#F7F7F7',
               borderRadius: 8,
               padding: '8px 12px',
               marginBottom: 12,

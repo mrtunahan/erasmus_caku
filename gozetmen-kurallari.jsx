@@ -17,11 +17,11 @@ import {
 const { useState, useEffect } = React;
 
 const R = {
-  navy: '#1E293B',
-  muted: '#64748B',
-  blue: '#0F766E',
-  bluePale: '#F0FDFA',
-  border: '#E2E8F0',
+  navy: '#1F2329',
+  muted: '#5F6368',
+  blue: '#105BFF',
+  bluePale: '#EEF3FF',
+  border: '#E2E2E2',
   green: '#059669',
   red: '#DC2626',
 };
@@ -93,7 +93,7 @@ export function GozetmenKurallariPaneli({ departmentId, duzenlenebilir = true, o
   return (
     <div
       style={{
-        background: '#F8FAFC',
+        background: '#F7F7F7',
         border: '1px solid ' + R.border,
         borderRadius: 12,
         padding: 16,
@@ -174,7 +174,7 @@ export function GozetmenKurallariPaneli({ departmentId, duzenlenebilir = true, o
           }}
         >
           <thead>
-            <tr style={{ background: '#F1F5F9', color: R.muted, textAlign: 'left' }}>
+            <tr style={{ background: '#EDEDED', color: R.muted, textAlign: 'left' }}>
               <th style={{ padding: '6px 12px' }}>Örnek sınav</th>
               <th style={{ padding: '6px 12px' }}>Gözetmen</th>
             </tr>

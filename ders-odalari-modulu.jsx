@@ -20,16 +20,16 @@
 const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
 const DO = {
-  primary: '#1B2A4A',
-  accent: '#0F766E',
-  accentLight: '#F0FDFA',
-  accentBorder: '#99F6E4',
-  bg: '#F8FAFC',
+  primary: '#0B2E73',
+  accent: '#105BFF',
+  accentLight: '#EEF3FF',
+  accentBorder: '#C2D6FF',
+  bg: '#F7F7F7',
   card: '#FFFFFF',
-  text: '#1E293B',
-  muted: '#64748B',
-  soft: '#94A3B8',
-  border: '#E2E8F0',
+  text: '#1F2329',
+  muted: '#5F6368',
+  soft: '#80858E',
+  border: '#E2E2E2',
   red: '#B91C1C',
   redLight: '#FEF2F2',
   amber: '#B45309',
@@ -43,11 +43,11 @@ const DO = {
 // bağlı koyu tonlar: lacivert, teal, çelik mavisi, arduvaz — bant üzerindeki
 // beyaz yazı her birinde okunur kalır.
 const BANT_RENKLERI = [
-  '#1B2A4A',
-  '#0F766E',
+  '#0B2E73',
+  '#105BFF',
   '#1E3A8A',
-  '#334155',
-  '#115E59',
+  '#363A42',
+  '#0A47D1',
   '#3B5078',
   '#312E81',
   '#78350F',
@@ -556,17 +556,17 @@ function Uyari({ children, tur }) {
 // ══════════════════════════════════════════════════════════════
 const DO_STIL = `
 .do-kap{max-width:1200px;margin:0 auto;width:100%}
-.do-ust-kap{position:relative;max-width:1200px;margin:0 auto 20px;background:#fff;border:1px solid #E2E8F0;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.05);overflow:hidden}
-.do-ust-kap::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,#1B2A4A 0%,#0F766E 60%,#99F6E4 100%)}
+.do-ust-kap{position:relative;max-width:1200px;margin:0 auto 20px;background:#fff;border:1px solid #E2E2E2;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.05);overflow:hidden}
+.do-ust-kap::after{content:'';position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,#0B2E73 0%,#105BFF 60%,#C2D6FF 100%)}
 .do-ust{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;padding:10px 14px 13px}
-.do-sekmeler{display:inline-flex;gap:4px;padding:4px;border-radius:11px;background:#F1F5F9;border:1px solid #E2E8F0;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.do-sekmeler{display:inline-flex;gap:4px;padding:4px;border-radius:11px;background:#EDEDED;border:1px solid #E2E2E2;max-width:100%;overflow-x:auto;scrollbar-width:none}
 .do-sekmeler::-webkit-scrollbar{display:none}
-.do-sekme{display:inline-flex;align-items:center;gap:7px;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:#64748B;white-space:nowrap;transition:background .15s,color .15s}
-.do-sekme:hover{background:#E2E8F0;color:#1B2A4A}
-.do-sekme-aktif,.do-sekme-aktif:hover{background:#1B2A4A;color:#fff;box-shadow:0 1px 3px rgba(15,23,42,.2)}
+.do-sekme{display:inline-flex;align-items:center;gap:7px;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:#5F6368;white-space:nowrap;transition:background .15s,color .15s}
+.do-sekme:hover{background:#E2E2E2;color:#0B2E73}
+.do-sekme-aktif,.do-sekme-aktif:hover{background:#0B2E73;color:#fff;box-shadow:0 1px 3px rgba(15,23,42,.2)}
 .do-sekmeler-tam{display:flex;width:100%;box-sizing:border-box}
 .do-sekmeler-tam .do-sekme{flex:1 1 0;justify-content:center;min-width:max-content}
-.do-sekme-sayi{min-width:20px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700;background:#E2E8F0;color:#475569}
+.do-sekme-sayi{min-width:20px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700;background:#E2E2E2;color:#4A4F57}
 .do-sekme-aktif .do-sekme-sayi{background:rgba(255,255,255,.18);color:#fff}
 @media (max-width:560px){.do-kart-simge{display:none!important}.do-calisma-kart{padding:16px!important}}
 .do-ayrinti-izgara{display:grid;grid-template-columns:minmax(0,1fr);gap:20px 24px;align-items:start;grid-template-areas:"kunye" "yan" "yorum"}
@@ -575,12 +575,12 @@ const DO_STIL = `
 .do-dosya-izgara{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
 @media (min-width:640px){.do-dosya-izgara{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .do-dosya-kutu{transition:border-color .15s,background .15s}
-.do-dosya-kutu:hover{background:#fff!important;border-color:#99F6E4!important}
+.do-dosya-kutu:hover{background:#fff!important;border-color:#C2D6FF!important}
 .do-oda-karti{transition:transform .15s,box-shadow .15s}
 .do-oda-karti>*{width:100%;box-sizing:border-box}
-.do-oda-karti:focus-visible{outline:2px solid #0F766E;outline-offset:2px}
+.do-oda-karti:focus-visible{outline:2px solid #105BFF;outline-offset:2px}
 .do-oda-karti:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(15,23,42,.10)!important}
-.do-ayrac{width:1px;align-self:stretch;margin:4px 2px;background:#E2E8F0}
+.do-ayrac{width:1px;align-self:stretch;margin:4px 2px;background:#E2E2E2}
 .do-ust>.do-sol{justify-self:start;display:flex;align-items:center;gap:10px;min-width:0}
 .do-ust>.do-orta{justify-self:center}
 .do-ust>.do-sag{justify-self:end;display:flex;align-items:center;gap:8px}
@@ -591,16 +591,16 @@ const DO_STIL = `
 @media (min-width:640px){.do-ek-izgara{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @keyframes do-nabiz{0%,100%{opacity:1}50%{opacity:.35}}
 .do-nabiz{animation:do-nabiz 2s ease-in-out infinite}
-.do-satir:hover{background:#F1F5F9}
+.do-satir:hover{background:#EDEDED}
 .do-yari-saydam:hover{background:rgba(255,255,255,.26)!important}
 .do-calisma-izgara{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start}
 @media (min-width:1024px){.do-calisma-izgara{grid-template-columns:minmax(0,8fr) minmax(0,4fr)}}
 .do-iki-satir{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.do-cip:hover{background:#E2E8F0!important}
+.do-cip:hover{background:#E2E2E2!important}
 .do-kisi-izgara{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
 @media (min-width:900px){.do-kisi-izgara{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .do-kart-hover{transition:box-shadow .15s,border-color .15s}
-.do-kart-hover:hover{border-color:#CBD5E1!important;box-shadow:0 4px 14px rgba(15,23,42,.08)!important}
+.do-kart-hover:hover{border-color:#CFCFCF!important;box-shadow:0 4px 14px rgba(15,23,42,.08)!important}
 `;
 function StilBlogu() {
   useEffect(() => {
@@ -711,7 +711,7 @@ const bantZemini = (renk) =>
   ' 0%, ' +
   renk +
   ' 55%, ' +
-  karistir(renk, '#1B2A4A', 0.45) +
+  karistir(renk, '#0B2E73', 0.45) +
   ' 100%)';
 
 // Unvan kelimeleri düşürülür. \b Türkçe harfleri (Ö, Ü, Ş) sözcük karakteri
@@ -783,7 +783,7 @@ const DOSYA_RENGI = (u) => {
   if (['doc', 'docx', 'odt', 'rtf', 'txt'].includes(x)) return '#1E3A8A';
   if (['xls', 'xlsx', 'csv', 'ods'].includes(x)) return DO.green;
   if (['ppt', 'pptx', 'odp'].includes(x)) return DO.amber;
-  if (['zip', 'rar', '7z'].includes(x)) return '#475569';
+  if (['zip', 'rar', '7z'].includes(x)) return '#4A4F57';
   if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(x)) return '#7C3AED';
   return DO.accent;
 };
@@ -891,7 +891,7 @@ const KodRozeti = ({ kod }) => (
       fontWeight: 600,
       padding: '3px 8px',
       borderRadius: 6,
-      background: '#EEF2F7',
+      background: '#ECECEC',
       color: DO.primary,
       whiteSpace: 'nowrap',
     }}
@@ -908,7 +908,7 @@ const kartBasligi = (simge, baslik, sag) => (
           width: 30,
           height: 30,
           borderRadius: 8,
-          background: '#EEF2F7',
+          background: '#ECECEC',
           color: DO.primary,
           display: 'inline-flex',
           alignItems: 'center',
@@ -1279,7 +1279,7 @@ const birincilDugme = {
 };
 const ikincilDugme = {
   ...birincilDugme,
-  background: '#EEF2F7',
+  background: '#ECECEC',
   color: DO.primary,
   boxShadow: 'none',
 };
@@ -1366,7 +1366,7 @@ function OdaBandi({ oda, renk, hoca, ogrenciSayisi, program, ozellestir }) {
           position: 'absolute',
           inset: 0,
           opacity: 0.12,
-          backgroundImage: 'radial-gradient(#99F6E4 1px, transparent 1px)',
+          backgroundImage: 'radial-gradient(#C2D6FF 1px, transparent 1px)',
           backgroundSize: '20px 20px',
           pointerEvents: 'none',
         }}
@@ -1405,7 +1405,7 @@ function OdaBandi({ oda, renk, hoca, ogrenciSayisi, program, ozellestir }) {
           >
             <span
               className="do-nabiz"
-              style={{ width: 8, height: 8, borderRadius: '50%', background: '#99F6E4' }}
+              style={{ width: 8, height: 8, borderRadius: '50%', background: '#C2D6FF' }}
             />
             {K().donemEtiketi ? K().donemEtiketi(oda.donem) : oda.donem}
           </span>
@@ -1441,14 +1441,14 @@ function OdaBandi({ oda, renk, hoca, ogrenciSayisi, program, ozellestir }) {
               <span
                 style={{
                   fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                  color: '#99F6E4',
+                  color: '#C2D6FF',
                   fontWeight: 700,
                 }}
               >
                 {oda.dersKod}
               </span>
               {kopyalandi ? (
-                <span style={{ fontSize: 11, color: '#99F6E4' }}>Kopyalandı!</span>
+                <span style={{ fontSize: 11, color: '#C2D6FF' }}>Kopyalandı!</span>
               ) : (
                 <Ikon ad="kopya" boyut={15} />
               )}
@@ -1488,9 +1488,9 @@ function OdaBandi({ oda, renk, hoca, ogrenciSayisi, program, ozellestir }) {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {rozet('grup', '#99F6E4', ogrenciSayisi + ' Öğrenci')}
+          {rozet('grup', '#C2D6FF', ogrenciSayisi + ' Öğrenci')}
           {rozet('kep', '#FDE68A', (oda.hocalar || []).length + ' Akademisyen')}
-          {derslikler.length > 0 && rozet('bina', '#CCFBF1', 'Derslik ' + derslikler.join(', '))}
+          {derslikler.length > 0 && rozet('bina', '#DCE7FF', 'Derslik ' + derslikler.join(', '))}
           {canli && (
             <a
               href={canli}
@@ -1598,7 +1598,7 @@ function DersBilgisiKarti({ oda, program, hocaBilgileri }) {
           ...ikincilDugme,
           justifyContent: 'center',
           width: '100%',
-          background: '#F1F5F9',
+          background: '#EDEDED',
         }}
       >
         <Ikon ad="takvim" boyut={17} /> Haftalık programı incele
@@ -1642,7 +1642,7 @@ function YaklasanKarti({ liste, ac, tumu }) {
           style={{
             padding: 16,
             borderRadius: 10,
-            background: '#F8FAFC',
+            background: '#F7F7F7',
             textAlign: 'center',
             display: 'flex',
             flexDirection: 'column',
@@ -1699,7 +1699,7 @@ function YaklasanKarti({ liste, ac, tumu }) {
                     width: 32,
                     height: 32,
                     borderRadius: 8,
-                    background: '#EEF2F7',
+                    background: '#ECECEC',
                     color: DO.primary,
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1730,7 +1730,7 @@ function YaklasanKarti({ liste, ac, tumu }) {
                     fontWeight: 600,
                     padding: '2px 8px',
                     borderRadius: 999,
-                    background: acil ? DO.amberLight : '#EEF2F7',
+                    background: acil ? DO.amberLight : '#ECECEC',
                     color: acil ? DO.amber : DO.muted,
                     whiteSpace: 'nowrap',
                   }}
@@ -2027,7 +2027,7 @@ function MateryalEkleri({ ekler }) {
             padding: '8px 12px',
             borderRadius: 8,
             border: '1px solid ' + DO.border,
-            background: '#F1F5F9',
+            background: '#EDEDED',
             cursor: 'pointer',
             textAlign: 'left',
           }}
@@ -2142,7 +2142,7 @@ function OdevCalismaKarti({ odev, teslim, durum, ozet, ogrenci, ogrenciSayisi, y
       className="do-kart-hover do-calisma-kart"
       style={{ ...kart, borderRadius: 12, padding: 20, display: 'flex', gap: 16 }}
     >
-      <CalismaSimgesi simge="odev" zemin="#EEF2F7" renk={DO.primary} />
+      <CalismaSimgesi simge="odev" zemin="#ECECEC" renk={DO.primary} />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -2151,7 +2151,7 @@ function OdevCalismaKarti({ odev, teslim, durum, ozet, ogrenci, ogrenciSayisi, y
                 Ödev
               </Etiket>
               {odev.kabulAcik === false ? (
-                <Etiket zemin="#F1F5F9" renk={DO.muted} kenar={DO.border}>
+                <Etiket zemin="#EDEDED" renk={DO.muted} kenar={DO.border}>
                   Gönderim kapalı
                 </Etiket>
               ) : (
@@ -2216,7 +2216,7 @@ function OdevCalismaKarti({ odev, teslim, durum, ozet, ogrenci, ogrenciSayisi, y
         {odev.metin && (
           <p
             className="do-iki-satir"
-            style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: '#475569' }}
+            style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: '#4A4F57' }}
           >
             {odev.metin}
           </p>
@@ -2285,7 +2285,7 @@ function MateryalKarti({ icerik, yorum, ac }) {
       <CalismaSimgesi simge="belge" zemin="#E0F2FE" renk="#1E3A8A" />
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <Etiket zemin="#EEF2F7" renk={DO.primary}>
+          <Etiket zemin="#ECECEC" renk={DO.primary}>
             Ders materyali
           </Etiket>
           {icerik.olusturuldu && (
@@ -2314,7 +2314,7 @@ function MateryalKarti({ icerik, yorum, ac }) {
         {icerik.metin && (
           <p
             className="do-iki-satir"
-            style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: '#475569' }}
+            style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: '#4A4F57' }}
           >
             {icerik.metin}
           </p>
@@ -2393,7 +2393,7 @@ function TeslimTakvimiKarti({ odevler, sinavlar, ac }) {
                     flex: '0 0 8px',
                     marginTop: 5,
                     borderRadius: '50%',
-                    background: acil ? DO.red : o.sinav ? DO.accent : '#CBD5E1',
+                    background: acil ? DO.red : o.sinav ? DO.accent : '#CFCFCF',
                   }}
                 />
                 <div style={{ minWidth: 0 }}>
@@ -2426,7 +2426,7 @@ function PuanDagilimiKarti({ odevler }) {
     .filter((x) => Number.isFinite(x.p) && x.p > 0);
   if (!puanli.length) return null;
   const toplam = puanli.reduce((a, x) => a + x.p, 0);
-  const renkler = [DO.accent, DO.primary, '#3B5078', '#115E59', '#78350F'];
+  const renkler = [DO.accent, DO.primary, '#3B5078', '#0A47D1', '#78350F'];
   return (
     <section style={yanKart} data-puan-dagilimi>
       {kartBasligi('kep', 'Ödev puan dağılımı')}
@@ -2458,7 +2458,7 @@ function PuanDagilimiKarti({ odevler }) {
                   %{oran}
                 </span>
               </div>
-              <div style={{ height: 6, borderRadius: 999, background: '#EEF2F7' }}>
+              <div style={{ height: 6, borderRadius: 999, background: '#ECECEC' }}>
                 <div
                   style={{
                     width: oran + '%',
@@ -3285,7 +3285,7 @@ function OdaKarti({ o, ac }) {
 }
 
 // ── DERSİ VERENLERİN ORTAK HAFTALIK PROGRAMI ──
-const HOCA_RENKLERI = ['#1B2A4A', '#0F766E', '#7C3AED', '#B45309', '#1E3A8A', '#BE185D'];
+const HOCA_RENKLERI = ['#0B2E73', '#105BFF', '#7C3AED', '#B45309', '#1E3A8A', '#BE185D'];
 const saatBaslangici = (s) => {
   const m = /(\d{1,2})[:.](\d{2})/.exec(metin(s));
   return m ? Number(m[1]) * 60 + Number(m[2]) : 9999;
@@ -3380,7 +3380,7 @@ function HocaProgramiPenceresi({ oda, kapat }) {
                       width: 9,
                       height: 9,
                       borderRadius: '50%',
-                      background: kapali ? '#CBD5E1' : r,
+                      background: kapali ? '#CFCFCF' : r,
                     }}
                   />
                   {h.ad}
@@ -3445,7 +3445,7 @@ function HocaProgramiPenceresi({ oda, kapat }) {
                                   .join(' · ')}
                                 style={{
                                   borderLeft: '3px solid ' + k.renk,
-                                  background: buDers ? DO.accentLight : '#F8FAFC',
+                                  background: buDers ? DO.accentLight : '#F7F7F7',
                                   outline: buDers ? '1px solid ' + DO.accentBorder : 'none',
                                   borderRadius: 6,
                                   padding: '5px 7px',
@@ -3568,7 +3568,7 @@ function DuyuruYazici({ oda, ayarlar, benimAd, girdiRef, oneri, yayinlandi }) {
             style={{
               width: '100%',
               boxSizing: 'border-box',
-              background: acik ? '#fff' : '#F1F5F9',
+              background: acik ? '#fff' : '#EDEDED',
               border: '1px solid ' + (acik ? DO.accentBorder : 'transparent'),
               borderRadius: 10,
               padding: 10,
@@ -3895,7 +3895,7 @@ function AkisKarti({
                 padding: 8,
                 borderRadius: 10,
                 border: '1px solid ' + DO.border,
-                background: '#F8FAFC',
+                background: '#F7F7F7',
                 cursor: 'pointer',
                 textAlign: 'left',
                 minWidth: 0,
@@ -4002,7 +4002,7 @@ function AkisKarti({
                 gap: 8,
                 padding: 8,
                 borderRadius: 10,
-                background: h ? '#EEF2F7' : '#F8FAFC',
+                background: h ? '#ECECEC' : '#F7F7F7',
                 marginLeft: h ? 16 : 0,
               }}
             >
@@ -4047,7 +4047,7 @@ function AkisKarti({
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
-                background: '#F1F5F9',
+                background: '#EDEDED',
                 border: '1px solid transparent',
                 borderRadius: 999,
                 padding: '8px 40px 8px 14px',
@@ -4114,7 +4114,7 @@ function BaslangicKarti({ bos, hoca, oner }) {
             width: 60,
             height: 60,
             borderRadius: 16,
-            background: '#EEF2F7',
+            background: '#ECECEC',
             color: DO.accent,
             display: 'inline-flex',
             alignItems: 'center',
@@ -4148,7 +4148,7 @@ function BaslangicKarti({ bos, hoca, oner }) {
                   padding: '6px 14px',
                   borderRadius: 999,
                   border: '1px solid ' + DO.border,
-                  background: '#F8FAFC',
+                  background: '#F7F7F7',
                   color: DO.text,
                   fontSize: 13,
                   fontWeight: 600,
@@ -4586,7 +4586,7 @@ function IcerikEkrani({ icerikId, oda, rol, ayarlar, renk, geri, duzenle }) {
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      boxShadow: '0 4px 10px rgba(27,42,74,.18)',
+                      boxShadow: '0 4px 10px rgba(11,46,115,.18)',
                     }}
                   >
                     <Ikon ad={odev ? 'odev' : 'megafon'} boyut={24} />
@@ -4618,7 +4618,7 @@ function IcerikEkrani({ icerikId, oda, rol, ayarlar, renk, geri, duzenle }) {
                       </Etiket>
                     </div>
                     <div style={{ fontSize: 13, color: DO.muted, marginTop: 4 }}>
-                      <b style={{ color: '#334155', fontWeight: 600 }}>{icerik.yazar}</b> ·{' '}
+                      <b style={{ color: '#363A42', fontWeight: 600 }}>{icerik.yazar}</b> ·{' '}
                       {tarihSaat(icerik.olusturuldu)}
                       {icerik.duzenlendi
                         ? ' (düzenlendi: ' + tarihSaat(icerik.duzenlendi) + ')'
@@ -4647,7 +4647,7 @@ function IcerikEkrani({ icerikId, oda, rol, ayarlar, renk, geri, duzenle }) {
                           fontSize: 13,
                           fontWeight: 700,
                           color: DO.text,
-                          background: '#EEF2F7',
+                          background: '#ECECEC',
                           padding: '3px 10px',
                           borderRadius: 7,
                         }}
@@ -4675,7 +4675,7 @@ function IcerikEkrani({ icerikId, oda, rol, ayarlar, renk, geri, duzenle }) {
                         'Teslim tarihi yok'
                       )}
                       {icerik.kabulAcik === false && (
-                        <Etiket zemin="#F1F5F9" renk={DO.muted} kenar={DO.border}>
+                        <Etiket zemin="#EDEDED" renk={DO.muted} kenar={DO.border}>
                           Gönderim kapalı
                         </Etiket>
                       )}
@@ -4689,9 +4689,9 @@ function IcerikEkrani({ icerikId, oda, rol, ayarlar, renk, geri, duzenle }) {
                       style={{
                         fontSize: 14,
                         lineHeight: 1.65,
-                        color: '#334155',
+                        color: '#363A42',
                         whiteSpace: 'pre-wrap',
-                        background: '#F8FAFC',
+                        background: '#F7F7F7',
                         border: '1px solid ' + DO.border,
                         borderRadius: 12,
                         padding: '14px 16px',
@@ -4759,7 +4759,7 @@ function DosyaKutucugu({ d, sil }) {
         padding: 12,
         borderRadius: 12,
         border: '1px solid ' + DO.border,
-        background: '#F8FAFC',
+        background: '#F7F7F7',
         minWidth: 0,
       }}
     >
@@ -4852,7 +4852,7 @@ function YorumBalonu({ y, silinebilir, yenile, kucuk }) {
           minWidth: 0,
           padding: kucuk ? '8px 10px' : '10px 14px',
           borderRadius: 12,
-          background: egitmen ? '#EEF4FF' : '#F8FAFC',
+          background: egitmen ? '#EEF4FF' : '#F7F7F7',
           border: '1px solid ' + (egitmen ? '#DBE5FF' : DO.border),
         }}
       >
@@ -4907,7 +4907,7 @@ function YorumBalonu({ y, silinebilir, yenile, kucuk }) {
         <div
           style={{
             fontSize: 13,
-            color: '#334155',
+            color: '#363A42',
             marginTop: 4,
             whiteSpace: 'pre-wrap',
             lineHeight: 1.5,
@@ -4950,7 +4950,7 @@ function YorumGirdisi({ yer, gonder, kucuk, veri }) {
           borderRadius: kucuk ? 10 : 999,
           padding: kucuk ? '8px 40px 8px 12px' : '10px 96px 10px 16px',
           fontSize: 13,
-          background: kucuk ? '#F8FAFC' : '#fff',
+          background: kucuk ? '#F7F7F7' : '#fff',
           color: DO.text,
           outline: 'none',
           boxSizing: 'border-box',
@@ -4990,7 +4990,7 @@ function YorumGirdisi({ yer, gonder, kucuk, veri }) {
             padding: '0 16px',
             border: 'none',
             borderRadius: 999,
-            background: yazi.trim() ? DO.accent : '#94A3B8',
+            background: yazi.trim() ? DO.accent : '#80858E',
             color: '#fff',
             fontSize: 12,
             fontWeight: 700,
@@ -5219,7 +5219,7 @@ function CalismanizPaneli({ veri, oda, ayarlar, yenile }) {
               Notunuz
             </span>
             {tamPuan && (
-              <Etiket zemin="#CCFBF1" renk={DO.accent}>
+              <Etiket zemin="#DCE7FF" renk={DO.accent}>
                 Tam puan
               </Etiket>
             )}
@@ -5331,7 +5331,7 @@ function CalismanizPaneli({ veri, oda, ayarlar, yenile }) {
               ...ikincilDugme,
               justifyContent: 'center',
               width: '100%',
-              background: '#F8FAFC',
+              background: '#F7F7F7',
               border: '1px solid ' + DO.border,
               padding: '10px 14px',
             }}
@@ -5539,7 +5539,7 @@ function OdevDurumPaneli({ veri, incele }) {
       >
         <span style={{ fontSize: 17, fontWeight: 700, color: DO.primary }}>Ödev durumu</span>
         {icerik.kabulAcik === false ? (
-          <Etiket zemin="#F1F5F9" renk={DO.muted} kenar={DO.border}>
+          <Etiket zemin="#EDEDED" renk={DO.muted} kenar={DO.border}>
             Gönderim kapalı
           </Etiket>
         ) : (
@@ -5575,7 +5575,7 @@ function OdevDurumPaneli({ veri, incele }) {
           <span>Teslim oranı</span>
           <b style={{ color: DO.text }}>%{oran}</b>
         </div>
-        <div style={{ height: 8, borderRadius: 999, background: '#EEF2F7' }}>
+        <div style={{ height: 8, borderRadius: 999, background: '#ECECEC' }}>
           <div
             style={{ width: oran + '%', height: '100%', borderRadius: 999, background: DO.accent }}
           />
@@ -6355,8 +6355,8 @@ function OgrenciAyrintisi({
 // Kişiler: akademisyen kartları + öğrenci tablosu. Öğrenci listesini (ad,
 // numara, e-posta) yalnız akademisyen ve yetkili görür; öğrenci sayıyı görür.
 const AVATAR_TONLARI = [
-  ['#E0E7FF', '#3730A3'],
-  ['#CCFBF1', '#0F766E'],
+  ['#DCE7FF', '#3730A3'],
+  ['#DCE7FF', '#105BFF'],
   ['#FFEDD5', '#9A3412'],
   ['#E0F2FE', '#075985'],
   ['#DCFCE7', '#166534'],
@@ -6383,7 +6383,7 @@ function SimgeDugmesi({ simge, baslik, onClick, href, devreDisi }) {
     borderRadius: 8,
     border: 'none',
     background: 'transparent',
-    color: devreDisi ? '#CBD5E1' : DO.muted,
+    color: devreDisi ? '#CFCFCF' : DO.muted,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -6541,7 +6541,7 @@ function AkademisyenKarti({ ad, bilgi }) {
         <div
           style={{
             padding: '10px 20px',
-            background: '#F8FAFC',
+            background: '#F7F7F7',
             borderTop: '1px solid ' + DO.border,
           }}
         >
@@ -6648,7 +6648,7 @@ function KisilerSekmesi({ oda, rol, ogrenciSayisi, hocaBilgileri, notlaraGit }) 
         borderRadius: 8,
         border: 'none',
         background: aktif ? DO.primary : 'transparent',
-        color: aktif ? '#fff' : devreDisi ? '#CBD5E1' : DO.text,
+        color: aktif ? '#fff' : devreDisi ? '#CFCFCF' : DO.text,
         fontSize: 12,
         fontWeight: 600,
         cursor: devreDisi ? 'default' : 'pointer',
@@ -6865,7 +6865,7 @@ function KisilerSekmesi({ oda, rol, ogrenciSayisi, hocaBilgileri, notlaraGit }) 
                   data-ogrenci-tablosu
                   style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 640 }}
                 >
-                  <thead style={{ background: '#F8FAFC' }}>
+                  <thead style={{ background: '#F7F7F7' }}>
                     <tr>
                       <th style={{ ...baslikHucresi, width: 1 }}>
                         <input
@@ -6946,7 +6946,7 @@ function KisilerSekmesi({ oda, rol, ogrenciSayisi, hocaBilgileri, notlaraGit }) 
                                 fontWeight: 600,
                                 padding: '3px 8px',
                                 borderRadius: 6,
-                                background: '#EEF2F7',
+                                background: '#ECECEC',
                                 color: DO.primary,
                               }}
                             >
@@ -6971,7 +6971,7 @@ function KisilerSekmesi({ oda, rol, ogrenciSayisi, hocaBilgileri, notlaraGit }) 
                                   fontWeight: 600,
                                   padding: '2px 8px',
                                   borderRadius: 999,
-                                  background: '#CCFBF1',
+                                  background: '#DCE7FF',
                                   color: DO.accent,
                                 }}
                               >
@@ -7023,7 +7023,7 @@ function KisilerSekmesi({ oda, rol, ogrenciSayisi, hocaBilgileri, notlaraGit }) 
                     flexWrap: 'wrap',
                     padding: '10px 16px',
                     borderTop: '1px solid ' + DO.border,
-                    background: '#F8FAFC',
+                    background: '#F7F7F7',
                     fontSize: 12,
                     color: DO.muted,
                   }}
@@ -7098,9 +7098,9 @@ function KisilerSekmesi({ oda, rol, ogrenciSayisi, hocaBilgileri, notlaraGit }) 
 const DAGILIM_ARALIKLARI = [
   { ad: '0-49', alt: 0, ust: 49.995, renk: '#B91C1C' },
   { ad: '50-69', alt: 50, ust: 69.995, renk: '#F59E0B' },
-  { ad: '70-79', alt: 70, ust: 79.995, renk: '#1B2A4A' },
-  { ad: '80-89', alt: 80, ust: 89.995, renk: '#0F766E' },
-  { ad: '90-100', alt: 90, ust: 1000, renk: '#2DD4BF' },
+  { ad: '70-79', alt: 70, ust: 79.995, renk: '#0B2E73' },
+  { ad: '80-89', alt: 80, ust: 89.995, renk: '#105BFF' },
+  { ad: '90-100', alt: 90, ust: 1000, renk: '#6E9BFF' },
 ];
 const sayiYaz = (v) => (v === '' || v == null ? '–' : K().puanMetni ? K().puanMetni(v) : String(v));
 const ort = (l) =>
@@ -7362,7 +7362,7 @@ function NotAyariPaneli({ oda, kalemler, sinavlar, kapat, kaydedildi }) {
                 <td style={{ ...td, textAlign: 'left' }}>
                   {r.tur === 'odev' ? (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <Etiket zemin="#EEF2F7" renk={DO.primary}>
+                      <Etiket zemin="#ECECEC" renk={DO.primary}>
                         Ödev
                       </Etiket>
                       {r.ad}
@@ -7914,7 +7914,7 @@ function NotlarSekmesi({ oda, rol, ac }) {
           borderRadius: 7,
           fontWeight: 700,
           fontSize: 13,
-          background: taslak ? DO.amberLight : oran >= 85 ? '#CCFBF1' : '#EEF2F7',
+          background: taslak ? DO.amberLight : oran >= 85 ? '#DCE7FF' : '#ECECEC',
           color: taslak ? DO.amber : oran >= 85 ? DO.accent : DO.text,
           border: taslak ? '1px dashed #F59E0B' : 'none',
         }}
@@ -7937,7 +7937,7 @@ function NotlarSekmesi({ oda, rol, ac }) {
               ? DO.redLight
               : h === 'DD' || h === 'DC'
                 ? DO.amberLight
-                : '#CCFBF1',
+                : '#DCE7FF',
           color:
             h === 'FF' || h === 'FD' ? DO.red : h === 'DD' || h === 'DC' ? DO.amber : DO.accent,
         }}
@@ -8125,7 +8125,7 @@ function NotlarSekmesi({ oda, rol, ac }) {
           type="button"
           onClick={() => setGrafik((x) => !x)}
           aria-pressed={grafik}
-          style={{ ...ikincilDugme, background: grafik ? '#E2E7FF' : '#EEF2F7' }}
+          style={{ ...ikincilDugme, background: grafik ? '#E2E7FF' : '#ECECEC' }}
         >
           <Ikon ad="grafik" boyut={15} /> Dağılım grafiği
         </button>
@@ -8134,7 +8134,7 @@ function NotlarSekmesi({ oda, rol, ac }) {
             type="button"
             data-not-ayari-ac
             onClick={() => setAyarAcik((x) => !x)}
-            style={{ ...ikincilDugme, background: ayarAcik ? '#E2E7FF' : '#EEF2F7' }}
+            style={{ ...ikincilDugme, background: ayarAcik ? '#E2E7FF' : '#ECECEC' }}
           >
             <Ikon ad="palet" boyut={15} /> Not ayarları
           </button>
@@ -8217,7 +8217,7 @@ function NotlarSekmesi({ oda, rol, ac }) {
               height: 150,
               padding: '12px 12px 0',
               borderRadius: 10,
-              background: '#F8FAFC',
+              background: '#F7F7F7',
             }}
           >
             {dagilim.map((d) => (
@@ -8238,7 +8238,7 @@ function NotlarSekmesi({ oda, rol, ac }) {
                     width: '70%',
                     height: Math.max(3, (d.sayi / enCok) * 100) + 'px',
                     borderRadius: '6px 6px 0 0',
-                    background: d.sayi ? d.renk : '#E2E8F0',
+                    background: d.sayi ? d.renk : '#E2E2E2',
                   }}
                 />
               </div>
@@ -8314,7 +8314,7 @@ function NotlarSekmesi({ oda, rol, ac }) {
                 style={{
                   padding: '2px 6px',
                   borderRadius: 5,
-                  background: '#EEF2F7',
+                  background: '#ECECEC',
                   color: DO.primary,
                   fontWeight: 600,
                 }}
@@ -8410,7 +8410,7 @@ function NotlarSekmesi({ oda, rol, ac }) {
             <tbody>
               {liste.map((s) => {
                 const so = sonuc.get(s.no);
-                const zemin = s.ben ? '#F0FDFA' : '#fff';
+                const zemin = s.ben ? '#EEF3FF' : '#fff';
                 const [az, ar] = avatarTonu(s.no);
                 return (
                   <tr key={s.no} data-not-satiri={s.maskeli ? 'gizli' : s.no}>
@@ -8431,7 +8431,7 @@ function NotlarSekmesi({ oda, rol, ac }) {
                             height: 32,
                             flex: '0 0 32px',
                             borderRadius: '50%',
-                            background: s.maskeli ? '#E2E8F0' : az,
+                            background: s.maskeli ? '#E2E2E2' : az,
                             color: s.maskeli ? DO.soft : ar,
                             display: 'inline-flex',
                             alignItems: 'center',

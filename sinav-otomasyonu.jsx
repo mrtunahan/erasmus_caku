@@ -30,8 +30,8 @@ const GhostBtn = ({ children, onClick, disabled, style: customStyle }) => {
       style={{
         padding: '10px 18px',
         borderRadius: 8,
-        border: '1px solid ' + (C ? C.border : '#E2E8F0'),
-        background: hover ? (C ? C.blueLight : '#CCFBF1') : 'transparent',
+        border: '1px solid ' + (C ? C.border : '#E2E2E2'),
+        background: hover ? (C ? C.blueLight : '#DCE7FF') : 'transparent',
         color: C ? C.blue : '#3B82F6',
         fontSize: 14,
         fontWeight: 600,
@@ -919,12 +919,12 @@ const OrtakOturumBilgisi = ({ exam, grup, onAyir }) => {
   return (
     <div
       style={{
-        border: '1.5px dashed #0F766E',
-        background: '#F0FDFA',
+        border: '1.5px dashed #105BFF',
+        background: '#EEF3FF',
         borderRadius: 8,
         padding: '10px 12px',
         fontSize: 12.5,
-        color: '#134E4A',
+        color: '#0B2E73',
       }}
     >
       <div style={{ fontWeight: 700, marginBottom: 6 }}>
@@ -940,7 +940,7 @@ const OrtakOturumBilgisi = ({ exam, grup, onAyir }) => {
               {u.professor ? ' · ' + u.professor : ''}
             </span>
             {u.id !== exam.id && (
-              <span style={{ fontSize: 11, color: '#0F766E', fontWeight: 600 }}>
+              <span style={{ fontSize: 11, color: '#105BFF', fontWeight: 600 }}>
                 ({SB.ILISKILER[SB.birlesimIliskisi(exam, u)].etiket})
               </span>
             )}
@@ -959,9 +959,9 @@ const OrtakOturumBilgisi = ({ exam, grup, onAyir }) => {
             marginTop: 8,
             padding: '5px 12px',
             borderRadius: 6,
-            border: '1px solid #0F766E',
+            border: '1px solid #105BFF',
             background: 'white',
-            color: '#0F766E',
+            color: '#105BFF',
             fontSize: 12,
             fontWeight: 600,
             cursor: 'pointer',
@@ -1023,7 +1023,7 @@ const AyniSaatPenceresi = ({
           </div>
         </div>
 
-        <div style={{ fontSize: 12.5, color: '#475569', lineHeight: 1.55 }}>
+        <div style={{ fontSize: 12.5, color: '#4A4F57', lineHeight: 1.55 }}>
           Birlikte yapılacaksa (aynı dersin şubeleri, farklı sınıf ya da müfredattaki karşılığı,
           ortak salonda yapılacak dersler) <b>ortak sınav</b> olarak birleştirin: salon toplam
           öğrenci sayısına göre bir kez seçilir, gözetmenler oturumun tamamına atanır ve dersler
@@ -1037,8 +1037,8 @@ const AyniSaatPenceresi = ({
               key={o.anahtar}
               data-secenek={o.anahtar}
               style={{
-                border: '1px solid ' + (o.iliski === 'farkli' ? '#E2E8F0' : '#99F6E4'),
-                background: o.iliski === 'farkli' ? 'white' : '#F0FDFA',
+                border: '1px solid ' + (o.iliski === 'farkli' ? '#E2E2E2' : '#C2D6FF'),
+                background: o.iliski === 'farkli' ? 'white' : '#EEF3FF',
                 borderRadius: 10,
                 padding: '10px 12px',
               }}
@@ -1051,28 +1051,28 @@ const AyniSaatPenceresi = ({
                   flexWrap: 'wrap',
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1E293B' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1F2329' }}>
                   {o.uyeler.length > 1 ? 'Ortak sınav: ' : ''}
                   {o.ozet.kodlar.join(' + ')}{' '}
-                  <span style={{ fontWeight: 500, color: '#64748B' }}>({o.ozet.timeSlot})</span>
+                  <span style={{ fontWeight: 500, color: '#5F6368' }}>({o.ozet.timeSlot})</span>
                 </div>
                 <span
                   style={{
                     fontSize: 11,
                     fontWeight: 700,
-                    color: o.iliski === 'farkli' ? '#64748B' : '#0F766E',
+                    color: o.iliski === 'farkli' ? '#5F6368' : '#105BFF',
                   }}
                 >
                   {iliski.etiket}
                 </span>
               </div>
               {o.uyeler.map((u) => (
-                <div key={u.id} style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
+                <div key={u.id} style={{ fontSize: 12, color: '#4A4F57', marginTop: 3 }}>
                   {u.code} {u.name} · {u.sinif === 5 ? 'Seçmeli' : u.sinif + '. sınıf'} ·{' '}
                   {u.studentCount || 0} öğr.{u.professor ? ' · ' + u.professor : ''}
                 </div>
               ))}
-              <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 5 }}>
+              <div style={{ fontSize: 11.5, color: '#5F6368', marginTop: 5 }}>
                 {iliski.aciklama} Birleşince toplam{' '}
                 <b>{o.ozet.toplamOgrenci + (Number(ders.studentCount) || 0)} öğrenci</b>.
                 {o.ayniSinif ? ' Aynı sınıfın öğrencileri bu sınavda.' : ''}
@@ -1088,7 +1088,7 @@ const AyniSaatPenceresi = ({
                     Bununla ortak sınav yap
                   </Btn>
                 ) : (
-                  <span style={{ fontSize: 12, color: '#64748B' }}>
+                  <span style={{ fontSize: 12, color: '#5F6368' }}>
                     Birleştirmeyi bölüm yetkilisi yapar (iki dersin de hocası sizseniz kendiniz
                     birleştirebilirsiniz).
                   </span>
@@ -1169,13 +1169,13 @@ const CokluSecim = ({
         alignItems: 'center',
         padding: 6,
         minHeight: 38,
-        border: '1px solid #CBD5E1',
+        border: '1px solid #CFCFCF',
         borderRadius: 8,
-        background: readOnly ? '#F1F5F9' : '#fff',
+        background: readOnly ? '#EDEDED' : '#fff',
       }}
     >
       {secili.length === 0 && (
-        <span style={{ fontSize: 12.5, color: '#94A3B8', padding: '0 4px' }}>{bosMetin}</span>
+        <span style={{ fontSize: 12.5, color: '#80858E', padding: '0 4px' }}>{bosMetin}</span>
       )}
       {secili.map((x) => (
         <span
@@ -1186,10 +1186,10 @@ const CokluSecim = ({
             gap: 4,
             padding: '3px 8px',
             borderRadius: 999,
-            background: '#F0FDFA',
-            border: '1px solid #99F6E4',
+            background: '#EEF3FF',
+            border: '1px solid #C2D6FF',
             fontSize: 12.5,
-            color: '#115E59',
+            color: '#0A47D1',
           }}
         >
           {(secenekler.find((o) => o.deger === x) || {}).etiket || x}
@@ -1202,7 +1202,7 @@ const CokluSecim = ({
                 border: 'none',
                 background: 'transparent',
                 cursor: 'pointer',
-                color: '#0F766E',
+                color: '#105BFF',
                 fontSize: 14,
                 lineHeight: 1,
                 padding: 0,
@@ -1223,11 +1223,11 @@ const CokluSecim = ({
             else if (v) yaz([...secili, v]);
           }}
           style={{
-            border: '1px dashed #5EEAD4',
+            border: '1px dashed #9DBCFF',
             borderRadius: 999,
             padding: '3px 8px',
             fontSize: 12.5,
-            color: '#0F766E',
+            color: '#105BFF',
             background: '#fff',
             cursor: 'pointer',
             maxWidth: 220,
@@ -1319,7 +1319,7 @@ const EditExamModal = ({
         <div
           style={{
             padding: 12,
-            background: SINIF_COLORS[exam.sinif]?.bg || '#f1f5f9',
+            background: SINIF_COLORS[exam.sinif]?.bg || '#EDEDED',
             borderRadius: 8,
             fontSize: 14,
           }}
@@ -1375,7 +1375,7 @@ const EditExamModal = ({
             placeholder="Akademisyen ismi"
             list="prof-list"
             readOnly={readOnly}
-            style={readOnly ? { background: '#F1F5F9' } : {}}
+            style={readOnly ? { background: '#EDEDED' } : {}}
           />
           {!readOnly && (
             <datalist id="prof-list">
@@ -1408,7 +1408,7 @@ const EditExamModal = ({
             onChange={(e) => !readOnly && setDuration(e.target.value)}
             readOnly={readOnly}
             placeholder="Örn: 50"
-            style={readOnly ? { background: '#F1F5F9' } : {}}
+            style={readOnly ? { background: '#EDEDED' } : {}}
           />
           <datalist id="sinav-sure-onerileri">
             {[30, 40, 45, 50, 60, 75, 90, 120].map((d) => (
@@ -1425,7 +1425,7 @@ const EditExamModal = ({
             readOnly={readOnly}
             style={
               readOnly
-                ? { background: '#F1F5F9' }
+                ? { background: '#EDEDED' }
                 : !studentCount || parseInt(studentCount) <= 0
                   ? { borderColor: '#DC2626' }
                   : {}
@@ -1819,12 +1819,12 @@ const DraggableCourseCard = ({ course, isPlaced: _isPlaced, placedCount = 0, can
       onDragEnd={handleDragEnd}
       style={{
         padding: '8px 10px',
-        background: canDrag ? color.bg : '#F1F5F9',
-        color: canDrag ? color.text : '#94A3B8',
+        background: canDrag ? color.bg : '#EDEDED',
+        color: canDrag ? color.text : '#80858E',
         borderRadius: 6,
         fontSize: 12,
         cursor: canDrag ? 'grab' : 'default',
-        border: `1px solid ${canDrag ? color.text + '30' : '#E2E8F0'}`,
+        border: `1px solid ${canDrag ? color.text + '30' : '#E2E2E2'}`,
         transition: 'all 0.2s',
         userSelect: 'none',
         position: 'relative',
@@ -1836,7 +1836,7 @@ const DraggableCourseCard = ({ course, isPlaced: _isPlaced, placedCount = 0, can
         {placedCount > 0 && (
           <span
             style={{
-              background: canDrag ? color.text : '#94A3B8',
+              background: canDrag ? color.text : '#80858E',
               color: 'white',
               borderRadius: 10,
               padding: '1px 6px',
@@ -1952,13 +1952,13 @@ const CalendarCell = ({
       data-saat={timeSlot}
       data-blok={blok ? blok.sinavlar.length : 0}
       style={{
-        border: sinifCakismasi ? '2px solid #DC2626' : '1px solid #E2E8F0',
+        border: sinifCakismasi ? '2px solid #DC2626' : '1px solid #E2E2E2',
         padding: 0,
         height: cellHeight * span,
         minWidth: 100,
         maxWidth: 'none',
         verticalAlign: 'top',
-        background: dragOver ? '#CCFBF1' : blok ? (coklu ? '#F8FAFC' : tekRenk.bg) : 'white',
+        background: dragOver ? '#DCE7FF' : blok ? (coklu ? '#F7F7F7' : tekRenk.bg) : 'white',
         cursor: blok && !coklu ? 'pointer' : 'default',
         transition: 'background 0.15s',
         position: 'relative',
@@ -2008,15 +2008,15 @@ const CalendarCell = ({
                 key={anahtar}
                 data-oturum={ortak ? 'ortak' : 'tek'}
                 style={{
-                  border: ortak ? '1.5px dashed #0F766E' : 'none',
+                  border: ortak ? '1.5px dashed #105BFF' : 'none',
                   borderRadius: 5,
                   padding: ortak ? 2 : 0,
-                  background: ortak ? '#F0FDFA' : 'transparent',
+                  background: ortak ? '#EEF3FF' : 'transparent',
                 }}
               >
                 {ortak && (
                   <div
-                    style={{ fontSize: 8.5, fontWeight: 700, color: '#0F766E', padding: '0 2px' }}
+                    style={{ fontSize: 8.5, fontWeight: 700, color: '#105BFF', padding: '0 2px' }}
                   >
                     Ortak sınav · {ozet ? ozet.toplamOgrenci : ''} öğr.
                   </div>
@@ -2079,7 +2079,7 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
     >
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 700 }}>
         <thead>
-          <tr style={{ background: '#1B2A4A', color: 'white' }}>
+          <tr style={{ background: '#0B2E73', color: 'white' }}>
             <th
               style={{
                 padding: '10px 12px',
@@ -2140,7 +2140,7 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
         <tbody>
           {sorted.length === 0 && (
             <tr>
-              <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>
+              <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: '#80858E' }}>
                 Henüz takvime ders yerleştirilmedi. Sol panelden dersleri sürükleyip takvime
                 bırakın.
               </td>
@@ -2155,13 +2155,13 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
                 key={i}
                 onClick={() => onExamClick(exam)}
                 style={{
-                  background: i % 2 === 0 ? 'white' : '#F8FAFC',
+                  background: i % 2 === 0 ? 'white' : '#F7F7F7',
                   cursor: 'pointer',
                   borderBottom: `1px solid ${C.border}`,
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = color.bg + '60')}
                 onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = i % 2 === 0 ? 'white' : '#F8FAFC')
+                  (e.currentTarget.style.background = i % 2 === 0 ? 'white' : '#F7F7F7')
                 }
               >
                 <td style={{ padding: '10px 12px', textAlign: 'center' }}>
@@ -2172,7 +2172,7 @@ const ExamTableView = ({ placedExams, onExamClick }) => {
                 <td style={{ padding: '10px 12px' }}>
                   <strong>{exam.code}</strong> - {exam.name}
                   {exam.birlesimId && window.SinavBirlesim && (
-                    <div style={{ fontSize: 11, color: '#0F766E', fontWeight: 600, marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: '#105BFF', fontWeight: 600, marginTop: 2 }}>
                       Ortak sınav:{' '}
                       {window.SinavBirlesim.grupUyeleri(exam, placedExams)
                         .filter((u) => u.id !== exam.id)
@@ -2278,7 +2278,7 @@ const _DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) 
                 <td style={{ padding: '8px 12px', fontWeight: 600 }}>{d.name}</td>
                 <td style={{ padding: '8px 12px' }}>
                   {d.managerNames?.join(', ') || d.managerName || (
-                    <span style={{ color: '#94A3B8' }}>Atanmadı</span>
+                    <span style={{ color: '#80858E' }}>Atanmadı</span>
                   )}
                 </td>
                 <td style={{ padding: '8px 12px', textAlign: 'center' }}>
@@ -2313,7 +2313,7 @@ const _DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) 
             ))}
             {departments.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ padding: 30, textAlign: 'center', color: '#94A3B8' }}>
+                <td colSpan={3} style={{ padding: 30, textAlign: 'center', color: '#80858E' }}>
                   Henüz bölüm eklenmedi
                 </td>
               </tr>
@@ -2353,7 +2353,7 @@ const _DepartmentManagementModal = ({ departments, onSave, onDelete, onClose }) 
               />
             </FormField>
           </div>
-          <div style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic' }}>
+          <div style={{ fontSize: 12, color: '#5F6368', fontStyle: 'italic' }}>
             Yetkili kişi, "Bölüm Yetkilisi" olarak giriş yaparak bu bölümü yönetebilir. Varsayılan
             şifre akademisyen şifresiyle aynıdır.
           </div>
@@ -2479,7 +2479,7 @@ const _ClassroomManagementModal = ({ classrooms, onSave, onDelete, onClose }) =>
             ))}
             {classrooms.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ padding: 30, textAlign: 'center', color: '#94A3B8' }}>
+                <td colSpan={3} style={{ padding: 30, textAlign: 'center', color: '#80858E' }}>
                   Henüz sınıf eklenmedi
                 </td>
               </tr>
@@ -2611,7 +2611,7 @@ const _SupervisorManagementModal = ({ supervisors, onSave, onDelete, onClose }) 
           </div>
         ))}
         {supervisors.length === 0 && (
-          <div style={{ padding: 30, textAlign: 'center', color: '#94A3B8' }}>
+          <div style={{ padding: 30, textAlign: 'center', color: '#80858E' }}>
             Henüz gözetmen eklenmedi
           </div>
         )}
@@ -3611,7 +3611,7 @@ async function exportToXLSX(
 // menü açılınca ikisi de üstte yazılı olarak durur.
 // ══════════════════════════════════════════════════════════════
 const MENU_DURUM_RENGI = {
-  bekliyor: '#64748B',
+  bekliyor: '#5F6368',
   gonderildi: '#16A34A',
   degisti: '#D97706',
   iade: '#DC2626',
@@ -3664,7 +3664,7 @@ const IslemMenusu = ({ ogeler, cakismaOzet, gonderim }) => {
           padding: '0 12px',
           borderRadius: 8,
           border: 'none',
-          background: '#0F766E',
+          background: '#105BFF',
           color: '#fff',
           fontSize: 12.5,
           fontWeight: 700,
@@ -3673,7 +3673,7 @@ const IslemMenusu = ({ ogeler, cakismaOzet, gonderim }) => {
       >
         {cakismaRengi && nokta(cakismaRengi)}
         İşlemler ve Çıktılar
-        {gonderim && nokta(MENU_DURUM_RENGI[gonderim.durum] || '#64748B')}
+        {gonderim && nokta(MENU_DURUM_RENGI[gonderim.durum] || '#5F6368')}
         <span style={{ fontSize: 10, opacity: 0.85 }}>{acik ? '▲' : '▼'}</span>
       </button>
       {acik && (
@@ -3686,7 +3686,7 @@ const IslemMenusu = ({ ogeler, cakismaOzet, gonderim }) => {
             zIndex: 50,
             width: 300,
             background: '#fff',
-            border: '1px solid #E2E8F0',
+            border: '1px solid #E2E2E2',
             borderRadius: 12,
             boxShadow: '0 12px 32px rgba(15,23,42,.18)',
             padding: 6,
@@ -3696,7 +3696,7 @@ const IslemMenusu = ({ ogeler, cakismaOzet, gonderim }) => {
             <div
               style={{
                 padding: '8px 10px 10px',
-                borderBottom: '1px solid #F1F5F9',
+                borderBottom: '1px solid #EDEDED',
                 marginBottom: 4,
                 display: 'grid',
                 gap: 6,
@@ -3752,7 +3752,7 @@ const IslemMenusu = ({ ogeler, cakismaOzet, gonderim }) => {
           )}
           {ogeler.map((o, i) =>
             o.ayirac ? (
-              <div key={'a' + i} style={{ height: 1, background: '#F1F5F9', margin: '4px 6px' }} />
+              <div key={'a' + i} style={{ height: 1, background: '#EDEDED', margin: '4px 6px' }} />
             ) : (
               <button
                 key={o.etiket}
@@ -3771,12 +3771,12 @@ const IslemMenusu = ({ ogeler, cakismaOzet, gonderim }) => {
                   border: 'none',
                   borderRadius: 8,
                   background: o.vurgu ? '#F5F3FF' : 'transparent',
-                  color: o.devreDisi ? '#94A3B8' : o.vurgu ? '#6D28D9' : '#0F172A',
+                  color: o.devreDisi ? '#80858E' : o.vurgu ? '#6D28D9' : '#15181D',
                   cursor: o.devreDisi ? 'default' : 'pointer',
                 }}
                 onMouseEnter={(e) =>
                   !o.devreDisi &&
-                  (e.currentTarget.style.background = o.vurgu ? '#EDE9FE' : '#F8FAFC')
+                  (e.currentTarget.style.background = o.vurgu ? '#EDE9FE' : '#F7F7F7')
                 }
                 onMouseLeave={(e) =>
                   (e.currentTarget.style.background = o.vurgu ? '#F5F3FF' : 'transparent')
@@ -3784,7 +3784,7 @@ const IslemMenusu = ({ ogeler, cakismaOzet, gonderim }) => {
               >
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{o.etiket}</div>
                 {o.aciklama && (
-                  <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 1 }}>
+                  <div style={{ fontSize: 11.5, color: '#5F6368', marginTop: 1 }}>
                     {o.devreDisi ? 'Önce dersleri takvime yerleştirin' : o.aciklama}
                   </div>
                 )}
@@ -3812,7 +3812,7 @@ const ayarHaritasi = (liste, anahtar, deger) => {
   return h;
 };
 const FAKULTE_DURUM_RENGI = {
-  bekliyor: { bg: '#F1F5F9', fg: '#475569' },
+  bekliyor: { bg: '#EDEDED', fg: '#4A4F57' },
   gonderildi: { bg: '#DCFCE7', fg: '#166534' },
   degisti: { bg: '#FEF3C7', fg: '#92400E' },
   iade: { bg: '#FEE2E2', fg: '#991B1B' },
@@ -3969,11 +3969,11 @@ const OturumDuzenle = ({
       salonGozDegis(oda, [...parca(salonGoz[oda]), ad].join(', '));
     } else setGozetmen([...parca(gozetmen), ad].join(', '));
   };
-  const etiket = { fontSize: 11.5, fontWeight: 600, color: '#64748B', marginBottom: 4 };
+  const etiket = { fontSize: 11.5, fontWeight: 600, color: '#5F6368', marginBottom: 4 };
   const secim = {
     height: 34,
     padding: '0 8px',
-    border: '1px solid #CBD5E1',
+    border: '1px solid #CFCFCF',
     borderRadius: 8,
     fontSize: 13,
     background: '#fff',
@@ -3982,8 +3982,8 @@ const OturumDuzenle = ({
   const bolumAdi = (id) => (bolumBilgisi[id] && bolumBilgisi[id].ad) || id;
   const birlesik = oturum.uyeler.length > 1;
   return (
-    <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 12, marginTop: 12 }}>
-      <div style={{ fontSize: 13, color: '#334155', marginBottom: 8 }}>
+    <div style={{ borderTop: '1px solid #E2E2E2', paddingTop: 12, marginTop: 12 }}>
+      <div style={{ fontSize: 13, color: '#363A42', marginBottom: 8 }}>
         {oturum.sure} dk · <b>{oturum.ogrenci}</b> öğrenci
         {oturum.bolumIdleri.length > 1 && (
           <span
@@ -4011,13 +4011,13 @@ const OturumDuzenle = ({
               gap: 8,
               fontSize: 13,
               padding: '6px 8px',
-              background: '#F8FAFC',
+              background: '#F7F7F7',
               borderRadius: 8,
             }}
           >
             <span style={{ flex: 1, minWidth: 0 }}>
               <b>{u.code}</b> {u.name}
-              <span style={{ color: '#64748B' }}>
+              <span style={{ color: '#5F6368' }}>
                 {' '}
                 — {bolumAdi(u.departmentId)} · {u.studentCount || 0} öğr.
                 {u.professor ? ' · ' + u.professor : ''}
@@ -4029,7 +4029,7 @@ const OturumDuzenle = ({
                 onClick={() => onAyir(u)}
                 title="Bu sınavı ortak oturumdan ayır"
                 style={{
-                  border: '1px solid #CBD5E1',
+                  border: '1px solid #CFCFCF',
                   background: '#fff',
                   borderRadius: 6,
                   fontSize: 12,
@@ -4101,13 +4101,13 @@ const OturumDuzenle = ({
                       gap: 8,
                       alignItems: 'start',
                       padding: '6px 8px',
-                      background: '#F8FAFC',
-                      border: '1px solid #E2E8F0',
+                      background: '#F7F7F7',
+                      border: '1px solid #E2E2E2',
                       borderRadius: 8,
                     }}
                   >
                     <div
-                      style={{ fontSize: 12.5, fontWeight: 700, color: '#0F766E', paddingTop: 7 }}
+                      style={{ fontSize: 12.5, fontWeight: 700, color: '#105BFF', paddingTop: 7 }}
                     >
                       {oda}
                     </div>
@@ -4175,7 +4175,7 @@ const OturumDuzenle = ({
                   alignItems: 'center',
                 }}
               >
-                <span style={{ fontSize: 12, color: '#64748B' }}>
+                <span style={{ fontSize: 12, color: '#5F6368' }}>
                   Öneri (bu saatte boş, yükü en az):
                 </span>
                 {oneriler.map((x) => (
@@ -4185,9 +4185,9 @@ const OturumDuzenle = ({
                     onClick={() => oneriEkle(x.ad)}
                     title={x.gorev + ' görev · ' + x.dakika + ' dk — eklemek için tıklayın'}
                     style={{
-                      border: '1px solid #99F6E4',
-                      background: '#F0FDFA',
-                      color: '#0F766E',
+                      border: '1px solid #C2D6FF',
+                      background: '#EEF3FF',
+                      color: '#105BFF',
                       borderRadius: 999,
                       padding: '2px 10px',
                       fontSize: 12,
@@ -4244,7 +4244,7 @@ const OturumDuzenle = ({
                 padding: '0 16px',
                 border: 'none',
                 borderRadius: 8,
-                background: degisti && salonEngelListesi.length === 0 ? '#0F766E' : '#CBD5E1',
+                background: degisti && salonEngelListesi.length === 0 ? '#105BFF' : '#CFCFCF',
                 color: '#fff',
                 fontWeight: 700,
                 fontSize: 13,
@@ -5150,7 +5150,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
 
   // ── Görünüm parçaları ──
   const hucreStili = {
-    border: '1px solid #CBD5E1',
+    border: '1px solid #CFCFCF',
     padding: '2px 4px',
     fontSize: 11,
     lineHeight: 1.25,
@@ -5160,7 +5160,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
   };
   const sabitBas = {
     position: 'sticky',
-    background: '#F8FAFC',
+    background: '#F7F7F7',
     zIndex: 2,
     fontWeight: 700,
   };
@@ -5189,7 +5189,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
       if (h.cakisma) st.outline = '3px solid #DC2626';
       else if (gc.length > 0) st.outline = '3px solid #F97316';
       else if (h.taslak) {
-        st.outline = '2px dashed #475569';
+        st.outline = '2px dashed #4A4F57';
         st.opacity = 0.62;
       } else if (h.degisti) st.outline = '2px dashed #D97706';
       return st;
@@ -5200,7 +5200,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
         <div
           style={{
             overflow: 'auto',
-            border: '1px solid #CBD5E1',
+            border: '1px solid #CFCFCF',
             borderRadius: 8,
             flex: 1,
             minHeight: 0,
@@ -5271,7 +5271,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                       ...hucreStili,
                       position: 'sticky',
                       left: 0,
-                      background: r.ara ? '#DCFCE7' : '#F8FAFC',
+                      background: r.ara ? '#DCFCE7' : '#F7F7F7',
                       fontWeight: 600,
                       fontSize: r.ara ? 10.5 : 11,
                       zIndex: 1,
@@ -5342,7 +5342,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                               fontSize: 8.5,
                               fontWeight: 800,
                               color: '#fff',
-                              background: '#0F766E',
+                              background: '#105BFF',
                               borderRadius: 3,
                               padding: '0 3px',
                               lineHeight: '12px',
@@ -5375,7 +5375,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
           gap: '6px 14px',
           alignItems: 'center',
           fontSize: 12,
-          color: '#334155',
+          color: '#363A42',
           padding: '2px 2px 0',
         }}
       >
@@ -5399,7 +5399,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               width: 28,
               height: 14,
               borderRadius: 3,
-              border: '2px dashed #475569',
+              border: '2px dashed #4A4F57',
               opacity: 0.7,
             }}
           />
@@ -5423,7 +5423,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               fontSize: 9,
               fontWeight: 800,
               color: '#fff',
-              background: '#0F766E',
+              background: '#105BFF',
               borderRadius: 3,
               padding: '0 4px',
             }}
@@ -5446,7 +5446,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                 style={{
                   ...hucreStili,
                   fontSize: 12.5,
-                  background: '#F1F5F9',
+                  background: '#EDEDED',
                   padding: '6px 10px',
                 }}
               >
@@ -5468,7 +5468,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
           ))}
         </tbody>
       </table>
-      <div style={{ fontSize: 12, color: '#64748B', marginTop: 8 }}>
+      <div style={{ fontSize: 12, color: '#5F6368', marginTop: 8 }}>
         Kısaltmalar addan otomatik üretilir; &quot;Ayarlar&quot; sekmesinden değiştirilebilir.
         Dersin hocası kendi sınavında &quot;Dersin Öğr. Elemanı&quot; olarak yazılır ve sayılmaz.
       </div>
@@ -5489,7 +5489,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
       az: { bg: '#E0F2FE', fg: '#0369A1', yazi: 'Az' },
       dengeli: { bg: '#DCFCE7', fg: '#166534', yazi: 'Dengeli' },
     };
-    const th = { ...hucreStili, fontSize: 12, background: '#F1F5F9', padding: '6px 10px' };
+    const th = { ...hucreStili, fontSize: 12, background: '#EDEDED', padding: '6px 10px' };
     const td = { ...hucreStili, fontSize: 12.5, padding: '5px 10px' };
     return (
       <div
@@ -5544,7 +5544,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                     </div>
                     {yetkili && hedef && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                        <span style={{ color: '#64748B' }}>
+                        <span style={{ color: '#5F6368' }}>
                           Öneri ({hedef.kodSatiri} oturumunda {c.ad} yerine):
                         </span>
                         {oneriler.length === 0 ? (
@@ -5598,11 +5598,11 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
         </div>
 
         <div data-gozetmen-yuk-paneli>
-          <div style={{ fontWeight: 800, fontSize: 14, color: '#0F766E', marginBottom: 4 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, color: '#105BFF', marginBottom: 4 }}>
             Gözetmen yük sayacı
           </div>
           {D.denge && (
-            <div style={{ fontSize: 12.5, color: '#334155', marginBottom: 8 }}>
+            <div style={{ fontSize: 12.5, color: '#363A42', marginBottom: 8 }}>
               Kişi başı ortalama <b>{D.denge.ortalamaGorev.toFixed(1)}</b> görev ·{' '}
               <b>{sureMetni(D.denge.ortalamaDakika)}</b>.{' '}
               <span style={{ color: '#B91C1C', fontWeight: 600 }}>
@@ -5649,7 +5649,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                     >
                       {y.enYogunGun}
                     </td>
-                    <td style={{ ...td, color: '#64748B' }}>{y.kendiSinavi}</td>
+                    <td style={{ ...td, color: '#5F6368' }}>{y.kendiSinavi}</td>
                     <td style={td}>
                       <span
                         style={{
@@ -5669,7 +5669,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               })}
             </tbody>
           </table>
-          <div style={{ fontSize: 12, color: '#64748B', marginTop: 8 }}>
+          <div style={{ fontSize: 12, color: '#5F6368', marginTop: 8 }}>
             Sayaç ekrandaki programa göre (gizlenen taslak bölümler hariç) hesaplanır. Dersin
             hocasının kendi sınavı &quot;Kendi sınavı&quot; sütununda ayrı sayılır, adalet hesabına
             girmez.
@@ -5685,7 +5685,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
     const giris = {
       height: 32,
       padding: '0 10px',
-      border: '1px solid #CBD5E1',
+      border: '1px solid #CFCFCF',
       borderRadius: 7,
       fontSize: 13,
       background: '#fff',
@@ -5694,7 +5694,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
     };
     const kart = {
       background: '#fff',
-      border: '1px solid #E2E8F0',
+      border: '1px solid #E2E2E2',
       borderRadius: 12,
       padding: 16,
       alignSelf: 'start',
@@ -5703,17 +5703,17 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
     const kartBaslik = (baslik, aciklama, sayi) => (
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14.5, fontWeight: 700, color: '#0F172A' }}>{baslik}</div>
-          <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{aciklama}</div>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: '#15181D' }}>{baslik}</div>
+          <div style={{ fontSize: 12, color: '#5F6368', marginTop: 2 }}>{aciklama}</div>
         </div>
         {sayi != null && (
           <span
             style={{
               fontSize: 12,
               fontWeight: 700,
-              color: '#0F766E',
-              background: '#F0FDFA',
-              border: '1px solid #99F6E4',
+              color: '#105BFF',
+              background: '#EEF3FF',
+              border: '1px solid #C2D6FF',
               borderRadius: 999,
               padding: '1px 9px',
             }}
@@ -5747,7 +5747,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
     const sutunBaslik = {
       fontSize: 11.5,
       fontWeight: 600,
-      color: '#64748B',
+      color: '#5F6368',
       textTransform: 'uppercase',
       letterSpacing: 0.3,
     };
@@ -5764,7 +5764,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
             gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))',
             gap: 16,
             padding: 2,
-            background: '#F8FAFC',
+            background: '#F7F7F7',
             borderRadius: 12,
           }}
         >
@@ -5825,9 +5825,9 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                   setAyarTaslak({ ...a, salonlar: [...a.salonlar, { name: '', capacity: '' }] })
                 }
                 style={{
-                  border: '1px dashed #5EEAD4',
-                  background: '#F0FDFA',
-                  color: '#0F766E',
+                  border: '1px dashed #9DBCFF',
+                  background: '#EEF3FF',
+                  color: '#105BFF',
                   borderRadius: 7,
                   padding: '6px 12px',
                   fontSize: 13,
@@ -5837,8 +5837,8 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               >
                 + Salon ekle
               </button>
-              <span style={{ marginLeft: 'auto', fontSize: 12, color: '#64748B' }}>
-                Toplam kapasite: <b style={{ color: '#0F172A' }}>{toplamKapasite}</b>
+              <span style={{ marginLeft: 'auto', fontSize: 12, color: '#5F6368' }}>
+                Toplam kapasite: <b style={{ color: '#15181D' }}>{toplamKapasite}</b>
               </span>
             </div>
           </div>
@@ -5918,7 +5918,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                         width: 44,
                         height: 32,
                         padding: 2,
-                        border: '1px solid #CBD5E1',
+                        border: '1px solid #CFCFCF',
                         borderRadius: 7,
                         background: '#fff',
                         cursor: 'pointer',
@@ -5932,7 +5932,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               style={{
                 marginTop: 14,
                 paddingTop: 12,
-                borderTop: '1px dashed #E2E8F0',
+                borderTop: '1px dashed #E2E2E2',
                 display: 'grid',
                 gridTemplateColumns: '1fr 44px',
                 gap: 6,
@@ -5973,7 +5973,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                       width: 44,
                       height: 32,
                       padding: 2,
-                      border: '1px solid #CBD5E1',
+                      border: '1px solid #CFCFCF',
                       borderRadius: 7,
                       background: '#fff',
                       cursor: 'pointer',
@@ -5981,7 +5981,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                   />
                 </React.Fragment>
               ))}
-              <span style={{ gridColumn: '1 / -1', fontSize: 11.5, color: '#64748B' }}>
+              <span style={{ gridColumn: '1 / -1', fontSize: 11.5, color: '#5F6368' }}>
                 Öncelik: OSD/OZD rengi → ortak ders rengi → bölüm rengi. Kod OSD ya da OZD ile
                 başlayan sınavlar OSD/OZD sayılır.
               </span>
@@ -6000,7 +6000,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                 setAyarTaslak({ ...a, cizelge: { ...c, [alan]: deger } });
               const onizleme = SF ? SF.saatDilimleri(c) : [];
               const alan = (etiket, icerik) => (
-                <label style={{ display: 'grid', gap: 4, fontSize: 12, color: '#64748B' }}>
+                <label style={{ display: 'grid', gap: 4, fontSize: 12, color: '#5F6368' }}>
                   <span style={sutunBaslik}>{etiket}</span>
                   {icerik}
                 </label>
@@ -6073,7 +6073,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                         style={{
                           height: 32,
                           width: '100%',
-                          border: '1px solid #CBD5E1',
+                          border: '1px solid #CFCFCF',
                           borderRadius: 7,
                           background: '#fff',
                           fontSize: 12,
@@ -6088,8 +6088,8 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                     style={{
                       marginTop: 10,
                       fontSize: 11.5,
-                      color: '#475569',
-                      background: '#F8FAFC',
+                      color: '#4A4F57',
+                      background: '#F7F7F7',
                       borderRadius: 8,
                       padding: '8px 10px',
                       lineHeight: 1.6,
@@ -6115,10 +6115,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               <div
                 style={{
                   fontSize: 13,
-                  color: '#64748B',
+                  color: '#5F6368',
                   padding: '18px 12px',
                   textAlign: 'center',
-                  background: '#F8FAFC',
+                  background: '#F7F7F7',
                   borderRadius: 8,
                 }}
               >
@@ -6175,12 +6175,12 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
             alignItems: 'center',
             gap: 8,
             padding: '10px 14px',
-            border: '1px solid #E2E8F0',
+            border: '1px solid #E2E2E2',
             borderRadius: 10,
             background: '#fff',
           }}
         >
-          <span style={{ fontSize: 12.5, color: '#64748B', marginRight: 'auto' }}>
+          <span style={{ fontSize: 12.5, color: '#5F6368', marginRight: 'auto' }}>
             {fakulteAdi} için geçerlidir; kaydedilene kadar tabloya ve Excel&apos;e yansımaz.
           </span>
           <button
@@ -6193,9 +6193,9 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               height: 34,
               padding: '0 14px',
               borderRadius: 8,
-              border: '1px solid #CBD5E1',
+              border: '1px solid #CFCFCF',
               background: '#fff',
-              color: '#334155',
+              color: '#363A42',
               fontSize: 13,
               fontWeight: 600,
               cursor: 'pointer',
@@ -6212,7 +6212,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               padding: '0 16px',
               borderRadius: 8,
               border: 'none',
-              background: '#0F766E',
+              background: '#105BFF',
               color: '#fff',
               fontSize: 13,
               fontWeight: 700,
@@ -6300,10 +6300,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
       onClick={() => setSekme(anahtar)}
       style={{
         padding: '6px 12px',
-        border: '1px solid #CBD5E1',
-        borderTop: aktifSekme === anahtar ? '3px solid #0F766E' : '1px solid #CBD5E1',
-        background: aktifSekme === anahtar ? '#fff' : '#F1F5F9',
-        color: aktifSekme === anahtar ? '#0F766E' : '#334155',
+        border: '1px solid #CFCFCF',
+        borderTop: aktifSekme === anahtar ? '3px solid #105BFF' : '1px solid #CFCFCF',
+        background: aktifSekme === anahtar ? '#fff' : '#EDEDED',
+        color: aktifSekme === anahtar ? '#105BFF' : '#363A42',
         fontWeight: aktifSekme === anahtar ? 700 : 500,
         fontSize: 12.5,
         cursor: 'pointer',
@@ -6347,17 +6347,17 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
         <div
           style={{
             padding: '12px 16px',
-            borderBottom: '1px solid #E2E8F0',
+            borderBottom: '1px solid #E2E2E2',
             display: 'flex',
             gap: 12,
             alignItems: 'center',
             flexWrap: 'wrap',
           }}
         >
-          <div style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', marginRight: 'auto' }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: '#15181D', marginRight: 'auto' }}>
             Fakülte Sınav Programı
             {!(tamYonetici(currentUser) && fakulteler.length > 1) && (
-              <span style={{ fontWeight: 500, color: '#64748B', fontSize: 14 }}>
+              <span style={{ fontWeight: 500, color: '#5F6368', fontSize: 14 }}>
                 {' '}
                 — {fakulteAdi}
               </span>
@@ -6375,7 +6375,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               style={{
                 padding: '7px 10px',
                 borderRadius: 8,
-                border: '1px solid #CBD5E1',
+                border: '1px solid #CFCFCF',
                 fontSize: 13,
                 maxWidth: 320,
               }}
@@ -6396,15 +6396,15 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               gap: 10,
               padding: '6px 12px',
               borderRadius: 8,
-              background: '#F0FDFA',
-              border: '1px solid #99F6E4',
+              background: '#EEF3FF',
+              border: '1px solid #C2D6FF',
               fontSize: 13,
-              color: '#115E59',
+              color: '#0A47D1',
             }}
           >
             <b>{grup ? grup.etiket : 'Açık sınav dönemi yok'}</b>
             {grup && grup.bas && (
-              <span style={{ color: '#0F766E' }}>
+              <span style={{ color: '#105BFF' }}>
                 {formatDate(parseDateISO(grup.bas))}
                 {grup.bit ? ' – ' + formatDate(parseDateISO(grup.bit)) : ''}
               </span>
@@ -6413,7 +6413,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               <span
                 style={{
                   background: '#fff',
-                  border: '1px solid #99F6E4',
+                  border: '1px solid #C2D6FF',
                   borderRadius: 999,
                   padding: '1px 9px',
                   fontWeight: 700,
@@ -6427,7 +6427,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
             title="Programını henüz göndermemiş bölümlerin sınavlarını da tabloda göster"
             style={{
               fontSize: 13,
-              color: '#334155',
+              color: '#363A42',
               display: 'flex',
               gap: 6,
               alignItems: 'center',
@@ -6449,10 +6449,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               style={{
                 height: 34,
                 padding: '0 10px',
-                border: '1px solid #0F766E',
+                border: '1px solid #105BFF',
                 borderRadius: 8,
-                background: '#F0FDFA',
-                color: '#0F766E',
+                background: '#EEF3FF',
+                color: '#105BFF',
                 fontSize: 12,
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -6477,10 +6477,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
             style={{
               height: 34,
               padding: '0 10px',
-              border: '1px solid #0F766E',
+              border: '1px solid #105BFF',
               borderRadius: 8,
               background: '#fff',
-              color: '#0F766E',
+              color: '#105BFF',
               fontSize: 12,
               fontWeight: 700,
               cursor: 'pointer',
@@ -6496,10 +6496,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
             style={{
               height: 34,
               padding: '0 10px',
-              border: '1px dashed #64748B',
+              border: '1px dashed #5F6368',
               borderRadius: 8,
               background: '#fff',
-              color: '#334155',
+              color: '#363A42',
               fontSize: 12,
               fontWeight: 600,
               cursor: 'pointer',
@@ -6516,9 +6516,9 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
               width: 36,
               height: 36,
               borderRadius: 8,
-              border: '1px solid #CBD5E1',
+              border: '1px solid #CFCFCF',
               background: '#fff',
-              color: '#334155',
+              color: '#363A42',
               fontSize: 18,
               cursor: 'pointer',
             }}
@@ -6528,10 +6528,10 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
         </div>
 
         {!veri || !SF ? (
-          <div style={{ padding: 60, textAlign: 'center', color: '#94A3B8' }}>Yükleniyor…</div>
+          <div style={{ padding: 60, textAlign: 'center', color: '#80858E' }}>Yükleniyor…</div>
         ) : (
           <>
-            <div style={{ padding: '10px 16px', borderBottom: '1px solid #F1F5F9' }}>
+            <div style={{ padding: '10px 16px', borderBottom: '1px solid #EDEDED' }}>
               {durumCiz()}
               {oneriler.length > 0 && (
                 <div
@@ -6635,7 +6635,7 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                 (aktifGun ? (
                   tabloCiz(aktifGun)
                 ) : (
-                  <div style={{ padding: 50, textAlign: 'center', color: '#94A3B8' }}>
+                  <div style={{ padding: 50, textAlign: 'center', color: '#80858E' }}>
                     {grup
                       ? 'Bu dönemde gösterilecek sınav yok' +
                         (taslakDahil ? '.' : ' (yalnız gönderen bölümler gösteriliyor).')
@@ -6649,8 +6649,8 @@ const FakulteProgramPenceresi = ({ currentUser, onClose, varsayilanBolum }) => {
                 gap: 2,
                 padding: '0 16px 10px',
                 overflowX: 'auto',
-                borderTop: '1px solid #E2E8F0',
-                background: '#F8FAFC',
+                borderTop: '1px solid #E2E2E2',
+                background: '#F7F7F7',
               }}
             >
               {kitap && sekmeDugmesi('kisaltma', 'Kısaltmalar')}
@@ -8782,7 +8782,7 @@ function SinavOtomasyonuApp({
   if (loading) {
     return (
       <Card>
-        <div style={{ padding: 60, textAlign: 'center', color: '#94A3B8' }}>
+        <div style={{ padding: 60, textAlign: 'center', color: '#80858E' }}>
           <div style={{ fontSize: 18, marginBottom: 8 }}>Yükleniyor...</div>
         </div>
       </Card>
@@ -8824,7 +8824,7 @@ function SinavOtomasyonuApp({
           }}
         >
           {embedded && (
-            <div style={{ fontSize: 13, color: '#64748B' }}>
+            <div style={{ fontSize: 13, color: '#5F6368' }}>
               Dersleri sürükleyerek takvime yerleştirin
             </div>
           )}
@@ -8853,7 +8853,7 @@ function SinavOtomasyonuApp({
                 height="20"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#0F766E"
+                stroke="#105BFF"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -8861,10 +8861,10 @@ function SinavOtomasyonuApp({
                 <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
               <div>
-                <span style={{ fontWeight: 600, color: '#0F766E' }}>
+                <span style={{ fontWeight: 600, color: '#105BFF' }}>
                   {currentUser?.departmentName || 'Bölüm'}
                 </span>
-                <span style={{ color: '#64748B', fontSize: 13, marginLeft: 8 }}>
+                <span style={{ color: '#5F6368', fontSize: 13, marginLeft: 8 }}>
                   Bölüm Yetkilisi: {currentUser?.name}
                 </span>
               </div>
@@ -8874,14 +8874,14 @@ function SinavOtomasyonuApp({
 
         {/* Professor Info — gömülü modda gizli */}
         {!embedded && isProfessor && departments.length > 0 && selectedDeptId && (
-          <Card style={{ marginBottom: 16, background: '#CCFBF1', border: '1px solid #5EEAD4' }}>
+          <Card style={{ marginBottom: 16, background: '#DCE7FF', border: '1px solid #9DBCFF' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <svg
                 width="20"
                 height="20"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#0F766E"
+                stroke="#105BFF"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -8890,7 +8890,7 @@ function SinavOtomasyonuApp({
                 <circle cx="12" cy="7" r="4" />
               </svg>
               <div>
-                <span style={{ fontWeight: 600, color: '#0F766E' }}>{currentUser?.name}</span>
+                <span style={{ fontWeight: 600, color: '#105BFF' }}>{currentUser?.name}</span>
                 {departments.length > 1 && (
                   <select
                     value={selectedDeptId || ''}
@@ -8900,7 +8900,7 @@ function SinavOtomasyonuApp({
                       marginLeft: 10,
                       height: 30,
                       padding: '0 8px',
-                      border: '1px solid #5EEAD4',
+                      border: '1px solid #9DBCFF',
                       borderRadius: 6,
                       fontSize: 13,
                       background: '#fff',
@@ -8913,7 +8913,7 @@ function SinavOtomasyonuApp({
                     ))}
                   </select>
                 )}
-                <span style={{ color: '#64748B', fontSize: 13, marginLeft: 8 }}>
+                <span style={{ color: '#5F6368', fontSize: 13, marginLeft: 8 }}>
                   Akademisyen - Sadece kendi derslerinizi programa ekleyebilirsiniz
                 </span>
               </div>
@@ -8924,7 +8924,7 @@ function SinavOtomasyonuApp({
         {/* Professor no department warning */}
         {isProfessor && departments.length === 0 && (
           <Card style={{ marginBottom: 16 }}>
-            <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>
+            <div style={{ padding: 40, textAlign: 'center', color: '#80858E' }}>
               <div style={{ fontSize: 16, marginBottom: 8 }}>
                 Henüz hiçbir bölümde dersiniz bulunmuyor
               </div>
@@ -8938,7 +8938,7 @@ function SinavOtomasyonuApp({
         {/* No department selected warning for admin */}
         {fakulteYetkili && departments.length > 0 && !selectedDeptId && (
           <Card style={{ marginBottom: 16 }}>
-            <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>
+            <div style={{ padding: 40, textAlign: 'center', color: '#80858E' }}>
               <div style={{ fontSize: 16, marginBottom: 8 }}>Lütfen bir bölüm seçin</div>
               <div style={{ fontSize: 13 }}>
                 Sınav programını yönetmek için yukarıdan bir bölüm seçin.
@@ -8978,7 +8978,7 @@ function SinavOtomasyonuApp({
               <span
                 style={{
                   fontSize: 11,
-                  color: '#64748B',
+                  color: '#5F6368',
                   opacity: activePeriod ? 1 : 0.35,
                   transform: donemlerGoster ? 'rotate(90deg)' : 'none',
                   transition: 'transform 0.15s',
@@ -8995,7 +8995,7 @@ function SinavOtomasyonuApp({
                 style={{
                   fontSize: 11.5,
                   fontWeight: 600,
-                  color: '#64748B',
+                  color: '#5F6368',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -9027,7 +9027,7 @@ function SinavOtomasyonuApp({
                       padding: '12px 14px',
                       cursor: 'pointer',
                       transition: 'all .18s',
-                      boxShadow: aktif ? '0 2px 10px rgba(15, 118, 110,0.12)' : 'none',
+                      boxShadow: aktif ? '0 2px 10px rgba(16,91,255,0.12)' : 'none',
                     }}
                   >
                     <div
@@ -9055,8 +9055,8 @@ function SinavOtomasyonuApp({
                             fontWeight: 700,
                             padding: '3px 8px',
                             borderRadius: 10,
-                            background: aktif ? 'white' : '#F1F5F9',
-                            color: aktif ? C.blue : '#64748B',
+                            background: aktif ? 'white' : '#EDEDED',
+                            color: aktif ? C.blue : '#5F6368',
                             flexShrink: 0,
                             whiteSpace: 'nowrap',
                           }}
@@ -9066,7 +9066,7 @@ function SinavOtomasyonuApp({
                       )}
                     </div>
 
-                    <div style={{ fontSize: 12, color: '#64748B', marginTop: 6, lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 12, color: '#5F6368', marginTop: 6, lineHeight: 1.5 }}>
                       {bas ? `${bas} · ${p.weeks || 2} hafta` : `${p.weeks || 2} hafta`}
                       <br />
                       {sinavSayisi > 0 ? `${sinavSayisi} sınav yerleştirildi` : 'Henüz sınav yok'}
@@ -9166,7 +9166,7 @@ function SinavOtomasyonuApp({
         {/* No period selected */}
         {!activePeriod && (
           <Card>
-            <div style={{ padding: 60, textAlign: 'center', color: '#94A3B8' }}>
+            <div style={{ padding: 60, textAlign: 'center', color: '#80858E' }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>&#128197;</div>
               <div style={{ fontSize: 16, marginBottom: 8 }}>Sınav dönemi bulunamadı</div>
               <div style={{ fontSize: 13 }}>
@@ -9211,7 +9211,7 @@ function SinavOtomasyonuApp({
                     border: `1px solid ${C.border}`,
                     borderRadius: '8px 0 0 8px',
                     background: viewMode === 'calendar' ? C.navy : 'white',
-                    color: viewMode === 'calendar' ? 'white' : '#64748B',
+                    color: viewMode === 'calendar' ? 'white' : '#5F6368',
                     cursor: 'pointer',
                     fontSize: 13,
                   }}
@@ -9225,7 +9225,7 @@ function SinavOtomasyonuApp({
                     border: `1px solid ${C.border}`,
                     borderRadius: '0 8px 8px 0',
                     background: viewMode === 'table' ? C.navy : 'white',
-                    color: viewMode === 'table' ? 'white' : '#64748B',
+                    color: viewMode === 'table' ? 'white' : '#5F6368',
                     cursor: 'pointer',
                     fontSize: 13,
                     borderLeft: 'none',
@@ -9236,7 +9236,7 @@ function SinavOtomasyonuApp({
               </div>
 
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12, color: '#64748B' }}>
+                <span style={{ fontSize: 12, color: '#5F6368' }}>
                   {periodExams.length}/{courses.length} ders yerleştirildi
                 </span>
                 <IslemMenusu
@@ -9349,7 +9349,7 @@ function SinavOtomasyonuApp({
                     Fakülte geneli çakışma denetimi
                   </div>
                   <div
-                    style={{ fontSize: 12.5, color: '#475569', marginBottom: 14, lineHeight: 1.6 }}
+                    style={{ fontSize: 12.5, color: '#4A4F57', marginBottom: 14, lineHeight: 1.6 }}
                   >
                     Salonlar ve gözetmenler bölüm bölüm tanımlı; bu denetim{' '}
                     <strong>bütün bölümlerin</strong> sınavlarını birlikte inceler. Her çakışma hata
@@ -9393,10 +9393,10 @@ function SinavOtomasyonuApp({
                                 {engel ? 'ENGEL' : kabulEdildi ? 'ŞARTLI KABUL' : 'KARAR BEKLİYOR'}{' '}
                                 · {c.baslik}
                               </div>
-                              <div style={{ fontSize: 12.5, color: '#334155', marginTop: 3 }}>
+                              <div style={{ fontSize: 12.5, color: '#363A42', marginTop: 3 }}>
                                 {c.aciklama}
                               </div>
-                              <div style={{ fontSize: 12, color: '#64748B', marginTop: 3 }}>
+                              <div style={{ fontSize: 12, color: '#5F6368', marginTop: 3 }}>
                                 {c.cozum}
                               </div>
                               {c.eskiKabul && (
@@ -9437,7 +9437,7 @@ function SinavOtomasyonuApp({
                                     style={{
                                       fontSize: 12,
                                       padding: '4px 10px',
-                                      background: '#0F766E',
+                                      background: '#105BFF',
                                       color: 'white',
                                       border: 'none',
                                     }}
@@ -9541,7 +9541,7 @@ function SinavOtomasyonuApp({
                         fontSize: 12,
                         outline: 'none',
                         boxSizing: 'border-box',
-                        background: '#F8FAFC',
+                        background: '#F7F7F7',
                       }}
                     />
                     {courseSearch && (
@@ -9556,7 +9556,7 @@ function SinavOtomasyonuApp({
                           border: 'none',
                           cursor: 'pointer',
                           fontSize: 14,
-                          color: '#94A3B8',
+                          color: '#80858E',
                           padding: 0,
                           lineHeight: 1,
                         }}
@@ -9664,7 +9664,7 @@ function SinavOtomasyonuApp({
 
                   {poolCourses.length === 0 && (
                     <div
-                      style={{ padding: 20, textAlign: 'center', color: '#94A3B8', fontSize: 12 }}
+                      style={{ padding: 20, textAlign: 'center', color: '#80858E', fontSize: 12 }}
                     >
                       Ders bulunamadı
                     </div>
@@ -9684,7 +9684,7 @@ function SinavOtomasyonuApp({
                   }}
                 >
                   {calendarDays.length === 0 ? (
-                    <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>
+                    <div style={{ padding: 40, textAlign: 'center', color: '#80858E' }}>
                       Takvim günleri bulunamadı. Dönem tarihlerini kontrol edin.
                     </div>
                   ) : (
@@ -9701,7 +9701,7 @@ function SinavOtomasyonuApp({
                           <th
                             style={{
                               padding: '8px 4px',
-                              background: '#1B2A4A',
+                              background: '#0B2E73',
                               color: 'white',
                               fontSize: 11,
                               fontWeight: 600,
@@ -9719,7 +9719,7 @@ function SinavOtomasyonuApp({
                               key={i}
                               style={{
                                 padding: '6px 4px',
-                                background: '#1B2A4A',
+                                background: '#0B2E73',
                                 color: 'white',
                                 fontSize: 11,
                                 fontWeight: 500,
@@ -9742,11 +9742,11 @@ function SinavOtomasyonuApp({
                                 padding: '2px 4px',
                                 fontSize: 10,
                                 fontWeight: 500,
-                                color: '#64748B',
+                                color: '#5F6368',
                                 textAlign: 'center',
-                                background: '#F8FAFC',
-                                borderRight: '2px solid #E2E8F0',
-                                borderBottom: '1px solid #E2E8F0',
+                                background: '#F7F7F7',
+                                borderRight: '2px solid #E2E2E2',
+                                borderBottom: '1px solid #E2E2E2',
                                 position: 'sticky',
                                 left: 0,
                                 zIndex: 1,
@@ -9837,7 +9837,7 @@ function SinavOtomasyonuApp({
             onClose={() => setGozetmenKuralAcik(false)}
             width={720}
           >
-            <div style={{ fontSize: 12.5, color: '#64748B', marginBottom: 12, lineHeight: 1.55 }}>
+            <div style={{ fontSize: 12.5, color: '#5F6368', marginBottom: 12, lineHeight: 1.55 }}>
               Dekanlık çıktısındaki otomatik gözetmen ataması bu kurallarla yapılır. Gözetmen
               listesi Bölüm Yönetimi → Gözetmenler ekranından yönetilir ({deptSupervisors.length}{' '}
               gözetmen tanımlı).
@@ -9884,7 +9884,7 @@ const SartliKabulModal = ({ cakisma, onKabul, onClose }) => {
           }}
         >
           <strong>{cakisma.baslik}</strong>
-          <div style={{ marginTop: 4, color: '#475569' }}>{cakisma.aciklama}</div>
+          <div style={{ marginTop: 4, color: '#4A4F57' }}>{cakisma.aciklama}</div>
           <div style={{ marginTop: 4, color: '#B45309' }}>{cakisma.cozum}</div>
         </div>
         <FormField label="Kabul sebebi *">
@@ -9898,7 +9898,7 @@ const SartliKabulModal = ({ cakisma, onKabul, onClose }) => {
               boxSizing: 'border-box',
               padding: '10px 12px',
               borderRadius: 8,
-              border: '1px solid ' + (C ? C.border : '#E2E8F0'),
+              border: '1px solid ' + (C ? C.border : '#E2E2E2'),
               fontSize: 13.5,
               fontFamily: 'inherit',
               resize: 'vertical',
@@ -9913,11 +9913,11 @@ const SartliKabulModal = ({ cakisma, onKabul, onClose }) => {
               style={{
                 padding: '4px 10px',
                 borderRadius: 14,
-                border: '1px solid ' + (C ? C.border : '#E2E8F0'),
+                border: '1px solid ' + (C ? C.border : '#E2E2E2'),
                 background: 'white',
                 fontSize: 11.5,
                 cursor: 'pointer',
-                color: '#475569',
+                color: '#4A4F57',
               }}
             >
               {h}

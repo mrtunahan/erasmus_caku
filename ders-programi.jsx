@@ -10,14 +10,14 @@ const { useState, useEffect, useMemo, useCallback } = React;
 const AkademisyenProgramModal = window.AkademisyenProgramModal;
 
 const DP = {
-  primary: '#0F766E',
-  primaryLight: '#5EEAD4',
-  primaryPale: '#F0FDFA',
-  text: '#1E293B',
-  textMuted: '#64748B',
-  border: '#E2E8F0',
+  primary: '#105BFF',
+  primaryLight: '#9DBCFF',
+  primaryPale: '#EEF3FF',
+  text: '#1F2329',
+  textMuted: '#5F6368',
+  border: '#E2E2E2',
   green: '#059669',
-  navy: '#1B2A4A',
+  navy: '#0B2E73',
 };
 
 const DPIcon = ({ path, size = 18, color = 'currentColor' }) => (
@@ -72,8 +72,8 @@ const SLOT_COLORS = [
   '#EC4899',
   '#06B6D4',
   '#F97316',
-  '#0D9488',
-  '#14B8A6',
+  '#2F6FFF',
+  '#4D84FF',
   '#84CC16',
   '#F43F5E',
 ];
@@ -1244,7 +1244,7 @@ const SaatAraligiBolmesi = ({ baslik, aciklama, deger, degistir, varsayilanSonra
         border: '1px solid ' + DP.border,
         borderRadius: 10,
         padding: 14,
-        background: '#F8FAFC',
+        background: '#F7F7F7',
       }}
     >
       <div style={{ fontSize: 13, fontWeight: 700, color: DP.text }}>{baslik}</div>
@@ -1530,13 +1530,13 @@ const OnizlemeKabuk = ({ baslik, altBaslik, kapat, dugmeler, children }) => (
             title="Kapat"
             style={{
               background: 'none',
-              border: '1px solid #CBD5E1',
+              border: '1px solid #CFCFCF',
               borderRadius: 8,
               padding: '8px 12px',
               cursor: 'pointer',
             }}
           >
-            <DPIcon path="M18 6L6 18M6 6l12 12" size={14} color="#94A3B8" />
+            <DPIcon path="M18 6L6 18M6 6l12 12" size={14} color="#80858E" />
           </button>
         </div>
       </div>
@@ -1563,7 +1563,7 @@ const ProgramOnizlemeTablosu = ({ kaynaklar, saatler, bolumGoster }) => (
               color: 'white',
               fontWeight: 700,
               textAlign: 'center',
-              border: '1px solid #334155',
+              border: '1px solid #363A42',
               width: 80,
             }}
           >
@@ -1578,7 +1578,7 @@ const ProgramOnizlemeTablosu = ({ kaynaklar, saatler, bolumGoster }) => (
                 color: 'white',
                 fontWeight: 700,
                 textAlign: 'center',
-                border: '1px solid #334155',
+                border: '1px solid #363A42',
               }}
             >
               {day}
@@ -1597,8 +1597,8 @@ const ProgramOnizlemeTablosu = ({ kaynaklar, saatler, bolumGoster }) => (
                   padding: '6px',
                   fontWeight: 600,
                   textAlign: 'center',
-                  background: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
+                  background: '#F7F7F7',
+                  border: '1px solid #E2E2E2',
                   whiteSpace: 'nowrap',
                 }}
               >
@@ -1613,7 +1613,7 @@ const ProgramOnizlemeTablosu = ({ kaynaklar, saatler, bolumGoster }) => (
                 return (
                   <td
                     key={day}
-                    style={{ padding: 2, border: '1px solid #E2E8F0', verticalAlign: 'top' }}
+                    style={{ padding: 2, border: '1px solid #E2E2E2', verticalAlign: 'top' }}
                   >
                     {entries.map((e, ei) => (
                       <div
@@ -1622,19 +1622,19 @@ const ProgramOnizlemeTablosu = ({ kaynaklar, saatler, bolumGoster }) => (
                           padding: '3px 6px',
                           margin: '2px 0',
                           borderRadius: 4,
-                          background: GRADE_COLORS[e.sinif]?.bg || '#F1F5F9',
+                          background: GRADE_COLORS[e.sinif]?.bg || '#EDEDED',
                           fontSize: 10,
                           lineHeight: 1.3,
                         }}
                       >
                         <strong>{e.courseCode}</strong>
-                        <span style={{ color: '#475569', marginLeft: 3 }}>
+                        <span style={{ color: '#4A4F57', marginLeft: 3 }}>
                           {bolumGoster
                             ? `${kac(e.deptName)} ${kac(e.year)}.Sınıf`
                             : `${kac(e.year)}. Sınıf`}
                         </span>
                         {!bolumGoster && e.courseName && (
-                          <div style={{ color: '#334155' }}>{e.courseName}</div>
+                          <div style={{ color: '#363A42' }}>{e.courseName}</div>
                         )}
                         {e.instructor && (
                           <div style={{ color: '#777', fontSize: 9 }}>{e.instructor}</div>
@@ -1676,7 +1676,7 @@ const OnizlemeCakismalar = ({ conflicts }) =>
         </div>
       ))}
       {conflicts.length > 5 && (
-        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
+        <div style={{ fontSize: 11, color: '#80858E', marginTop: 4 }}>
           ... ve {conflicts.length - 5} daha fazla
         </div>
       )}
@@ -1705,7 +1705,7 @@ const CourseChip = ({ course, color }) => {
   const handleDragEnd = (e) => {
     e.currentTarget.style.opacity = '1';
   };
-  const c = color || '#64748B';
+  const c = color || '#5F6368';
   return (
     <div
       draggable
@@ -1727,11 +1727,11 @@ const CourseChip = ({ course, color }) => {
       }}
     >
       <div style={{ fontSize: 11, fontWeight: 700, color: c }}>{course.code}</div>
-      <div style={{ fontSize: 10, color: '#334155', lineHeight: 1.3, marginTop: 1 }}>
+      <div style={{ fontSize: 10, color: '#363A42', lineHeight: 1.3, marginTop: 1 }}>
         {course.name}
       </div>
       {window.dersEgitmenMetni(course) && (
-        <div style={{ fontSize: 9, color: '#94A3B8', marginTop: 2 }}>
+        <div style={{ fontSize: 9, color: '#80858E', marginTop: 2 }}>
           {window.dersEgitmenMetni(course)}
         </div>
       )}
@@ -2793,14 +2793,14 @@ function DersProgramiApp({
             style={{
               width: 36,
               height: 36,
-              border: '3px solid #E2E8F0',
+              border: '3px solid #E2E2E2',
               borderTopColor: DP.primary,
               borderRadius: '50%',
               animation: 'spin 0.8s linear infinite',
               margin: '0 auto 16px',
             }}
           />
-          <p style={{ color: '#64748B', fontSize: 14 }}>Ders programı yükleniyor...</p>
+          <p style={{ color: '#5F6368', fontSize: 14 }}>Ders programı yükleniyor...</p>
         </div>
       </div>
     );
@@ -3072,7 +3072,7 @@ function DersProgramiApp({
               style={{
                 padding: '7px 14px',
                 borderRadius: 8,
-                border: '1px solid #CBD5E1',
+                border: '1px solid #CFCFCF',
                 background: 'white',
                 color: DP.textMuted,
                 fontSize: 12,
@@ -3098,7 +3098,7 @@ function DersProgramiApp({
         style={{
           background: 'white',
           borderRadius: 10,
-          border: '1px solid #E2E8F0',
+          border: '1px solid #E2E2E2',
           padding: responsive.val(10, 12, 14),
           marginBottom: 16,
           display: 'flex',
@@ -3108,7 +3108,7 @@ function DersProgramiApp({
         }}
       >
         {/* Semester toggle */}
-        <div style={{ display: 'flex', background: '#F1F5F9', borderRadius: 8, padding: 2 }}>
+        <div style={{ display: 'flex', background: '#EDEDED', borderRadius: 8, padding: 2 }}>
           {[
             { id: 'guz', label: 'Güz' },
             { id: 'bahar', label: 'Bahar' },
@@ -3136,7 +3136,7 @@ function DersProgramiApp({
 
         {/* Year pills — lisansüstünde sınıf ayrımı yok, hiçbir şey gösterilmez */}
         {seviye === 'lisans' && (
-          <div style={{ display: 'flex', background: '#F1F5F9', borderRadius: 8, padding: 2 }}>
+          <div style={{ display: 'flex', background: '#EDEDED', borderRadius: 8, padding: 2 }}>
             {['1', '2', '3', '4'].map((y) => (
               <button
                 key={y}
@@ -3151,7 +3151,7 @@ function DersProgramiApp({
                   transition: 'all 0.15s',
                   background: year === y ? DP.navy : 'transparent',
                   color: year === y ? 'white' : DP.textMuted,
-                  boxShadow: year === y ? '0 1px 3px rgba(27,42,74,0.3)' : 'none',
+                  boxShadow: year === y ? '0 1px 3px rgba(11,46,115,0.3)' : 'none',
                 }}
               >
                 {y}. Sınıf
@@ -3166,7 +3166,7 @@ function DersProgramiApp({
             style={{
               width: 1,
               height: 24,
-              background: '#E2E8F0',
+              background: '#E2E2E2',
               display: responsive.val('none', 'block', 'block'),
             }}
           />
@@ -3186,7 +3186,7 @@ function DersProgramiApp({
         </div>
 
         {courses.length > 0 && (
-          <div style={{ fontSize: 11, color: '#94A3B8', marginLeft: 'auto' }}>
+          <div style={{ fontSize: 11, color: '#80858E', marginLeft: 'auto' }}>
             Havuz: {courses.length} ders, {professors.length} hoca, {classrooms.length} derslik
           </div>
         )}
@@ -3196,13 +3196,13 @@ function DersProgramiApp({
       {isProfessor && editMode && (
         <div
           style={{
-            background: '#CCFBF1',
-            border: '1px solid #5EEAD4',
+            background: '#DCE7FF',
+            border: '1px solid #9DBCFF',
             borderRadius: 10,
             padding: 12,
             marginBottom: 12,
             fontSize: 12,
-            color: '#115E59',
+            color: '#0A47D1',
             display: 'flex',
             alignItems: 'center',
             gap: 8,
@@ -3211,7 +3211,7 @@ function DersProgramiApp({
           <DPIcon
             path="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
             size={16}
-            color="#115E59"
+            color="#0A47D1"
           />
           Akademisyen olarak sadece kendi derslerinizi programa ekleyebilirsiniz.
         </div>
@@ -3284,7 +3284,7 @@ function DersProgramiApp({
               flexShrink: 0,
               background: 'white',
               borderRadius: 12,
-              border: '1px solid #E2E8F0',
+              border: '1px solid #E2E2E2',
               padding: 12,
               position: 'sticky',
               // Üst başlık (64px) sticky duruyor; kutu onun altında başlar,
@@ -3359,7 +3359,7 @@ function DersProgramiApp({
             minWidth: 0,
             background: 'white',
             borderRadius: 12,
-            border: '1px solid #E2E8F0',
+            border: '1px solid #E2E2E2',
             overflow: 'auto',
           }}
         >
@@ -3387,7 +3387,7 @@ function DersProgramiApp({
                         fontWeight: 700,
                         color: isToday ? DP.primary : DP.navy,
                         padding: '8px 0',
-                        borderBottom: `2px solid ${isToday ? DP.primary : '#E2E8F0'}`,
+                        borderBottom: `2px solid ${isToday ? DP.primary : '#E2E2E2'}`,
                         marginBottom: 8,
                         display: 'flex',
                         alignItems: 'center',
@@ -3417,8 +3417,8 @@ function DersProgramiApp({
                           padding: '10px 12px',
                           marginBottom: 6,
                           borderRadius: 10,
-                          background: `${courseColors[slot.courseCode] || '#64748B'}10`,
-                          borderLeft: `4px solid ${courseColors[slot.courseCode] || '#64748B'}`,
+                          background: `${courseColors[slot.courseCode] || '#5F6368'}10`,
+                          borderLeft: `4px solid ${courseColors[slot.courseCode] || '#5F6368'}`,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
@@ -3438,7 +3438,7 @@ function DersProgramiApp({
                                 fontSize: 10,
                                 fontWeight: 600,
                                 color: 'white',
-                                background: courseColors[slot.courseCode] || '#64748B',
+                                background: courseColors[slot.courseCode] || '#5F6368',
                                 padding: '1px 6px',
                                 borderRadius: 4,
                               }}
@@ -3472,7 +3472,7 @@ function DersProgramiApp({
                                   : {
                                       marginTop: 4,
                                       paddingTop: 4,
-                                      borderTop: '1px dashed #E2E8F0',
+                                      borderTop: '1px dashed #E2E2E2',
                                     }
                               }
                             >
@@ -3558,13 +3558,13 @@ function DersProgramiApp({
                   <DPIcon
                     path="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
                     size={48}
-                    color="#CBD5E1"
+                    color="#CFCFCF"
                   />
                   <p style={{ marginTop: 12, fontSize: 14, fontWeight: 500 }}>
                     Bu dönem için ders programı henüz oluşturulmamış.
                   </p>
                   {canManage && (
-                    <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>
+                    <p style={{ fontSize: 12, color: '#80858E', marginTop: 4 }}>
                       Düzenle butonuna tıklayarak program oluşturmaya başlayın.
                     </p>
                   )}
@@ -3584,7 +3584,7 @@ function DersProgramiApp({
                       color: 'white',
                       textAlign: 'center',
                       background: DP.navy,
-                      borderBottom: '2px solid #E2E8F0',
+                      borderBottom: '2px solid #E2E2E2',
                       width: 85,
                     }}
                   >
@@ -3602,7 +3602,7 @@ function DersProgramiApp({
                           color: 'white',
                           textAlign: 'center',
                           background: isToday ? DP.primary : DP.navy,
-                          borderBottom: '2px solid #E2E8F0',
+                          borderBottom: '2px solid #E2E2E2',
                           position: 'relative',
                         }}
                       >
@@ -3635,8 +3635,8 @@ function DersProgramiApp({
                         fontWeight: 600,
                         color: DP.textMuted,
                         textAlign: 'center',
-                        borderBottom: '1px solid #F1F5F9',
-                        background: '#F8FAFC',
+                        borderBottom: '1px solid #EDEDED',
+                        background: '#F7F7F7',
                         whiteSpace: 'nowrap',
                       }}
                     >
@@ -3665,7 +3665,7 @@ function DersProgramiApp({
                           onDragEnter={
                             canDrop
                               ? (e) => {
-                                  e.currentTarget.style.outline = '2px dashed #0F766E';
+                                  e.currentTarget.style.outline = '2px dashed #105BFF';
                                 }
                               : undefined
                           }
@@ -3694,7 +3694,7 @@ function DersProgramiApp({
                           }
                           style={{
                             padding: 3,
-                            borderBottom: '1px solid #F1F5F9',
+                            borderBottom: '1px solid #EDEDED',
                             background:
                               editMode && !slot
                                 ? isToday
@@ -3704,7 +3704,7 @@ function DersProgramiApp({
                                   ? '#FAFAFE'
                                   : hi % 2 === 0
                                     ? 'transparent'
-                                    : '#F8FAFC',
+                                    : '#F7F7F7',
                             transition: 'background 0.15s',
                             borderLeft: isToday ? '1px solid #EDE9FE' : 'none',
                             borderRight: isToday ? '1px solid #EDE9FE' : 'none',
@@ -3720,8 +3720,8 @@ function DersProgramiApp({
                               style={{
                                 padding: '5px 7px',
                                 borderRadius: 6,
-                                background: `${courseColors[slot.courseCode] || '#64748B'}12`,
-                                borderLeft: `3px solid ${courseColors[slot.courseCode] || '#64748B'}`,
+                                background: `${courseColors[slot.courseCode] || '#5F6368'}12`,
+                                borderLeft: `3px solid ${courseColors[slot.courseCode] || '#5F6368'}`,
                                 minHeight: 44,
                                 position: 'relative',
                               }}
@@ -3735,7 +3735,7 @@ function DersProgramiApp({
                                       : {
                                           marginTop: 5,
                                           paddingTop: 5,
-                                          borderTop: '1px dashed #CBD5E1',
+                                          borderTop: '1px dashed #CFCFCF',
                                           position: 'relative',
                                         }
                                   }
@@ -3778,7 +3778,7 @@ function DersProgramiApp({
                                         fontSize: 9,
                                         padding: '2px 4px',
                                         borderRadius: 4,
-                                        border: '1px solid #E2E8F0',
+                                        border: '1px solid #E2E2E2',
                                         outline: 'none',
                                         background: 'white',
                                         color: DP.primary,
@@ -3878,15 +3878,15 @@ function DersProgramiApp({
             gap: 8,
             marginTop: 10,
             padding: '8px 12px',
-            background: '#F8FAFC',
+            background: '#F7F7F7',
             borderRadius: 8,
-            border: '1px solid #F1F5F9',
+            border: '1px solid #EDEDED',
           }}
         >
           <span
             style={{
               fontSize: 10,
-              color: '#94A3B8',
+              color: '#80858E',
               fontWeight: 600,
               marginRight: 4,
               lineHeight: '20px',
@@ -3954,7 +3954,7 @@ function DersProgramiApp({
             <div
               style={{
                 padding: '20px 24px 16px',
-                background: `linear-gradient(135deg, ${DP.primary}, #115E59)`,
+                background: `linear-gradient(135deg, ${DP.primary}, #0A47D1)`,
                 position: 'relative',
               }}
             >
@@ -4112,7 +4112,7 @@ function DersProgramiApp({
                     />
                     Ders Seçimi
                   </span>
-                  <span style={{ fontWeight: 400, color: '#94A3B8', fontSize: 11, marginLeft: 6 }}>
+                  <span style={{ fontWeight: 400, color: '#80858E', fontSize: 11, marginLeft: 6 }}>
                     ({yearCourses.length} ders)
                   </span>
                 </label>
@@ -4267,7 +4267,7 @@ function DersProgramiApp({
                         padding: '11px 14px',
                         borderRadius: 10,
                         border: `1px solid ${DP.border}`,
-                        background: '#F8FAFC',
+                        background: '#F7F7F7',
                         fontSize: 13,
                         color: DP.textMuted,
                       }}
@@ -4276,7 +4276,7 @@ function DersProgramiApp({
                     </div>
                   )}
                   {modalEgitmenler.length > 1 && (
-                    <div style={{ fontSize: 11, color: '#64748B', marginTop: 6, lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 11, color: '#5F6368', marginTop: 6, lineHeight: 1.5 }}>
                       Aynı ders, aynı saate diğer hocalar için de ayrı ayrı eklenebilir; şube
                       numarası gerekmez.
                     </div>
@@ -4303,7 +4303,7 @@ function DersProgramiApp({
                     />
                     Derslik
                   </span>
-                  <span style={{ fontWeight: 400, color: '#94A3B8', fontSize: 11, marginLeft: 6 }}>
+                  <span style={{ fontWeight: 400, color: '#80858E', fontSize: 11, marginLeft: 6 }}>
                     (opsiyonel)
                   </span>
                 </label>
@@ -4377,7 +4377,7 @@ function DersProgramiApp({
                     />
                     Şube
                   </span>
-                  <span style={{ fontWeight: 400, color: '#94A3B8', fontSize: 11, marginLeft: 6 }}>
+                  <span style={{ fontWeight: 400, color: '#80858E', fontSize: 11, marginLeft: 6 }}>
                     (opsiyonel — aynı ders birden çok şubedeyse)
                   </span>
                 </label>
@@ -4572,7 +4572,7 @@ function DersProgramiApp({
                 display: 'flex',
                 justifyContent: 'flex-end',
                 gap: 10,
-                background: '#F8FAFC',
+                background: '#F7F7F7',
               }}
             >
               <button
@@ -4592,7 +4592,7 @@ function DersProgramiApp({
                   transition: 'all 0.15s',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#F1F5F9';
+                  e.currentTarget.style.background = '#EDEDED';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'white';
@@ -4636,8 +4636,8 @@ function DersProgramiApp({
                     borderRadius: 10,
                     border: 'none',
                     background: modalHazir
-                      ? `linear-gradient(135deg, ${DP.primary}, #115E59)`
-                      : '#CBD5E1',
+                      ? `linear-gradient(135deg, ${DP.primary}, #0A47D1)`
+                      : '#CFCFCF',
                     color: 'white',
                     fontSize: 13,
                     fontWeight: 600,
@@ -4711,7 +4711,7 @@ function DersProgramiApp({
                   padding: 4,
                 }}
               >
-                <DPIcon path="M18 6L6 18M6 6l12 12" size={18} color="#94A3B8" />
+                <DPIcon path="M18 6L6 18M6 6l12 12" size={18} color="#80858E" />
               </button>
             </div>
 
@@ -4771,7 +4771,7 @@ function DersProgramiApp({
                           fontWeight: 600,
                           textTransform: 'uppercase',
                           color: c.onayli
-                            ? '#64748B'
+                            ? '#5F6368'
                             : c.type === 'cross_dept' || c.type === 'cross_level'
                               ? '#D97706'
                               : '#DC2626',

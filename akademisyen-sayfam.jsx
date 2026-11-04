@@ -27,11 +27,11 @@ import * as EkranDuzeni from './lib/yoklama-ekran-duzeni.js';
 
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-const AS_NAVY = '#1B2A4A';
+const AS_NAVY = '#0B2E73';
 const AS_GREEN = '#059669';
 const AS_KART = {
   background: '#FFFFFF',
-  border: '1px solid #E2E8F0',
+  border: '1px solid #E2E2E2',
   borderRadius: 12,
   padding: 18,
   boxShadow: '0 1px 3px rgba(16,24,40,0.06)',
@@ -370,7 +370,7 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
               padding: '8px 18px',
               borderRadius: 10,
               border: 'none',
-              background: kapatiliyor ? '#475569' : '#DC2626',
+              background: kapatiliyor ? '#4A4F57' : '#DC2626',
               color: '#fff',
               fontSize: 13,
               fontWeight: 700,
@@ -494,7 +494,7 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
                   style={{
                     height: '100%',
                     width: Math.round(kisaKalan * 100) + '%',
-                    background: kisaKalan > 0.3 ? '#2DD4BF' : '#D97706',
+                    background: kisaKalan > 0.3 ? '#6E9BFF' : '#D97706',
                     transition: 'width 200ms linear',
                   }}
                 />
@@ -621,7 +621,7 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
                         justifyContent: 'center',
                         fontWeight: 800,
                         fontSize: 13,
-                        background: g.renk || '#64748B',
+                        background: g.renk || '#5F6368',
                       }}
                     >
                       {g.isaret || '?'}
@@ -665,7 +665,7 @@ function TamEkranYoklama({ oturum, saatFarki, ogrenciler, onKapat }) {
                               borderRadius: 999,
                               background: 'rgba(148,163,184,0.22)',
                               border: '1px solid rgba(148,163,184,0.55)',
-                              color: '#CBD5E1',
+                              color: '#CFCFCF',
                               fontSize: 10,
                               fontWeight: 800,
                             }}
@@ -1586,7 +1586,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
         <h2 style={{ color: '#DC2626', fontSize: 20, marginBottom: 8 }}>Erişim Reddedildi</h2>
-        <p style={{ color: '#64748B' }}>Bu sayfa akademisyen hesaplarına açıktır.</p>
+        <p style={{ color: '#5F6368' }}>Bu sayfa akademisyen hesaplarına açıktır.</p>
       </div>
     );
   }
@@ -1599,13 +1599,13 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
             width: 40,
             height: 40,
             margin: '0 auto 16px',
-            border: '3px solid #E2E8F0',
+            border: '3px solid #E2E2E2',
             borderTopColor: AS_GREEN,
             borderRadius: '50%',
             animation: 'as-spin 0.8s linear infinite',
           }}
         />
-        <p style={{ color: '#64748B' }}>Sayfa yükleniyor…</p>
+        <p style={{ color: '#5F6368' }}>Sayfa yükleniyor…</p>
         <style>{'@keyframes as-spin { to { transform: rotate(360deg); } }'}</style>
       </div>
     );
@@ -1821,7 +1821,7 @@ function ASVeriGirisi({ currentUser, activeDepartment, departmentInfo }) {
   }
   if (!Bilesen) {
     return (
-      <div style={{ ...AS_KART, textAlign: 'center', color: '#64748B', fontSize: 13 }}>
+      <div style={{ ...AS_KART, textAlign: 'center', color: '#5F6368', fontSize: 13 }}>
         Veri giriş ekranı yükleniyor…
       </div>
     );
@@ -1929,8 +1929,8 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
   const satir = (etiket, deger) =>
     deger ? (
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600 }}>{etiket}</div>
-        <div style={{ fontSize: 13, color: '#0F172A', fontWeight: 600, wordBreak: 'break-word' }}>
+        <div style={{ fontSize: 11, color: '#80858E', fontWeight: 600 }}>{etiket}</div>
+        <div style={{ fontSize: 13, color: '#15181D', fontWeight: 600, wordBreak: 'break-word' }}>
           {deger}
         </div>
       </div>
@@ -1980,7 +1980,7 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
           {metin(p.name) || ad}
         </div>
         {unvanSatiri && (
-          <div style={{ fontSize: 12, color: '#64748B', marginTop: 3 }}>{unvanSatiri}</div>
+          <div style={{ fontSize: 12, color: '#5F6368', marginTop: 3 }}>{unvanSatiri}</div>
         )}
       </div>
 
@@ -1989,13 +1989,13 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
           (`professors`) yazar. Akademisyen kendi kartından günceller, bölüm
           yetkilisi de oradan; ikisi de aynı değeri görür. Öğrencinin
           "Danışman Bilgileri" kartında görünen de budur. */}
-      <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 14 }}>
+      <div style={{ borderTop: '1px solid #EDEDED', paddingTop: 14 }}>
         {!duzenle ? (
           <>
             {satir('Birim', departmentInfo?.name || metin(p.departmentId))}
             {satir('E-posta', metin(p.email))}
             {satir('Dahili', metin(p.dahili))}
-            <p style={{ margin: '4px 0 10px', fontSize: 11, color: '#94A3B8', lineHeight: 1.6 }}>
+            <p style={{ margin: '4px 0 10px', fontSize: 11, color: '#80858E', lineHeight: 1.6 }}>
               {B.bilgiOzetMetni ? B.bilgiOzetMetni(p) : ''}
             </p>
             <button
@@ -2010,7 +2010,7 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
                 width: '100%',
                 padding: '8px 14px',
                 borderRadius: 9,
-                border: '1px solid #CBD5E1',
+                border: '1px solid #CFCFCF',
                 background: '#fff',
                 color: AS_NAVY,
                 fontSize: 12.5,
@@ -2031,7 +2031,7 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
               .map((a) => (
                 <label
                   key={a.anahtar}
-                  style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}
+                  style={{ fontSize: 11.5, color: '#5F6368', fontWeight: 600 }}
                 >
                   {a.etiket}
                   <input
@@ -2044,7 +2044,7 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
                       marginTop: 4,
                       padding: '8px 10px',
                       borderRadius: 8,
-                      border: '1px solid ' + (hatalar[a.anahtar] ? '#FCA5A5' : '#CBD5E1'),
+                      border: '1px solid ' + (hatalar[a.anahtar] ? '#FCA5A5' : '#CFCFCF'),
                       fontSize: 13,
                       fontFamily: 'inherit',
                       boxSizing: 'border-box',
@@ -2058,7 +2058,7 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
                     </span>
                   ) : (
                     <span
-                      style={{ display: 'block', fontSize: 10.5, color: '#94A3B8', marginTop: 3 }}
+                      style={{ display: 'block', fontSize: 10.5, color: '#80858E', marginTop: 3 }}
                     >
                       {a.aciklama}
                     </span>
@@ -2067,7 +2067,7 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
               ))}
 
             <div>
-              <span style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>Fotoğraf</span>
+              <span style={{ fontSize: 11.5, color: '#5F6368', fontWeight: 600 }}>Fotoğraf</span>
               <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
                 <button
                   onClick={() => dosyaRef.current && dosyaRef.current.click()}
@@ -2075,7 +2075,7 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
                   style={{
                     padding: '7px 12px',
                     borderRadius: 8,
-                    border: '1px solid #CBD5E1',
+                    border: '1px solid #CFCFCF',
                     background: '#fff',
                     color: AS_NAVY,
                     fontSize: 12,
@@ -2123,7 +2123,7 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
                   padding: '9px 14px',
                   borderRadius: 9,
                   border: 'none',
-                  background: kaydediliyor ? '#94A3B8' : AS_GREEN,
+                  background: kaydediliyor ? '#80858E' : AS_GREEN,
                   color: '#fff',
                   fontSize: 12.5,
                   fontWeight: 700,
@@ -2138,9 +2138,9 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
                 style={{
                   padding: '9px 14px',
                   borderRadius: 9,
-                  border: '1px solid #CBD5E1',
+                  border: '1px solid #CFCFCF',
                   background: '#fff',
-                  color: '#334155',
+                  color: '#363A42',
                   fontSize: 12.5,
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -2160,7 +2160,7 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
           gap: 8,
-          borderTop: '1px solid #F1F5F9',
+          borderTop: '1px solid #EDEDED',
           paddingTop: 14,
           marginTop: 4,
         }}
@@ -2172,7 +2172,7 @@ function ASBilgiKarti({ profil, ad, ozet, departmentInfo, onKaydet }) {
         ].map(([e, d]) => (
           <div key={e} style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 19, fontWeight: 800, color: AS_NAVY }}>{d}</div>
-            <div style={{ fontSize: 10.5, color: '#94A3B8', fontWeight: 600 }}>{e}</div>
+            <div style={{ fontSize: 10.5, color: '#80858E', fontWeight: 600 }}>{e}</div>
           </div>
         ))}
       </div>
@@ -2235,7 +2235,7 @@ function ASProgram({ seviye, setSeviye, sayilar, izgara, saatler, cakismalar, do
           display: 'inline-flex',
           padding: 3,
           borderRadius: 10,
-          background: '#F1F5F9',
+          background: '#EDEDED',
           gap: 2,
           marginBottom: 14,
           flexWrap: 'wrap',
@@ -2253,7 +2253,7 @@ function ASProgram({ seviye, setSeviye, sayilar, izgara, saatler, cakismalar, do
                 borderRadius: 8,
                 border: 'none',
                 background: sec ? '#fff' : 'transparent',
-                color: sec ? AS_NAVY : '#64748B',
+                color: sec ? AS_NAVY : '#5F6368',
                 fontSize: 12.5,
                 fontWeight: sec ? 700 : 600,
                 cursor: 'pointer',
@@ -2287,7 +2287,7 @@ function ASProgram({ seviye, setSeviye, sayilar, izgara, saatler, cakismalar, do
       )}
 
       {saatler.length === 0 ? (
-        <p style={{ fontSize: 12.5, color: '#94A3B8', margin: 0 }}>
+        <p style={{ fontSize: 12.5, color: '#80858E', margin: 0 }}>
           Bu dönem ({donem === 'bahar' ? 'Bahar' : 'Güz'}) için adınıza düşen ders saati bulunamadı.
         </p>
       ) : (
@@ -2299,7 +2299,7 @@ function ASProgram({ seviye, setSeviye, sayilar, izgara, saatler, cakismalar, do
                   style={{
                     padding: '8px 6px',
                     fontSize: 10.5,
-                    color: '#94A3B8',
+                    color: '#80858E',
                     textAlign: 'left',
                     width: 62,
                   }}
@@ -2312,7 +2312,7 @@ function ASProgram({ seviye, setSeviye, sayilar, izgara, saatler, cakismalar, do
                     style={{
                       padding: '8px 6px',
                       fontSize: 10.5,
-                      color: '#64748B',
+                      color: '#5F6368',
                       fontWeight: 700,
                       textTransform: 'uppercase',
                     }}
@@ -2329,7 +2329,7 @@ function ASProgram({ seviye, setSeviye, sayilar, izgara, saatler, cakismalar, do
                     style={{
                       padding: '6px',
                       fontSize: 10.5,
-                      color: '#94A3B8',
+                      color: '#80858E',
                       fontWeight: 700,
                       whiteSpace: 'nowrap',
                       verticalAlign: 'top',
@@ -2347,15 +2347,15 @@ function ASProgram({ seviye, setSeviye, sayilar, izgara, saatler, cakismalar, do
                             style={{
                               minHeight: 34,
                               borderRadius: 7,
-                              background: '#F8FAFC',
-                              border: '1px dashed #F1F5F9',
+                              background: '#F7F7F7',
+                              border: '1px dashed #EDEDED',
                             }}
                           />
                         ) : (
                           liste.map((k, i) => {
                             const renk = window.bolumRengi
                               ? window.bolumRengi(k.bolumAdi, bolumAdlari)
-                              : { bg: '#CCFBF1', text: '#134E4A' };
+                              : { bg: '#DCE7FF', text: '#0B2E73' };
                             return (
                               <div
                                 key={i}
@@ -2399,7 +2399,7 @@ function ASProgram({ seviye, setSeviye, sayilar, izgara, saatler, cakismalar, do
           {bolumAdlari.map((b) => {
             const renk = window.bolumRengi
               ? window.bolumRengi(b, bolumAdlari)
-              : { bg: '#CCFBF1', text: '#134E4A' };
+              : { bg: '#DCE7FF', text: '#0B2E73' };
             return (
               <span
                 key={b}
@@ -2490,7 +2490,7 @@ function ASRandevular({ bekleyenler, onaylilar, ozet, cakisanlar, onKarar }) {
           display: 'inline-flex',
           padding: 3,
           borderRadius: 9,
-          background: '#F1F5F9',
+          background: '#EDEDED',
           gap: 2,
           marginBottom: 12,
         }}
@@ -2509,7 +2509,7 @@ function ASRandevular({ bekleyenler, onaylilar, ozet, cakisanlar, onKarar }) {
                 borderRadius: 7,
                 border: 'none',
                 background: sec ? '#fff' : 'transparent',
-                color: sec ? AS_NAVY : '#64748B',
+                color: sec ? AS_NAVY : '#5F6368',
                 fontSize: 12,
                 fontWeight: sec ? 700 : 600,
                 cursor: 'pointer',
@@ -2523,14 +2523,14 @@ function ASRandevular({ bekleyenler, onaylilar, ozet, cakisanlar, onKarar }) {
       </div>
 
       {liste.length === 0 ? (
-        <p style={{ fontSize: 12.5, color: '#94A3B8', margin: 0 }}>
+        <p style={{ fontSize: 12.5, color: '#80858E', margin: 0 }}>
           {sekme === 'bekliyor' ? 'Bekleyen randevu talebi yok.' : 'Onaylanmış randevu görünmüyor.'}
         </p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
           {liste.map((r) => {
             const g = R.durumGorumu || R.durumGorunumu;
-            const gor = g ? g(r.durum) : { bg: '#fff', kenar: '#E2E8F0', renk: '#64748B' };
+            const gor = g ? g(r.durum) : { bg: '#fff', kenar: '#E2E2E2', renk: '#5F6368' };
             return (
               <div
                 key={metin(r.id || r._docId)}
@@ -2544,10 +2544,10 @@ function ASRandevular({ bekleyenler, onaylilar, ozet, cakisanlar, onKarar }) {
                 <div style={{ fontSize: 13, fontWeight: 700, color: AS_NAVY }}>
                   {metin(r.ogrenciAd) || metin(r.studentNumber)}
                 </div>
-                <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: '#5F6368', marginTop: 2 }}>
                   {metin(r.studentNumber)}
                 </div>
-                <div style={{ fontSize: 12, color: '#334155', marginTop: 6, fontWeight: 600 }}>
+                <div style={{ fontSize: 12, color: '#363A42', marginTop: 6, fontWeight: 600 }}>
                   {R.tarihMetni ? R.tarihMetni(r.tarih) : metin(r.tarih)} · {metin(r.saat)}
                 </div>
                 {r.rakipSayisi > 0 && (
@@ -2572,7 +2572,7 @@ function ASRandevular({ bekleyenler, onaylilar, ozet, cakisanlar, onKarar }) {
                     style={{
                       margin: '6px 0 0',
                       fontSize: 11.5,
-                      color: '#475569',
+                      color: '#4A4F57',
                       lineHeight: 1.5,
                       wordBreak: 'break-word',
                     }}
@@ -2648,7 +2648,7 @@ function ASBugun({ gun, dersler }) {
         Bugün · {gun || '—'}
       </h3>
       {dersler.length === 0 ? (
-        <p style={{ fontSize: 12.5, color: '#94A3B8', margin: 0 }}>Bugün dersiniz görünmüyor.</p>
+        <p style={{ fontSize: 12.5, color: '#80858E', margin: 0 }}>Bugün dersiniz görünmüyor.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {dersler.map((k, i) => (
@@ -2659,7 +2659,7 @@ function ASBugun({ gun, dersler }) {
                 gap: 10,
                 alignItems: 'flex-start',
                 paddingBottom: 8,
-                borderBottom: i < dersler.length - 1 ? '1px solid #F1F5F9' : 'none',
+                borderBottom: i < dersler.length - 1 ? '1px solid #EDEDED' : 'none',
               }}
             >
               <span
@@ -2678,7 +2678,7 @@ function ASBugun({ gun, dersler }) {
                   {k.dersKodu ? k.dersKodu + ' · ' : ''}
                   {k.dersAdi}
                 </span>
-                <span style={{ display: 'block', fontSize: 11, color: '#64748B', marginTop: 1 }}>
+                <span style={{ display: 'block', fontSize: 11, color: '#5F6368', marginTop: 1 }}>
                   {[k.derslik, k.bolumAdi].filter(Boolean).join(' · ')}
                 </span>
               </span>
@@ -2718,7 +2718,7 @@ const ASAltSerit = window.SayfaAltSerit;
 /** Etiketli sayı/tarih kutusu (ayar ekranı). */
 function ASAlan({ etiket, ipucu, ...giris }) {
   return (
-    <label style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600, minWidth: 0 }}>
+    <label style={{ fontSize: 11.5, color: '#5F6368', fontWeight: 600, minWidth: 0 }}>
       {etiket}
       <input
         {...giris}
@@ -2728,13 +2728,13 @@ function ASAlan({ etiket, ipucu, ...giris }) {
           marginTop: 4,
           padding: '8px 10px',
           borderRadius: 8,
-          border: '1px solid #CBD5E1',
+          border: '1px solid #CFCFCF',
           fontSize: 13,
           fontFamily: 'inherit',
         }}
       />
       {ipucu && (
-        <span style={{ display: 'block', fontSize: 10.5, color: '#94A3B8', marginTop: 3 }}>
+        <span style={{ display: 'block', fontSize: 10.5, color: '#80858E', marginTop: 3 }}>
           {ipucu}
         </span>
       )}
@@ -2796,16 +2796,16 @@ const AS_SABLON_METNI = {
       'Şablon yüklü ama alanları eşlenmemiş. Şablonlar modülünden "Alanları Eşle" yapılana kadar yerleşik çıktı kullanılır.',
   },
   yok: {
-    renk: '#475569',
-    zemin: '#F8FAFC',
-    kenar: '#E2E8F0',
+    renk: '#4A4F57',
+    zemin: '#F7F7F7',
+    kenar: '#E2E2E2',
     metin:
       'Bu bölüm için şablon yüklenmemiş — yerleşik çıktı kullanılır. Kurumun kendi biçimi için bölüm yetkilisi Şablonlar modülünden .xlsx ya da .docx yükleyebilir.',
   },
   bilinmiyor: {
-    renk: '#475569',
-    zemin: '#F8FAFC',
-    kenar: '#E2E8F0',
+    renk: '#4A4F57',
+    zemin: '#F7F7F7',
+    kenar: '#E2E2E2',
     metin: 'Şablon durumu okunamadı; indirme sırasında yeniden denenecek.',
   },
 };
@@ -2816,7 +2816,7 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
   const s = AS_SABLON_METNI[sablon] || AS_SABLON_METNI.bilinmiyor;
   if (!veri) {
     return (
-      <p style={{ fontSize: 12.5, color: '#94A3B8', margin: 0 }}>
+      <p style={{ fontSize: 12.5, color: '#80858E', margin: 0 }}>
         Liste kuralları yüklenemedi; sayfayı yenileyin.
       </p>
     );
@@ -2837,7 +2837,7 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
       {/* Künye — belgenin başına ne yazılacağı burada görünür */}
       <div style={AS_KART}>
         <div style={{ fontSize: 14, fontWeight: 700, color: AS_NAVY }}>{k.baslik}</div>
-        <div style={{ fontSize: 12, color: '#64748B', marginTop: 4, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12, color: '#5F6368', marginTop: 4, lineHeight: 1.6 }}>
           {k.dersKodAd}
           {k.fakulteAd ? ' · ' + k.fakulteAd : ''}
           {k.bolumAd ? ' · ' + k.bolumAd : ''}
@@ -2877,9 +2877,9 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
 
       {/* Önizleme — indirilen belgenin aynısı */}
       <div style={{ ...AS_KART, padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 14px', borderBottom: '1px solid #F1F5F9' }}>
+        <div style={{ padding: '12px 14px', borderBottom: '1px solid #EDEDED' }}>
           <h4 style={{ ...AS_BASLIK, fontSize: 13.5, margin: 0 }}>Önizleme</h4>
-          <p style={{ margin: '4px 0 0', fontSize: 11, color: '#94A3B8' }}>
+          <p style={{ margin: '4px 0 0', fontSize: 11, color: '#80858E' }}>
             ✓ derse geldi · ✗ gelmedi · İ izinli · &quot;1/2&quot; o haftaki iki yoklamanın birine
             geldi · boş hücre: o hafta yoklama alınmadı
           </p>
@@ -2916,7 +2916,7 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
                 <tr>
                   <td
                     colSpan={sabitBasliklar.length + haftalar.length}
-                    style={{ ...AS_TD, color: '#94A3B8' }}
+                    style={{ ...AS_TD, color: '#80858E' }}
                   >
                     Bu derse kayıtlı öğrenci bulunamadı.
                   </td>
@@ -2991,7 +2991,7 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
             style={{
               padding: '11px 18px',
               borderRadius: 10,
-              border: '1px solid #CBD5E1',
+              border: '1px solid #CFCFCF',
               background: '#fff',
               color: AS_NAVY,
               fontSize: 13,
@@ -3010,9 +3010,9 @@ function ASDevamListesi({ ders, veri, departmentId, onYazdir, onSablon }) {
 
 const AS_TH = {
   padding: '7px 8px',
-  borderBottom: '1px solid #E2E8F0',
-  background: '#F8FAFC',
-  color: '#475569',
+  borderBottom: '1px solid #E2E2E2',
+  background: '#F7F7F7',
+  color: '#4A4F57',
   fontSize: 10.5,
   fontWeight: 700,
   textAlign: 'left',
@@ -3020,8 +3020,8 @@ const AS_TH = {
 };
 const AS_TD = {
   padding: '6px 8px',
-  borderBottom: '1px solid #F1F5F9',
-  color: '#1E293B',
+  borderBottom: '1px solid #EDEDED',
+  color: '#1F2329',
   whiteSpace: 'nowrap',
 };
 
@@ -3053,7 +3053,7 @@ function YoklamaDuzeltici({ ogrenciler, kayitlar, onKaydet }) {
   const SECENEK = [
     ['var', 'Var', '#059669'],
     ['yok', 'Yok', '#DC2626'],
-    ['izinli', 'İzinli', '#0F766E'],
+    ['izinli', 'İzinli', '#105BFF'],
   ];
   return (
     <div
@@ -3062,11 +3062,11 @@ function YoklamaDuzeltici({ ogrenciler, kayitlar, onKaydet }) {
         flexBasis: '100%',
         marginTop: 8,
         paddingTop: 10,
-        borderTop: '1px solid #E2E8F0',
+        borderTop: '1px solid #E2E2E2',
       }}
     >
       {liste.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: '#64748B' }}>Bu derse kayıtlı öğrenci yok.</div>
+        <div style={{ fontSize: 12.5, color: '#5F6368' }}>Bu derse kayıtlı öğrenci yok.</div>
       ) : (
         <div style={{ display: 'grid', gap: 4 }}>
           {liste.map((o) => {
@@ -3084,7 +3084,7 @@ function YoklamaDuzeltici({ ogrenciler, kayitlar, onKaydet }) {
                 }}
               >
                 <span style={{ fontSize: 13, color: AS_NAVY, minWidth: 0 }}>
-                  {o.ad} <span style={{ color: '#94A3B8', fontSize: 11.5 }}>{o.no}</span>
+                  {o.ad} <span style={{ color: '#80858E', fontSize: 11.5 }}>{o.no}</span>
                 </span>
                 <span style={{ display: 'flex', gap: 4 }}>
                   {SECENEK.map(([id, ad, renk]) => (
@@ -3096,9 +3096,9 @@ function YoklamaDuzeltici({ ogrenciler, kayitlar, onKaydet }) {
                         minWidth: 62,
                         padding: '4px 8px',
                         borderRadius: 6,
-                        border: '1px solid ' + (d === id ? renk : '#CBD5E1'),
+                        border: '1px solid ' + (d === id ? renk : '#CFCFCF'),
                         background: d === id ? renk : '#fff',
-                        color: d === id ? '#fff' : '#334155',
+                        color: d === id ? '#fff' : '#363A42',
                         fontSize: 12,
                         fontWeight: 600,
                         cursor: 'pointer',
@@ -3123,7 +3123,7 @@ function YoklamaDuzeltici({ ogrenciler, kayitlar, onKaydet }) {
           marginTop: 10,
         }}
       >
-        <span style={{ fontSize: 12, color: '#64748B' }}>
+        <span style={{ fontSize: 12, color: '#5F6368' }}>
           {sayi ? sayi + ' öğrencinin durumu değişecek' : 'Değişiklik yok'}
         </span>
         <button
@@ -3271,7 +3271,7 @@ function ASYoklamaPaneli({
 
   if (dersler.length === 0) {
     return (
-      <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>
+      <p style={{ fontSize: 13, color: '#5F6368', margin: 0 }}>
         Adınıza tanımlı ders bulunamadı; yoklama açılamıyor. Ders kayıtlarındaki eğitmen alanı için
         bölüm yetkilinize başvurun.
       </p>
@@ -3293,7 +3293,7 @@ function ASYoklamaPaneli({
               style={{
                 padding: '8px 14px',
                 borderRadius: 10,
-                border: '1px solid ' + (sec ? (uyg ? '#7C3AED' : AS_NAVY) : '#E2E8F0'),
+                border: '1px solid ' + (sec ? (uyg ? '#7C3AED' : AS_NAVY) : '#E2E2E2'),
                 background: sec ? (uyg ? '#7C3AED' : AS_NAVY) : '#fff',
                 color: sec ? '#fff' : uyg ? '#5B21B6' : AS_NAVY,
                 fontSize: 12.5,
@@ -3313,8 +3313,8 @@ function ASYoklamaPaneli({
                     borderRadius: 999,
                     fontSize: 10,
                     fontWeight: 800,
-                    background: sec ? 'rgba(255,255,255,.22)' : uyg ? '#EDE9FE' : '#F0FDFA',
-                    color: sec ? '#fff' : uyg ? '#5B21B6' : '#134E4A',
+                    background: sec ? 'rgba(255,255,255,.22)' : uyg ? '#EDE9FE' : '#EEF3FF',
+                    color: sec ? '#fff' : uyg ? '#5B21B6' : '#0B2E73',
                   }}
                 >
                   {x.parca === 'uygulama' ? 'U' : 'T'}
@@ -3332,9 +3332,9 @@ function ASYoklamaPaneli({
           style={{
             padding: '8px 11px',
             borderRadius: 9,
-            background: parca === 'uygulama' ? '#F5F3FF' : '#F0FDFA',
-            border: '1px solid ' + (parca === 'uygulama' ? '#DDD6FE' : '#99F6E4'),
-            color: parca === 'uygulama' ? '#5B21B6' : '#134E4A',
+            background: parca === 'uygulama' ? '#F5F3FF' : '#EEF3FF',
+            border: '1px solid ' + (parca === 'uygulama' ? '#DDD6FE' : '#C2D6FF'),
+            color: parca === 'uygulama' ? '#5B21B6' : '#0B2E73',
             fontSize: 11.5,
             lineHeight: 1.6,
           }}
@@ -3385,7 +3385,7 @@ function ASYoklamaPaneli({
                   <div style={{ fontSize: 15, fontWeight: 700, color: AS_NAVY }}>
                     {metin(ders.name || ders.ad)}
                   </div>
-                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 3 }}>
+                  <div style={{ fontSize: 12, color: '#5F6368', marginTop: 3 }}>
                     Karekod tahtaya yansıtılır; öğrenciler kendi telefonundan okutur.
                   </div>
                 </div>
@@ -3408,7 +3408,7 @@ function ASYoklamaPaneli({
                     style={{
                       padding: '9px 10px',
                       borderRadius: 9,
-                      border: '1px solid #CBD5E1',
+                      border: '1px solid #CFCFCF',
                       fontSize: 13.5,
                       fontFamily: 'inherit',
                       background: '#fff',
@@ -3470,7 +3470,7 @@ function ASYoklamaPaneli({
                   <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>
                     Birlikte yoklama (aynı sınıfta işleniyorsa)
                   </h4>
-                  <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 10px' }}>
+                  <p style={{ fontSize: 12, color: '#5F6368', margin: '0 0 10px' }}>
                     Bu dersin öteki şube ya da müfredat kaydı aynı saatte aynı sınıfta işleniyorsa
                     işaretleyin: tek karekod ve tek kod iki kaydın öğrencilerine de geçer, her
                     kaydın devam listesi ayrı tutulur. Ayrı sınıfta işlenen şubeyi işaretlemeyin.
@@ -3488,7 +3488,7 @@ function ASYoklamaPaneli({
                             gap: 7,
                             padding: '7px 11px',
                             borderRadius: 9,
-                            border: '1px solid ' + (sec ? AS_GREEN : '#E2E8F0'),
+                            border: '1px solid ' + (sec ? AS_GREEN : '#E2E2E2'),
                             background: sec ? '#ECFDF5' : '#fff',
                             fontSize: 12.5,
                             fontWeight: 600,
@@ -3507,7 +3507,7 @@ function ASYoklamaPaneli({
                             }
                           />
                           {etiketler.get(id) || metin(d.code || d.name)}
-                          <span style={{ fontWeight: 400, color: '#64748B' }}>
+                          <span style={{ fontWeight: 400, color: '#5F6368' }}>
                             {metin(d.name || d.ad)}
                           </span>
                         </label>
@@ -3521,7 +3521,7 @@ function ASYoklamaPaneli({
               {alinanlar.length > 0 && (
                 <div style={AS_KART}>
                   <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>Alınan yoklamalar</h4>
-                  <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 10px' }}>
+                  <p style={{ fontSize: 12, color: '#5F6368', margin: '0 0 10px' }}>
                     Devam listesinde hangi hafta sütununa yazılacağını buradan değiştirebilirsiniz;
                     "tahmini" yazanlara hafta seçilmemiş, tarihten çıkarıldı. Kapanmış bir yoklamada
                     öğrencinin durumunu “Düzelt” ile sonradan değiştirebilirsiniz.
@@ -3541,8 +3541,8 @@ function ASYoklamaPaneli({
                             flexWrap: 'wrap',
                             padding: '7px 10px',
                             borderRadius: 9,
-                            background: '#F8FAFC',
-                            border: '1px solid #F1F5F9',
+                            background: '#F7F7F7',
+                            border: '1px solid #EDEDED',
                             fontSize: 13,
                           }}
                         >
@@ -3551,7 +3551,7 @@ function ASYoklamaPaneli({
                               ? window.tarihMetni(o.tarih)
                               : metin(o.tarih || o.baslangic).slice(0, 10)}
                           </span>
-                          <span style={{ color: '#64748B' }}>
+                          <span style={{ color: '#5F6368' }}>
                             {katilanSayisi(o.id)} öğrenci var
                             {o.acik ? ' · açık' : ''}
                           </span>
@@ -3570,7 +3570,7 @@ function ASYoklamaPaneli({
                                 style={{
                                   padding: '5px 12px',
                                   borderRadius: 7,
-                                  border: '1px solid #CBD5E1',
+                                  border: '1px solid #CFCFCF',
                                   background: duzeltilen === o.id ? AS_NAVY : '#fff',
                                   color: duzeltilen === o.id ? '#fff' : AS_NAVY,
                                   fontSize: 12.5,
@@ -3594,7 +3594,7 @@ function ASYoklamaPaneli({
                               style={{
                                 padding: '5px 8px',
                                 borderRadius: 7,
-                                border: '1px solid #CBD5E1',
+                                border: '1px solid #CFCFCF',
                                 fontSize: 12.5,
                                 fontFamily: 'inherit',
                                 background: '#fff',
@@ -3658,14 +3658,14 @@ function ASYoklamaPaneli({
                 </h4>
 
                 {satirlar.length === 0 ? (
-                  <p style={{ fontSize: 12.5, color: '#94A3B8', margin: 0 }}>
+                  <p style={{ fontSize: 12.5, color: '#80858E', margin: 0 }}>
                     Bu derse kayıtlı öğrenci bulunamadı.
                   </p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {satirlar.map((s) => {
                       const d = s.durum || {};
-                      const renk = Y.devamsizlikRengi ? Y.devamsizlikRengi(d.durum) : '#64748B';
+                      const renk = Y.devamsizlikRengi ? Y.devamsizlikRengi(d.durum) : '#5F6368';
                       const kirmizi = d.asildi;
                       return (
                         <div
@@ -3678,8 +3678,8 @@ function ASYoklamaPaneli({
                             borderRadius: 9,
                             // ⚠ Sınırı aşan öğrenci kırmızı alanla ayrılır:
                             // listeyi tarayıp hesap yapmak zorunda kalmasın.
-                            background: kirmizi ? '#FEF2F2' : '#F8FAFC',
-                            border: '1px solid ' + (kirmizi ? '#FCA5A5' : '#F1F5F9'),
+                            background: kirmizi ? '#FEF2F2' : '#F7F7F7',
+                            border: '1px solid ' + (kirmizi ? '#FCA5A5' : '#EDEDED'),
                           }}
                         >
                           <span style={{ flex: 1, minWidth: 0 }}>
@@ -3693,7 +3693,7 @@ function ASYoklamaPaneli({
                             >
                               {s.adSoyad || s.studentNumber}
                             </span>
-                            <span style={{ display: 'block', fontSize: 11, color: '#94A3B8' }}>
+                            <span style={{ display: 'block', fontSize: 11, color: '#80858E' }}>
                               {s.studentNumber}
                               {/* ⚠ CİHAZ BAĞLAMA BU DÜĞME OLMADAN BİR TUZAKTIR:
                                   telefonu bozulan ya da kotasını tüketen öğrenci
@@ -3706,7 +3706,7 @@ function ASYoklamaPaneli({
                                   padding: 0,
                                   border: 'none',
                                   background: 'none',
-                                  color: '#0F766E',
+                                  color: '#105BFF',
                                   fontSize: 11,
                                   fontWeight: 600,
                                   cursor: 'pointer',
@@ -3724,7 +3724,7 @@ function ASYoklamaPaneli({
                                 display: 'block',
                                 height: 6,
                                 borderRadius: 999,
-                                background: '#E2E8F0',
+                                background: '#E2E2E2',
                                 overflow: 'hidden',
                               }}
                             >
@@ -3784,13 +3784,13 @@ function ASYoklamaPaneli({
                 <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>
                   Devamsızlık sınırı
                   <span
-                    style={{ marginLeft: 8, fontSize: 11.5, fontWeight: 600, color: '#94A3B8' }}
+                    style={{ marginLeft: 8, fontSize: 11.5, fontWeight: 600, color: '#80858E' }}
                   >
                     {secim ? secim.etiket : metin(ders.code || ders.kod)}
                   </span>
                 </h4>
                 <p
-                  style={{ margin: '0 0 12px', fontSize: 11.5, color: '#94A3B8', lineHeight: 1.6 }}
+                  style={{ margin: '0 0 12px', fontSize: 11.5, color: '#80858E', lineHeight: 1.6 }}
                 >
                   Öğrenci kendi sayfasında kalan hakkını bu sınıra göre görür. Boş bırakırsanız
                   sayılar yine tutulur ama &quot;kaldı&quot; kararı verilmez.
@@ -3806,7 +3806,7 @@ function ASYoklamaPaneli({
                     onChange={(e) => setLimit(e.target.value)}
                     genislik={100}
                   />
-                  <label style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>
+                  <label style={{ fontSize: 11.5, color: '#5F6368', fontWeight: 600 }}>
                     Birim
                     <select
                       value={birim}
@@ -3817,7 +3817,7 @@ function ASYoklamaPaneli({
                         marginTop: 4,
                         padding: '8px 10px',
                         borderRadius: 8,
-                        border: '1px solid #CBD5E1',
+                        border: '1px solid #CFCFCF',
                         fontSize: 13,
                         fontFamily: 'inherit',
                         background: '#fff',
@@ -3838,7 +3838,7 @@ function ASYoklamaPaneli({
                 </div>
                 {/* Yönetmelik saat konuşur, hocaların çoğu hafta sayar;
                     çeviriyi hocaya bırakmak sessiz hata üretiyordu. */}
-                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#334155', fontWeight: 600 }}>
+                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#363A42', fontWeight: 600 }}>
                   {Number(limit) > 0
                     ? birim === 'hafta'
                       ? Number(limit) +
@@ -3854,7 +3854,7 @@ function ASYoklamaPaneli({
               <div style={AS_KART}>
                 <h4 style={{ ...AS_BASLIK, fontSize: 14, marginBottom: 4 }}>Dönem düzeni</h4>
                 <p
-                  style={{ margin: '0 0 12px', fontSize: 11.5, color: '#94A3B8', lineHeight: 1.6 }}
+                  style={{ margin: '0 0 12px', fontSize: 11.5, color: '#80858E', lineHeight: 1.6 }}
                 >
                   Devam listesindeki hafta sütunlarını ve yoklama açarken önerilen haftayı belirler.
                   Yoklamayı açarken seçtiğiniz hafta her zaman önceliklidir; hafta seçilmemiş
@@ -3895,7 +3895,7 @@ function ASYoklamaPaneli({
                   Ders yapılmayan haftalar
                 </h4>
                 <p
-                  style={{ margin: '0 0 12px', fontSize: 11.5, color: '#94A3B8', lineHeight: 1.6 }}
+                  style={{ margin: '0 0 12px', fontSize: 11.5, color: '#80858E', lineHeight: 1.6 }}
                 >
                   O hafta ders yapmadıysanız sebebini yazın (bayram, sınav haftası…). Devam
                   listesinde o sütun işaret yerine bu metni gösterir.
@@ -3908,7 +3908,7 @@ function ASYoklamaPaneli({
                   }}
                 >
                   {(YL.haftaListesi ? YL.haftaListesi(hafta, notlar) : []).map((h) => (
-                    <label key={h.no} style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>
+                    <label key={h.no} style={{ fontSize: 11.5, color: '#5F6368', fontWeight: 600 }}>
                       {h.baslik}
                       <input
                         type="text"
@@ -3929,7 +3929,7 @@ function ASYoklamaPaneli({
                           marginTop: 4,
                           padding: '7px 9px',
                           borderRadius: 8,
-                          border: '1px solid ' + (notlar[h.no] ? '#FCD34D' : '#CBD5E1'),
+                          border: '1px solid ' + (notlar[h.no] ? '#FCD34D' : '#CFCFCF'),
                           background: notlar[h.no] ? '#FFFBEB' : '#fff',
                           fontSize: 12.5,
                           fontFamily: 'inherit',
@@ -3997,7 +3997,7 @@ function ASGorusmePaneli({ izgara, saatler, musaitlikler, onDegistir, kontenjan,
 
   if (!g || saatler.length === 0) {
     return (
-      <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>
+      <p style={{ fontSize: 13, color: '#5F6368', margin: 0 }}>
         Haftalık ders programınız yüklenemedi; görüşme saatleri ders programının üzerine
         işaretlenir. Programınız oluşturulduktan sonra bu ekran çalışır.
       </p>
@@ -4026,11 +4026,11 @@ function ASGorusmePaneli({ izgara, saatler, musaitlikler, onDegistir, kontenjan,
           flexWrap: 'wrap',
           padding: '10px 12px',
           borderRadius: 10,
-          background: '#F8FAFC',
-          border: '1px solid #E2E8F0',
+          background: '#F7F7F7',
+          border: '1px solid #E2E2E2',
         }}
       >
-        <label style={{ fontSize: 12, color: '#334155', fontWeight: 600 }}>
+        <label style={{ fontSize: 12, color: '#363A42', fontWeight: 600 }}>
           Bir saatte en çok
           <input
             type="number"
@@ -4043,24 +4043,24 @@ function ASGorusmePaneli({ izgara, saatler, musaitlikler, onDegistir, kontenjan,
               margin: '0 8px',
               padding: '6px 9px',
               borderRadius: 8,
-              border: '1px solid #CBD5E1',
+              border: '1px solid #CFCFCF',
               fontSize: 13,
               fontFamily: 'inherit',
             }}
           />
           öğrenci
         </label>
-        <span style={{ fontSize: 11.5, color: '#64748B', lineHeight: 1.5, flex: '1 1 240px' }}>
+        <span style={{ fontSize: 11.5, color: '#5F6368', lineHeight: 1.5, flex: '1 1 240px' }}>
           Boş bırakırsanız sınır olmaz: aynı saate istediğiniz kadar öğrenciyi onaylayabilirsiniz.
           Sınır koyarsanız kontenjan dolunca o saat yeni taleplere kapanır.
         </span>
       </div>
 
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 11.5, color: '#64748B' }}>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 11.5, color: '#5F6368' }}>
         {[
           ['Görüşmeye açık', '#DCFCE7', '#166534'],
-          ['Ders var', '#CCFBF1', '#134E4A'],
-          ['Boş', '#F8FAFC', '#94A3B8'],
+          ['Ders var', '#DCE7FF', '#0B2E73'],
+          ['Boş', '#F7F7F7', '#80858E'],
         ].map(([e, bg, renk]) => (
           <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <span
@@ -4127,7 +4127,7 @@ function ASGorusmePaneli({ izgara, saatler, musaitlikler, onDegistir, kontenjan,
                   style={{
                     padding: '8px 6px',
                     fontSize: 10.5,
-                    color: '#64748B',
+                    color: '#5F6368',
                     fontWeight: 700,
                     textTransform: 'uppercase',
                   }}
@@ -4144,7 +4144,7 @@ function ASGorusmePaneli({ izgara, saatler, musaitlikler, onDegistir, kontenjan,
                   style={{
                     padding: 6,
                     fontSize: 10.5,
-                    color: '#94A3B8',
+                    color: '#80858E',
                     fontWeight: 700,
                     whiteSpace: 'nowrap',
                   }}
@@ -4174,9 +4174,9 @@ function ASGorusmePaneli({ izgara, saatler, musaitlikler, onDegistir, kontenjan,
                           borderRadius: 8,
                           border:
                             '1px ' +
-                            (ders ? 'solid #99F6E4' : acik ? 'solid #6EE7B7' : 'dashed #E2E8F0'),
-                          background: ders ? '#CCFBF1' : acik ? '#DCFCE7' : '#F8FAFC',
-                          color: ders ? '#134E4A' : acik ? '#166534' : '#94A3B8',
+                            (ders ? 'solid #C2D6FF' : acik ? 'solid #6EE7B7' : 'dashed #E2E2E2'),
+                          background: ders ? '#DCE7FF' : acik ? '#DCFCE7' : '#F7F7F7',
+                          color: ders ? '#0B2E73' : acik ? '#166534' : '#80858E',
                           fontSize: 10.5,
                           fontWeight: 700,
                           cursor: ders ? 'not-allowed' : 'pointer',
@@ -4195,7 +4195,7 @@ function ASGorusmePaneli({ izgara, saatler, musaitlikler, onDegistir, kontenjan,
         </table>
       </div>
 
-      <p style={{ margin: 0, fontSize: 11.5, color: '#94A3B8', lineHeight: 1.6 }}>
+      <p style={{ margin: 0, fontSize: 11.5, color: '#80858E', lineHeight: 1.6 }}>
         Ders saatleriniz kapalıdır ve işaretlenemez. Açtığınız saatler, derslerinizi alan
         öğrencilerin &quot;Benim Sayfam&quot; ekranında görünür; öğrenci o saate randevu ister, onay
         sizdedir.

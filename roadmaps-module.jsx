@@ -211,8 +211,8 @@ const PROJECTS = {
     abbr: '2B',
     name: '2209-B',
     subtitle: 'Üniversite Öğrencileri Sanayiye Yönelik Araştırma Projeleri Desteği',
-    accent: '#0F766E',
-    accentSoft: '#F0FDFA',
+    accent: '#105BFF',
+    accentSoft: '#EEF3FF',
     accentMid: '#7DD3FC',
     logo: 'https://www.tubitak.gov.tr/favicon.ico',
     logoFull: 'https://www.google.com/s2/favicons?domain=tubitak.gov.tr&sz=64',
@@ -425,7 +425,7 @@ function _ProgressArc({ pct, color }) {
     c = 2 * Math.PI * r;
   return (
     <svg width="68" height="68" viewBox="0 0 68 68">
-      <circle cx="34" cy="34" r={r} fill="none" stroke="#F1F5F9" strokeWidth="5" />
+      <circle cx="34" cy="34" r={r} fill="none" stroke="#EDEDED" strokeWidth="5" />
       <circle
         cx="34"
         cy="34"
@@ -444,7 +444,7 @@ function _ProgressArc({ pct, color }) {
         y="35"
         textAnchor="middle"
         dominantBaseline="central"
-        fill="#1E293B"
+        fill="#1F2329"
         fontSize="15"
         fontWeight="800"
       >
@@ -485,7 +485,7 @@ function EvalBar({ criteria, accent }) {
             style={{
               width: `${c.pct}%`,
               fontSize: 11,
-              color: '#64748B',
+              color: '#5F6368',
               fontWeight: 600,
               textAlign: 'center',
               whiteSpace: 'nowrap',
@@ -528,7 +528,7 @@ function GanttMini({ steps, accent, accentMid }) {
               style={{
                 width: 120,
                 fontSize: 12,
-                color: '#64748B',
+                color: '#5F6368',
                 fontWeight: 500,
                 textAlign: 'right',
                 flexShrink: 0,
@@ -543,7 +543,7 @@ function GanttMini({ steps, accent, accentMid }) {
               style={{
                 flex: 1,
                 height: 22,
-                background: '#F8FAFC',
+                background: '#F7F7F7',
                 borderRadius: 6,
                 position: 'relative',
                 overflow: 'hidden',
@@ -555,7 +555,7 @@ function GanttMini({ steps, accent, accentMid }) {
                   left: `${left}%`,
                   width: `${width}%`,
                   height: '100%',
-                  background: done ? accent : active ? accentMid : '#E2E8F0',
+                  background: done ? accent : active ? accentMid : '#E2E2E2',
                   borderRadius: 6,
                   transition: 'all 0.5s',
                   display: 'flex',
@@ -563,7 +563,7 @@ function GanttMini({ steps, accent, accentMid }) {
                   justifyContent: 'center',
                 }}
               >
-                <span style={{ fontSize: 9, fontWeight: 700, color: done ? '#fff' : '#64748B' }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: done ? '#fff' : '#5F6368' }}>
                   {d.duration}
                 </span>
               </div>
@@ -611,8 +611,8 @@ function StepCard({
 }) {
   const done = step._status === 'completed';
   const active = step._status === 'in-progress';
-  const stBg = done ? '#DCFCE7' : active ? '#FEF3C7' : '#F1F5F9';
-  const stColor = done ? '#059669' : active ? '#D97706' : '#94A3B8';
+  const stBg = done ? '#DCFCE7' : active ? '#FEF3C7' : '#EDEDED';
+  const stColor = done ? '#059669' : active ? '#D97706' : '#80858E';
   const noteText = notes[`${activeProject}-${i}`] || '';
 
   return (
@@ -640,7 +640,7 @@ function StepCard({
           gap: 8,
         }}
       >
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#1E293B', lineHeight: 1.4 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#1F2329', lineHeight: 1.4 }}>
           {step.title}
         </span>
         <span
@@ -659,11 +659,11 @@ function StepCard({
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: proj.accent }}>Sonuç</span>
-        <span style={{ fontSize: 12, color: '#64748B', fontWeight: 500 }}>{step.result}</span>
+        <span style={{ fontSize: 12, color: '#5F6368', fontWeight: 500 }}>{step.result}</span>
       </div>
       {isOpen && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${proj.accent}18` }}>
-          <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: 0 }}>{step.desc}</p>
+          <p style={{ fontSize: 13, color: '#4A4F57', lineHeight: 1.6, margin: 0 }}>{step.desc}</p>
           {step.docs && step.docs.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
               {step.docs.map((d, j) => {
@@ -693,8 +693,8 @@ function StepCard({
           )}
 
           {/* Kişisel Not Alanı */}
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed #CBD5E1' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', marginBottom: 6 }}>
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed #CFCFCF' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#5F6368', marginBottom: 6 }}>
               KİŞİSEL NOT
             </div>
             <textarea
@@ -705,7 +705,7 @@ function StepCard({
               style={{
                 width: '100%',
                 padding: '10px 12px',
-                border: '1px solid #E2E8F0',
+                border: '1px solid #E2E2E2',
                 borderRadius: 8,
                 fontSize: 13,
                 background: 'rgba(255,255,255,0.8)',
@@ -713,11 +713,11 @@ function StepCard({
                 resize: 'vertical',
                 outline: 'none',
                 boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.03)',
-                color: '#1E293B',
+                color: '#1F2329',
                 transition: 'border-color 0.2s',
               }}
               onFocus={(e) => (e.target.style.borderColor = proj.accent)}
-              onBlur={(e) => (e.target.style.borderColor = '#E2E8F0')}
+              onBlur={(e) => (e.target.style.borderColor = '#E2E2E2')}
             />
           </div>
         </div>
@@ -750,7 +750,7 @@ function RoadView({
           width: 4,
           top: 0,
           bottom: 0,
-          background: `linear-gradient(to bottom, transparent 0%, #E2E8F0 5%, ${proj.accentMid} 50%, #E2E8F0 95%, transparent 100%)`,
+          background: `linear-gradient(to bottom, transparent 0%, #E2E2E2 5%, ${proj.accentMid} 50%, #E2E2E2 95%, transparent 100%)`,
           zIndex: 0,
           borderRadius: 4,
         }}
@@ -877,8 +877,8 @@ function RoadView({
                   width: 46,
                   height: 46,
                   borderRadius: '50%',
-                  background: done ? proj.accent : active ? '#fff' : '#F8FAFC',
-                  border: `3px solid ${done ? 'rgba(255,255,255,0.85)' : active ? proj.accent : '#CBD5E1'}`,
+                  background: done ? proj.accent : active ? '#fff' : '#F7F7F7',
+                  border: `3px solid ${done ? 'rgba(255,255,255,0.85)' : active ? proj.accent : '#CFCFCF'}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -890,7 +890,7 @@ function RoadView({
                       : '0 2px 8px rgba(0,0,0,0.05)',
                   fontWeight: 800,
                   fontSize: done ? 18 : 15,
-                  color: done ? '#fff' : active ? proj.accent : '#94A3B8',
+                  color: done ? '#fff' : active ? proj.accent : '#80858E',
                   transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                   transform: active ? 'scale(1.1)' : 'scale(1)',
                 }}
@@ -940,7 +940,7 @@ function RoadView({
         <div
           style={{
             marginLeft: isMobile ? 6 : 0,
-            background: '#0F172A',
+            background: '#15181D',
             color: '#fff',
             padding: '8px 22px',
             borderRadius: 8,
@@ -1132,9 +1132,9 @@ export default function RoadmapsModule({
     <div
       style={{
         fontFamily: "'DM Sans', sans-serif",
-        background: '#F8FAFC',
+        background: '#F7F7F7',
         minHeight: '100vh',
-        color: '#1E293B',
+        color: '#1F2329',
       }}
     >
       <style>{`
@@ -1143,12 +1143,12 @@ export default function RoadmapsModule({
         .rm-doc-link {
           display: inline-flex; align-items: center; gap: 6px;
           font-size: 13px; padding: 5px 12px; border-radius: 8px;
-          background: #fff; border: 1px solid #E2E8F0; color: #475569;
+          background: #fff; border: 1px solid #E2E2E2; color: #4A4F57;
           font-weight: 600; text-decoration: none; transition: all 0.2s;
           cursor: pointer; line-height: 1.4;
         }
         .rm-doc-link:hover {
-          border-color: #94A3B8; color: #1E293B;
+          border-color: #80858E; color: #1F2329;
           box-shadow: 0 1px 3px rgba(0,0,0,0.06);
           transform: translateY(-1px);
         }
@@ -1171,7 +1171,7 @@ export default function RoadmapsModule({
             padding: '32px',
             marginBottom: 32,
             boxShadow: '0 10px 40px rgba(0, 0, 0, 0.04)',
-            border: '1px solid #E2E8F0',
+            border: '1px solid #E2E2E2',
           }}
         >
           {/* Top Row: Title & Tabs */}
@@ -1190,14 +1190,14 @@ export default function RoadmapsModule({
                 style={{
                   fontSize: 24,
                   fontWeight: 800,
-                  color: '#1E293B',
+                  color: '#1F2329',
                   letterSpacing: '-0.02em',
                   margin: 0,
                 }}
               >
                 Projeler
               </h1>
-              <p style={{ fontSize: 14, color: '#64748B', marginTop: 6, margin: 0 }}>
+              <p style={{ fontSize: 14, color: '#5F6368', marginTop: 6, margin: 0 }}>
                 Proje destek programları — adım adım başvuru rehberi ve kişisel not defteriniz.
               </p>
             </div>
@@ -1205,7 +1205,7 @@ export default function RoadmapsModule({
             <div
               style={{
                 display: 'flex',
-                background: '#F1F5F9',
+                background: '#EDEDED',
                 padding: 6,
                 borderRadius: 16,
                 gap: 4,
@@ -1228,7 +1228,7 @@ export default function RoadmapsModule({
                       borderRadius: 12,
                       border: 'none',
                       background: act ? '#fff' : 'transparent',
-                      color: act ? p.accent : '#64748B',
+                      color: act ? p.accent : '#5F6368',
                       fontSize: 13,
                       fontWeight: 700,
                       cursor: 'pointer',
@@ -1255,7 +1255,7 @@ export default function RoadmapsModule({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: '#1E293B', lineHeight: 1.2 }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#1F2329', lineHeight: 1.2 }}>
                     {proj.subtitle}
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: proj.accent, marginTop: 4 }}>
@@ -1263,7 +1263,7 @@ export default function RoadmapsModule({
                   </div>
                 </div>
               </div>
-              <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.7, margin: '0 0 24px 0' }}>
+              <p style={{ fontSize: 14, color: '#4A4F57', lineHeight: 1.7, margin: '0 0 24px 0' }}>
                 {proj.info}
               </p>
 
@@ -1300,10 +1300,10 @@ export default function RoadmapsModule({
             {/* Right Column: Progress & Eval */}
             <div
               style={{
-                background: '#F8FAFC',
+                background: '#F7F7F7',
                 borderRadius: 16,
                 padding: 24,
-                border: '1px dashed #E2E8F0',
+                border: '1px dashed #E2E2E2',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
@@ -1317,7 +1317,7 @@ export default function RoadmapsModule({
                   marginBottom: 12,
                 }}
               >
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#1E293B' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#1F2329' }}>
                   İlerleme Durumu
                 </div>
                 <div style={{ fontSize: 28, fontWeight: 900, color: proj.accent }}>{pct}%</div>
@@ -1326,7 +1326,7 @@ export default function RoadmapsModule({
               <div
                 style={{
                   height: 10,
-                  background: '#E2E8F0',
+                  background: '#E2E2E2',
                   borderRadius: 10,
                   overflow: 'hidden',
                   marginBottom: 12,
@@ -1348,7 +1348,7 @@ export default function RoadmapsModule({
                   display: 'flex',
                   justifyContent: 'space-between',
                   fontSize: 12,
-                  color: '#64748B',
+                  color: '#5F6368',
                   fontWeight: 600,
                   marginBottom: proj.evalCriteria?.length ? 24 : 0,
                 }}
@@ -1361,7 +1361,7 @@ export default function RoadmapsModule({
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#94A3B8',
+                    color: '#80858E',
                     cursor: 'pointer',
                     fontWeight: 600,
                     textDecoration: 'underline',
@@ -1377,7 +1377,7 @@ export default function RoadmapsModule({
                     style={{
                       fontSize: 11,
                       fontWeight: 700,
-                      color: '#94A3B8',
+                      color: '#80858E',
                       marginBottom: 8,
                       textTransform: 'uppercase',
                       letterSpacing: '0.05em',
@@ -1396,8 +1396,8 @@ export default function RoadmapsModule({
         {view === 'road' ? (
           <div
             style={{
-              background: '#F8FAFC',
-              border: '1px solid #E2E8F0',
+              background: '#F7F7F7',
+              border: '1px solid #E2E2E2',
               borderRadius: 20,
               padding: '32px 20px',
             }}
@@ -1423,7 +1423,7 @@ export default function RoadmapsModule({
                 ? { bg: '#DCFCE7', color: '#059669' }
                 : active
                   ? { bg: '#FEF3C7', color: '#D97706' }
-                  : { bg: '#F1F5F9', color: '#94A3B8' };
+                  : { bg: '#EDEDED', color: '#80858E' };
               return (
                 <div key={i} style={{ display: 'flex', gap: 16, position: 'relative' }}>
                   {/* Vertical connector line */}
@@ -1435,7 +1435,7 @@ export default function RoadmapsModule({
                         top: 40,
                         bottom: 0,
                         width: 2,
-                        background: done ? proj.accentMid : '#F1F5F9',
+                        background: done ? proj.accentMid : '#EDEDED',
                         zIndex: 0,
                       }}
                     />
@@ -1469,7 +1469,7 @@ export default function RoadmapsModule({
                         justifyContent: 'center',
                         fontSize: done ? 16 : 14,
                         fontWeight: 700,
-                        color: done ? '#fff' : active ? proj.accent : '#94A3B8',
+                        color: done ? '#fff' : active ? proj.accent : '#80858E',
                         transition: 'all 0.25s',
                       }}
                     >
@@ -1487,7 +1487,7 @@ export default function RoadmapsModule({
                       marginBottom: 8,
                       borderRadius: 14,
                       background: isOpen ? proj.accentSoft : '#fff',
-                      border: `1.5px solid ${isOpen ? proj.accent + '30' : '#F1F5F9'}`,
+                      border: `1.5px solid ${isOpen ? proj.accent + '30' : '#EDEDED'}`,
                       transition: 'all 0.2s',
                     }}
                   >
@@ -1502,7 +1502,7 @@ export default function RoadmapsModule({
                       <div
                         style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}
                       >
-                        <span style={{ fontSize: 15, fontWeight: 700, color: '#1E293B' }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: '#1F2329' }}>
                           {s.title}
                         </span>
                         <span
@@ -1521,7 +1521,7 @@ export default function RoadmapsModule({
                       <span
                         style={{
                           fontSize: 13,
-                          color: '#CBD5E1',
+                          color: '#CFCFCF',
                           transform: isOpen ? 'rotate(180deg)' : 'none',
                           transition: 'transform 0.15s',
                         }}
@@ -1543,7 +1543,7 @@ export default function RoadmapsModule({
                       >
                         Sonuç
                       </span>
-                      <span style={{ fontSize: 14, color: '#475569', fontWeight: 600 }}>
+                      <span style={{ fontSize: 14, color: '#4A4F57', fontWeight: 600 }}>
                         {s.result}
                       </span>
                     </div>
@@ -1557,7 +1557,7 @@ export default function RoadmapsModule({
                           borderTop: `1px solid ${proj.accent}15`,
                         }}
                       >
-                        <p style={{ fontSize: 14, color: '#64748B', lineHeight: 1.8, margin: 0 }}>
+                        <p style={{ fontSize: 14, color: '#5F6368', lineHeight: 1.8, margin: 0 }}>
                           {s.desc}
                         </p>
 
@@ -1604,7 +1604,7 @@ export default function RoadmapsModule({
           <div
             style={{
               background: '#fff',
-              border: '1px solid #F1F5F9',
+              border: '1px solid #EDEDED',
               borderRadius: 16,
               padding: 22,
             }}
@@ -1627,7 +1627,7 @@ export default function RoadmapsModule({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: '#CBD5E1', fontWeight: 500 }}>
+            <span style={{ fontSize: 12, color: '#CFCFCF', fontWeight: 500 }}>
               {proj.name} · Yol Haritası
             </span>
           </div>
@@ -1635,11 +1635,11 @@ export default function RoadmapsModule({
             {[
               { c: '#059669', l: 'Tamamlandı' },
               { c: '#D97706', l: 'Devam Ediyor' },
-              { c: '#CBD5E1', l: 'Bekliyor' },
+              { c: '#CFCFCF', l: 'Bekliyor' },
             ].map((x, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: x.c }} />
-                <span style={{ fontSize: 11, color: '#94A3B8' }}>{x.l}</span>
+                <span style={{ fontSize: 11, color: '#80858E' }}>{x.l}</span>
               </div>
             ))}
           </div>

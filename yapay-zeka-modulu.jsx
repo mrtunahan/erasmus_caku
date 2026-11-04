@@ -12,18 +12,18 @@ const { useState, useEffect, useCallback } = React;
 
 const YZ = {
   navy: '#1E3A5F',
-  text: '#0F172A',
-  textMuted: '#64748B',
-  border: '#E2E8F0',
-  bg: '#F8FAFC',
+  text: '#15181D',
+  textMuted: '#5F6368',
+  border: '#E2E2E2',
+  bg: '#F7F7F7',
   green: '#047857',
   greenBg: '#ECFDF5',
   amber: '#B45309',
   amberBg: '#FFFBEB',
   red: '#B91C1C',
   redBg: '#FEF2F2',
-  indigo: '#115E59',
-  indigoBg: '#F0FDFA',
+  indigo: '#0A47D1',
+  indigoBg: '#EEF3FF',
 };
 
 const yzKart = {
@@ -195,7 +195,7 @@ function BaglantiTablosu() {
   const bagliSayisi = BAGLANTILAR.filter((b) => b.durum === 'bagli').length;
   const hucre = {
     padding: '9px 12px',
-    borderBottom: '1px solid #F1F5F9',
+    borderBottom: '1px solid #EDEDED',
     fontSize: 12.5,
     verticalAlign: 'top',
   };
@@ -281,7 +281,7 @@ function MaliyetTablosu() {
     yukle(kirilim);
   }, [kirilim, yukle]);
 
-  const hucre = { padding: '9px 12px', borderBottom: '1px solid #F1F5F9', fontSize: 12.5 };
+  const hucre = { padding: '9px 12px', borderBottom: '1px solid #EDEDED', fontSize: 12.5 };
   const basligi = KIRILIMLAR.find((k) => k.id === kirilim);
 
   return (

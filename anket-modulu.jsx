@@ -26,17 +26,17 @@ const DC = window.AnketDersCoklu || {
 };
 
 const ANK = {
-  primary: '#0F172A',
+  primary: '#15181D',
   // Modül teması turkuaz-beyaz (Google Forms şablon galerisiyle uyumlu).
-  accent: '#0D9488',
-  accentDark: '#0F766E',
-  accentPale: '#CCFBF1',
-  bg: '#F8FAFC',
+  accent: '#2F6FFF',
+  accentDark: '#105BFF',
+  accentPale: '#DCE7FF',
+  bg: '#F7F7F7',
   surface: '#FFFFFF',
   surfaceAlt: '#F5FDFB',
-  text: '#1E293B',
-  textMuted: '#64748B',
-  textDim: '#94A3B8',
+  text: '#1F2329',
+  textMuted: '#5F6368',
+  textDim: '#80858E',
   border: '#EAECF0',
   borderStrong: '#D9DEE6',
   green: '#059669',
@@ -45,16 +45,16 @@ const ANK = {
   redLight: '#FEE2E2',
   amber: '#B45309',
   amberLight: '#FEF3C7',
-  teal: '#0F766E',
-  tealLight: '#CCFBF1',
-  blue: '#0F766E',
-  blueLight: '#CCFBF1',
+  teal: '#105BFF',
+  tealLight: '#DCE7FF',
+  blue: '#105BFF',
+  blueLight: '#DCE7FF',
   // tasarım token'ları
   radius: 14,
   shadowSm: '0 1px 2px rgba(16,24,40,0.05), 0 1px 3px rgba(16,24,40,0.04)',
   shadow: '0 4px 12px rgba(16,24,40,0.06), 0 2px 4px rgba(16,24,40,0.04)',
   shadowLg: '0 12px 32px rgba(16,24,40,0.10)',
-  headerGrad: 'linear-gradient(135deg, #2DD4BF 0%, #0D9488 100%)',
+  headerGrad: 'linear-gradient(135deg, #6E9BFF 0%, #2F6FFF 100%)',
 };
 
 const AIcon = ({ path, size = 18, color = 'currentColor' }) => (
@@ -743,8 +743,8 @@ function YoneticiGorunumu({
       key: 'anketler',
       label: 'Anketler',
       variant: 'solid',
-      color: '#0D9488',
-      pale: '#CCFBF1',
+      color: '#2F6FFF',
+      pale: '#DCE7FF',
       icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
     },
     {
@@ -759,8 +759,8 @@ function YoneticiGorunumu({
       key: 'sonuclar',
       label: 'Sonuçlar',
       variant: 'outline',
-      color: '#0F766E',
-      pale: '#CCFBF1',
+      color: '#105BFF',
+      pale: '#DCE7FF',
       icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
     },
   ];
@@ -842,9 +842,9 @@ function YoneticiGorunumu({
 // renk buraya aittir.
 const KAPSAM_RENK = {
   universite: { zemin: '#EDE9FE', renk: '#5B21B6' },
-  fakulte: { zemin: '#CCFBF1', renk: '#115E59' },
-  bolum: { zemin: '#CCFBF1', renk: '#0F766E' },
-  eski: { zemin: '#F1F5F9', renk: '#64748B' },
+  fakulte: { zemin: '#DCE7FF', renk: '#0A47D1' },
+  bolum: { zemin: '#DCE7FF', renk: '#105BFF' },
+  eski: { zemin: '#EDEDED', renk: '#5F6368' },
 };
 
 const cardStyle = {
@@ -884,14 +884,14 @@ function AnkStyles() {
     <style>{`
       .ank-root input:focus, .ank-root select:focus, .ank-root textarea:focus {
         border-color: ${ANK.accent} !important;
-        box-shadow: 0 0 0 3px rgba(13,148,136,0.14) !important;
+        box-shadow: 0 0 0 3px rgba(16,91,255,0.14) !important;
       }
       .ank-card { transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease; }
       .ank-card-hover:hover { box-shadow: ${ANK.shadow}; transform: translateY(-1px); border-color: ${ANK.borderStrong}; }
       .ank-seg { display:inline-flex; gap:2px; padding:4px; background:${ANK.surface}; border:1px solid ${ANK.border}; border-radius:12px; box-shadow:${ANK.shadowSm}; flex-wrap:wrap; }
       .ank-seg-btn { display:flex; align-items:center; gap:7px; padding:8px 15px; border:none; background:transparent; color:${ANK.textMuted}; font-size:13px; font-weight:600; cursor:pointer; border-radius:9px; font-family:'Inter',sans-serif; transition:all .15s ease; white-space:nowrap; }
       .ank-seg-btn:hover { color:${ANK.primary}; background:${ANK.bg}; }
-      .ank-seg-btn.active { color:#fff; background:${ANK.headerGrad}; box-shadow:0 2px 6px rgba(13,148,136,0.30); }
+      .ank-seg-btn.active { color:#fff; background:${ANK.headerGrad}; box-shadow:0 2px 6px rgba(16,91,255,0.30); }
       .ank-btn { transition: filter .15s ease, box-shadow .15s ease, transform .05s ease; }
       .ank-btn:hover { filter: brightness(1.05); }
       .ank-btn:active { transform: translateY(1px); }
@@ -899,20 +899,20 @@ function AnkStyles() {
       .ank-tpl-strip { display:flex; gap:18px; overflow-x:auto; padding:2px 2px 14px; }
       .ank-tpl-strip::-webkit-scrollbar { height:8px; }
       .ank-tpl-strip::-webkit-scrollbar-thumb { background:#B8EDE5; border-radius:8px; }
-      .ank-tpl-strip::-webkit-scrollbar-thumb:hover { background:#0D9488; }
-      .ank-tpl-card { position:relative; display:block; width:172px; border:1px solid #DBEFEB; border-radius:8px; background:#fff; cursor:pointer; overflow:hidden; box-shadow:0 1px 2px rgba(13,148,136,0.06); transition:border-color .15s ease, box-shadow .15s ease; padding:0; }
-      .ank-tpl-card:hover { border-color:#0D9488; box-shadow:0 2px 10px rgba(13,148,136,0.16); }
+      .ank-tpl-strip::-webkit-scrollbar-thumb:hover { background:#2F6FFF; }
+      .ank-tpl-card { position:relative; display:block; width:172px; border:1px solid #DBEFEB; border-radius:8px; background:#fff; cursor:pointer; overflow:hidden; box-shadow:0 1px 2px rgba(16,91,255,0.06); transition:border-color .15s ease, box-shadow .15s ease; padding:0; }
+      .ank-tpl-card:hover { border-color:#2F6FFF; box-shadow:0 2px 10px rgba(16,91,255,0.16); }
       .ank-tpl-upload { border-style:dashed; border-color:#9FE3D8; }
-      .ank-tpl-name { font-size:12.5px; font-weight:700; color:#134E4A; margin:9px 2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:172px; }
+      .ank-tpl-name { font-size:12.5px; font-weight:700; color:#0B2E73; margin:9px 2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:172px; }
       .ank-tpl-sub { font-size:11px; color:#5B8C86; margin:2px 2px 0; }
-      .ank-tpl-edit { position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:7px; background:rgba(255,255,255,0.94); border:1px solid #DBEFEB; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 1px 3px rgba(13,148,136,0.14); }
-      .ank-tpl-edit:hover { background:#CCFBF1; }
-      .ank-tpl-badge { position:absolute; top:8px; left:8px; min-width:20px; height:20px; padding:0 6px; border-radius:10px; background:#0D9488; color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 3px rgba(13,148,136,0.3); }
+      .ank-tpl-edit { position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:7px; background:rgba(255,255,255,0.94); border:1px solid #DBEFEB; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 1px 3px rgba(16,91,255,0.14); }
+      .ank-tpl-edit:hover { background:#DCE7FF; }
+      .ank-tpl-badge { position:absolute; top:8px; left:8px; min-width:20px; height:20px; padding:0 6px; border-radius:10px; background:#2F6FFF; color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 3px rgba(16,91,255,0.3); }
       /* Anket ızgarası — kart hover yükselmesi */
       .ank-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; }
       /* Düzenleyici soru kartları — odaklanınca yükselir (elevation) */
       .ank-qcard { transition:box-shadow .18s ease, border-color .18s ease; }
-      .ank-qcard:focus-within { border-color:${ANK.accent} !important; box-shadow:0 0 0 3px rgba(13,148,136,0.10), ${ANK.shadow}; }
+      .ank-qcard:focus-within { border-color:${ANK.accent} !important; box-shadow:0 0 0 3px rgba(16,91,255,0.10), ${ANK.shadow}; }
       /* Öğrenci Likert seçenek kartları — hover'da vurgulanır */
       .ank-likert:hover { border-color:${ANK.accent} !important; background:${ANK.accentPale}; }
     `}</style>
@@ -944,7 +944,7 @@ function PageHeader({ icon, title, subtitle, right, responsive, grad, glow }) {
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            boxShadow: '0 6px 16px ' + (glow || 'rgba(13,148,136,0.28)'),
+            boxShadow: '0 6px 16px ' + (glow || 'rgba(16,91,255,0.28)'),
           }}
         >
           <AIcon path={icon} size={22} color="#fff" />
@@ -996,7 +996,7 @@ function SegTabs({ tabs, active, onChange }) {
             background: c,
             color: '#fff',
             border: '1px solid ' + c,
-            boxShadow: '0 2px 8px rgba(13,148,136,0.30)',
+            boxShadow: '0 2px 8px rgba(16,91,255,0.30)',
           }
         : {
             ...base,
@@ -1158,12 +1158,12 @@ function buildSurveyFromLines(lines, fallbackTitle) {
 // Statik, veri gerektirmeyen mini form görseli: turkuaz üst bant + gri
 // alan çizgileri. `blank` → boş form (+) kartı.
 const TQ = {
-  primary: '#0D9488',
-  primaryDark: '#0F766E',
-  grad: 'linear-gradient(135deg, #2DD4BF 0%, #0D9488 100%)',
-  paper: '#F0FDFA',
-  line: '#E2E8F0',
-  name: '#134E4A',
+  primary: '#2F6FFF',
+  primaryDark: '#105BFF',
+  grad: 'linear-gradient(135deg, #6E9BFF 0%, #2F6FFF 100%)',
+  paper: '#EEF3FF',
+  line: '#E2E2E2',
+  name: '#0B2E73',
   sub: '#5B8C86',
   border: '#CFEEE8',
 };
@@ -1203,7 +1203,7 @@ function TplThumb({ blank }) {
           background: '#fff',
           borderRadius: 5,
           overflow: 'hidden',
-          boxShadow: '0 1px 3px rgba(13,148,136,0.10)',
+          boxShadow: '0 1px 3px rgba(16,91,255,0.10)',
         }}
       >
         <div style={{ height: 24, background: TQ.grad }} />
@@ -1559,7 +1559,7 @@ function AnketlerPaneli({
           alignItems: 'center',
           gap: 10,
           flexWrap: 'wrap',
-          background: ANK.bluePale || '#F0FDFA',
+          background: ANK.bluePale || '#EEF3FF',
         }}
       >
         <AIcon
@@ -1816,8 +1816,8 @@ function AnketlerPaneli({
                         borderRadius: 10,
                         fontSize: 10.5,
                         fontWeight: 700,
-                        background: s._yonetilebilir ? '#DCFCE7' : '#F1F5F9',
-                        color: s._yonetilebilir ? '#166534' : '#64748B',
+                        background: s._yonetilebilir ? '#DCFCE7' : '#EDEDED',
+                        color: s._yonetilebilir ? '#166534' : '#5F6368',
                         whiteSpace: 'nowrap',
                       }}
                     >
@@ -1832,7 +1832,7 @@ function AnketlerPaneli({
                       gap: '10px 14px',
                       padding: '10px 12px',
                       borderRadius: 10,
-                      background: ANK.surfaceAlt || '#F8FAFC',
+                      background: ANK.surfaceAlt || '#F7F7F7',
                     }}
                   >
                     <div data-anket-olusturan-kart>
@@ -2708,7 +2708,7 @@ function SurveyEditorModal({
               border: '1px solid ' + ANK.border,
               borderRadius: 10,
               padding: 12,
-              background: '#F8FAFC',
+              background: '#F7F7F7',
             }}
           >
             <div
@@ -2990,7 +2990,7 @@ function SurveyEditorModal({
             justifyContent: 'flex-end',
             gap: 8,
             marginTop: 20,
-            borderTop: '1px solid #F1F5F9',
+            borderTop: '1px solid #EDEDED',
             paddingTop: 16,
           }}
         >
@@ -3051,19 +3051,19 @@ const iconBtn = (color) => ({
 // Son tarih gösterimi: ISO (yyyy-mm-dd) → gg.aa.yyyy; boş/'—' → "Belirtilmedi".
 // Yayın durumu renkleri (lib/anket-yayin.js → YAYIN_DURUMLARI).
 const YAYIN_RENK = {
-  tumu: { renk: '#0F766E', zemin: '#CCFBF1' },
+  tumu: { renk: '#105BFF', zemin: '#DCE7FF' },
   yayinda: { renk: '#047857', zemin: '#D1FAE5' },
   suresi_doldu: { renk: '#B45309', zemin: '#FEF3C7' },
-  pasif: { renk: '#475569', zemin: '#E2E8F0' },
-  taslak: { renk: '#64748B', zemin: '#F1F5F9' },
+  pasif: { renk: '#4A4F57', zemin: '#E2E2E2' },
+  taslak: { renk: '#5F6368', zemin: '#EDEDED' },
 };
 const suzgecKutusu = {
   padding: '7px 10px',
   borderRadius: 8,
-  border: '1px solid #E2E8F0',
+  border: '1px solid #E2E2E2',
   background: 'white',
   fontSize: 12.5,
-  color: '#1E293B',
+  color: '#1F2329',
   fontFamily: "'Inter', sans-serif",
 };
 const kucukDugme = (renk) => ({
@@ -3591,7 +3591,7 @@ function AtamaPaneli({
             <div>
               <label style={labelStyle}>{tekBolum ? 'Kapsam (otomatik)' : 'Kapsam'}</label>
               {tekBolum ? (
-                <input value={deptName} disabled style={{ ...inputStyle, background: '#F1F5F9' }} />
+                <input value={deptName} disabled style={{ ...inputStyle, background: '#EDEDED' }} />
               ) : (
                 <select
                   value={secim}
@@ -3962,7 +3962,7 @@ function AtamaPaneli({
                           isStudent ? ANK.accentPale : ANK.blueLight,
                           isStudent ? ANK.accentDark : ANK.blue
                         )}
-                        {rozet(a.targetGroup || 'Tümü', '#F1F5F9', ANK.text)}
+                        {rozet(a.targetGroup || 'Tümü', '#EDEDED', ANK.text)}
                         {kapsam && (
                           <span style={{ fontSize: 12, color: ANK.textMuted }}>{kapsam}</span>
                         )}
@@ -4059,7 +4059,7 @@ function _countAnswers(responses, qid, options) {
 // ══════════════════════════════════════════════════════════════
 
 const GRAFIK = window.anketGrafikMurekkep || {
-  yazi: '#1E293B',
+  yazi: '#1F2329',
   ikincil: '#52514e',
   soluk: '#898781',
   izgara: '#e1e0d9',
@@ -4623,7 +4623,7 @@ function CommentList({ texts }) {
           key={i}
           style={{
             padding: '8px 12px',
-            background: '#F8FAFC',
+            background: '#F7F7F7',
             borderRadius: 8,
             borderLeft: '3px solid ' + ANK.accent,
             fontSize: 12.5,
@@ -4878,7 +4878,7 @@ function KirilimGrafigi({ kirilim }) {
                 )}
               </div>
               <div
-                style={{ height: 12, borderRadius: 6, background: '#EEF2F7', overflow: 'hidden' }}
+                style={{ height: 12, borderRadius: 6, background: '#ECECEC', overflow: 'hidden' }}
               >
                 <div
                   style={{
@@ -5962,7 +5962,7 @@ function InfoFieldsForm({
           <input
             value={otoBolum.name}
             disabled
-            style={{ ...inputStyle, background: '#F1F5F9', cursor: 'default' }}
+            style={{ ...inputStyle, background: '#EDEDED', cursor: 'default' }}
           />
         );
       }
@@ -6002,7 +6002,7 @@ function InfoFieldsForm({
             onChange(f.key, course?.name || '');
             if (f.codeKey) onChange(f.codeKey, course?.code || '');
           }}
-          style={{ ...selectStyle, background: deptId ? 'white' : '#F1F5F9' }}
+          style={{ ...selectStyle, background: deptId ? 'white' : '#EDEDED' }}
         >
           <option value="">
             {!deptId
@@ -6026,7 +6026,7 @@ function InfoFieldsForm({
           value={values[f.key] || ''}
           disabled
           placeholder="Ders seçilince otomatik dolar"
-          style={{ ...inputStyle, background: '#F1F5F9' }}
+          style={{ ...inputStyle, background: '#EDEDED' }}
         />
       );
     }
@@ -6186,7 +6186,7 @@ function AnketDoldurma({
       <div
         style={{
           height: 5,
-          background: '#F1F5F9',
+          background: '#EDEDED',
           borderRadius: 4,
           overflow: 'hidden',
           marginBottom: 16,
@@ -6204,7 +6204,7 @@ function AnketDoldurma({
       </div>
 
       <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: 16 }}>
+        <div style={{ borderBottom: '1px solid #EDEDED', paddingBottom: 16 }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: ANK.primary, margin: '0 0 4px' }}>
             {survey.title}
           </h2>
@@ -6242,7 +6242,7 @@ function AnketDoldurma({
             alignItems: 'center',
             gap: 10,
             flexWrap: 'wrap',
-            borderTop: '1px solid #F1F5F9',
+            borderTop: '1px solid #EDEDED',
             paddingTop: 16,
           }}
         >
@@ -6287,7 +6287,7 @@ function AnketDoldurma({
                 color: 'white',
                 fontSize: 13,
                 fontWeight: 600,
-                boxShadow: canSubmit ? '0 4px 12px rgba(13,148,136,0.25)' : 'none',
+                boxShadow: canSubmit ? '0 4px 12px rgba(16,91,255,0.25)' : 'none',
                 cursor: saving ? 'wait' : canSubmit ? 'pointer' : 'not-allowed',
                 opacity: saving ? 0.7 : canSubmit ? 1 : 0.45,
               }}

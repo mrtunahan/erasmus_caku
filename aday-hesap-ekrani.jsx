@@ -888,19 +888,19 @@ export function AdayHesapKutusu({ aday, onDegisti }) {
       data-aday-satir={aday.adayNo}
       onClick={(e) => e.stopPropagation()}
       style={{
-        border: '1px solid #99F6E4',
-        background: '#F0FDFA',
+        border: '1px solid #C2D6FF',
+        background: '#EEF3FF',
         borderRadius: 10,
         padding: '10px 12px',
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
         fontSize: 12.5,
-        color: '#1E293B',
+        color: '#1F2329',
       }}
     >
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <b style={{ color: '#115E59' }}>Aday hesabı</b>
+        <b style={{ color: '#0A47D1' }}>Aday hesabı</b>
         <span
           style={{
             padding: '1px 8px',
@@ -915,10 +915,10 @@ export function AdayHesapKutusu({ aday, onDegisti }) {
           {d[0]}
           {aday.durum === 'aktarildi' ? ' · ' + aday.ogrenciNo : ''}
         </span>
-        <span style={{ color: '#64748B' }}>
+        <span style={{ color: '#5F6368' }}>
           {aday.adayNo} · T.C. {aday.tcMaske} · {aday.eposta} · {aday.telefon}
         </span>
-        <span style={{ marginLeft: 'auto', color: '#64748B' }} data-aday-silinme>
+        <span style={{ marginLeft: 'auto', color: '#5F6368' }} data-aday-silinme>
           {aday.silinme && aday.silinme.tarih ? (
             <>
               Otomatik silinme:{' '}
@@ -934,7 +934,7 @@ export function AdayHesapKutusu({ aday, onDegisti }) {
       </div>
       {aktif && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ color: '#475569' }}>Kesin kayıt yapıldıysa:</span>
+          <span style={{ color: '#4A4F57' }}>Kesin kayıt yapıldıysa:</span>
           <input
             value={no}
             onChange={(e) => setNo(e.target.value.replace(/\D/g, '').slice(0, 9))}
@@ -943,11 +943,11 @@ export function AdayHesapKutusu({ aday, onDegisti }) {
             style={{ ...inp, width: 120, padding: '6px 8px', fontSize: 12.5 }}
             data-aday-no-gir
           />
-          <button style={dugme('#115E59')} onClick={aktar} disabled={mesgul} data-aday-aktar>
+          <button style={dugme('#0A47D1')} onClick={aktar} disabled={mesgul} data-aday-aktar>
             Numaraya aktar
           </button>
           {aday.yetki && aday.yetki.sifirlama && (
-            <button style={dugme('#0D9B8E', false)} onClick={sifirla} disabled={mesgul}>
+            <button style={dugme('#2F6FFF', false)} onClick={sifirla} disabled={mesgul}>
               Şifre sıfırla
             </button>
           )}
@@ -1006,21 +1006,21 @@ export function AdayDonemPaneli({ facultyId }) {
       style={{
         background: 'white',
         borderRadius: 12,
-        border: '1px solid #E2E8F0',
+        border: '1px solid #E2E2E2',
         padding: 16,
         marginBottom: 16,
       }}
       data-aday-donem-paneli
     >
-      <div style={{ fontWeight: 700, color: '#0F172A' }}>Aday başvuru tarihleri</div>
-      <div style={{ fontSize: 12.5, color: '#64748B', margin: '2px 0 12px' }}>
+      <div style={{ fontWeight: 700, color: '#15181D' }}>Aday başvuru tarihleri</div>
+      <div style={{ fontSize: 12.5, color: '#5F6368', margin: '2px 0 12px' }}>
         Öğrenci numarası olmayan adayların (dikey geçiş, kurumlararası ve merkezi yerleştirme
         puanıyla yatay geçiş) fakültenize başvuru dönemi. Dönem dışında başvuru alanı açık kalır,
         aday "başvuru tarihleri uygun değildir" uyarısı görür. Boş bırakılan türde uyarı çıkmaz.
         Kazanamayan adayın verisi dönem bitişinden {ADAY_SAKLAMA_GUN} gün sonra silinir.
       </div>
       {yukleniyor ? (
-        <div style={{ color: '#64748B', fontSize: 13 }}>Yükleniyor…</div>
+        <div style={{ color: '#5F6368', fontSize: 13 }}>Yükleniyor…</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {ADAY_TURLERI.map((t) => (
@@ -1029,7 +1029,7 @@ export function AdayDonemPaneli({ facultyId }) {
               style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}
               data-donem-tur={t.id}
             >
-              <div style={{ flex: '1 1 260px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
+              <div style={{ flex: '1 1 260px', fontSize: 13, fontWeight: 600, color: '#363A42' }}>
                 {t.ad}
               </div>
               <input
@@ -1040,7 +1040,7 @@ export function AdayDonemPaneli({ facultyId }) {
                 aria-label={t.ad + ' başlangıç'}
                 data-alan="baslangic"
               />
-              <span style={{ color: '#94A3B8' }}>–</span>
+              <span style={{ color: '#80858E' }}>–</span>
               <input
                 type="date"
                 value={(donemler[t.id] && donemler[t.id].bitis) || ''}
@@ -1055,7 +1055,7 @@ export function AdayDonemPaneli({ facultyId }) {
             </div>
           ))}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 4 }}>
-            <button style={dugme('#0D9B8E')} onClick={kaydet} data-donem-kaydet>
+            <button style={dugme('#2F6FFF')} onClick={kaydet} data-donem-kaydet>
               Kaydet
             </button>
             {mesaj.text && (

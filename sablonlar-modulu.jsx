@@ -21,9 +21,9 @@ const SB_MODULES = [
   { id: 'sinav', label: 'Sınav Otomasyonu', color: '#DC2626' },
   { id: 'dersprogrami', label: 'Ders Programı', color: '#D97706' },
   { id: 'projeler', label: 'Proje Performans', color: '#8B5CF6' },
-  { id: 'formlar', label: 'Formlar', color: '#64748B' },
-  { id: 'performans', label: 'Performans', color: '#0D9488' },
-  { id: 'akreditasyon', label: 'Akreditasyon', color: '#0F766E' },
+  { id: 'formlar', label: 'Formlar', color: '#5F6368' },
+  { id: 'performans', label: 'Performans', color: '#2F6FFF' },
+  { id: 'akreditasyon', label: 'Akreditasyon', color: '#105BFF' },
   { id: 'anket', label: 'Anketler', color: '#06B6D4' },
   { id: 'yoklama', label: 'Ders Devam Listesi', color: '#7C3AED' },
   { id: 'dersodalari', label: 'Ders Odaları (Not Çizelgesi)', color: '#2563EB' },
@@ -45,20 +45,20 @@ const SB_MODULES = [
 // renklerde durmasıydı. Palet burada TÜRETİLİR, tanımlanmaz.
 const SBC = (typeof window !== 'undefined' && window.C) || {};
 const SB = {
-  navy: SBC.navy || '#1B2A4A',
-  metin: SBC.text || '#1E293B',
-  soluk: SBC.textMuted || '#64748B',
-  soluk2: '#94A3B8',
-  koyu: '#334155',
-  kenar: SBC.border || '#E2E8F0',
-  kenarGiris: '#CBD5E1',
+  navy: SBC.navy || '#0B2E73',
+  metin: SBC.text || '#1F2329',
+  soluk: SBC.textMuted || '#5F6368',
+  soluk2: '#80858E',
+  koyu: '#363A42',
+  kenar: SBC.border || '#E2E2E2',
+  kenarGiris: '#CFCFCF',
   yuzey: SBC.card || '#FFFFFF',
-  yuzey2: '#F8FAFC',
-  cipZemin: '#F1F5F9',
-  cipMetin: '#475569',
-  vurgu: SBC.gold || '#C4973B',
-  birincil: '#0F766E',
-  birincilSolgun: '#F0FDFA',
+  yuzey2: '#F7F7F7',
+  cipZemin: '#EDEDED',
+  cipMetin: '#4A4F57',
+  vurgu: SBC.gold || '#FE8500',
+  birincil: '#105BFF',
+  birincilSolgun: '#EEF3FF',
   basari: SBC.green || '#059669',
   uyari: '#D97706',
   uyariSolgun: '#FEF3C7',
@@ -73,7 +73,7 @@ SB.baslik = SB.navy;
 const SB_MESAJ = {
   error: { bg: SB.tehlikeSolgun, fg: '#991B1B', bd: '#FECACA' },
   ok: { bg: '#D1FAE5', fg: '#065F46', bd: '#A7F3D0' },
-  info: { bg: '#CCFBF1', fg: '#115E59', bd: '#99F6E4' },
+  info: { bg: '#DCE7FF', fg: '#0A47D1', bd: '#C2D6FF' },
 };
 
 // ── EYLEM BİÇİMLERİ: ÜÇ TON, DAHA FAZLASI DEĞİL ──
@@ -88,7 +88,7 @@ const SB_BICIM = {
   sessiz: { fg: SB.koyu, bg: SB.yuzey, bd: SB.kenarGiris },
   tehlike: { fg: SB.tehlike, bg: SB.yuzey, bd: '#FCA5A5' },
   // Etkin (basılı) durum: aynı sessiz düğme, vurgu rengiyle işaretli.
-  etkin: { fg: SB.vurgu, bg: '#FBF6EC', bd: '#E8D5A8' },
+  etkin: { fg: SB.vurgu, bg: '#FFF4E8', bd: '#FFD3A6' },
 };
 
 // Eşleme durumu çipi.
@@ -821,7 +821,7 @@ function SablonKarti({ tpl, onEsle, onDuzenle, onDegistir, onSil }) {
         >
           {tpl.isDefault && (
             <span
-              style={{ ...sbRozet('#FBF6EC', '#8A6A29'), display: 'inline-flex', gap: 4 }}
+              style={{ ...sbRozet('#FFF4E8', '#8A6A29'), display: 'inline-flex', gap: 4 }}
               title="Bu modülde varsayılan olarak kullanılan şablon"
             >
               <SbIkon ad="yildiz" boyut={11} dolgu />
@@ -838,7 +838,7 @@ function SablonKarti({ tpl, onEsle, onDuzenle, onDegistir, onSil }) {
           Aynı bilgi tek çipte duruyor, uzun açıklama ipucuna taşındı. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         {cokTurlu && (
-          <span style={sbRozet('#F0FDFA', '#115E59')}>{docTypeLabel(tpl.module, tpl.docType)}</span>
+          <span style={sbRozet('#EEF3FF', '#0A47D1')}>{docTypeLabel(tpl.module, tpl.docType)}</span>
         )}
         <span style={sbRozet(SB.cipZemin, SB.cipMetin, 600)}>
           {SB_SCOPE_LABEL[tpl.scope] || tpl.scope}
@@ -1531,7 +1531,7 @@ function AddTemplateModal(props) {
             style={{
               width: '100%',
               padding: 8,
-              border: '1px dashed #94A3B8',
+              border: '1px dashed #80858E',
               borderRadius: 8,
               fontSize: 13,
               background: SB.yuzey2,
@@ -2003,7 +2003,7 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
                     fontWeight: 700,
                     padding: '1px 7px',
                     borderRadius: 8,
-                    background: '#1E293B',
+                    background: '#1F2329',
                     color: 'white',
                     fontFamily: "'JetBrains Mono', monospace",
                   }}
@@ -2032,9 +2032,9 @@ function FieldMappingModal({ tpl, localFile, headers, onClose, onSaved }) {
                   <div
                     style={{
                       ...selStyle,
-                      background: '#F1F5F9',
-                      color: '#475569',
-                      border: '1px dashed #CBD5E1',
+                      background: '#EDEDED',
+                      color: '#4A4F57',
+                      border: '1px dashed #CFCFCF',
                       fontWeight: 600,
                     }}
                     title={
