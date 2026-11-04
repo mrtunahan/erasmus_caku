@@ -3858,19 +3858,24 @@ async function ttoBildirimleriGonder(db, op, sonuc, user, touched) {
 // ══════════════════════════════════════════════════════════════
 async function patentBildirimleriGonder(db, op, sonuc, user, touched) {
   if (!op || op.collection !== 'patent_bildirimleri' || !op._patentOnce) return;
-  if (op.type === 'delete') return;
+  const silindi = op.type === 'delete';
   try {
     const P = await patentKurali();
-    const once = op._patentOnce;
-    const yeni = Object.assign({}, once, op.data || {}, {
-      id: String(op.docId || (sonuc && sonuc.id) || once.id || ''),
+    const once = Object.assign({}, op._patentOnce, {
+      id: String(op.docId || (op._patentOnce && op._patentOnce.id) || ''),
     });
-    const gonderildi = yeni.durum === 'bekliyor' && once.durum !== 'bekliyor';
+    const yeni = silindi
+      ? once
+      : Object.assign({}, once, op.data || {}, {
+          id: String(op.docId || (sonuc && sonuc.id) || once.id || ''),
+        });
+    const gonderildi = !silindi && yeni.durum === 'bekliyor' && once.durum !== 'bekliyor';
     const plan = P.bildirimZilPlani({
       eski: once,
       yeni,
       yapan: String((user && user.identifier) || ''),
       yoneticiler: gonderildi ? await patentYoneticileri(db) : [],
+      silindi,
     });
     if (plan.length === 0) return;
     const simdi = new Date().toISOString();

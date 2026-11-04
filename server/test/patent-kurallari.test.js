@@ -281,5 +281,25 @@ test('yönetici yalnız karar alanlarını yazar; kararda sahibine bildirim dü�
   assert.ok(zil.some((n) => n.type === 'patent-karar'));
 
   const sil = await yaz(HOCA, { collection: 'patent_bildirimleri', type: 'delete', docId: id });
-  assert.equal(sil.durum, 403, 'karara bağlanmış bildirim silinemez');
+  assert.equal(sil.durum, 403, 'sahip karara bağlanmış bildirimini silemez');
+  const sadeSil = await yaz(HOCA2, {
+    collection: 'patent_bildirimleri',
+    type: 'delete',
+    docId: id,
+  });
+  assert.equal(sadeSil.durum, 403, 'sade akademisyen başkasının bildirimini silemez');
+});
+
+test('yönetici portföye alınmış bildirimi silebilir; sahibine haber gider', async () => {
+  const b = await db.collection('patent_bildirimleri').findOne({ sahip: 'Dr. Ali VELİ' });
+  assert.equal(b.durum, 'kabul');
+  const id = String(b._id);
+  const sil = await yaz(YONETICI, { collection: 'patent_bildirimleri', type: 'delete', docId: id });
+  assert.equal(sil.durum, 200);
+  assert.equal(await db.collection('patent_bildirimleri').findOne({ sahip: 'Dr. Ali VELİ' }), null);
+  const zil = await db
+    .collection('notifications')
+    .find({ module: 'patent', recipientId: 'Dr. Ali VELİ', type: 'patent-silindi' })
+    .toArray();
+  assert.equal(zil.length, 1, 'sahibine silindiği bildirildi');
 });

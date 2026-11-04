@@ -137,14 +137,20 @@ describe('bildirim — yönetici kuralı', () => {
       }).izin
     ).toBe(true);
   });
-  it('portföye alınmış bildirim silinmez', () => {
+  it('yönetici portföye alınmış bildirimi de silebilir; sahip kararlı bildirimi silemez', () => {
+    const kabul = { ...mevcut, durum: 'kabul', patentNo: 3 };
+    expect(yoneticiBildirimYazmaKarari({ tur: 'delete', mevcut: kabul, kimlik: 'Y' })).toEqual({
+      izin: true,
+      sahipKurali: false,
+    });
+    // yöneticinin KENDİ kabul edilmiş bildirimi de
     expect(
-      yoneticiBildirimYazmaKarari({
-        tur: 'delete',
-        mevcut: { ...mevcut, durum: 'kabul' },
-        kimlik: 'Y',
-      }).izin
-    ).toBe(false);
+      yoneticiBildirimYazmaKarari({ tur: 'delete', mevcut: { ...kabul, sahip: 'Y' }, kimlik: 'Y' })
+        .izin
+    ).toBe(true);
+    expect(sahipBildirimYazmaKarari({ tur: 'delete', mevcut: kabul, kimlik: 'A' }).izin).toBe(
+      false
+    );
   });
   it('kendi bildiriminde içerik yazarsa sahip kuralı, yalnız karar yazarsa yönetici kuralı', () => {
     const kendi = { ...mevcut, sahip: 'Y' };
@@ -184,6 +190,14 @@ describe('bildirimdenPortfoy ve zil planı', () => {
       basvuruTarihi: '2026-02-03',
       durum: 'Süreç Devam Ediyor',
     });
+  });
+  it('yönetici silince sahibine haber verilir; kişi kendi sildiğinde bildirim yok', () => {
+    const b = { ...gecerli(), id: 'b9', sahip: 'A', durum: 'kabul' };
+    const p = bildirimZilPlani({ eski: b, yeni: b, yapan: 'Y', silindi: true });
+    expect(p).toHaveLength(1);
+    expect(p[0]).toMatchObject({ recipientId: 'A', type: 'patent-silindi' });
+    expect(p[0].meta).toMatchObject({ bildirimId: 'b9', durum: 'silindi' });
+    expect(bildirimZilPlani({ eski: b, yeni: b, yapan: 'A', silindi: true })).toHaveLength(0);
   });
   it('gönderimde yöneticilere (kendisi hariç), kararda sahibine', () => {
     const g = bildirimZilPlani({
