@@ -609,27 +609,11 @@ const ALLOWED_COLLECTIONS = [
   'tto_projeler',
   'tto_oranlar',
   'tto_is_kayitlari',
-  // PATENT & FSMH — akademisyenin buluş bildirimleri ve yöneticinin portföyü
-  // (patent-otomasyon/). Kurallar lib/patent-fsmh.js'te; öğrenciye kapalı.
+  // PATENT & FSMH — akademisyenin buluş bildirimleri. Portföyün kendisi
+  // (patent kayıtları) ayrı uygulamada, kendi veritabanında durur
+  // (mrtunahan/patent, /patent/ altında). Kurallar lib/patent-fsmh.js'te.
   'patent_bildirimleri',
-  'patent_kayitlari',
-  'patent_basvuru_sahipleri',
-  'patent_bolumler',
-  'patent_vekil_firmalar',
-  'patent_fsmh_turleri',
 ];
-
-// Patent & FSMH portföyü: okuma VE yazma yalnız üniversite yetkilisinin atadığı
-// Patent & FSMH yöneticisine (isPatentYoneticisi) ve sistem yöneticisine.
-// Liste lib/patent-fsmh.js → PATENT_KOLEKSIYONLARI ile aynıdır (burada
-// eşzamanlı gerekli olduğu için kopyalandı; değişirse ikisi birden).
-const PATENT_PORTFOY_KOLEKSIYONLARI = new Set([
-  'patent_kayitlari',
-  'patent_basvuru_sahipleri',
-  'patent_bolumler',
-  'patent_vekil_firmalar',
-  'patent_fsmh_turleri',
-]);
 
 // TTO ödeme defteri: IBAN, firma vergi bilgisi ve ödeme tutarları taşır.
 // Sıradan akademisyen de, öğrenci de, bölüm/fakülte/üniversite yetkilisi de
@@ -931,13 +915,8 @@ const STUDENT_READ_DENY = new Set([
   'tto_projeler',
   'tto_oranlar',
   'tto_is_kayitlari',
-  // Patent & FSMH: buluş bildirimleri ve portföy personelin işidir.
+  // Patent & FSMH buluş bildirimleri personelin işidir.
   'patent_bildirimleri',
-  'patent_kayitlari',
-  'patent_basvuru_sahipleri',
-  'patent_bolumler',
-  'patent_vekil_firmalar',
-  'patent_fsmh_turleri',
   // Memur belge kutusu: başka öğrencilerin resmî çıktıları ve dilekçe
   // adresleri. Hiçbir öğrenci ekranı bu koleksiyonu kullanmıyor; kenar
   // çubuğu sayacı 403'ü sessizce boş liste sayar (lib/api-hata.js).
@@ -1527,40 +1506,6 @@ async function enforceWritePolicies(db, op, user) {
     }
     const karar = await ttoOdemeYazmaKarari(db, op);
     if (!karar.izin) return { allow: false, status: 400, error: karar.hata };
-  }
-
-  // a0e) Patent & FSMH portföyü — yalnız Patent & FSMH yöneticisi ve admin;
-  // alan kuralları lib/patent-fsmh.js'te. Kayıt numarası (no) benzersizdir:
-  // iki yönetici aynı anda ekleyince ikincisi reddedilir, istemci yeniden dener.
-  if (PATENT_PORTFOY_KOLEKSIYONLARI.has(op.collection)) {
-    const flags = await getActorFlags(db, user);
-    if (!flags.admin && !flags.patentYonetici) {
-      return {
-        allow: false,
-        status: 403,
-        error: 'Patent & FSMH kayıtlarını yalnız Patent & FSMH yöneticisi düzenleyebilir.',
-      };
-    }
-    if (op.type !== 'delete') {
-      const P = await patentKurali();
-      const tam = op.type === 'add' || (op.type === 'set' && !op.merge);
-      const hata = P.portfoyKaydiHatasi(op.collection, op.data, tam, op.type === 'add');
-      if (hata) return { allow: false, status: 400, error: hata };
-      if (op.data && 'no' in op.data) {
-        const ayni = await db
-          .collection(op.collection)
-          .findOne({ no: op.data.no }, { projection: { _id: 1, _docId: 1 } });
-        const kendisi =
-          ayni && op.docId && (String(ayni._id) === op.docId || ayni._docId === op.docId);
-        if (ayni && !kendisi) {
-          return {
-            allow: false,
-            status: 409,
-            error: 'Kayıt numarası çakıştı; lütfen yeniden deneyin.',
-          };
-        }
-      }
-    }
   }
 
   // a0f) Buluş bildirimleri — sahip yalnız kendi bildirimini, durum kurallarına
@@ -3726,16 +3671,6 @@ async function readDecision(collection, user, getDb) {
       if (await isUniversityAdmin(db, user.identifier)) return { allow: true };
     }
     return { allow: false, status: 403, error: 'Bu veriye erişim yetkiniz yok.' };
-  }
-  if (PATENT_PORTFOY_KOLEKSIYONLARI.has(collection)) {
-    if (!user) return { allow: false, status: 401, error: 'Bu veri için giriş gereklidir.' };
-    const flags = await getActorFlags(await getDb(), user);
-    if (flags.admin || flags.patentYonetici) return { allow: true };
-    return {
-      allow: false,
-      status: 403,
-      error: 'Patent & FSMH portföyünü yalnız Patent & FSMH yöneticisi görebilir.',
-    };
   }
   if (TTO_ODEME_KOLEKSIYONLARI.has(collection)) {
     if (!user) return { allow: false, status: 401, error: 'Bu veri için giriş gereklidir.' };

@@ -12,9 +12,11 @@
 //   Üniversite Yönetimi → Patent & FSMH Yöneticileri)
 //   • Gelen Bildirimler — karar bekleyenler; kabul (portföye alınır),
 //     düzeltme isteme ya da ret
-//   • "Patent & FSMH Takibi →" — portföy ekranları tam sayfa açılır
-//     (patent-otomasyon/: patent listesi, başvuru sahipleri, bölümler,
-//     vekil firmalar, ortaklar, Excel dışa aktarma)
+//   • "Patent & FSMH Takibi →" — ayrı uygulama (mrtunahan/patent, kendi
+//     veritabanıyla /patent/ altında) tam sayfa açılır: patent listesi,
+//     başvuru sahipleri, bölümler, vekil firmalar, ortaklar, Excel dışa
+//     aktarma. Kabul edilen bildirim oraya kayıt olarak gönderilir
+//     (patent-takip.jsx). Portföy verisi Offline Asistan'a kopyalanmaz.
 //
 // Kurallar (zorunlu alanlar, durum geçişleri, kimin hangi alana yazacağı)
 // lib/patent-fsmh.js'te; sunucu aynı dosyayla karar verir (server/routes/db.js).
@@ -30,8 +32,7 @@ import {
   patentYoneticisiMi,
 } from './lib/patent-fsmh.js';
 import { trIcerir } from './lib/tr-metin.js';
-import PatentOtomasyon from './patent-otomasyon/App.jsx';
-import { bildirimiPortfoyeAl } from './patent-otomasyon/api/client.js';
+import { PatentTakipCercevesi, bildirimiPortfoyeAl, patentTakipYetkisi } from './patent-takip.jsx';
 import {
   T,
   kart,
@@ -820,6 +821,19 @@ function PatentApp({ currentUser }) {
   const [bilgi, setBilgi] = useState('');
   // Tam sayfa Patent & FSMH Takibi: null kapalı, değilse açılış yolu.
   const [otomasyon, setOtomasyon] = useState(null);
+  const [takipHatasi, setTakipHatasi] = useState('');
+
+  // Uygulamayı açmadan önce yetki sorulur: yetkisizse çerçevede nginx'in
+  // çıplak hata sayfası yerine burada anlaşılır bir mesaj görünür.
+  const takibiAc = async (yol) => {
+    setTakipHatasi('');
+    const y = await patentTakipYetkisi();
+    if (!y.izin) {
+      setTakipHatasi(y.mesaj);
+      return;
+    }
+    setOtomasyon('/' + yol);
+  };
 
   const yukle = useCallback(async () => {
     setHata('');
@@ -903,10 +917,8 @@ function PatentApp({ currentUser }) {
 
   if (yonetici && otomasyon) {
     return (
-      <PatentOtomasyon
-        currentUser={currentUser}
-        baslangic={otomasyon}
-        bekleyenBildirim={bekleyen}
+      <PatentTakipCercevesi
+        yol={otomasyon}
         onBildirimler={() => {
           setOtomasyon(null);
           setSekme('gelen');
@@ -939,11 +951,12 @@ function PatentApp({ currentUser }) {
           </div>
         </div>
         {yonetici && (
-          <button style={dugme('birincil')} onClick={() => setOtomasyon('/')}>
+          <button style={dugme('birincil')} onClick={() => takibiAc('')}>
             Patent &amp; FSMH Takibi →
           </button>
         )}
       </div>
+      {takipHatasi && <Mesaj mesaj={{ tur: 'hata', metin: takipHatasi }} />}
 
       <div
         role="tablist"
@@ -1014,7 +1027,7 @@ function PatentApp({ currentUser }) {
             key={incelenen.id}
             b={incelenen}
             onDegisti={incelemeDegisti}
-            onPortfoydeAc={(no) => setOtomasyon('/patents/' + no)}
+            onPortfoydeAc={(no) => takibiAc('patents/' + no)}
           />
         </div>
       )}

@@ -3,7 +3,8 @@
 //
 // Gerçek routes/db.js bellekte bir veritabanıyla (test/sahte-db.js) çalışır:
 //   • yönetici bayrağını (isPatentYoneticisi) yalnız üniversite yetkilisi verir
-//   • portföy koleksiyonlarını yalnız Patent & FSMH yöneticisi okur/yazar
+//   • Patent & FSMH Takibi uygulamasının yetki kapısından (nginx auth_request)
+//     yalnız Patent & FSMH yöneticisi geçer
 //   • buluş bildirimi: akademisyen yalnız kendininkini görür ve yazar;
 //     yönetici karar verir, kararda sahibine zil bildirimi düşer
 //
@@ -38,6 +39,7 @@ const app = express();
 app.use(express.json());
 app.use(require('cookie-parser')());
 app.use('/api/db', require('../routes/db'));
+app.use('/api/patent', require('../routes/patent'));
 
 let sunucu;
 let taban;
@@ -127,36 +129,36 @@ test('Patent & FSMH yöneticisini yalnız üniversite yetkilisi atar', async () 
     .updateOne({ _docId: 'p2' }, { $set: { isPatentYoneticisi: false } });
 });
 
-test('portföyü yalnız Patent & FSMH yöneticisi okur ve yazar', async () => {
-  const kayit = {
-    collection: 'patent_kayitlari',
-    type: 'add',
-    data: { no: 1, baslik: 'X', basvuruSahibiNo: 1, fsmhTuruNo: 1, ortaklar: [] },
+test('yetki kapısı (/api/patent/yetki): yalnız Patent & FSMH yöneticisi geçer', async () => {
+  const sor = async (token, cerez) => {
+    const headers = {};
+    if (token) headers.authorization = 'Bearer ' + token;
+    if (cerez) headers.cookie = 'caku_auth=' + cerez;
+    return (await fetch(taban + '/api/patent/yetki', { headers })).status;
   };
-  assert.equal((await yaz(HOCA, kayit)).durum, 403, 'sade akademisyen yazamaz');
-  assert.equal((await yaz(REKTOR, kayit)).durum, 403, 'üniversite yetkilisi de yazamaz');
-  assert.equal((await oku(HOCA, 'patent_kayitlari')).durum, 403);
-  assert.equal((await oku(REKTOR, 'patent_kayitlari')).durum, 403);
-  assert.equal((await oku(OGR, 'patent_kayitlari')).durum, 403);
+  assert.equal(await sor(null), 401, 'oturumsuz');
+  assert.equal(await sor('bozuk-jeton'), 401, 'geçersiz jeton');
+  assert.equal(await sor(HOCA), 403, 'sade akademisyen');
+  assert.equal(await sor(REKTOR), 403, 'üniversite yetkilisi de yönetici değildir');
+  assert.equal(await sor(OGR), 403, 'öğrenci');
+  assert.equal(await sor(YONETICI), 204, 'atanmış yönetici');
+  assert.equal(
+    await sor(null, YONETICI),
+    204,
+    'oturum çerezi de kabul edilir (nginx çerezi iletir)'
+  );
+  assert.equal(await sor(jeton({ role: 'admin', identifier: 'admin' })), 204, 'sistem yöneticisi');
 
-  assert.equal((await yaz(YONETICI, kayit)).durum, 200);
-  const r = await oku(YONETICI, 'patent_kayitlari');
-  assert.equal(r.durum, 200);
-  assert.equal(r.liste.length, 1);
-
-  assert.equal((await yaz(YONETICI, kayit)).durum, 409, 'aynı kayıt numarası ikinci kez açılmaz');
-  const eksik = await yaz(YONETICI, {
-    collection: 'patent_kayitlari',
-    type: 'add',
-    data: { no: 2, baslik: '', basvuruSahibiNo: 1, fsmhTuruNo: 1 },
-  });
-  assert.equal(eksik.durum, 400, 'zorunlu alan sunucuda da aranır');
-  const numarasiz = await yaz(YONETICI, {
-    collection: 'patent_kayitlari',
-    type: 'add',
-    data: { baslik: 'Y', basvuruSahibiNo: 1, fsmhTuruNo: 1 },
-  });
-  assert.equal(numarasiz.durum, 400, 'eklenen kayıt numara taşımalı');
+  // Yetki kaldırılınca (önbellek süresi dolunca) kapı kapanır.
+  await db
+    .collection('professors')
+    .updateOne({ _docId: 'p3' }, { $set: { isPatentYoneticisi: false } });
+  require('../routes/patent')._onbellekTemizle();
+  assert.equal(await sor(YONETICI), 403);
+  await db
+    .collection('professors')
+    .updateOne({ _docId: 'p3' }, { $set: { isPatentYoneticisi: true } });
+  require('../routes/patent')._onbellekTemizle();
 });
 
 test('buluş bildirimi: akademisyen yalnız kendininkini görür ve yazar', async () => {

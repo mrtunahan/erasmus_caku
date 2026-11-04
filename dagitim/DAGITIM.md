@@ -143,6 +143,46 @@ Ekranları yalnız TTO birimine kayıtlı akademisyen (ve sistem yöneticisi)
 görür; kimin TTO yöneticisi sayıldığı `server/teshis-tto-birim.js` ile
 denetlenebilir.
 
+## Patent & FSMH Takibi (ayrı uygulama, kendi veritabanı)
+
+Patent & FSMH modülünün portföy ekranları **ayrı bir uygulamadır**
+([mrtunahan/patent](https://github.com/mrtunahan/patent): FastAPI + kendi
+SQLite veritabanı `data/patent.db`). Veri orada kalır; Offline Asistan'a
+kopyalanmaz. Uygulama aynı alan adında `/patent/` altında yayınlanır ve modülde
+"Patent & FSMH Takibi →" düğmesiyle tam sayfa (çerçeve içinde) açılır.
+
+Uygulamanın kendi girişi yoktur (şartnamesi gereği yetki ana sistemindir):
+nginx `/patent/` altındaki her isteği önce `GET /api/patent/yetki`'ye sorar
+(`auth_request`). Yalnız üniversite yetkilisinin atadığı Patent & FSMH
+yöneticisi (Üniversite Yönetimi → Patent & FSMH Yöneticileri) ve sistem
+yöneticisi geçer; diğerleri 401/403 alır.
+
+Kurulum (patent reposunun README'sindeki adımlar), `.env`:
+
+```bash
+HOST=127.0.0.1           # dışarıya açılmaz; yalnız nginx ulaşır
+PORT=8001
+ROOT_PATH=/patent
+VITE_BASE_PATH=/patent/
+FRAME_ANCESTORS="'self'"
+CORS_ORIGINS=
+```
+
+```bash
+(cd frontend && npm ci && npm run build)
+(cd backend && alembic upgrade head)
+cd backend && python -m app.main     # pm2/systemd ile sürekli çalıştırın
+```
+
+nginx blokları `ssl-setup/nginx-domain.conf` içinde hazırdır
+(`/_patent_yetki` ve `/patent/`); `auth_request` modülü Ubuntu'nun nginx
+paketinde vardır. Denetim:
+
+```bash
+curl -sI https://offlineasistan.com.tr/patent/            | head -1  # 401 (oturumsuz)
+curl -s  http://127.0.0.1:8001/api/health                            # {"status":"ok"}
+```
+
 ## Doğrulama
 
 ```bash

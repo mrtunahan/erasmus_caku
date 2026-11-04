@@ -18,6 +18,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const { connect, disconnect, getDbSafe } = require('./config/database');
 const healthRoutes = require('./routes/health');
+const patentRoutes = require('./routes/patent');
 const authRoutes = require('./routes/auth');
 const dbRoutes = require('./routes/db');
 const fileRoutes = require('./routes/files');
@@ -148,6 +149,11 @@ app.use(helmetMiddleware());
 app.use(cors({ origin: corsOrigin(), credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
+// Patent & FSMH Takibi yetki kapısı (nginx auth_request — routes/patent.js).
+// /patent/ altındaki HER istek (sayfa, varlık, API) buraya sorulur; genel API
+// hız sınırına takılmasın diye sınırlayıcıdan ÖNCE bağlanır (nginx kendi
+// limit_req'ini /patent/ üzerinde uygular). Yalnız GET; durum değiştirmez.
+app.use('/api/patent', patentRoutes);
 // CSRF defense-in-depth (SameSite=Strict cookie + Origin/Referer kontrolü).
 // Varsayılan SOFT log; CSRF_PROTECTION=enforce ile bloklar.
 app.use('/api', csrfOriginCheck(getDbSafe));

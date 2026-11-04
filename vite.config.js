@@ -94,6 +94,15 @@ export default defineConfig(async () => ({
         ws: true,
         changeOrigin: true,
       },
+      // Patent & FSMH Takibi (ayrı uygulama: mrtunahan/patent). Üretimde nginx
+      // /patent/ altını uygulamaya iletir ve her isteği önce yetki ucuna sorar
+      // (ssl-setup/nginx-domain.conf); geliştirmede yetki kapısı YOKTUR.
+      // Düzenli ifade: düz '/patent' öneki /patent-modulu.jsx'i de yakalardı.
+      '^/patent/': {
+        target: 'http://127.0.0.1:8001',
+        changeOrigin: true,
+        rewrite: (yol) => yol.replace(/^\/patent/, ''),
+      },
     },
   },
   build: {
