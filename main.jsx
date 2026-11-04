@@ -270,5 +270,46 @@ class AppErrorBoundary extends React.Component {
 }
 
 // ── Phase 5: Mount ──
+// ── Patent & FSMH Takibi çerçevesinde KENDİNİ açma ──
+// /patent/ ayrı uygulamaya (mrtunahan/patent) aittir. nginx'te o blok yoksa
+// istek genel kurala düşer ve bu index.html döner; modüldeki çerçeve sistemi
+// kendi içinde yeniden açıyordu. O durumda uygulama yüklenmez, neden yazılır.
+const patentCercevesindeKendisi = (() => {
+  try {
+    return window.self !== window.top && window.location.pathname.startsWith('/patent/');
+  } catch {
+    return false;
+  }
+})();
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<AppErrorBoundary>{React.createElement(window.AppShell)}</AppErrorBoundary>);
+root.render(
+  patentCercevesindeKendisi ? (
+    <div
+      role="alert"
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        background: '#F0F0F0',
+        fontFamily: "'Inter', sans-serif",
+        color: '#1F2329',
+        textAlign: 'center',
+      }}
+    >
+      <div style={{ maxWidth: 520 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#0B2E73', marginBottom: 8 }}>
+          Patent &amp; FSMH Takibi yayında değil
+        </div>
+        <div style={{ fontSize: 14, color: '#5F6368', lineHeight: 1.6 }}>
+          /patent/ adresi patent uygulamasına yönlendirilmemiş (nginx) ya da uygulama çalışmıyor.
+          Sistem yöneticisi dagitim/DAGITIM.md → “Patent &amp; FSMH Takibi” adımlarını uygulamalı.
+        </div>
+      </div>
+    </div>
+  ) : (
+    <AppErrorBoundary>{React.createElement(window.AppShell)}</AppErrorBoundary>
+  )
+);

@@ -128,13 +128,52 @@ export async function bildirimiPortfoyeAl(bildirim) {
 }
 
 /** Kullanıcının takip uygulamasına girip giremeyeceği (açmadan önce sorulur). */
+const KURULUM_MESAJI =
+  'Patent & FSMH Takibi sunucuda yayında değil: /patent/ adresi uygulamaya ' +
+  'yönlendirilmemiş (nginx) ya da uygulama çalışmıyor. Sistem yöneticisi ' +
+  'dagitim/DAGITIM.md → "Patent & FSMH Takibi" adımlarını uygulamalı.';
+
+/**
+ * Takip uygulaması açılabilir mi? İki şey sorulur:
+ *   1) yetki — Offline Asistan: atanmış Patent & FSMH yöneticisi mi?
+ *   2) yayın — /patent/api/health GERÇEKTEN patent uygulamasından mı geliyor?
+ * ⚠ İkincisi şart: nginx'te /patent/ bloğu yoksa istek genel kurala düşer ve
+ * Offline Asistan'ın kendi index.html'i döner. Çerçeve o zaman sistemi
+ * kendi içinde yeniden açıyordu ("tekrar sisteme atıyor"). Yanıt JSON
+ * {"status":"ok"} değilse çerçeve hiç açılmaz, nedeni söylenir.
+ */
 export async function patentTakipYetkisi() {
   try {
     const r = await fetch('/api/patent/yetki', { credentials: 'same-origin' });
-    if (r.status === 204 || r.ok) return { izin: true };
-    return { izin: false, mesaj: YETKI_MESAJI[r.status] || 'Yetki denetlenemedi.' };
+    if (!(r.status === 204 || r.ok)) {
+      return {
+        izin: false,
+        mesaj:
+          r.status === 404
+            ? 'Offline Asistan sunucusu güncel değil (yetki ucu yok); sunucu yeniden dağıtılmalı.'
+            : YETKI_MESAJI[r.status] || 'Yetki denetlenemedi.',
+      };
+    }
   } catch (_) {
     return { izin: false, mesaj: 'Yetki denetlenemedi; bağlantınızı kontrol edin.' };
+  }
+  try {
+    const r = await fetch(PATENT_TAKIP_ADRESI + 'api/health', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
+    const tur = r.headers.get('content-type') || '';
+    if (!r.ok) {
+      return {
+        izin: false,
+        mesaj: r.status === 401 || r.status === 403 ? YETKI_MESAJI[r.status] : KURULUM_MESAJI,
+      };
+    }
+    const veri = tur.includes('json') ? await r.json().catch(() => null) : null;
+    if (!veri || veri.status !== 'ok') return { izin: false, mesaj: KURULUM_MESAJI };
+    return { izin: true };
+  } catch (_) {
+    return { izin: false, mesaj: KURULUM_MESAJI };
   }
 }
 

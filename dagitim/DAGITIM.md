@@ -157,30 +157,34 @@ nginx `/patent/` altındaki her isteği önce `GET /api/patent/yetki`'ye sorar
 yöneticisi (Üniversite Yönetimi → Patent & FSMH Yöneticileri) ve sistem
 yöneticisi geçer; diğerleri 401/403 alır.
 
-Kurulum (patent reposunun README'sindeki adımlar), `.env`:
+**Kurulum ve güncelleme tek komuttur** (Offline Asistan kopyasının içinden,
+root ya da sudo ile; tekrar çalıştırmak güvenlidir):
 
 ```bash
-HOST=127.0.0.1           # dışarıya açılmaz; yalnız nginx ulaşır
-PORT=8001
-ROOT_PATH=/patent
-VITE_BASE_PATH=/patent/
-FRAME_ANCESTORS="'self'"
-CORS_ORIGINS=
+sudo bash scripts/patent-kur.sh
 ```
 
-```bash
-(cd frontend && npm ci && npm run build)
-(cd backend && alembic upgrade head)
-cd backend && python -m app.main     # pm2/systemd ile sürekli çalıştırın
-```
+Betik sırasıyla: uygulamayı `/var/www/patent`'e indirir/günceller (yalnız
+ileri sarma), `.env`'i `/patent` alt yoluna göre ayarlar, veritabanını
+**yedekler** (`data/patent-yedek-TARİH.db`), Python ortamını ve şemayı
+günceller, önyüzü derler, pm2'de `patent` adıyla başlatır, nginx parçasını
+(`ssl-setup/patent-takip.conf` → `/etc/nginx/snippets/`) koyup site ayarına
+`include snippets/patent-takip.conf;` satırını ekler. `nginx -t` geçmezse
+nginx ayarını eski hâline döndürür. Dizin, port, dal gibi ayarlar ortam
+değişkeniyle değiştirilebilir (betiğin başındaki liste).
 
-nginx blokları `ssl-setup/nginx-domain.conf` içinde hazırdır
-(`/_patent_yetki` ve `/patent/`); `auth_request` modülü Ubuntu'nun nginx
-paketinde vardır. Denetim:
+⚠ Olağan dağıtım (`scripts/deploy.sh`) bu uygulamayı kurmaz ve nginx ayarına
+dokunmaz; kurulu değilse dağıtımın sonunda uyarı yazar. **Parça yoksa
+`/patent/` genel kurala düşer ve Offline Asistan'ın kendi sayfası döner** —
+modül bu durumda düğmeye basınca "Patent & FSMH Takibi sunucuda yayında
+değil" der (eskiden çerçevede sistemin kendisi açılıyordu).
+
+Denetim:
 
 ```bash
-curl -sI https://offlineasistan.com.tr/patent/            | head -1  # 401 (oturumsuz)
 curl -s  http://127.0.0.1:8001/api/health                            # {"status":"ok"}
+curl -sI https://offlineasistan.com.tr/patent/            | head -1  # 401 (oturumsuz)
+pm2 status patent
 ```
 
 ## Doğrulama

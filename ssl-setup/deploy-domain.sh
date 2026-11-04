@@ -181,6 +181,8 @@ certbot --nginx \
 echo -e "${BLUE}[7/7] Son Nginx konfigürasyonu uygulanıyor...${NC}"
 if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
     cp "$SCRIPT_DIR/nginx-domain.conf" /etc/nginx/sites-available/caku-erasmus
+    # Site ayarı Patent & FSMH Takibi parçasını içerir (ssl-setup/patent-takip.conf).
+    cp "$SCRIPT_DIR/patent-takip.conf" /etc/nginx/snippets/patent-takip.conf
     nginx -t && systemctl restart nginx
     echo -e "${GREEN}  ✓ HTTPS konfigürasyonu aktif${NC}"
 else
