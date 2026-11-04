@@ -131,5 +131,14 @@ if [ "$SAGLIKLI" != "1" ]; then
   exit 1
 fi
 
+# Patent & FSMH Takibi ayrı uygulamadır; bu betik onu kurmaz. Kurulu değilse
+# modüldeki "Patent & FSMH Takibi →" düğmesi açılmaz — sessiz kalmasın.
+if [ ! -f /etc/nginx/snippets/patent-takip.conf ] ||
+  ! curl -fsS "http://127.0.0.1:${PATENT_PORT:-8001}/api/health" >/dev/null 2>&1; then
+  echo
+  echo "⚠ Patent & FSMH Takibi kurulu değil ya da çalışmıyor."
+  echo "  Kurmak / güncellemek için: sudo bash scripts/patent-kur.sh  (bkz. dagitim/DAGITIM.md)"
+fi
+
 echo
 echo "✓ Dağıtım tamam — $(git rev-parse --short HEAD) ($(git log -1 --format=%s))"

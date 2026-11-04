@@ -94,6 +94,9 @@ echo -e "${GREEN}  ✓ Proje dosyaları kopyalandı${NC}"
 # ── Adım 4: Nginx Konfigürasyonu ──
 echo -e "${BLUE}[4/6] Nginx yapılandırılıyor...${NC}"
 cp "$SCRIPT_DIR/nginx-ssl.conf" /etc/nginx/sites-available/caku-erasmus
+# Site ayarı Patent & FSMH Takibi parçasını içerir (ssl-setup/patent-takip.conf).
+mkdir -p /etc/nginx/snippets
+cp "$SCRIPT_DIR/patent-takip.conf" /etc/nginx/snippets/patent-takip.conf
 
 # Default site'ı kaldır (varsa)
 rm -f /etc/nginx/sites-enabled/default
