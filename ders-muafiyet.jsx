@@ -1953,9 +1953,9 @@ function exportMuafiyetWord(record) {
 const DS = {
   // Renkler — Material 3 esintili lacivert + teal palet
   navy: '#00236f', // primary
-  navyLight: '#134e4a', // primary-container
-  accent: '#134e4a', // etkileşim (buton/sekme)
-  accentLight: '#ccfbf1', // focus/hafif
+  navyLight: '#0B2E73', // primary-container
+  accent: '#0B2E73', // etkileşim (buton/sekme)
+  accentLight: '#DCE7FF', // focus/hafif
   tertiary: '#00658a', // teal (intibak)
   tertiaryLight: '#c9e6ff',
   tertiaryText: '#004c6e',
@@ -1969,7 +1969,7 @@ const DS = {
   text: '#191c1e', // on-surface
   textSecondary: '#444651', // on-surface-variant
   textMuted: '#757682', // outline
-  bg: '#f8fafc', // surface
+  bg: '#F7F7F7', // surface
   bgCard: '#FFFFFF',
   surfaceContainer: '#eceef0',
   surfaceHigh: '#e6e8ea',
@@ -5826,7 +5826,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
               onClick={belgeyiOku}
               style={{
                 ...eStageBtn,
-                background: !belge || okuyor ? '#94A3B8' : DS.navy,
+                background: !belge || okuyor ? '#80858E' : DS.navy,
                 color: '#fff',
                 border: 'none',
                 cursor: !belge || okuyor ? 'not-allowed' : 'pointer',
@@ -5859,7 +5859,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
               <div
                 style={{
                   padding: '8px 12px',
-                  background: DS.bg || '#F8FAFC',
+                  background: DS.bg || '#F7F7F7',
                   borderBottom: '1px solid ' + DS.border,
                   fontSize: 12,
                   fontWeight: 700,
@@ -5967,7 +5967,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
               }
               style={{
                 ...eStageBtn,
-                background: !belgeUrl || okumaHatali ? '#94A3B8' : DS.accent,
+                background: !belgeUrl || okumaHatali ? '#80858E' : DS.accent,
                 color: '#fff',
                 border: 'none',
                 cursor: !belgeUrl || okumaHatali ? 'not-allowed' : 'pointer',
@@ -6067,7 +6067,7 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                   <div
                     style={{
                       padding: '8px 12px',
-                      background: DS.bg || '#F8FAFC',
+                      background: DS.bg || '#F7F7F7',
                       borderBottom: '1px solid ' + DS.border,
                       fontSize: 12,
                       fontWeight: 700,
@@ -6897,13 +6897,13 @@ const ReviewPanel = ({
             {ogrenciDuzeltti && (
               <div
                 style={{
-                  background: DS.blueLight || '#F0FDFA',
-                  border: '1px solid #99F6E4',
+                  background: DS.blueLight || '#EEF3FF',
+                  border: '1px solid #C2D6FF',
                   borderRadius: DS.radiusSm,
                   padding: '7px 10px',
                   marginBottom: 10,
                   fontSize: 11.5,
-                  color: '#134E4A',
+                  color: '#0B2E73',
                   lineHeight: 1.55,
                 }}
               >
@@ -9056,7 +9056,7 @@ function OlcekEksikPaneli({
                 >
                   {kaydediliyor ? 'Kaydediliyor…' : 'Kaydet (üniversite geneli)'}
                 </button>
-                <button onClick={() => setSatirlar(null)} style={dugme('#64748B', false)}>
+                <button onClick={() => setSatirlar(null)} style={dugme('#5F6368', false)}>
                   Vazgeç
                 </button>
               </div>
@@ -9387,7 +9387,7 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
             alignItems: 'center',
             gap: 10,
             flexWrap: 'wrap',
-            background: '#F8FAFC',
+            background: '#F7F7F7',
           }}
         >
           <span style={{ fontSize: 12, color: eksik ? '#B45309' : DS.textMuted, flex: 1 }}>
@@ -9670,7 +9670,7 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
             borderRadius: 8,
             marginBottom: 12,
             fontSize: 12.5,
-            background: DS.blueBg || '#F0FDFA',
+            background: DS.blueBg || '#EEF3FF',
             color: DS.navy,
           }}
         >
@@ -9809,7 +9809,7 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
                   href={k.belgeUrl}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ fontSize: 11.5, color: DS.blue || '#0F766E' }}
+                  style={{ fontSize: 11.5, color: DS.blue || '#105BFF' }}
                 >
                   {k.belgeAdi}
                 </a>
@@ -9831,7 +9831,7 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
                         takmaAdlarMetni: (k.takmaAdlar || []).join(', '),
                       })
                     }
-                    style={{ ...dugme(DS.blue || '#0F766E'), padding: '5px 12px', fontSize: 12 }}
+                    style={{ ...dugme(DS.blue || '#105BFF'), padding: '5px 12px', fontSize: 12 }}
                   >
                     Düzenle
                   </button>
@@ -10105,7 +10105,7 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
                 setBelge(null);
                 yuklenenRef.current = null;
               }}
-              style={dugme('#64748B')}
+              style={dugme('#5F6368')}
             >
               İptal
             </button>
@@ -10786,7 +10786,7 @@ const BASVURU_TURLERI = [
     kisa: 'Muafiyet',
     aciklama: 'Başka kurumda alınan derslerin ÇAKÜ derslerine muafiyeti',
     color: '#00236f',
-    bg: '#f0fdfa',
+    bg: '#EEF3FF',
   },
   {
     id: 'intibak',
@@ -10801,8 +10801,8 @@ const BASVURU_TURLERI = [
     label: 'Dikey Geçiş İsteği',
     kisa: 'Dikey Geçiş',
     aciklama: 'Dikey geçişle (önlisans→lisans) gelen öğrencinin derslerinin muafiyeti',
-    color: '#0f766e',
-    bg: '#ccfbf1',
+    color: '#105BFF',
+    bg: '#DCE7FF',
   },
 ];
 
@@ -12994,7 +12994,7 @@ const ManualExemptionForm = ({
               onChange={(e) => updateSide(row.id, side, 'code', e.target.value)}
               style={{
                 ...inputStyle,
-                ...(side === 'cak' && !v.manual && v.selKey ? { background: '#F1F5F9' } : {}),
+                ...(side === 'cak' && !v.manual && v.selKey ? { background: '#EDEDED' } : {}),
               }}
               readOnly={side === 'cak' && !v.manual && !!v.selKey}
               placeholder="ÖRN: BIL307"
@@ -13005,7 +13005,7 @@ const ManualExemptionForm = ({
             <input
               value={v.akts}
               onChange={(e) => updateNumeric(row.id, side, 'akts', e.target.value)}
-              style={{ ...inputStyle, ...(cakLocked ? { background: '#F1F5F9' } : {}) }}
+              style={{ ...inputStyle, ...(cakLocked ? { background: '#EDEDED' } : {}) }}
               readOnly={cakLocked}
               inputMode="numeric"
               placeholder={
@@ -13026,7 +13026,7 @@ const ManualExemptionForm = ({
               style={{
                 ...inputStyle,
                 cursor: cakLocked ? 'not-allowed' : 'pointer',
-                ...(cakLocked ? { background: '#F1F5F9' } : {}),
+                ...(cakLocked ? { background: '#EDEDED' } : {}),
               }}
             >
               <option value="Z">Z (Zorunlu)</option>
@@ -13043,7 +13043,7 @@ const ManualExemptionForm = ({
               <div
                 style={{
                   ...inputStyle,
-                  background: '#F1F5F9',
+                  background: '#EDEDED',
                   color: v.grade ? DS.navy : DS.textMuted,
                   fontWeight: v.grade ? 700 : 400,
                   display: 'flex',

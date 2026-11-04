@@ -16,13 +16,13 @@
 const { useState, useEffect, useCallback, useMemo, useRef } = React;
 
 const TP = {
-  navy: '#1B2A4A',
-  accent: '#0F766E',
-  accentPale: '#CCFBF1',
-  text: '#1E293B',
-  textMuted: '#64748B',
-  border: '#E2E8F0',
-  bg: '#F8FAFC',
+  navy: '#0B2E73',
+  accent: '#105BFF',
+  accentPale: '#DCE7FF',
+  text: '#1F2329',
+  textMuted: '#5F6368',
+  border: '#E2E2E2',
+  bg: '#F7F7F7',
   green: '#059669',
   greenLight: '#D1FAE5',
   red: '#DC2626',

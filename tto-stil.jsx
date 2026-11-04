@@ -5,36 +5,47 @@ import { TTO_DURUMLAR } from './lib/tto-talep.js';
 
 const TC = (typeof window !== 'undefined' && window.C) || {};
 export const T = {
-  navy: TC.navy || '#1B2A4A',
-  metin: TC.text || '#1E293B',
-  soluk: TC.textMuted || '#64748B',
-  kenar: TC.border || '#E2E8F0',
-  kenarGiris: '#CBD5E1',
+  navy: TC.navy || '#0B2E73',
+  metin: TC.text || '#1F2329',
+  soluk: TC.textMuted || '#5F6368',
+  kenar: TC.border || '#E2E2E2',
+  kenarGiris: '#CFCFCF',
   yuzey: '#FFFFFF',
-  zemin: '#F8FAFC',
+  zemin: '#F7F7F7',
+  // Giriş sonrası paleti: zemin rengi kart (neumorfik), mavi ana renk.
+  neu: '#F0F0F0',
+  mavi: '#105BFF',
+  turuncu: '#FE8500',
   vurgu: '#B45309',
   vurguSolgun: '#FEF3C7',
-  birincil: '#115E59',
+  birincil: '#0A47D1',
   tehlike: '#DC2626',
   basari: '#059669',
 };
 
+// TTO Otomasyonu dili: zeminle aynı renk, kabarık gölge, çerçevesiz.
+const KABARIK = '5px 5px 12px rgba(0,0,0,0.07), -5px -5px 12px rgba(255,255,255,0.85)';
+const KABARIK_KUCUK = '3px 3px 6px rgba(0,0,0,0.07), -3px -3px 6px rgba(255,255,255,0.85)';
+const GOMUK = 'inset 3px 3px 7px rgba(0,0,0,0.07), inset -3px -3px 7px rgba(255,255,255,0.85)';
+
 export const kart = {
-  background: T.yuzey,
-  border: `1px solid ${T.kenar}`,
-  borderRadius: 12,
+  background: T.neu,
+  border: 'none',
+  boxShadow: KABARIK,
+  borderRadius: 16,
   padding: 20,
   marginBottom: 16,
 };
 export const giris = {
   width: '100%',
-  padding: '9px 11px',
-  border: `1px solid ${T.kenarGiris}`,
-  borderRadius: 8,
+  padding: '9px 12px',
+  border: '1px solid transparent',
+  boxShadow: GOMUK,
+  borderRadius: 12,
   fontSize: 13.5,
   fontFamily: "'Inter', sans-serif",
   color: T.metin,
-  background: T.yuzey,
+  background: T.neu,
   boxSizing: 'border-box',
 };
 export const etiket = {
@@ -47,11 +58,11 @@ export const etiket = {
 
 export function dugme(tur) {
   const t = {
-    birincil: { bg: T.navy, fg: '#fff', bd: T.navy },
-    vurgu: { bg: T.birincil, fg: '#fff', bd: T.birincil },
-    basari: { bg: T.basari, fg: '#fff', bd: T.basari },
-    sessiz: { bg: T.yuzey, fg: T.metin, bd: T.kenarGiris },
-    tehlike: { bg: T.yuzey, fg: T.tehlike, bd: '#FCA5A5' },
+    birincil: { bg: T.mavi, fg: '#fff', bd: 'transparent', g: '0 4px 12px rgba(16,91,255,0.28)' },
+    vurgu: { bg: T.turuncu, fg: '#1F2329', bd: 'transparent', g: '0 4px 12px rgba(254,133,0,0.3)' },
+    basari: { bg: T.basari, fg: '#fff', bd: 'transparent', g: '0 4px 12px rgba(5,150,105,0.25)' },
+    sessiz: { bg: T.neu, fg: T.metin, bd: 'transparent', g: KABARIK_KUCUK },
+    tehlike: { bg: T.neu, fg: T.tehlike, bd: 'transparent', g: KABARIK_KUCUK },
   }[tur || 'sessiz'];
   // Bütün düğmeler (ve düğme gibi görünen bağlantılar) aynı yükseklikte:
   // yan yana dizildiklerinde hizalı dursun.
@@ -62,8 +73,9 @@ export function dugme(tur) {
     boxSizing: 'border-box',
     height: 38,
     padding: '0 16px',
-    borderRadius: 8,
+    borderRadius: 12,
     border: `1px solid ${t.bd}`,
+    boxShadow: t.g,
     background: t.bg,
     color: t.fg,
     fontSize: 13,

@@ -14,14 +14,14 @@ const metin = (v) => String(v == null ? '' : v).trim();
 // bileşenin içindeki `cardBox` ile aynı değerler.
 const BS_KART = {
   background: '#FFFFFF',
-  border: '1px solid #E2E8F0',
+  border: '1px solid #E2E2E2',
   borderRadius: 12,
   padding: 18,
   boxShadow: '0 1px 3px rgba(16,24,40,0.06)',
 };
 
 const BS_SINIF_COLORS = {
-  1: { bg: '#CCFBF1', text: '#115E59', label: '1. Sınıf' },
+  1: { bg: '#DCE7FF', text: '#0A47D1', label: '1. Sınıf' },
   2: { bg: '#DCFCE7', text: '#166534', label: '2. Sınıf' },
   3: { bg: '#FFEDD5', text: '#9A3412', label: '3. Sınıf' },
   4: { bg: '#FCE7F3', text: '#9D174D', label: '4. Sınıf' },
@@ -151,7 +151,7 @@ function bsEventState(ev) {
   var isPast = end.getTime() < today.getTime();
   var daysToStart = Math.round((start.getTime() - today.getTime()) / 86400000);
   var isSoon = !isPast && daysToStart <= 15;
-  var accent = isPast ? '#94A3B8' : isSoon ? '#DC2626' : '#059669';
+  var accent = isPast ? '#80858E' : isSoon ? '#DC2626' : '#059669';
   return { isPast: isPast, isSoon: isSoon, accent: accent, daysToStart: daysToStart };
 }
 
@@ -1200,7 +1200,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
         <h2 style={{ color: '#DC2626', fontSize: 22, marginBottom: 8 }}>Erişim Reddedildi</h2>
-        <p style={{ color: '#64748B' }}>Bu sayfa yalnızca öğrenci hesaplarına açıktır.</p>
+        <p style={{ color: '#5F6368' }}>Bu sayfa yalnızca öğrenci hesaplarına açıktır.</p>
       </div>
     );
   }
@@ -1213,13 +1213,13 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             width: 40,
             height: 40,
             margin: '0 auto 16px',
-            border: '3px solid #E2E8F0',
-            borderTopColor: '#0D9488',
+            border: '3px solid #E2E2E2',
+            borderTopColor: '#2F6FFF',
             borderRadius: '50%',
             animation: 'spin 0.8s linear infinite',
           }}
         />
-        <p style={{ color: '#64748B' }}>Sayfa yükleniyor…</p>
+        <p style={{ color: '#5F6368' }}>Sayfa yükleniyor…</p>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -1229,7 +1229,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
         <h3 style={{ color: '#DC2626', marginBottom: 8 }}>Hata</h3>
-        <p style={{ color: '#64748B' }}>{error}</p>
+        <p style={{ color: '#5F6368' }}>{error}</p>
       </div>
     );
   }
@@ -1243,7 +1243,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   // ══════════════════════════════════════════════════════════════
   if (editMode) {
     return (
-      <div style={{ fontFamily: "'Inter', sans-serif", color: '#1E293B' }}>
+      <div style={{ fontFamily: "'Inter', sans-serif", color: '#1F2329' }}>
         {/* ⚠ BU EKRANDAN ÇIKIŞ YOKTU: öğrenci "Dersleri Düzenle"ye basınca
             (ya da hiç seçimi olmadığı için ekran kendiliğinden açılınca)
             geri dönecek bir düğme bulamıyordu. Kaydet düğmesi de danışman
@@ -1251,12 +1251,12 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             olmayan öğrenci sayfada kilitli kalıyordu. */}
         <div
           style={{
-            background: 'linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)',
+            background: 'linear-gradient(135deg, #0B2E73 0%, #1D4FC4 100%)',
             padding: '20px 24px',
             borderRadius: 14,
             color: 'white',
             marginBottom: 18,
-            boxShadow: '0 6px 20px rgba(27,42,74,0.15)',
+            boxShadow: '0 6px 20px rgba(11,46,115,0.15)',
             display: 'flex',
             alignItems: 'center',
             gap: 16,
@@ -1352,7 +1352,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             flexWrap: 'wrap',
           }}
         >
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>Dönem:</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#363A42' }}>Dönem:</span>
           <select
             value={termKey}
             onChange={(e) => {
@@ -1364,7 +1364,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             style={{
               padding: '8px 12px',
               borderRadius: 8,
-              border: '1px solid #CBD5E1',
+              border: '1px solid #CFCFCF',
               fontSize: 13,
               background: 'white',
               cursor: 'pointer',
@@ -1379,7 +1379,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               );
             })}
           </select>
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#334155', marginLeft: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#363A42', marginLeft: 8 }}>
             Danışman:
           </span>
           <select
@@ -1388,7 +1388,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             style={{
               padding: '8px 12px',
               borderRadius: 8,
-              border: '1px solid ' + (advisor ? '#CBD5E1' : '#FCA5A5'),
+              border: '1px solid ' + (advisor ? '#CFCFCF' : '#FCA5A5'),
               fontSize: 13,
               background: 'white',
               cursor: 'pointer',
@@ -1403,7 +1403,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             ))}
           </select>
           {advisorOptions.length === 0 && (
-            <span style={{ fontSize: 12, color: '#94A3B8' }}>
+            <span style={{ fontSize: 12, color: '#80858E' }}>
               Bölümünüzde tanımlı akademisyen bulunamadı.
             </span>
           )}
@@ -1415,9 +1415,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               borderRadius: 8,
               fontSize: 13,
               fontWeight: 700,
-              background: aktsCapExceeded ? '#FEE2E2' : '#F0FDFA',
-              color: aktsCapExceeded ? '#B91C1C' : '#1B2A4A',
-              border: '1px solid ' + (aktsCapExceeded ? '#FCA5A5' : '#99F6E4'),
+              background: aktsCapExceeded ? '#FEE2E2' : '#EEF3FF',
+              color: aktsCapExceeded ? '#B91C1C' : '#0B2E73',
+              border: '1px solid ' + (aktsCapExceeded ? '#FCA5A5' : '#C2D6FF'),
             }}
           >
             {totalAkts} / {BS_AKTS_CAP} AKTS{aktsCapExceeded ? ' — tavan aşıldı' : ''}
@@ -1427,7 +1427,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
         <div
           style={{
             background: 'white',
-            border: '1px solid #E2E8F0',
+            border: '1px solid #E2E2E2',
             borderRadius: 12,
             padding: 16,
             marginBottom: 16,
@@ -1446,7 +1446,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               flex: '1 1 240px',
               padding: '10px 12px',
               borderRadius: 8,
-              border: '1px solid #CBD5E1',
+              border: '1px solid #CFCFCF',
               fontSize: 14,
               fontFamily: 'inherit',
             }}
@@ -1457,7 +1457,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             style={{
               padding: '10px 12px',
               borderRadius: 8,
-              border: '1px solid #CBD5E1',
+              border: '1px solid #CFCFCF',
               fontSize: 14,
               maxWidth: 260,
             }}
@@ -1476,7 +1476,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             style={{
               padding: '10px 12px',
               borderRadius: 8,
-              border: '1px solid #CBD5E1',
+              border: '1px solid #CFCFCF',
               fontSize: 14,
             }}
           >
@@ -1493,7 +1493,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             style={{
               padding: '10px 12px',
               borderRadius: 8,
-              border: '1px solid #CBD5E1',
+              border: '1px solid #CFCFCF',
               fontSize: 14,
             }}
           >
@@ -1507,8 +1507,8 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             style={{
               padding: '8px 14px',
               borderRadius: 999,
-              background: '#F0FDFA',
-              color: '#115E59',
+              background: '#EEF3FF',
+              color: '#0A47D1',
               fontSize: 13,
               fontWeight: 600,
             }}
@@ -1526,9 +1526,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               alignItems: 'center',
               gap: 10,
               flexWrap: 'wrap',
-              background: '#F0FDFA',
-              border: '1px solid #99F6E4',
-              color: '#115E59',
+              background: '#EEF3FF',
+              border: '1px solid #C2D6FF',
+              color: '#0A47D1',
               borderRadius: 10,
               padding: '10px 14px',
               marginBottom: 12,
@@ -1543,9 +1543,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               style={{
                 padding: '6px 14px',
                 borderRadius: 8,
-                border: '1px solid #115E59',
+                border: '1px solid #0A47D1',
                 background: 'white',
-                color: '#115E59',
+                color: '#0A47D1',
                 fontSize: 12.5,
                 fontWeight: 700,
                 fontFamily: 'inherit',
@@ -1561,11 +1561,11 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           <div
             style={{
               background: 'white',
-              border: '1px dashed #CBD5E1',
+              border: '1px dashed #CFCFCF',
               borderRadius: 12,
               padding: '40px 24px',
               textAlign: 'center',
-              color: '#64748B',
+              color: '#5F6368',
             }}
           >
             <p style={{ fontSize: 15, marginBottom: 4 }}>Bölümünüze tanımlı ders bulunamadı.</p>
@@ -1577,11 +1577,11 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
           <div
             style={{
               background: 'white',
-              border: '1px solid #E2E8F0',
+              border: '1px solid #E2E2E2',
               borderRadius: 12,
               padding: 32,
               textAlign: 'center',
-              color: '#64748B',
+              color: '#5F6368',
             }}
           >
             Filtrelere uyan ders bulunamadı.
@@ -1602,8 +1602,8 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                   key={c.id}
                   onClick={() => toggleCourse(c.id)}
                   style={{
-                    background: isSelected ? '#F0FDFA' : 'white',
-                    border: `2px solid ${isSelected ? '#0D9488' : '#E2E8F0'}`,
+                    background: isSelected ? '#EEF3FF' : 'white',
+                    border: `2px solid ${isSelected ? '#2F6FFF' : '#E2E2E2'}`,
                     borderRadius: 12,
                     padding: 14,
                     cursor: 'pointer',
@@ -1636,8 +1636,8 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                         width: 22,
                         height: 22,
                         borderRadius: '50%',
-                        border: `2px solid ${isSelected ? '#0D9488' : '#CBD5E1'}`,
-                        background: isSelected ? '#0D9488' : 'white',
+                        border: `2px solid ${isSelected ? '#2F6FFF' : '#CFCFCF'}`,
+                        background: isSelected ? '#2F6FFF' : 'white',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1659,24 +1659,24 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                       )}
                     </div>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#115E59', marginBottom: 2 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0A47D1', marginBottom: 2 }}>
                     {c.code}
                   </div>
                   <div
                     style={{
                       fontSize: 14,
                       fontWeight: 600,
-                      color: '#1E293B',
+                      color: '#1F2329',
                       marginBottom: 6,
                       lineHeight: 1.3,
                     }}
                   >
                     {c.name}
                   </div>
-                  <div style={{ fontSize: 12, color: '#64748B' }}>
+                  <div style={{ fontSize: 12, color: '#5F6368' }}>
                     {window.dersEgitmenMetni(c) || 'Akademisyen belirtilmemiş'}
                   </div>
-                  <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
+                  <div style={{ fontSize: 11, color: '#80858E', marginTop: 4 }}>
                     {(deptNameMap[String(c.departmentId)] || '—') +
                       ' · ' +
                       (c.akts || c.kredi ? (c.akts || c.kredi) + ' AKTS' : 'AKTS —') +
@@ -1704,7 +1704,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 bottom: 0,
                 marginTop: 20,
                 background: 'white',
-                border: '1px solid #E2E8F0',
+                border: '1px solid #E2E2E2',
                 borderRadius: 14,
                 padding: '14px 16px',
                 display: 'flex',
@@ -1716,9 +1716,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               }}
             >
               <div style={{ flex: '1 1 280px', minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, color: '#334155' }}>
-                  <strong style={{ color: '#1E293B' }}>{selectedIds.length}</strong> ders ·{' '}
-                  <strong style={{ color: aktsCapExceeded ? '#B91C1C' : '#1E293B' }}>
+                <div style={{ fontSize: 13.5, color: '#363A42' }}>
+                  <strong style={{ color: '#1F2329' }}>{selectedIds.length}</strong> ders ·{' '}
+                  <strong style={{ color: aktsCapExceeded ? '#B91C1C' : '#1F2329' }}>
                     {totalAkts}
                   </strong>{' '}
                   / {BS_AKTS_CAP} AKTS
@@ -1741,8 +1741,8 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                     padding: '10px 18px',
                     borderRadius: 10,
                     background: 'white',
-                    color: '#1B2A4A',
-                    border: '1px solid #CBD5E1',
+                    color: '#0B2E73',
+                    border: '1px solid #CFCFCF',
                     fontWeight: 600,
                     fontSize: 13.5,
                     cursor: saving ? 'not-allowed' : 'pointer',
@@ -1758,7 +1758,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                   style={{
                     padding: '10px 22px',
                     borderRadius: 10,
-                    background: disabled ? '#94A3B8' : '#1B2A4A',
+                    background: disabled ? '#80858E' : '#0B2E73',
                     color: 'white',
                     border: 'none',
                     fontWeight: 600,
@@ -1782,12 +1782,12 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
   // ══════════════════════════════════════════════════════════════
   const cardBox = {
     background: '#FFFFFF',
-    border: '1px solid #E2E8F0',
+    border: '1px solid #E2E2E2',
     borderRadius: 12,
     padding: 18,
     boxShadow: '0 1px 3px rgba(16,24,40,0.06)',
   };
-  const M3navy = '#1B2A4A';
+  const M3navy = '#0B2E73';
   const M3green = '#059669';
   const sectionTitle = {
     margin: '0 0 14px',
@@ -1961,7 +1961,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                   margin: '4px 0 0',
                   fontSize: 12,
                   fontWeight: 500,
-                  color: '#64748B',
+                  color: '#5F6368',
                   letterSpacing: '0.06em',
                 }}
               >
@@ -1970,7 +1970,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
             </div>
             <div
               style={{
-                borderTop: '1px solid #E2E8F0',
+                borderTop: '1px solid #E2E2E2',
                 paddingTop: 14,
                 display: 'flex',
                 flexDirection: 'column',
@@ -2046,7 +2046,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 style={{
                   height: 6,
                   borderRadius: 6,
-                  background: '#E2E8F0',
+                  background: '#E2E2E2',
                   overflow: 'hidden',
                 }}
               >
@@ -2059,7 +2059,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                   }}
                 />
               </div>
-              <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 6, lineHeight: 1.55 }}>
+              <div style={{ fontSize: 11.5, color: '#5F6368', marginTop: 6, lineHeight: 1.55 }}>
                 {profilDurum.dolu}/{profilDurum.toplam} bilgi girildi ·{' '}
                 {window.profilOzetMetni ? window.profilOzetMetni(profilDurum) : ''}
               </div>
@@ -2101,11 +2101,11 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 { etiket: 'Adres', deger: profil.address },
               ].map((x) => (
                 <div key={x.etiket}>
-                  <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600 }}>{x.etiket}</div>
+                  <div style={{ fontSize: 11, color: '#80858E', fontWeight: 600 }}>{x.etiket}</div>
                   <div
                     style={{
                       fontSize: 13,
-                      color: x.deger ? '#1E293B' : '#94A3B8',
+                      color: x.deger ? '#1F2329' : '#80858E',
                       fontWeight: x.deger ? 600 : 400,
                       lineHeight: 1.45,
                       overflowWrap: 'anywhere',
@@ -2153,7 +2153,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                         fontSize: 12,
                         fontWeight: 700,
                         overflow: 'hidden',
-                        border: '1px solid #E2E8F0',
+                        border: '1px solid #E2E2E2',
                       }}
                     >
                       {c.logoURL ? (
@@ -2166,7 +2166,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                         (c.name || '?').trim().charAt(0).toLocaleUpperCase('tr')
                       )}
                     </div>
-                    <span style={{ fontSize: 13, color: '#1E293B', fontWeight: 500 }}>
+                    <span style={{ fontSize: 13, color: '#1F2329', fontWeight: 500 }}>
                       {c.name}
                     </span>
                   </div>
@@ -2213,7 +2213,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                     width: 30,
                     height: 30,
                     borderRadius: '50%',
-                    border: '1px solid #E2E8F0',
+                    border: '1px solid #E2E2E2',
                     background: '#fff',
                     cursor: 'pointer',
                     display: 'inline-flex',
@@ -2252,7 +2252,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                     width: 30,
                     height: 30,
                     borderRadius: '50%',
-                    border: '1px solid #E2E8F0',
+                    border: '1px solid #E2E2E2',
                     background: '#fff',
                     cursor: 'pointer',
                     display: 'inline-flex',
@@ -2297,7 +2297,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 gridTemplateColumns: 'repeat(7, 1fr)',
                 gap: 4,
                 textAlign: 'center',
-                borderTop: '1px solid #E2E8F0',
+                borderTop: '1px solid #E2E2E2',
                 paddingTop: 12,
               }}
             >
@@ -2381,7 +2381,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 </svg>
                 Kampüs Haritası
               </h3>
-              <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #E2E8F0' }}>
+              <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #E2E2E2' }}>
                 <img
                   src={pageSettings.campusMapUrl}
                   alt="Kampüs Haritası"
@@ -2416,7 +2416,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               Yaklaşan Etkinlikler
             </h3>
             {upcomingEvents.length === 0 ? (
-              <p style={{ fontSize: 12.5, color: '#94A3B8', margin: 0 }}>Yaklaşan etkinlik yok.</p>
+              <p style={{ fontSize: 12.5, color: '#80858E', margin: 0 }}>Yaklaşan etkinlik yok.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {upcomingEvents.slice(0, 6).map((ev, i) => {
@@ -2427,7 +2427,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                       key={i}
                       style={{
                         borderBottom:
-                          i < Math.min(upcomingEvents.length, 6) - 1 ? '1px solid #E2E8F0' : 'none',
+                          i < Math.min(upcomingEvents.length, 6) - 1 ? '1px solid #E2E2E2' : 'none',
                         paddingBottom: 10,
                       }}
                     >
@@ -2486,7 +2486,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                     href={/^https?:\/\//i.test(l.url) ? l.url : 'https://' + l.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F1F5F9')}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#EDEDED')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     style={{
                       display: 'flex',
@@ -2495,7 +2495,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                       padding: '9px 10px',
                       borderRadius: 8,
                       textDecoration: 'none',
-                      color: '#1E293B',
+                      color: '#1F2329',
                       fontSize: 13.5,
                       fontWeight: 500,
                       transition: 'background 0.15s',
@@ -2506,7 +2506,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                       height="16"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="#64748B"
+                      stroke="#5F6368"
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -2552,7 +2552,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                         borderRadius: '50%',
                         objectFit: 'cover',
                         flexShrink: 0,
-                        border: '1px solid #E2E8F0',
+                        border: '1px solid #E2E2E2',
                         cursor: 'pointer',
                       }}
                     />
@@ -2571,7 +2571,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                       height="16"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="#64748B"
+                      stroke="#5F6368"
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -2590,7 +2590,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                       height="16"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="#64748B"
+                      stroke="#5F6368"
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -2607,7 +2607,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 )}
               </div>
             ) : (
-              <p style={{ fontSize: 13, color: '#94A3B8', margin: 0, lineHeight: 1.5 }}>
+              <p style={{ fontSize: 13, color: '#80858E', margin: 0, lineHeight: 1.5 }}>
                 Danışman seçilmedi. "Dersleri Düzenle" ile kendi bölümünüzden bir danışman
                 seçebilirsiniz.
               </p>
@@ -2652,7 +2652,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                   style={{
                     padding: '8px 12px',
                     borderRadius: 10,
-                    border: '1px solid #CBD5E1',
+                    border: '1px solid #CFCFCF',
                     fontSize: 13,
                     background: '#fff',
                     cursor: 'pointer',
@@ -2677,9 +2677,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                       gap: 5,
                       padding: '4px 10px',
                       borderRadius: 999,
-                      background: '#F0FDFA',
-                      border: '1px solid #99F6E4',
-                      color: '#115E59',
+                      background: '#EEF3FF',
+                      border: '1px solid #C2D6FF',
+                      color: '#0A47D1',
                       fontSize: 11.5,
                       fontWeight: 700,
                     }}
@@ -2771,7 +2771,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                       {k.deger}
                     </div>
                     <div
-                      style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600, marginTop: 2 }}
+                      style={{ fontSize: 11.5, color: '#5F6368', fontWeight: 600, marginTop: 2 }}
                     >
                       {k.etiket}
                     </div>
@@ -2782,7 +2782,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                     style={{
                       height: 6,
                       borderRadius: 6,
-                      background: '#E2E8F0',
+                      background: '#E2E2E2',
                       overflow: 'hidden',
                     }}
                   >
@@ -2795,12 +2795,12 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                       }}
                     />
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748B', marginTop: 5 }}>
+                  <div style={{ fontSize: 11, color: '#5F6368', marginTop: 5 }}>
                     {dersOzet.toplamAkts} / {dersOzet.tavan} AKTS
                   </div>
                 </div>
                 {advisor && (
-                  <div style={{ fontSize: 12, color: '#64748B', flex: '1 1 180px' }}>
+                  <div style={{ fontSize: 12, color: '#5F6368', flex: '1 1 180px' }}>
                     Danışman
                     <div style={{ fontSize: 13, fontWeight: 700, color: M3navy, marginTop: 2 }}>
                       {advisor}
@@ -2820,9 +2820,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
               <div
                 style={{
                   ...cardBox,
-                  border: '1px dashed #CBD5E1',
+                  border: '1px dashed #CFCFCF',
                   boxShadow: 'none',
-                  background: '#F8FAFC',
+                  background: '#F7F7F7',
                   textAlign: 'center',
                   padding: '34px 20px',
                 }}
@@ -2833,7 +2833,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                 <div
                   style={{
                     fontSize: 12.5,
-                    color: '#64748B',
+                    color: '#5F6368',
                     margin: '6px auto 14px',
                     maxWidth: 420,
                     lineHeight: 1.6,
@@ -2871,14 +2871,14 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                         marginBottom: 8,
                       }}
                     >
-                      <span style={{ fontSize: 12.5, fontWeight: 700, color: '#334155' }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: '#363A42' }}>
                         {grup.etiket}
                       </span>
                       <span
                         style={{
                           fontSize: 11,
-                          color: '#64748B',
-                          background: '#F1F5F9',
+                          color: '#5F6368',
+                          background: '#EDEDED',
                           borderRadius: 999,
                           padding: '2px 9px',
                           fontWeight: 600,
@@ -2886,7 +2886,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                       >
                         {grup.dersler.length} ders · {grup.toplamAkts} AKTS
                       </span>
-                      <span style={{ flex: 1, height: 1, background: '#F1F5F9' }} />
+                      <span style={{ flex: 1, height: 1, background: '#EDEDED' }} />
                     </div>
                     <div
                       style={{
@@ -2905,7 +2905,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                             key={c.id || c.code}
                             style={{
                               background: '#fff',
-                              border: '1px solid #E2E8F0',
+                              border: '1px solid #E2E2E2',
                               borderRadius: 12,
                               padding: 14,
                               boxShadow: '0 1px 3px rgba(16,24,40,0.05)',
@@ -2941,8 +2941,8 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                                   marginLeft: 'auto',
                                   fontSize: 11.5,
                                   fontWeight: 700,
-                                  color: '#334155',
-                                  background: '#F1F5F9',
+                                  color: '#363A42',
+                                  background: '#EDEDED',
                                   borderRadius: 999,
                                   padding: '3px 10px',
                                   whiteSpace: 'nowrap',
@@ -2966,7 +2966,7 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 6,
-                                color: '#64748B',
+                                color: '#5F6368',
                                 fontSize: 12.5,
                               }}
                             >
@@ -3001,9 +3001,9 @@ function BenimSayfamApp({ currentUser, activeDepartment, departmentInfo }) {
                                 justifyContent: 'space-between',
                                 gap: 8,
                                 paddingTop: 9,
-                                borderTop: '1px solid #F1F5F9',
+                                borderTop: '1px solid #EDEDED',
                                 fontSize: 11.5,
-                                color: '#94A3B8',
+                                color: '#80858E',
                               }}
                             >
                               <span>{BS_DONEM_LABEL[c.donem] || c.donem || 'Dönem —'}</span>
@@ -3158,7 +3158,7 @@ function BSProfilDuzenle({ profil, onKapat, onKaydet, kaydediliyor }) {
     width: '100%',
     padding: '9px 11px',
     borderRadius: 9,
-    border: '1px solid ' + (hata ? '#DC2626' : '#CBD5E1'),
+    border: '1px solid ' + (hata ? '#DC2626' : '#CFCFCF'),
     fontSize: 13.5,
     outline: 'none',
     fontFamily: "'Inter', sans-serif",
@@ -3195,17 +3195,17 @@ function BSProfilDuzenle({ profil, onKapat, onKaydet, kaydediliyor }) {
         <div
           style={{
             padding: '18px 22px',
-            borderBottom: '1px solid #E2E8F0',
+            borderBottom: '1px solid #E2E2E2',
             display: 'flex',
             alignItems: 'center',
             gap: 12,
           }}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: '#1B2A4A' }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: '#0B2E73' }}>
               Kişisel Bilgilerim
             </div>
-            <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 3, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12.5, color: '#5F6368', marginTop: 3, lineHeight: 1.5 }}>
               Bir kez girin — staj, muafiyet ve ÇAP dilekçeleriniz bu bilgilerle üretilir. Hiçbir
               alan zorunlu değildir; yalnız ilgili belgeyi alacaksanız doldurmanız gerekir.
             </div>
@@ -3215,13 +3215,13 @@ function BSProfilDuzenle({ profil, onKapat, onKaydet, kaydediliyor }) {
             onClick={onKapat}
             aria-label="Kapat"
             style={{
-              border: '1px solid #E2E8F0',
+              border: '1px solid #E2E2E2',
               background: '#fff',
               borderRadius: 9,
               width: 32,
               height: 32,
               cursor: 'pointer',
-              color: '#64748B',
+              color: '#5F6368',
               fontSize: 17,
               lineHeight: 1,
             }}
@@ -3233,8 +3233,8 @@ function BSProfilDuzenle({ profil, onKapat, onKaydet, kaydediliyor }) {
         <div style={{ padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 20 }}>
           {gruplar.map((g) => (
             <div key={g.id}>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: '#1B2A4A' }}>{g.ad}</div>
-              <div style={{ fontSize: 11.5, color: '#64748B', margin: '3px 0 10px' }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: '#0B2E73' }}>{g.ad}</div>
+              <div style={{ fontSize: 11.5, color: '#5F6368', margin: '3px 0 10px' }}>
                 {g.aciklama}
               </div>
               <div
@@ -3259,7 +3259,7 @@ function BSProfilDuzenle({ profil, onKapat, onKaydet, kaydediliyor }) {
                             display: 'block',
                             fontSize: 11.5,
                             fontWeight: 600,
-                            color: hata ? '#DC2626' : '#64748B',
+                            color: hata ? '#DC2626' : '#5F6368',
                             marginBottom: 4,
                           }}
                         >
@@ -3286,7 +3286,7 @@ function BSProfilDuzenle({ profil, onKapat, onKaydet, kaydediliyor }) {
                         {hata ? (
                           <div style={{ fontSize: 11, color: '#DC2626', marginTop: 4 }}>{hata}</div>
                         ) : a.ipucu && a.tip !== 'tarih' ? (
-                          <div style={{ fontSize: 10.5, color: '#94A3B8', marginTop: 4 }}>
+                          <div style={{ fontSize: 10.5, color: '#80858E', marginTop: 4 }}>
                             {a.ipucu}
                           </div>
                         ) : null}
@@ -3301,16 +3301,16 @@ function BSProfilDuzenle({ profil, onKapat, onKaydet, kaydediliyor }) {
         <div
           style={{
             padding: '14px 22px',
-            borderTop: '1px solid #E2E8F0',
+            borderTop: '1px solid #E2E2E2',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             gap: 12,
             flexWrap: 'wrap',
-            background: '#F8FAFC',
+            background: '#F7F7F7',
           }}
         >
-          <span style={{ fontSize: 11.5, color: '#64748B', flex: '1 1 220px', lineHeight: 1.5 }}>
+          <span style={{ fontSize: 11.5, color: '#5F6368', flex: '1 1 220px', lineHeight: 1.5 }}>
             Kimlik ve nüfus bilgileri yalnız belge üretiminde kullanılır; kaydınızda saklanır ve
             bölüm yetkilinizden başkasına gösterilmez.
           </span>
@@ -3322,9 +3322,9 @@ function BSProfilDuzenle({ profil, onKapat, onKaydet, kaydediliyor }) {
               style={{
                 padding: '9px 16px',
                 borderRadius: 9,
-                border: '1px solid #CBD5E1',
+                border: '1px solid #CFCFCF',
                 background: '#fff',
-                color: '#1B2A4A',
+                color: '#0B2E73',
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -3341,7 +3341,7 @@ function BSProfilDuzenle({ profil, onKapat, onKaydet, kaydediliyor }) {
                 padding: '9px 20px',
                 borderRadius: 9,
                 border: 'none',
-                background: '#1B2A4A',
+                background: '#0B2E73',
                 color: '#fff',
                 fontSize: 13,
                 fontWeight: 600,
@@ -3600,12 +3600,12 @@ function BSMezuniyetDurumu({
     cursor: calisiyor ? 'wait' : 'pointer',
     opacity: calisiyor ? 0.6 : 1,
   });
-  const hucre = { padding: '6px 8px', fontSize: 12, borderBottom: '1px solid #F1F5F9' };
+  const hucre = { padding: '6px 8px', fontSize: 12, borderBottom: '1px solid #EDEDED' };
   const girdi = {
     width: '100%',
     padding: '4px 6px',
     fontSize: 12,
-    border: '1px solid #E2E8F0',
+    border: '1px solid #E2E2E2',
     borderRadius: 5,
     boxSizing: 'border-box',
   };
@@ -3665,20 +3665,20 @@ function BSMezuniyetDurumu({
               marginBottom: 6,
             }}
           >
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#1B2A4A' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#0B2E73' }}>
               {sonuc.gecilenAkts} / {sonuc.kural.toplamAkts} AKTS
             </span>
-            <span style={{ fontSize: 11.5, color: '#64748B' }}>
+            <span style={{ fontSize: 11.5, color: '#5F6368' }}>
               {sonuc.kalanAkts} AKTS kaldı
               {sonuc.modelEtiketi ? ' · ' + sonuc.modelEtiketi : ''}
             </span>
           </div>
-          <div style={{ height: 8, borderRadius: 999, background: '#E2E8F0', overflow: 'hidden' }}>
+          <div style={{ height: 8, borderRadius: 999, background: '#E2E2E2', overflow: 'hidden' }}>
             <div
               style={{
                 width: sonuc.yuzde + '%',
                 height: '100%',
-                background: sonuc.mezunOlabilir ? '#059669' : '#0F766E',
+                background: sonuc.mezunOlabilir ? '#059669' : '#105BFF',
               }}
             />
           </div>
@@ -3709,7 +3709,7 @@ function BSMezuniyetDurumu({
                   padding: '6px 10px',
                   borderRadius: 7,
                   background:
-                    k.saglandi === true ? '#ECFDF5' : k.saglandi === false ? '#FEF2F2' : '#F8FAFC',
+                    k.saglandi === true ? '#ECFDF5' : k.saglandi === false ? '#FEF2F2' : '#F7F7F7',
                 }}
               >
                 <span
@@ -3721,14 +3721,14 @@ function BSMezuniyetDurumu({
                         ? '#059669'
                         : k.saglandi === false
                           ? '#DC2626'
-                          : '#94A3B8',
+                          : '#80858E',
                     fontWeight: 700,
                   }}
                 >
                   {k.saglandi === true ? '✓' : k.saglandi === false ? '✕' : '?'}
                 </span>
-                <span style={{ flex: 1, color: '#334155' }}>{k.label}</span>
-                <span style={{ color: '#64748B', fontSize: 11.5 }}>
+                <span style={{ flex: 1, color: '#363A42' }}>{k.label}</span>
+                <span style={{ color: '#5F6368', fontSize: 11.5 }}>
                   {k.mevcut} / {k.hedef}
                 </span>
               </div>
@@ -3738,7 +3738,7 @@ function BSMezuniyetDurumu({
           {/* Kalan zorunlu dersler */}
           {sonuc.kalanZorunlu.length > 0 && (
             <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1B2A4A', marginBottom: 6 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0B2E73', marginBottom: 6 }}>
                 Kalan zorunlu dersler ({sonuc.kalanZorunlu.length})
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -3772,11 +3772,11 @@ function BSMezuniyetDurumu({
       {!taslak && (
         <div
           style={{
-            borderTop: sonuc ? '1px solid #F1F5F9' : 'none',
+            borderTop: sonuc ? '1px solid #EDEDED' : 'none',
             paddingTop: sonuc ? 14 : 0,
           }}
         >
-          <div style={{ fontSize: 12.5, color: '#64748B', marginBottom: 8, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12.5, color: '#5F6368', marginBottom: 8, lineHeight: 1.5 }}>
             {kayit
               ? 'Son güncelleme: ' +
                 (kayit.transkriptTarihi
@@ -3814,9 +3814,9 @@ function BSMezuniyetDurumu({
                   display: 'inline-block',
                   padding: '7px 14px',
                   borderRadius: 8,
-                  border: '1px solid #CBD5E1',
+                  border: '1px solid #CFCFCF',
                   background: 'white',
-                  color: '#1B2A4A',
+                  color: '#0B2E73',
                   fontSize: 12.5,
                   fontWeight: 600,
                 }}
@@ -3829,7 +3829,7 @@ function BSMezuniyetDurumu({
               disabled={!dosya || calisiyor || !aiVar}
               onClick={transkriptiOku}
               style={{
-                ...kucukBtn('#1B2A4A', 'white'),
+                ...kucukBtn('#0B2E73', 'white'),
                 opacity: !dosya || calisiyor || !aiVar ? 0.5 : 1,
                 cursor: !dosya || calisiyor || !aiVar ? 'not-allowed' : 'pointer',
               }}
@@ -3842,12 +3842,12 @@ function BSMezuniyetDurumu({
 
       {/* ── Onay tablosu: kaydetmeden önce kontrol ── */}
       {taslak && (
-        <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 14 }}>
+        <div style={{ borderTop: '1px solid #EDEDED', paddingTop: 14 }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1B2A4A' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#0B2E73' }}>
               Okunan dersler ({taslak.dersler.length})
             </span>
-            <span style={{ fontSize: 12, color: '#64748B' }}>
+            <span style={{ fontSize: 12, color: '#5F6368' }}>
               AGNO:
               <input
                 value={taslak.agno}
@@ -3860,17 +3860,17 @@ function BSMezuniyetDurumu({
             style={{
               maxHeight: 320,
               overflowY: 'auto',
-              border: '1px solid #E2E8F0',
+              border: '1px solid #E2E2E2',
               borderRadius: 8,
             }}
           >
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#F8FAFC' }}>
+                <tr style={{ background: '#F7F7F7' }}>
                   {['Kod', 'Ad', 'AKTS', 'Not', ''].map((h) => (
                     <th
                       key={h}
-                      style={{ ...hucre, textAlign: 'left', fontSize: 10.5, color: '#64748B' }}
+                      style={{ ...hucre, textAlign: 'left', fontSize: 10.5, color: '#5F6368' }}
                     >
                       {h}
                     </th>
@@ -3938,7 +3938,7 @@ function BSMezuniyetDurumu({
                 setTaslak(null);
                 setMesaj('');
               }}
-              style={kucukBtn('white', '#1B2A4A', '#CBD5E1')}
+              style={kucukBtn('white', '#0B2E73', '#CFCFCF')}
             >
               Vazgeç
             </button>
@@ -3954,7 +3954,7 @@ function BSMezuniyetDurumu({
             style={{
               border: 'none',
               background: 'none',
-              color: '#0F766E',
+              color: '#105BFF',
               fontSize: 12.5,
               fontWeight: 600,
               cursor: 'pointer',
@@ -3974,7 +3974,7 @@ function BSMezuniyetDurumu({
                 // Geniş tablo KENDİ İÇİNDE kaysın; sayfanın yatay kayması
                 // telefonda düzeni tümden bozardı.
                 overflowX: 'auto',
-                border: '1px solid #E2E8F0',
+                border: '1px solid #E2E2E2',
                 borderRadius: 8,
               }}
             >
@@ -3991,10 +3991,10 @@ function BSMezuniyetDurumu({
                       <td style={hucre}>
                         {r.ad}
                         {!r.mufredatta && (
-                          <span style={{ color: '#94A3B8', fontSize: 11 }}> · müfredat dışı</span>
+                          <span style={{ color: '#80858E', fontSize: 11 }}> · müfredat dışı</span>
                         )}
                       </td>
-                      <td style={{ ...hucre, width: 50, color: '#64748B' }}>{r.akts}</td>
+                      <td style={{ ...hucre, width: 50, color: '#5F6368' }}>{r.akts}</td>
                       <td style={{ ...hucre, width: 45 }}>{r.not}</td>
                       <td
                         style={{
@@ -4015,7 +4015,7 @@ function BSMezuniyetDurumu({
         </div>
       )}
 
-      {mesaj && <div style={{ marginTop: 10, fontSize: 12, color: '#334155' }}>{mesaj}</div>}
+      {mesaj && <div style={{ marginTop: 10, fontSize: 12, color: '#363A42' }}>{mesaj}</div>}
     </div>
   );
 }
@@ -4287,14 +4287,14 @@ function BSKarekodTarayici({ onKod, onKapat }) {
         )}
       </div>
 
-      <p style={{ margin: 0, fontSize: 12.5, color: '#64748B', lineHeight: 1.6 }}>
+      <p style={{ margin: 0, fontSize: 12.5, color: '#5F6368', lineHeight: 1.6 }}>
         Kamerayı tahtadaki karekoda tutun. Kod <b>her 6 saniyede değişir</b>; okutma anında ekranda
         duran kod geçerlidir.
       </p>
 
       {/* ⚠ Kamera çalışmadığında tek çıkış yolu */}
-      <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 12 }}>
-        <label style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>
+      <div style={{ borderTop: '1px solid #E2E2E2', paddingTop: 12 }}>
+        <label style={{ fontSize: 11.5, color: '#5F6368', fontWeight: 600 }}>
           Kamera çalışmıyorsa: ekranda karekodun altında yazan kodu buraya yazın
           <div style={{ display: 'flex', gap: 8, marginTop: 5 }}>
             <input
@@ -4308,7 +4308,7 @@ function BSKarekodTarayici({ onKod, onKapat }) {
                 minWidth: 0,
                 padding: '9px 12px',
                 borderRadius: 9,
-                border: '1px solid #CBD5E1',
+                border: '1px solid #CFCFCF',
                 fontSize: 13,
                 fontFamily: 'inherit',
               }}
@@ -4319,7 +4319,7 @@ function BSKarekodTarayici({ onKod, onKapat }) {
                 padding: '9px 16px',
                 borderRadius: 9,
                 border: 'none',
-                background: '#1B2A4A',
+                background: '#0B2E73',
                 color: '#fff',
                 fontSize: 12.5,
                 fontWeight: 700,
@@ -4339,9 +4339,9 @@ function BSKarekodTarayici({ onKod, onKapat }) {
           alignSelf: 'flex-start',
           padding: '8px 16px',
           borderRadius: 9,
-          border: '1px solid #CBD5E1',
+          border: '1px solid #CFCFCF',
           background: '#fff',
-          color: '#334155',
+          color: '#363A42',
           fontSize: 12.5,
           fontWeight: 600,
           cursor: 'pointer',
@@ -4374,10 +4374,10 @@ function BSElleKod({ gonderiliyor, onKod }) {
       style={{
         marginTop: 14,
         paddingTop: 14,
-        borderTop: '1px dashed #E2E8F0',
+        borderTop: '1px dashed #E2E2E2',
       }}
     >
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: '#334155', marginBottom: 7 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: '#363A42', marginBottom: 7 }}>
         Kameranız yoksa: ekrandaki {uzunluk} haneli kodu yazın
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
@@ -4396,13 +4396,13 @@ function BSElleKod({ gonderiliyor, onKod }) {
             minWidth: 0,
             padding: '12px 14px',
             borderRadius: 11,
-            border: '1px solid #CBD5E1',
+            border: '1px solid #CFCFCF',
             fontSize: 20,
             fontWeight: 700,
             letterSpacing: 4,
             textAlign: 'center',
             fontFamily: 'inherit',
-            color: '#1B2A4A',
+            color: '#0B2E73',
           }}
         />
         <button
@@ -4412,7 +4412,7 @@ function BSElleKod({ gonderiliyor, onKod }) {
             padding: '12px 20px',
             borderRadius: 11,
             border: 'none',
-            background: hazir && !gonderiliyor ? '#1B2A4A' : '#CBD5E1',
+            background: hazir && !gonderiliyor ? '#0B2E73' : '#CFCFCF',
             color: '#fff',
             fontSize: 14,
             fontWeight: 700,
@@ -4424,7 +4424,7 @@ function BSElleKod({ gonderiliyor, onKod }) {
           Gönder
         </button>
       </div>
-      <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#94A3B8', lineHeight: 1.6 }}>
+      <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#80858E', lineHeight: 1.6 }}>
         Kod {Math.round((Y.KISA_ADIM_MS || 30000) / 1000)} saniyede bir değişir; ekranda o an duran
         kodu yazın.
       </p>
@@ -4492,7 +4492,7 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
                     padding: '16px 20px',
                     borderRadius: 13,
                     border: 'none',
-                    background: gonderiliyor ? '#94A3B8' : '#059669',
+                    background: gonderiliyor ? '#80858E' : '#059669',
                     color: '#fff',
                     fontSize: 16,
                     fontWeight: 700,
@@ -4519,7 +4519,7 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
                   </svg>
                   {gonderiliyor ? 'Gönderiliyor…' : 'Karekodu Okut'}
                 </button>
-                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#94A3B8', lineHeight: 1.6 }}>
+                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#80858E', lineHeight: 1.6 }}>
                   Akademisyeniniz tahtaya karekodu yansıttığında bu düğmeye basın. Kod sürekli
                   değiştiği için ekran görüntüsüyle yoklama verilemez.
                 </p>
@@ -4570,7 +4570,7 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
               </div>
             )}
           </div>
-          <p style={{ margin: 0, fontSize: 11.5, color: '#94A3B8', lineHeight: 1.6 }}>
+          <p style={{ margin: 0, fontSize: 11.5, color: '#80858E', lineHeight: 1.6 }}>
             Yoklama yalnız kendi cihazınızdan verilir: hesabınız bir cihaza bağlanır ve aynı
             cihazdan ikinci bir öğrenci kod okutamaz. Telefonunuz değiştiyse akademisyeniniz cihaz
             kaydınızı sıfırlayabilir.
@@ -4582,13 +4582,13 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
         <>
           <div>
             {dersDurumlari.length === 0 ? (
-              <p style={{ fontSize: 12.5, color: '#94A3B8', margin: 0 }}>
+              <p style={{ fontSize: 12.5, color: '#80858E', margin: 0 }}>
                 Bu dönem için ders seçiminiz görünmüyor.
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {dersDurumlari.map((d) => {
-                  const renk = Y.devamsizlikRengi ? Y.devamsizlikRengi(d.durum.durum) : '#64748B';
+                  const renk = Y.devamsizlikRengi ? Y.devamsizlikRengi(d.durum.durum) : '#5F6368';
                   const kirmizi = d.durum.asildi;
                   return (
                     <div
@@ -4596,7 +4596,7 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
                       style={{
                         ...BS_KART,
                         padding: '13px 15px',
-                        borderColor: kirmizi ? '#FCA5A5' : '#E2E8F0',
+                        borderColor: kirmizi ? '#FCA5A5' : '#E2E2E2',
                         background: kirmizi ? '#FEF2F2' : '#fff',
                       }}
                     >
@@ -4614,8 +4614,8 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
                             style={{
                               fontSize: 10.5,
                               fontWeight: 800,
-                              color: '#115E59',
-                              background: '#CCFBF1',
+                              color: '#0A47D1',
+                              background: '#DCE7FF',
                               padding: '2px 7px',
                               borderRadius: 6,
                             }}
@@ -4630,8 +4630,8 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
                             style={{
                               fontSize: 10,
                               fontWeight: 800,
-                              color: d.parca === 'uygulama' ? '#5B21B6' : '#134E4A',
-                              background: d.parca === 'uygulama' ? '#EDE9FE' : '#F0FDFA',
+                              color: d.parca === 'uygulama' ? '#5B21B6' : '#0B2E73',
+                              background: d.parca === 'uygulama' ? '#EDE9FE' : '#EEF3FF',
                               padding: '2px 7px',
                               borderRadius: 999,
                             }}
@@ -4639,7 +4639,7 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
                             {d.parca === 'uygulama' ? 'UYGULAMA' : 'TEORİ'}
                           </span>
                         )}
-                        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#1B2A4A' }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0B2E73' }}>
                           {d.uygulamali
                             ? String(d.dersAdi).replace(/\s*\((Teori|Uygulama)\)$/, '')
                             : d.dersAdi}
@@ -4662,7 +4662,7 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
                         style={{
                           height: 9,
                           borderRadius: 999,
-                          background: '#E2E8F0',
+                          background: '#E2E2E2',
                           overflow: 'hidden',
                         }}
                       >
@@ -4683,7 +4683,7 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
                         style={{
                           margin: '8px 0 0',
                           fontSize: 11.5,
-                          color: kirmizi ? '#B91C1C' : '#64748B',
+                          color: kirmizi ? '#B91C1C' : '#5F6368',
                           lineHeight: 1.6,
                         }}
                       >
@@ -4700,7 +4700,7 @@ function BSYoklamaPaneli({ dersDurumlari, onOkut }) {
                             ' tanesine katıldınız.'
                           : 'Bu derste henüz yoklama alınmadı.'}
                         {!d.durum.limitSaat && d.durum.acilan > 0 && (
-                          <span style={{ color: '#94A3B8' }}>
+                          <span style={{ color: '#80858E' }}>
                             {' '}
                             Akademisyen bu ders için devamsızlık sınırı belirlemedi.
                           </span>
@@ -4795,7 +4795,7 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
 
   if (akademisyenler.length === 0) {
     return (
-      <p style={{ fontSize: 13, color: '#64748B', margin: 0, lineHeight: 1.6 }}>
+      <p style={{ fontSize: 13, color: '#5F6368', margin: 0, lineHeight: 1.6 }}>
         Randevu, seçtiğiniz derslerin akademisyenlerine açılır. Henüz ders seçmediyseniz ya da
         derslerinize eğitmen atanmadıysa burada kimse görünmez.
       </p>
@@ -4819,9 +4819,9 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
               style={{
                 padding: '8px 14px',
                 borderRadius: 10,
-                border: '1px solid ' + (sec ? '#1B2A4A' : '#E2E8F0'),
-                background: sec ? '#1B2A4A' : '#fff',
-                color: sec ? '#fff' : '#1B2A4A',
+                border: '1px solid ' + (sec ? '#0B2E73' : '#E2E2E2'),
+                background: sec ? '#0B2E73' : '#fff',
+                color: sec ? '#fff' : '#0B2E73',
                 fontSize: 12.5,
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -4844,7 +4844,7 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
               gap: 14,
               flexWrap: 'wrap',
               fontSize: 11.5,
-              color: '#64748B',
+              color: '#5F6368',
               marginBottom: 12,
             }}
           >
@@ -4852,9 +4852,9 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
               ['Görüşmeye açık', '#DCFCE7', '#166534'],
               ['Talebiniz var', '#FFFBEB', '#92400E'],
               ['Randevunuz var', '#ECFDF5', '#047857'],
-              ['Dersi var', '#CCFBF1', '#134E4A'],
-              ['Kontenjan doldu', '#F1F5F9', '#64748B'],
-              ['Kapalı', '#F8FAFC', '#94A3B8'],
+              ['Dersi var', '#DCE7FF', '#0B2E73'],
+              ['Kontenjan doldu', '#EDEDED', '#5F6368'],
+              ['Kapalı', '#F7F7F7', '#80858E'],
             ].map(([e, bg, renk]) => (
               <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span
@@ -4871,7 +4871,7 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
             ))}
           </div>
 
-          <p style={{ margin: '0 0 12px', fontSize: 11.5, color: '#64748B', lineHeight: 1.6 }}>
+          <p style={{ margin: '0 0 12px', fontSize: 11.5, color: '#5F6368', lineHeight: 1.6 }}>
             Bir saatte &quot;3 kişi · 2 talep&quot; yazıyorsa o saate başka öğrenciler de geliyor
             demektir; siz de isteyebilirsiniz. Akademisyen aynı saate
             <b> birden çok öğrenci</b> alabilir; saat ancak koyduğu
@@ -4879,7 +4879,7 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
           </p>
 
           {!izgara || izgara.satirlar.length === 0 ? (
-            <p style={{ fontSize: 12.5, color: '#94A3B8', margin: 0, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 12.5, color: '#80858E', margin: 0, lineHeight: 1.6 }}>
               {(hoca.saatler || []).length === 0
                 ? 'Bu akademisyenin haftalık programı görünmüyor.'
                 : 'Bu akademisyen henüz görüşme saati açmamış. Açtığında burada görünecek.'}
@@ -4896,7 +4896,7 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                         style={{
                           padding: '7px 5px',
                           fontSize: 10.5,
-                          color: '#64748B',
+                          color: '#5F6368',
                           fontWeight: 700,
                           textTransform: 'uppercase',
                         }}
@@ -4913,7 +4913,7 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                         style={{
                           padding: 5,
                           fontSize: 10.5,
-                          color: '#94A3B8',
+                          color: '#80858E',
                           fontWeight: 700,
                           whiteSpace: 'nowrap',
                         }}
@@ -4980,14 +4980,14 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                                   ? '2px solid #047857'
                                   : '1px ' +
                                     (ders
-                                      ? 'solid #99F6E4'
+                                      ? 'solid #C2D6FF'
                                       : acik
                                         ? 'solid #6EE7B7'
-                                        : 'dashed #F1F5F9'),
+                                        : 'dashed #EDEDED'),
                                 background: ders
-                                  ? '#CCFBF1'
+                                  ? '#DCE7FF'
                                   : dolu
-                                    ? '#F1F5F9'
+                                    ? '#EDEDED'
                                     : talep.benimOnayim
                                       ? '#ECFDF5'
                                       : talep.benimTalebim
@@ -4996,14 +4996,14 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                                           ? secili2
                                             ? '#A7F3D0'
                                             : '#DCFCE7'
-                                          : '#F8FAFC',
+                                          : '#F7F7F7',
                                 color: ders
-                                  ? '#134E4A'
+                                  ? '#0B2E73'
                                   : talep.benimTalebim
                                     ? '#92400E'
                                     : acik
                                       ? '#166534'
-                                      : '#CBD5E1',
+                                      : '#CFCFCF',
                                 fontSize: 10.5,
                                 fontWeight: 700,
                                 cursor: acik && !kilitli ? 'pointer' : 'not-allowed',
@@ -5064,7 +5064,7 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                 padding: '9px 18px',
                 borderRadius: 9,
                 border: 'none',
-                background: gonderiliyor ? '#94A3B8' : '#059669',
+                background: gonderiliyor ? '#80858E' : '#059669',
                 color: '#fff',
                 fontSize: 13,
                 fontWeight: 700,
@@ -5112,11 +5112,11 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
 
       {/* Kendi taleplerim */}
       <div>
-        <h4 style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 700, color: '#1B2A4A' }}>
+        <h4 style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 700, color: '#0B2E73' }}>
           Randevularım
         </h4>
         {randevularim.length === 0 ? (
-          <p style={{ fontSize: 12.5, color: '#94A3B8', margin: 0 }}>
+          <p style={{ fontSize: 12.5, color: '#80858E', margin: 0 }}>
             Henüz randevu talebiniz yok.
           </p>
         ) : (
@@ -5124,7 +5124,7 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
             {randevularim.map((r) => {
               const gor = R.durumGorunumu
                 ? R.durumGorunumu(r.durum)
-                : { bg: '#fff', kenar: '#E2E8F0', renk: '#64748B', etiket: '' };
+                : { bg: '#fff', kenar: '#E2E2E2', renk: '#5F6368', etiket: '' };
               const acikDurum =
                 (metin(r.durum) || 'bekliyor') !== 'iptal' &&
                 (metin(r.durum) || 'bekliyor') !== 'reddedildi';
@@ -5139,7 +5139,7 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1B2A4A' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0B2E73' }}>
                       {metin(r.akademisyen)}
                     </span>
                     <span
@@ -5155,7 +5155,7 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                       {gor.etiket}
                     </span>
                   </div>
-                  <div style={{ fontSize: 12, color: '#334155', marginTop: 5, fontWeight: 600 }}>
+                  <div style={{ fontSize: 12, color: '#363A42', marginTop: 5, fontWeight: 600 }}>
                     {R.tarihMetni ? R.tarihMetni(r.tarih) : metin(r.tarih)} · {metin(r.saat)}
                   </div>
                   {metin(r.konu) && (
@@ -5163,7 +5163,7 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                       style={{
                         margin: '5px 0 0',
                         fontSize: 11.5,
-                        color: '#64748B',
+                        color: '#5F6368',
                         lineHeight: 1.55,
                         wordBreak: 'break-word',
                       }}
@@ -5178,9 +5178,9 @@ function BSRandevuPaneli({ akademisyenler, randevularim, onTalep, onIptal }) {
                         marginTop: 8,
                         padding: '5px 12px',
                         borderRadius: 7,
-                        border: '1px solid #E2E8F0',
+                        border: '1px solid #E2E2E2',
                         background: '#fff',
-                        color: '#64748B',
+                        color: '#5F6368',
                         fontSize: 11.5,
                         fontWeight: 600,
                         cursor: 'pointer',

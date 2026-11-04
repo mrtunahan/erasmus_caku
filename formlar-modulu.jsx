@@ -8,22 +8,22 @@ const { useState, useEffect, useCallback, useMemo } = React;
 
 // ── Tema ──
 const FM_C = window.C || {
-  bg: '#F5F7FA',
+  bg: '#F0F0F0',
   card: '#FFFFFF',
-  navy: '#1B2A4A',
-  navyLight: '#2D4A7A',
-  gold: '#C4973B',
-  goldLight: '#E8D5A8',
-  goldPale: '#FBF6EC',
-  accent: '#0F766E',
+  navy: '#0B2E73',
+  navyLight: '#1D4FC4',
+  gold: '#FE8500',
+  goldLight: '#FFD3A6',
+  goldPale: '#FFF4E8',
+  accent: '#105BFF',
   green: '#059669',
   greenLight: '#ECFDF5',
-  text: '#1E293B',
-  textMuted: '#64748B',
-  border: '#E2E8F0',
-  borderLight: '#E2E8F0',
+  text: '#1F2329',
+  textMuted: '#5F6368',
+  border: '#E2E2E2',
+  borderLight: '#E2E2E2',
   blue: '#3B82F6',
-  blueLight: '#CCFBF1',
+  blueLight: '#DCE7FF',
 };
 
 // ── Kategoriler ──
@@ -33,8 +33,8 @@ const FORM_KATEGORILER = [
     label: 'Öğrenci İşleri',
     icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
     color: '#3B82F6',
-    bg: '#CCFBF1',
-    borderColor: '#5EEAD4',
+    bg: '#DCE7FF',
+    borderColor: '#9DBCFF',
   },
   {
     id: 'bolum',
@@ -48,9 +48,9 @@ const FORM_KATEGORILER = [
     id: 'universite',
     label: 'Üniversite',
     icon: 'M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z',
-    color: '#C4973B',
-    bg: '#FBF6EC',
-    borderColor: '#E8D5A8',
+    color: '#FE8500',
+    bg: '#FFF4E8',
+    borderColor: '#FFD3A6',
   },
 ];
 
@@ -90,7 +90,7 @@ function dosyaRenk(fileName) {
   if (!fileName) return FM_C.textMuted;
   const ext = fileName.split('.').pop().toLowerCase();
   if (ext === 'pdf') return '#DC2626';
-  if (['doc', 'docx'].includes(ext)) return '#0F766E';
+  if (['doc', 'docx'].includes(ext)) return '#105BFF';
   if (['xls', 'xlsx'].includes(ext)) return '#059669';
   if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return '#7C3AED';
   return FM_C.textMuted;
@@ -991,7 +991,7 @@ function FormlarModuluApp({ currentUser, activeDepartment, departmentInfo: _depa
               border: 'none',
               borderRadius: 10,
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(27,42,74,0.3)',
+              boxShadow: '0 2px 8px rgba(11,46,115,0.3)',
               whiteSpace: 'nowrap',
             }}
           >

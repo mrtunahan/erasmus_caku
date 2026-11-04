@@ -308,7 +308,7 @@ export function sonBelge(t, tur) {
 }
 
 const ROL_CIP = {
-  tto: { metin: 'TTO', renk: '#115E59', zemin: '#F0FDFA' },
+  tto: { metin: 'TTO', renk: '#0A47D1', zemin: '#EEF3FF' },
   akademisyen: { metin: 'Akademisyen', renk: '#7C3AED', zemin: '#F5F3FF' },
 };
 
@@ -413,7 +413,7 @@ export function SurecCizgisi({ durum }) {
         const no = i + 1;
         const bitti = no < sira || tamamlandi;
         const simdi = no === sira && !tamamlandi;
-        const renk = bitti ? T.basari : simdi ? T.birincil : '#CBD5E1';
+        const renk = bitti ? T.basari : simdi ? T.birincil : '#CFCFCF';
         return (
           <div
             key={a.durum}
@@ -428,7 +428,7 @@ export function SurecCizgisi({ durum }) {
                   left: 0,
                   width: '50%',
                   height: 2,
-                  background: no <= sira || tamamlandi ? T.basari : '#E2E8F0',
+                  background: no <= sira || tamamlandi ? T.basari : '#E2E2E2',
                 }}
               />
             )}
@@ -440,7 +440,7 @@ export function SurecCizgisi({ durum }) {
                   right: 0,
                   width: '50%',
                   height: 2,
-                  background: no < sira || tamamlandi ? T.basari : '#E2E8F0',
+                  background: no < sira || tamamlandi ? T.basari : '#E2E2E2',
                 }}
               />
             )}
@@ -456,8 +456,8 @@ export function SurecCizgisi({ durum }) {
                 fontSize: 12,
                 fontWeight: 800,
                 color: bitti || simdi ? '#fff' : T.soluk,
-                background: bitti || simdi ? renk : '#F1F5F9',
-                border: `2px solid ${bitti || simdi ? renk : '#E2E8F0'}`,
+                background: bitti || simdi ? renk : '#EDEDED',
+                border: `2px solid ${bitti || simdi ? renk : '#E2E2E2'}`,
                 boxSizing: 'border-box',
               }}
             >
@@ -565,7 +565,7 @@ export function GonderimKarti({ talep, ayarKaydi, imzali, onImzali, onMesaj, bey
     if (r.ok && r.uyari) setUyari(r.uyari);
   };
   return (
-    <div style={{ ...kart, borderColor: '#99F6E4', background: '#F0FDFA' }} data-gonderim>
+    <div style={{ ...kart, borderColor: '#C2D6FF', background: '#EEF3FF' }} data-gonderim>
       <KartBaslik
         baslik="TTO’ya gönderim"
         aciklama="Formu indirip imzalayın ve kaşeleyin; imzalı hâlini PDF olarak yükleyin. Formda değişiklik yaparsanız formu yeniden indirip imzalı hâlini yeniden yükleyin."
@@ -773,7 +773,7 @@ export function AkademisyenSurecKarti({ talep, onDegisti, kayitliOdeme }) {
         ? ['#F5F3FF', '#DDD6FE', '#5B21B6']
         : d === 'tamamlandi' || d === 'gorevlendirildi' || d === 'onaylandi'
           ? ['#ECFDF5', '#A7F3D0', '#065F46']
-          : ['#F0FDFA', '#99F6E4', '#115E59'];
+          : ['#EEF3FF', '#C2D6FF', '#0A47D1'];
   const proforma = sonBelge(t, 'proforma_tto');
   const odemeHatalari = odemeBilgisiHatalari(odeme);
   const hazir = !!firma && odemeHatalari.length === 0;
@@ -1078,7 +1078,7 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
           <div>
             <span style={etiket}>Başvuruyu Alan Kişi</span>
             {/* Onaylayan yöneticinin adı; sunucu onayda aynı adı yazar. */}
-            <div data-alan="alanKisi" style={{ ...giris, background: '#F8FAFC', color: T.metin }}>
+            <div data-alan="alanKisi" style={{ ...giris, background: '#F7F7F7', color: T.metin }}>
               {metin(t.alanKisi) || yoneticiAdSoyad(kimlik)}
             </div>
           </div>
@@ -1355,7 +1355,7 @@ export function YoneticiSurecPaneli({ talep, kimlik, onDegisti, onSilindi }) {
 
   return (
     <>
-      <div style={{ ...kart, borderColor: '#99F6E4' }} data-yonetici-surec>
+      <div style={{ ...kart, borderColor: '#C2D6FF' }} data-yonetici-surec>
         <KartBaslik baslik="TTO süreci" aciklama={meta || null} sag={<DurumCipi durum={d} />} />
         <SurecCizgisi durum={d} />
         {govde}

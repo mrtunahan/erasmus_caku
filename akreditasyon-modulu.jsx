@@ -31,19 +31,19 @@
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 const AKR = {
-  navy: '#1B2A4A',
-  accent: '#0F766E',
-  accentPale: '#CCFBF1',
-  text: '#1E293B',
-  textMuted: '#64748B',
-  border: '#E2E8F0',
+  navy: '#0B2E73',
+  accent: '#105BFF',
+  accentPale: '#DCE7FF',
+  text: '#1F2329',
+  textMuted: '#5F6368',
+  border: '#E2E2E2',
   green: '#059669',
   greenLight: '#D1FAE5',
   amber: '#B45309',
   amberLight: '#FEF3C7',
   red: '#DC2626',
   redLight: '#FEE2E2',
-  bg: '#F8FAFC',
+  bg: '#F7F7F7',
 };
 
 // Havuz kanıt türleri
@@ -714,7 +714,7 @@ function reportItemHTML(it, origin) {
     h +=
       '<p style="margin:0 0 6px;">📎 <a href="' +
       wEsc(href) +
-      '" style="color:#0F766E;">' +
+      '" style="color:#105BFF;">' +
       wEsc(it.fileLabel || 'Dosya') +
       '</a></p>';
   } else if (it.type === 'tablo' || it.type === 'sistem') {
@@ -1553,7 +1553,7 @@ function ODRPreview({ bodyHTML, blob, filename, onDownloadDocx, onClose }) {
       style={{
         position: 'fixed',
         inset: 0,
-        background: '#cbd5e1',
+        background: '#CFCFCF',
         zIndex: 1100,
         display: 'flex',
         flexDirection: 'column',
@@ -1646,7 +1646,7 @@ function ODRPreview({ bodyHTML, blob, filename, onDownloadDocx, onClose }) {
               background: 'white',
               padding: '56px 64px',
               boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
-              color: '#0f172a',
+              color: '#15181D',
               fontSize: 13,
               height: 'fit-content',
             }}
@@ -1834,14 +1834,14 @@ function AkreditasyonHazirlik() {
   return (
     <div style={{ maxWidth: 640, margin: '48px auto', textAlign: 'center', padding: '0 20px' }}>
       <div style={{ fontSize: 46, marginBottom: 14 }}>🚧</div>
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1B2A4A', margin: '0 0 10px' }}>
+      <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0B2E73', margin: '0 0 10px' }}>
         Akreditasyon — Hazırlık Aşamasında
       </h1>
-      <p style={{ fontSize: 14, color: '#475569', lineHeight: 1.7, margin: 0 }}>
+      <p style={{ fontSize: 14, color: '#4A4F57', lineHeight: 1.7, margin: 0 }}>
         Bu modül üzerinde çalışılıyor ve henüz kullanıma açılmadı. Ölçüt çerçevesi kesinleşip kurum
         ölçütleriyle eşleştirildiğinde erişiminize açılacak.
       </p>
-      <p style={{ fontSize: 12.5, color: '#64748B', lineHeight: 1.7, marginTop: 14 }}>
+      <p style={{ fontSize: 12.5, color: '#5F6368', lineHeight: 1.7, marginTop: 14 }}>
         Bu süreçte kanıt toplamaya başlamanız gerekiyorsa üniversite yetkilisine iletebilirsiniz.
       </p>
     </div>
@@ -2813,7 +2813,7 @@ function AkreditasyonIcerik({ currentUser }) {
                     padding: '8px 12px',
                     borderRadius: 8,
                     border: '1px solid ' + (enabled ? '#7C3AED' : AKR.border),
-                    background: enabled ? '#F5F3FF' : '#F1F5F9',
+                    background: enabled ? '#F5F3FF' : '#EDEDED',
                     color: enabled ? '#6D28D9' : AKR.textMuted,
                     fontSize: 12.5,
                     fontWeight: 700,
@@ -2921,7 +2921,7 @@ function AkreditasyonIcerik({ currentUser }) {
                       borderRadius: 7,
                       border: 'none',
                       background: 'rgba(255,255,255,0.9)',
-                      color: '#1B2A4A',
+                      color: '#0B2E73',
                       fontSize: 11.5,
                       fontWeight: 600,
                       fontFamily: "'Inter', sans-serif",
@@ -3007,7 +3007,7 @@ function AkreditasyonIcerik({ currentUser }) {
                     background: 'white',
                     padding: '40px 44px',
                     boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
-                    color: '#0f172a',
+                    color: '#15181D',
                     fontSize: 12.5,
                     lineHeight: 1.5,
                     borderRadius: 2,
@@ -3065,7 +3065,7 @@ const rpBtn = {
   borderRadius: 7,
   border: 'none',
   background: 'rgba(255,255,255,0.9)',
-  color: '#1B2A4A',
+  color: '#0B2E73',
   fontSize: 11.5,
   fontWeight: 700,
   cursor: 'pointer',

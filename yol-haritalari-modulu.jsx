@@ -16,20 +16,20 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
 const YH = {
-  navy: '#1B2A4A',
-  accent: '#0F766E',
-  accentSoft: '#F0FDFA',
-  accentMid: '#99F6E4',
-  text: '#1E293B',
-  textMuted: '#64748B',
-  border: '#E2E8F0',
+  navy: '#0B2E73',
+  accent: '#105BFF',
+  accentSoft: '#EEF3FF',
+  accentMid: '#C2D6FF',
+  text: '#1F2329',
+  textMuted: '#5F6368',
+  border: '#E2E2E2',
   green: '#059669',
   greenLight: '#D1FAE5',
   amber: '#B45309',
   amberLight: '#FEF3C7',
   red: '#DC2626',
   redLight: '#FEE2E2',
-  bg: '#F8FAFC',
+  bg: '#F7F7F7',
 };
 
 // Yol haritası bağlanabilecek modüller — kayıtlı tüm modül listelerinin
@@ -102,7 +102,7 @@ function YhAdimKarti({ step, isOpen, onToggle, isMobile }) {
       onClick={onToggle}
       style={{
         background: isOpen ? YH.accentSoft : '#fff',
-        border: `1.5px solid ${isOpen ? YH.accent + '35' : '#F1F5F9'}`,
+        border: `1.5px solid ${isOpen ? YH.accent + '35' : '#EDEDED'}`,
         borderRadius: 14,
         padding: '12px 16px',
         cursor: 'pointer',
@@ -120,7 +120,7 @@ function YhAdimKarti({ step, isOpen, onToggle, isMobile }) {
           gap: 8,
         }}
       >
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#1E293B', lineHeight: 1.4 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#1F2329', lineHeight: 1.4 }}>
           {step.title || 'Başlıksız adım'}
         </span>
         {step.duration && (
@@ -144,14 +144,14 @@ function YhAdimKarti({ step, isOpen, onToggle, isMobile }) {
       {step.result && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: YH.accent }}>→</span>
-          <span style={{ fontSize: 12, color: '#64748B' }}>{step.result}</span>
+          <span style={{ fontSize: 12, color: '#5F6368' }}>{step.result}</span>
         </div>
       )}
 
       {isOpen && (
         <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${YH.accent}18` }}>
           {step.desc && (
-            <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+            <p style={{ fontSize: 13, color: '#4A4F57', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
               {step.desc}
             </p>
           )}
@@ -347,7 +347,7 @@ function YhYol({ harita, isMobile }) {
               top: 0,
               bottom: 0,
               background:
-                'linear-gradient(to right, #1E293B 0%, #334155 40%, #334155 60%, #1E293B 100%)',
+                'linear-gradient(to right, #1F2329 0%, #363A42 40%, #363A42 60%, #1F2329 100%)',
               zIndex: 0,
               borderRadius: 4,
             }}
@@ -517,7 +517,7 @@ function YhYol({ harita, isMobile }) {
             <div
               style={{
                 marginLeft: isMobile ? 6 : 0,
-                background: '#0F172A',
+                background: '#15181D',
                 color: '#fff',
                 padding: '8px 22px',
                 borderRadius: 8,
@@ -616,7 +616,7 @@ function YhGoruntule({ haritalar, secili, onSec, isMobile }) {
                   marginBottom: 3,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
-                  color: isActive ? YH.accent : '#475569',
+                  color: isActive ? YH.accent : '#4A4F57',
                   fontSize: 12.5,
                   fontWeight: isActive ? 700 : 500,
                   lineHeight: 1.4,
@@ -1387,8 +1387,8 @@ function YolHaritalariApp({ currentUser, activeDepartment }) {
                           fontWeight: 600,
                           padding: '3px 8px',
                           borderRadius: 10,
-                          background: h.yayinda ? YH.greenLight : '#F1F5F9',
-                          color: h.yayinda ? YH.green : '#64748B',
+                          background: h.yayinda ? YH.greenLight : '#EDEDED',
+                          color: h.yayinda ? YH.green : '#5F6368',
                           flexShrink: 0,
                         }}
                       >
@@ -1508,7 +1508,7 @@ function YolHaritalariApp({ currentUser, activeDepartment }) {
                 onClick={kaydet}
                 disabled={kaydediliyor}
                 style={{
-                  background: kaydediliyor ? '#94A3B8' : YH.green,
+                  background: kaydediliyor ? '#80858E' : YH.green,
                   color: '#fff',
                   border: 'none',
                   borderRadius: 9,

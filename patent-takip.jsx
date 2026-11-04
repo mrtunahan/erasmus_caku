@@ -171,7 +171,7 @@ export function PatentTakipCercevesi({ yol, onDon, onBildirimler }) {
   }, [onDon, onBildirimler]);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#e8eaf0' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#F0F0F0' }}>
       {!yuklendi && (
         <div
           style={{
@@ -180,7 +180,7 @@ export function PatentTakipCercevesi({ yol, onDon, onBildirimler }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#585a68',
+            color: '#5F6368',
             fontSize: 14,
             fontFamily: "'Inter', sans-serif",
           }}

@@ -16,19 +16,19 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
 const CY = {
-  navy: '#1B2A4A',
-  accent: '#0F766E',
-  accentPale: '#CCFBF1',
-  text: '#1E293B',
-  textMuted: '#64748B',
-  border: '#E2E8F0',
+  navy: '#0B2E73',
+  accent: '#105BFF',
+  accentPale: '#DCE7FF',
+  text: '#1F2329',
+  textMuted: '#5F6368',
+  border: '#E2E2E2',
   green: '#059669',
   greenLight: '#D1FAE5',
   amber: '#B45309',
   amberLight: '#FEF3C7',
   red: '#DC2626',
   redLight: '#FEE2E2',
-  bg: '#F8FAFC',
+  bg: '#F7F7F7',
 };
 
 // Başvuru türleri — modülü iki bağımsız alana böler (ayrı kayıt, ayrı ek, ayrı çıktı)
@@ -39,7 +39,7 @@ const CY_TURLER = [
     kisa: 'ÇAP',
     aciklama: 'Çift anadal programı başvuru dilekçesi ve ekleri',
     color: '#00236f',
-    bg: '#f0fdfa',
+    bg: '#EEF3FF',
     ekler: [
       { id: 'transkript', title: 'Not Döküm Belgesi (Transkript) — Aslı', required: true },
       {

@@ -423,13 +423,13 @@ export default function Settings({ showToast }) {
             </div>
             <div className="relative flex items-center justify-center py-2">
               <svg className="w-36 h-36 transform -rotate-90" viewBox="0 0 120 120">
-                <circle cx="60" cy="60" fill="none" r="48" stroke="#d6d8de" strokeWidth="12" />
+                <circle cx="60" cy="60" fill="none" r="48" stroke="#dcdcdc" strokeWidth="12" />
                 <circle
                   cx="60"
                   cy="60"
                   fill="none"
                   r="48"
-                  stroke="#6366f1"
+                  stroke="#105bff"
                   strokeDasharray={`${netDash} ${circumference}`}
                   strokeLinecap="round"
                   strokeWidth="12"
@@ -439,7 +439,7 @@ export default function Settings({ showToast }) {
                   cy="60"
                   fill="none"
                   r="48"
-                  stroke="#7c3aed"
+                  stroke="#fe8500"
                   strokeDasharray={`${ttoDash} ${circumference}`}
                   strokeDashoffset={-netDash}
                   strokeLinecap="round"
@@ -450,7 +450,7 @@ export default function Settings({ showToast }) {
                   cy="60"
                   fill="none"
                   r="48"
-                  stroke="#8a8c9a"
+                  stroke="#8e9299"
                   strokeDasharray={`${stopajDash} ${circumference}`}
                   strokeDashoffset={-(netDash + ttoDash)}
                   strokeLinecap="round"
@@ -469,7 +469,7 @@ export default function Settings({ showToast }) {
                 value={fmtTL(simulation.net)}
               />
               <SimRow
-                color="bg-tertiary"
+                color="bg-[#FE8500]"
                 label={`TTO Kurum Payı (%${simulation.ttoPct})`}
                 value={fmtTL(simulation.tto)}
               />

@@ -13,41 +13,41 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
 // Uygulama paletine bağlı (design-tokens.json): lacivert başlık, teal vurgu,
 // slate nötrler. Eski hardal vurgu (#C4973B) ekranın geri kalanıyla uyumsuzdu.
 const KLP = {
-  primary: '#1B2A4A',
-  accent: '#0F766E',
-  accentStrong: '#115E59',
-  accentLight: '#F0FDFA',
-  accentBorder: '#99F6E4',
-  bg: '#F8FAFC',
+  primary: '#0B2E73',
+  accent: '#105BFF',
+  accentStrong: '#0A47D1',
+  accentLight: '#EEF3FF',
+  accentBorder: '#C2D6FF',
+  bg: '#F7F7F7',
   card: '#FFFFFF',
-  text: '#1E293B',
-  textMuted: '#64748B',
-  textSoft: '#94A3B8',
-  border: '#E2E8F0',
+  text: '#1F2329',
+  textMuted: '#5F6368',
+  textSoft: '#80858E',
+  border: '#E2E2E2',
   green: '#059669',
   greenLight: '#ECFDF5',
   red: '#DC2626',
   redLight: '#FEF2F2',
-  blue: '#0F766E',
-  blueLight: '#F0FDFA',
+  blue: '#105BFF',
+  blueLight: '#EEF3FF',
   golge: '0 1px 2px rgba(15,23,42,0.05)',
   golgeHover: '0 12px 28px rgba(15,23,42,0.12)',
 };
 
 // Topluluk adına göre deterministik renk paleti (initials avatarı için)
 const AVATAR_COLORS = [
-  ['#1B2A4A', '#3B5078'],
+  ['#0B2E73', '#3B5078'],
   ['#7C3AED', '#A78BFA'],
   ['#0EA5E9', '#38BDF8'],
   ['#059669', '#34D399'],
   ['#DC2626', '#F87171'],
   ['#EA580C', '#FB923C'],
   ['#9333EA', '#C084FC'],
-  ['#0F766E', '#22D3EE'],
+  ['#105BFF', '#22D3EE'],
   ['#65A30D', '#A3E635'],
   ['#DB2777', '#F472B6'],
   ['#CA8A04', '#FBBF24'],
-  ['#475569', '#94A3B8'],
+  ['#4A4F57', '#80858E'],
 ];
 const colorForName = (name) => {
   let h = 0;
@@ -593,7 +593,7 @@ function SearchSelect({ value, onChange, options, placeholder, disabled, emptyHi
     outline: 'none',
     fontFamily: "'Inter', sans-serif",
     boxSizing: 'border-box',
-    background: disabled ? '#F1F5F9' : 'white',
+    background: disabled ? '#EDEDED' : 'white',
     cursor: disabled ? 'not-allowed' : 'text',
   };
 
@@ -643,7 +643,7 @@ function SearchSelect({ value, onChange, options, placeholder, disabled, emptyHi
                   cursor: 'pointer',
                   fontSize: 13,
                   color: KLP.text,
-                  borderBottom: i < filtered.length - 1 ? '1px solid #F1F5F9' : 'none',
+                  borderBottom: i < filtered.length - 1 ? '1px solid #EDEDED' : 'none',
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = KLP.accentLight)}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
@@ -810,7 +810,7 @@ function ClubForm({
               <input
                 value={deptName}
                 disabled
-                style={{ ...inputStyle, background: '#F1F5F9' }}
+                style={{ ...inputStyle, background: '#EDEDED' }}
                 placeholder="Bölümünüz"
               />
             )}
@@ -1290,7 +1290,7 @@ function DocumentsPanel({ documents, canEdit, onUpload, onAddLink, onDelete }) {
             padding: '10px 14px',
             borderBottom: `1px solid ${KLP.border}`,
             flexWrap: 'wrap',
-            background: '#F8FAFC',
+            background: '#F7F7F7',
           }}
         >
           <input
@@ -1453,7 +1453,7 @@ function DocumentsPanel({ documents, canEdit, onUpload, onAddLink, onDelete }) {
 // (takipçiler/öğrenciler) akışı görür. Gönderiler club_posts koleksiyonunda.
 // ══════════════════════════════════════════════════════════════
 const FEED_TYPES = [
-  { id: 'duyuru', label: 'Duyuru', color: '#0F766E', bg: '#CCFBF1' },
+  { id: 'duyuru', label: 'Duyuru', color: '#105BFF', bg: '#DCE7FF' },
   { id: 'etkinlik', label: 'Etkinlik', color: '#059669', bg: '#D1FAE5' },
   { id: 'anket', label: 'Anket', color: '#7C3AED', bg: '#EDE9FE' },
 ];
@@ -1492,7 +1492,7 @@ function MedyaIzgarasi({ dosyalar, onAc }) {
           objectFit: 'cover',
           borderRadius: 12,
           display: 'block',
-          background: '#0F172A0D',
+          background: '#15181D0D',
         };
         if (tur === 'video') {
           return (
@@ -1501,7 +1501,7 @@ function MedyaIzgarasi({ dosyalar, onAc }) {
               src={f.url}
               controls
               preload="metadata"
-              style={{ ...ortak, objectFit: 'contain', background: '#0F172A' }}
+              style={{ ...ortak, objectFit: 'contain', background: '#15181D' }}
             />
           );
         }
@@ -1686,7 +1686,7 @@ function EtkinlikAlanlari({ deger, onChange }) {
         border: `1px solid ${KLP.border}`,
         borderRadius: 10,
         padding: 12,
-        background: '#F8FAFC',
+        background: '#F7F7F7',
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
         gap: 10,
@@ -1741,7 +1741,7 @@ function AnketAlanlari({ deger, onChange }) {
         border: `1px solid ${KLP.border}`,
         borderRadius: 10,
         padding: 12,
-        background: '#F8FAFC',
+        background: '#F7F7F7',
         marginBottom: 10,
       }}
     >
@@ -1897,7 +1897,7 @@ function EtkinlikKutusu({ post, club, katilim, katildim, onKatil, kimlikVar }) {
         padding: 12,
         borderRadius: 12,
         border: `1px solid ${gecmis ? KLP.border : '#A7F3D0'}`,
-        background: gecmis ? '#F8FAFC' : '#ECFDF5',
+        background: gecmis ? '#F7F7F7' : '#ECFDF5',
         marginBottom: 10,
       }}
     >
@@ -2637,7 +2637,7 @@ function ClubFeed({ club, canPost, canManage, currentUser, followers }) {
             borderRadius: 12,
             padding: 14,
             marginBottom: 18,
-            background: '#F8FAFC',
+            background: '#F7F7F7',
           }}
         >
           {/* Tür seçimi (ilk satır) */}
@@ -2728,7 +2728,7 @@ function ClubFeed({ club, canPost, canManage, currentUser, followers }) {
                     <div
                       style={{
                         height: 84,
-                        background: tur === 'video' ? '#0F172A' : KLP.accentLight,
+                        background: tur === 'video' ? '#15181D' : KLP.accentLight,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -3884,7 +3884,7 @@ function OgrenciKulupleriApp({ currentUser, activeDepartment, departmentInfo }) 
             style={{
               width: 36,
               height: 36,
-              border: '3px solid #E2E8F0',
+              border: '3px solid #E2E2E2',
               borderTopColor: KLP.primary,
               borderRadius: '50%',
               animation: 'spin 0.8s linear infinite',

@@ -10,9 +10,9 @@
 const { useState, useEffect } = React;
 
 const LU = {
-  primary: '#0F766E',
-  text: '#0F172A',
-  textMuted: '#64748B',
+  primary: '#105BFF',
+  text: '#15181D',
+  textMuted: '#5F6368',
   border: '#D8DCE3',
   surface: '#FFFFFF',
 };

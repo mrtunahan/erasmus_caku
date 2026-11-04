@@ -23,17 +23,17 @@ import { alanEksikMi, formDurumu } from './lib/yatay-form-durumu.js';
 import { belgeDurumMetni, listeOzeti, ozetKutulari } from './lib/yatay-liste-ozeti.js';
 
 const YG = {
-  navy: '#1B2A4A',
+  navy: '#0B2E73',
   accent: '#B45309',
   accentPale: '#FEF3C7',
-  text: '#1E293B',
-  textMuted: '#64748B',
-  border: '#E2E8F0',
+  text: '#1F2329',
+  textMuted: '#5F6368',
+  border: '#E2E2E2',
   green: '#059669',
   greenLight: '#D1FAE5',
   red: '#DC2626',
   redLight: '#FEE2E2',
-  bg: '#F8FAFC',
+  bg: '#F7F7F7',
 };
 
 // ── Geçiş türleri ──
@@ -55,8 +55,8 @@ const YG_TURLER = [
     id: 'kurumlararasi',
     label: 'Kurumlararası Yatay Geçiş',
     tamAd: 'Başarı Düzeyi ile Kurumlararası (Yurt İçi) Yatay Geçiş',
-    color: '#0F766E',
-    bg: '#CCFBF1',
+    color: '#105BFF',
+    bg: '#DCE7FF',
     aciklama: "Başka bir üniversiteden geçiş — YKS puanının %40'ı + not ortalamasının %60'ı",
     puanIster: true,
     notIster: true,
@@ -252,17 +252,17 @@ const ygLabel = {
 // Sistemin kendiliğinden doldurduğu alanlar: insanın yazdığıyla karışmasın.
 // Değer görünür ama "bunu ben yazmadım" bilgisi de görünür kalır.
 const ygOtoInput = {
-  background: '#F0FDFA',
+  background: '#EEF3FF',
   borderColor: '#7DD3FC',
-  color: '#134E4A',
+  color: '#0B2E73',
   fontWeight: 600,
 };
 const ygOtoRozet = {
   marginLeft: 6,
   padding: '1px 6px',
   borderRadius: 8,
-  background: '#CCFBF1',
-  color: '#0F766E',
+  background: '#DCE7FF',
+  color: '#105BFF',
   fontSize: 10,
   fontWeight: 700,
   letterSpacing: 0.2,
@@ -1099,7 +1099,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
 
   // Kilitli (sistemden gelen) alanların ortak görünümü — insanın yazdığıyla
   // karışmasın diye zemini gri, imleci "yazılamaz".
-  const kilitliStil = { ...ygInput, background: '#F1F5F9', color: '#475569', cursor: 'default' };
+  const kilitliStil = { ...ygInput, background: '#EDEDED', color: '#4A4F57', cursor: 'default' };
 
   // Bölüm numaraları akışa göre üretilir: vekâleten kayıtta bir bölüm fazla,
   // kurum içi geçişte yerleştirme bölümü hiç yok. Sabit numara yazılsaydı
@@ -1256,7 +1256,7 @@ function YgBasvuruFormu({ tur, currentUser, departmentInfo, onSaved, vekaleten, 
               style={{
                 ...ygInput,
                 cursor: form.basvurduguFakulteId ? 'pointer' : 'not-allowed',
-                background: form.basvurduguFakulteId ? 'white' : '#F1F5F9',
+                background: form.basvurduguFakulteId ? 'white' : '#EDEDED',
               }}
             >
               <option value="">
@@ -3871,7 +3871,7 @@ function YatayGecisApp({ currentUser, activeDepartment, departmentInfo }) {
                 style={{
                   fontSize: 11.5,
                   lineHeight: 1.5,
-                  color: sel ? '#475569' : YG.textMuted,
+                  color: sel ? '#4A4F57' : YG.textMuted,
                 }}
               >
                 {t.aciklama}

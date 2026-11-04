@@ -10,18 +10,18 @@
 const { useState, useEffect, useMemo, useCallback } = React;
 
 const FAK = {
-  primary: '#1B2A4A',
-  accent: '#0F766E',
-  accentPale: '#CCFBF1',
-  text: '#1E293B',
-  textMuted: '#64748B',
-  border: '#E2E8F0',
+  primary: '#0B2E73',
+  accent: '#105BFF',
+  accentPale: '#DCE7FF',
+  text: '#1F2329',
+  textMuted: '#5F6368',
+  border: '#E2E2E2',
   green: '#059669',
   greenLight: '#D1FAE5',
   red: '#DC2626',
   redLight: '#FEE2E2',
-  blue: '#0F766E',
-  blueLight: '#CCFBF1',
+  blue: '#105BFF',
+  blueLight: '#DCE7FF',
   amber: '#B45309',
   amberLight: '#FEF3C7',
 };
@@ -414,7 +414,7 @@ function FakYonetimiApp({ currentUser }) {
         <FIcon
           path="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
           size={48}
-          color="#CBD5E1"
+          color="#CFCFCF"
         />
         <p style={{ color: FAK.textMuted, fontSize: 14, marginTop: 16 }}>
           Bu modüle yalnızca fakülte yetkilisi erişebilir.
@@ -658,7 +658,7 @@ function FakYonetimiApp({ currentUser }) {
                 flexWrap: 'wrap',
                 gap: 6,
                 padding: '10px 12px',
-                background: '#F8FAFC',
+                background: '#F7F7F7',
                 border: '1px solid ' + FAK.border,
                 borderRadius: 10,
               }}
@@ -740,7 +740,7 @@ function FakYonetimiApp({ currentUser }) {
                 </div>
 
                 {/* Akademisyenler */}
-                <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 12 }}>
+                <div style={{ borderTop: '1px solid #EDEDED', paddingTop: 12 }}>
                   <p style={{ ...fLabel, marginBottom: 8 }}>Akademisyenler & Bölüm Yetkilisi</p>
                   {deptProfs.length === 0 ? (
                     <p style={{ fontSize: 12, color: FAK.textMuted, margin: '0 0 10px' }}>

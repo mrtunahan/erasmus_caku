@@ -13,18 +13,18 @@
 const { useState, useEffect, useCallback, useMemo } = React;
 
 const T = {
-  navy: '#1B2A4A',
-  navy2: '#2D4A7A',
-  primary: '#0F766E',
-  primaryStrong: '#115E59',
-  primaryPale: '#F0FDFA',
-  bg: '#F5F7FA',
+  navy: '#0B2E73',
+  navy2: '#1D4FC4',
+  primary: '#105BFF',
+  primaryStrong: '#0A47D1',
+  primaryPale: '#EEF3FF',
+  bg: '#F0F0F0',
   surface: '#FFFFFF',
-  muted: '#F8FAFC',
-  border: '#E2E8F0',
-  borderSoft: '#EEF2F6',
-  text: '#1E293B',
-  textMuted: '#64748B',
+  muted: '#F7F7F7',
+  border: '#E2E2E2',
+  borderSoft: '#ECECEC',
+  text: '#1F2329',
+  textMuted: '#5F6368',
   danger: '#DC2626',
   dangerPale: '#FEF2F2',
   warning: '#D97706',
@@ -70,7 +70,7 @@ const DURUM = {
     serit: '#8B5CF6',
   },
   cozuldu: { ad: 'Çözüldü', renk: '#166534', zemin: '#DCFCE7', serit: '#22C55E' },
-  kapatildi: { ad: 'Kapatıldı', renk: '#475569', zemin: '#F1F5F9', serit: '#94A3B8' },
+  kapatildi: { ad: 'Kapatıldı', renk: '#4A4F57', zemin: '#EDEDED', serit: '#80858E' },
 };
 const turBilgisi = (id) => TURLER.find((t) => t.id === id) || TURLER[0];
 
@@ -260,7 +260,7 @@ function Bilgi({ children, ton = 'bilgi' }) {
   const r =
     ton === 'uyari'
       ? [T.warningPale, '#92400E', '#FDE68A']
-      : [T.primaryPale, T.primaryStrong, '#99F6E4'];
+      : [T.primaryPale, T.primaryStrong, '#C2D6FF'];
   return (
     <div
       style={{
@@ -524,7 +524,7 @@ function KayitListesi({ kayitlar, onSec, bos, yetkiliGorunumu }) {
           <Ikon
             d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"
             boyut={28}
-            renk="#CBD5E1"
+            renk="#CFCFCF"
           />
           <div style={{ marginTop: 8 }}>{kayitlar.length ? 'Bu süzgeçte kayıt yok.' : bos}</div>
         </div>
@@ -690,7 +690,7 @@ function Balon({ ad, rol, zaman, ic, sag, children }) {
         style={{
           maxWidth: '78%',
           background: ic ? T.warningPale : sag ? T.primaryPale : T.muted,
-          border: '1px solid ' + (ic ? '#FDE68A' : sag ? '#99F6E4' : T.border),
+          border: '1px solid ' + (ic ? '#FDE68A' : sag ? '#C2D6FF' : T.border),
           borderRadius: 12,
           borderBottomRightRadius: sag ? 4 : 12,
           borderBottomLeftRadius: sag ? 12 : 4,

@@ -16,42 +16,42 @@ const { useState, useEffect, useRef, useCallback: _useCallback, useMemo } = Reac
       '@keyframes fadeOutDown{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(20px)}}' +
       '@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}' +
       '@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}' +
-      '.portal-bg{background:linear-gradient(135deg,#F8FAFC 0%,#F5F7FA 30%,#F1F5F9 70%,#F8FAFC 100%);position:relative;min-height:100vh;}' +
+      '.portal-bg{background:linear-gradient(135deg,#F7F7F7 0%,#F0F0F0 30%,#EDEDED 70%,#F7F7F7 100%);position:relative;min-height:100vh;}' +
       ".portal-bg::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:0;" +
       'background:' +
-      'radial-gradient(ellipse 120px 120px at 10% 15%,rgba(15,118,110,0.12) 0%,transparent 70%),' +
-      'radial-gradient(ellipse 100px 100px at 85% 20%,rgba(15,118,110,0.10) 0%,transparent 70%),' +
-      'radial-gradient(ellipse 80px 80px at 20% 80%,rgba(15,118,110,0.08) 0%,transparent 70%),' +
-      'radial-gradient(ellipse 90px 90px at 75% 75%,rgba(15,118,110,0.10) 0%,transparent 70%),' +
-      'radial-gradient(ellipse 60px 60px at 50% 50%,rgba(15,118,110,0.06) 0%,transparent 70%);}' +
-      '.daisy-card{background:rgba(255,255,255,0.92);backdrop-filter:blur(8px);border:1px solid rgba(15,118,110,0.18);border-radius:16px;box-shadow:0 2px 16px rgba(15,118,110,0.08);transition:box-shadow 0.25s,transform 0.25s;}' +
-      '.daisy-card:hover{box-shadow:0 6px 24px rgba(15,118,110,0.15);transform:translateY(-1px);}' +
-      '.daisy-btn{background:linear-gradient(135deg,#0F766E,#0F766E);color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(15,118,110,0.3);transition:all 0.2s;}' +
-      '.daisy-btn:hover{box-shadow:0 6px 20px rgba(15,118,110,0.4);transform:translateY(-1px);}' +
+      'radial-gradient(ellipse 120px 120px at 10% 15%,rgba(16,91,255,0.12) 0%,transparent 70%),' +
+      'radial-gradient(ellipse 100px 100px at 85% 20%,rgba(16,91,255,0.10) 0%,transparent 70%),' +
+      'radial-gradient(ellipse 80px 80px at 20% 80%,rgba(16,91,255,0.08) 0%,transparent 70%),' +
+      'radial-gradient(ellipse 90px 90px at 75% 75%,rgba(16,91,255,0.10) 0%,transparent 70%),' +
+      'radial-gradient(ellipse 60px 60px at 50% 50%,rgba(16,91,255,0.06) 0%,transparent 70%);}' +
+      '.daisy-card{background:rgba(255,255,255,0.92);backdrop-filter:blur(8px);border:1px solid rgba(16,91,255,0.18);border-radius:16px;box-shadow:0 2px 16px rgba(16,91,255,0.08);transition:box-shadow 0.25s,transform 0.25s;}' +
+      '.daisy-card:hover{box-shadow:0 6px 24px rgba(16,91,255,0.15);transform:translateY(-1px);}' +
+      '.daisy-btn{background:linear-gradient(135deg,#105BFF,#105BFF);color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(16,91,255,0.3);transition:all 0.2s;}' +
+      '.daisy-btn:hover{box-shadow:0 6px 20px rgba(16,91,255,0.4);transform:translateY(-1px);}' +
       '.portal-wrap{position:relative;z-index:1;}' +
-      ".ql-toolbar.ql-snow{border:none !important;border-bottom:1px solid rgba(15,118,110,0.25) !important;background:linear-gradient(135deg,#F8FAFC,#F5F7FA) !important;border-radius:10px 10px 0 0 !important;padding:8px 12px !important;font-family:'Source Sans 3','Inter',sans-serif !important;flex-wrap:wrap !important;}" +
+      ".ql-toolbar.ql-snow{border:none !important;border-bottom:1px solid rgba(16,91,255,0.25) !important;background:linear-gradient(135deg,#F7F7F7,#F0F0F0) !important;border-radius:10px 10px 0 0 !important;padding:8px 12px !important;font-family:'Source Sans 3','Inter',sans-serif !important;flex-wrap:wrap !important;}" +
       ".ql-container.ql-snow{border:none !important;font-family:'Source Sans 3','Inter',sans-serif !important;font-size:14px !important;}" +
       '.ql-editor{min-height:150px !important;line-height:1.7 !important;color:#2C2C2C !important;padding:12px 16px !important;}' +
-      '.ql-editor.ql-blank::before{color:#64748B !important;font-style:normal !important;font-size:14px !important;}' +
-      '.ql-snow .ql-stroke{stroke:#1B2A4A !important;}' +
-      '.ql-snow .ql-fill,.ql-snow .ql-stroke.ql-fill{fill:#1B2A4A !important;}' +
-      '.ql-snow .ql-picker-label{color:#1B2A4A !important;}' +
-      '.ql-snow .ql-active .ql-stroke,.ql-snow button:hover .ql-stroke{stroke:#0F766E !important;}' +
-      '.ql-snow .ql-active .ql-fill,.ql-snow button:hover .ql-fill{fill:#0F766E !important;}' +
-      '.ql-snow .ql-active{color:#0F766E !important;}' +
-      '.ql-snow button:hover,.ql-snow .ql-picker-label:hover{color:#0F766E !important;}' +
-      '.ql-snow .ql-picker-options{border-radius:8px !important;box-shadow:0 4px 16px rgba(0,0,0,0.12) !important;border:1px solid #E2E8F0 !important;}' +
+      '.ql-editor.ql-blank::before{color:#5F6368 !important;font-style:normal !important;font-size:14px !important;}' +
+      '.ql-snow .ql-stroke{stroke:#0B2E73 !important;}' +
+      '.ql-snow .ql-fill,.ql-snow .ql-stroke.ql-fill{fill:#0B2E73 !important;}' +
+      '.ql-snow .ql-picker-label{color:#0B2E73 !important;}' +
+      '.ql-snow .ql-active .ql-stroke,.ql-snow button:hover .ql-stroke{stroke:#105BFF !important;}' +
+      '.ql-snow .ql-active .ql-fill,.ql-snow button:hover .ql-fill{fill:#105BFF !important;}' +
+      '.ql-snow .ql-active{color:#105BFF !important;}' +
+      '.ql-snow button:hover,.ql-snow .ql-picker-label:hover{color:#105BFF !important;}' +
+      '.ql-snow .ql-picker-options{border-radius:8px !important;box-shadow:0 4px 16px rgba(0,0,0,0.12) !important;border:1px solid #E2E2E2 !important;}' +
       '.ql-editor img{max-width:100% !important;border-radius:8px !important;margin:8px 0 !important;}' +
-      '.ql-editor blockquote{border-left:4px solid #0F766E !important;padding-left:12px !important;color:#64748B !important;}' +
-      ".ql-editor pre.ql-syntax{background:#1B2A4A !important;color:#CCFBF1 !important;border-radius:8px !important;padding:12px 16px !important;font-family:'JetBrains Mono',monospace !important;}" +
+      '.ql-editor blockquote{border-left:4px solid #105BFF !important;padding-left:12px !important;color:#5F6368 !important;}' +
+      ".ql-editor pre.ql-syntax{background:#0B2E73 !important;color:#DCE7FF !important;border-radius:8px !important;padding:12px 16px !important;font-family:'JetBrains Mono',monospace !important;}" +
       '.portal-post-content img{max-width:100%;border-radius:8px;margin:8px 0;}' +
-      '.portal-post-content blockquote{border-left:4px solid #0F766E;padding-left:12px;color:#64748B;margin:8px 0;}' +
-      ".portal-post-content pre{background:#1B2A4A;color:#CCFBF1;border-radius:8px;padding:12px 16px;font-family:'JetBrains Mono',monospace;overflow-x:auto;}" +
+      '.portal-post-content blockquote{border-left:4px solid #105BFF;padding-left:12px;color:#5F6368;margin:8px 0;}' +
+      ".portal-post-content pre{background:#0B2E73;color:#DCE7FF;border-radius:8px;padding:12px 16px;font-family:'JetBrains Mono',monospace;overflow-x:auto;}" +
       '.portal-post-content a{color:#3B82F6;text-decoration:underline;}' +
-      '.portal-post-content .mention-tag{background:linear-gradient(135deg,#CCFBF1,#F0FDFA);color:#0F766E;padding:1px 6px;border-radius:4px;font-weight:600;font-size:0.95em;cursor:pointer;border:1px solid rgba(15, 118, 110,0.15);}' +
+      '.portal-post-content .mention-tag{background:linear-gradient(135deg,#DCE7FF,#EEF3FF);color:#105BFF;padding:1px 6px;border-radius:4px;font-weight:600;font-size:0.95em;cursor:pointer;border:1px solid rgba(16,91,255,0.15);}' +
       '.portal-post-content ul,.portal-post-content ol{padding-left:24px;margin:4px 0;}' +
-      '.portal-post-content h2{font-size:18px;font-weight:700;color:#1B2A4A;margin:12px 0 6px;}' +
-      '.portal-post-content h3{font-size:16px;font-weight:600;color:#1B2A4A;margin:10px 0 4px;}' +
+      '.portal-post-content h2{font-size:18px;font-weight:700;color:#0B2E73;margin:12px 0 6px;}' +
+      '.portal-post-content h3{font-size:16px;font-weight:600;color:#0B2E73;margin:10px 0 4px;}' +
       '.portal-post-content p{margin:4px 0;}';
     document.head.appendChild(s);
   }
@@ -70,15 +70,15 @@ const PAdSenseBanner = window.AdSenseBanner;
 // Portalın vurgu paleti uygulamanın birincil rengine (teal) bağlandı; eski
 // bal-sarısı tema portalı uygulamanın geri kalanından kopuk gösteriyordu.
 const DY = {
-  gold: '#0F766E',
-  goldDark: '#115E59',
-  goldLight: '#CCFBF1',
-  goldBorder: 'rgba(15,118,110,0.18)',
-  warm: '#134E4A',
-  warmLight: '#F0FDFA',
-  cream: '#F8FAFC',
-  accent: '#0F766E',
-  accentLight: '#99F6E4',
+  gold: '#105BFF',
+  goldDark: '#0A47D1',
+  goldLight: '#DCE7FF',
+  goldBorder: 'rgba(16,91,255,0.18)',
+  warm: '#0B2E73',
+  warmLight: '#EEF3FF',
+  cream: '#F7F7F7',
+  accent: '#105BFF',
+  accentLight: '#C2D6FF',
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -145,13 +145,13 @@ var ICONS = {
 // ══════════════════════════════════════════════════════════════
 
 const PORTAL_CATEGORIES = [
-  { id: 'soru', label: 'Soru-Cevap', icon: 'question', color: '#3B82F6', bg: '#CCFBF1' },
+  { id: 'soru', label: 'Soru-Cevap', icon: 'question', color: '#3B82F6', bg: '#DCE7FF' },
   { id: 'not', label: 'Not Paylaşımı', icon: 'book', color: '#8B5CF6', bg: '#EDE9FE' },
   { id: 'duyuru', label: 'Duyuru', icon: 'megaphone', color: '#DC2626', bg: '#FEE2E2' },
-  { id: 'etkinlik', label: 'Etkinlik', icon: 'calendar', color: '#0F766E', bg: '#CCFBF1' },
+  { id: 'etkinlik', label: 'Etkinlik', icon: 'calendar', color: '#105BFF', bg: '#DCE7FF' },
   { id: 'kaynak', label: 'Kaynak', icon: 'link', color: '#059669', bg: '#D1FAE5' },
   { id: 'sohbet', label: 'Sohbet', icon: 'chat', color: '#EC4899', bg: '#FCE7F3' },
-  { id: 'anket', label: 'Anket', icon: 'barChart', color: '#0D9488', bg: '#CCFBF1' },
+  { id: 'anket', label: 'Anket', icon: 'barChart', color: '#2F6FFF', bg: '#DCE7FF' },
 ];
 
 const REACTION_TYPES = [
@@ -294,11 +294,11 @@ const BADGES = [
 
 // ── Seviye Sistemi ──
 const LEVELS = [
-  { level: 1, label: 'Çaylak', minXP: 0, color: '#94A3B8' },
-  { level: 2, label: 'Öğrenci', minXP: 50, color: '#2DD4BF' },
+  { level: 1, label: 'Çaylak', minXP: 0, color: '#80858E' },
+  { level: 2, label: 'Öğrenci', minXP: 50, color: '#6E9BFF' },
   { level: 3, label: 'Aktif Üye', minXP: 150, color: '#34D399' },
   { level: 4, label: 'Katkıcı', minXP: 350, color: '#A78BFA' },
-  { level: 5, label: 'Uzman', minXP: 700, color: '#0F766E' },
+  { level: 5, label: 'Uzman', minXP: 700, color: '#105BFF' },
   { level: 6, label: 'Lider', minXP: 1200, color: '#F97316' },
   { level: 7, label: 'Efsane', minXP: 2000, color: '#DC2626' },
 ];
@@ -1206,10 +1206,10 @@ function hashColor(str) {
     '#8B5CF6',
     '#EC4899',
     '#DC2626',
-    '#0F766E',
+    '#105BFF',
     '#059669',
-    '#0D9488',
-    '#14B8A6',
+    '#2F6FFF',
+    '#4D84FF',
   ];
   return colors[Math.abs(hash) % colors.length];
 }
@@ -2621,9 +2621,7 @@ const CommentSection = ({ postId, currentUser, post, allUsers }) => {
                       fontSize: 13,
                       fontWeight: 600,
                       cursor: sending ? 'wait' : 'pointer',
-                      boxShadow: isHtmlEmpty(newComment)
-                        ? 'none'
-                        : '0 2px 8px rgba(15,118,110,0.3)',
+                      boxShadow: isHtmlEmpty(newComment) ? 'none' : '0 2px 8px rgba(16,91,255,0.3)',
                     }}
                   >
                     {sending ? 'Gönderiliyor...' : 'Yorum Yap'}
@@ -2862,7 +2860,7 @@ const RichTextEditor = ({ value, onChange, placeholder, onImageUpload, allUsers 
         return;
       }
       var range = quill.getSelection(true) || { index: quill.getLength() };
-      quill.insertText(range.index, 'Yükleniyor...', { italic: true, color: '#94A3B8' });
+      quill.insertText(range.index, 'Yükleniyor...', { italic: true, color: '#80858E' });
       quill.setSelection(range.index + 13);
 
       if (onImageUpload) {
@@ -3076,7 +3074,7 @@ const PostCard = ({
       {post.pinned && (
         <div
           style={{
-            background: 'linear-gradient(90deg, #0F766E, #F97316)',
+            background: 'linear-gradient(90deg, #105BFF, #F97316)',
             padding: '4px 16px',
             fontSize: 11,
             fontWeight: 700,
@@ -3094,7 +3092,7 @@ const PostCard = ({
       {post.status === 'pending' && (
         <div
           style={{
-            background: 'linear-gradient(90deg, #0F766E, #0F766E)',
+            background: 'linear-gradient(90deg, #105BFF, #105BFF)',
             padding: '8px 16px',
             fontSize: 12,
             fontWeight: 600,
@@ -3354,8 +3352,8 @@ const PostCard = ({
                         borderRadius: 6,
                         fontSize: 10,
                         fontWeight: 700,
-                        background: '#CCFBF1',
-                        color: '#115E59',
+                        background: '#DCE7FF',
+                        color: '#0A47D1',
                       }}
                     >
                       <svg
@@ -3465,8 +3463,8 @@ const PostCard = ({
                             fontSize: 11,
                             padding: '2px 8px',
                             borderRadius: 10,
-                            background: isCourseCode(t) ? DY.goldLight : '#CCFBF1',
-                            color: isCourseCode(t) ? DY.goldDark : '#0F766E',
+                            background: isCourseCode(t) ? DY.goldLight : '#DCE7FF',
+                            color: isCourseCode(t) ? DY.goldDark : '#105BFF',
                             fontWeight: 600,
                             cursor: 'pointer',
                             transition: 'all 0.15s',
@@ -3545,13 +3543,13 @@ const PostCard = ({
                     background: 'transparent',
                     cursor: 'pointer',
                     borderRadius: 6,
-                    color: post.pinned ? '#0F766E' : PC.textMuted,
+                    color: post.pinned ? '#105BFF' : PC.textMuted,
                   }}
                   onMouseEnter={function (e) {
-                    e.currentTarget.style.color = '#0F766E';
+                    e.currentTarget.style.color = '#105BFF';
                   }}
                   onMouseLeave={function (e) {
-                    e.currentTarget.style.color = post.pinned ? '#0F766E' : PC.textMuted;
+                    e.currentTarget.style.color = post.pinned ? '#105BFF' : PC.textMuted;
                   }}
                 >
                   <svg
@@ -4092,24 +4090,24 @@ const PostCard = ({
               style={{
                 marginLeft: 'auto',
                 padding: '6px 12px',
-                border: '1px solid ' + (isBookmarked ? '#0F766E' : PC.border),
+                border: '1px solid ' + (isBookmarked ? '#105BFF' : PC.border),
                 borderRadius: 20,
-                background: isBookmarked ? '#CCFBF1' : 'white',
+                background: isBookmarked ? '#DCE7FF' : 'white',
                 cursor: 'pointer',
                 fontSize: 13,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                color: isBookmarked ? '#0F766E' : PC.textMuted,
+                color: isBookmarked ? '#105BFF' : PC.textMuted,
                 transition: 'all 0.2s',
               }}
               onMouseEnter={function (e) {
-                e.currentTarget.style.borderColor = '#0F766E';
-                e.currentTarget.style.color = '#0F766E';
+                e.currentTarget.style.borderColor = '#105BFF';
+                e.currentTarget.style.color = '#105BFF';
               }}
               onMouseLeave={function (e) {
-                e.currentTarget.style.borderColor = isBookmarked ? '#0F766E' : PC.border;
-                e.currentTarget.style.color = isBookmarked ? '#0F766E' : PC.textMuted;
+                e.currentTarget.style.borderColor = isBookmarked ? '#105BFF' : PC.border;
+                e.currentTarget.style.color = isBookmarked ? '#105BFF' : PC.textMuted;
               }}
             >
               <svg
@@ -4609,9 +4607,9 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
                   borderRadius: 12,
                   fontSize: 12,
                   fontWeight: 600,
-                  background: isCourseCode(t) ? DY.goldLight : '#CCFBF1',
-                  color: isCourseCode(t) ? DY.goldDark : '#0F766E',
-                  border: '1px solid ' + (isCourseCode(t) ? DY.goldBorder : '#99F6E4'),
+                  background: isCourseCode(t) ? DY.goldLight : '#DCE7FF',
+                  color: isCourseCode(t) ? DY.goldDark : '#105BFF',
+                  border: '1px solid ' + (isCourseCode(t) ? DY.goldBorder : '#C2D6FF'),
                 }}
               >
                 #{t}
@@ -4631,7 +4629,7 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
                     fontSize: 14,
                     lineHeight: 1,
                     fontWeight: 700,
-                    color: isCourseCode(t) ? DY.goldDark : '#0F766E',
+                    color: isCourseCode(t) ? DY.goldDark : '#105BFF',
                   }}
                 >
                   {'\u2715'}
@@ -4948,7 +4946,7 @@ const NewPostForm = ({ currentUser, onPost, onClose, allUsers }) => {
             cursor: posting ? 'wait' : 'pointer',
             fontSize: 14,
             fontWeight: 700,
-            boxShadow: '0 4px 12px rgba(15,118,110,0.3)',
+            boxShadow: '0 4px 12px rgba(16,91,255,0.3)',
           }}
         >
           {uploading ? 'Yükleniyor...' : posting ? 'Gönderiliyor...' : 'Paylaş'}
@@ -5039,7 +5037,7 @@ const BadgeDisplay = ({ badges, compact }) => {
               padding: compact ? '2px 6px' : '4px 10px',
               borderRadius: 10,
               fontSize: compact ? 11 : 12,
-              background: 'linear-gradient(135deg, #F0FDFA, #CCFBF1)',
+              background: 'linear-gradient(135deg, #EEF3FF, #DCE7FF)',
               border: '1px solid ' + DY.goldBorder,
               cursor: 'default',
               transition: 'all 0.15s',
@@ -5239,7 +5237,7 @@ const UserProfilePage = ({
           }}
         >
           {[
-            { v: stats.postCount, l: 'Gönderi', c: '#0F766E' },
+            { v: stats.postCount, l: 'Gönderi', c: '#105BFF' },
             {
               v: stats.totalVoteScore,
               l: 'Oy Puanı',
@@ -5336,8 +5334,8 @@ const UserProfilePage = ({
                       borderRadius: 8,
                       fontSize: 11,
                       fontWeight: 600,
-                      background: isCourseCode(c) ? DY.goldLight : '#CCFBF1',
-                      color: isCourseCode(c) ? DY.goldDark : '#0F766E',
+                      background: isCourseCode(c) ? DY.goldLight : '#DCE7FF',
+                      color: isCourseCode(c) ? DY.goldDark : '#105BFF',
                     }}
                   >
                     {c}
@@ -5719,7 +5717,7 @@ const LeaderboardPanel = ({ posts, allUsers: _allUsers, currentUser }) => {
     [posts, period, category, deptFilter, profiles]
   );
 
-  var medalColors = ['#0F766E', '#94A3B8', '#CD7F32'];
+  var medalColors = ['#105BFF', '#80858E', '#CD7F32'];
 
   return (
     <div
@@ -5795,8 +5793,8 @@ const LeaderboardPanel = ({ posts, allUsers: _allUsers, currentUser }) => {
                 fontSize: 10,
                 fontWeight: isActive ? 700 : 500,
                 border: 'none',
-                background: isActive ? '#CCFBF1' : PC.bg,
-                color: isActive ? '#0F766E' : PC.textMuted,
+                background: isActive ? '#DCE7FF' : PC.bg,
+                color: isActive ? '#105BFF' : PC.textMuted,
                 cursor: 'pointer',
               }}
             >
@@ -6167,8 +6165,8 @@ const FollowingSidebar = ({ followData, onFollowUser, onFollowTag, allUsers, pos
                     borderRadius: 12,
                     fontSize: 11,
                     fontWeight: 600,
-                    background: isCourseCode(tag) ? DY.goldLight : '#CCFBF1',
-                    color: isCourseCode(tag) ? DY.goldDark : '#0F766E',
+                    background: isCourseCode(tag) ? DY.goldLight : '#DCE7FF',
+                    color: isCourseCode(tag) ? DY.goldDark : '#105BFF',
                     cursor: 'pointer',
                   }}
                 >
@@ -6278,14 +6276,14 @@ const TagCloud = ({ posts, onFilterTag, activeTag, onFollowTag, followedTags }) 
                 fontSize: 10 + Math.round(intensity * 4),
                 fontWeight: isActive ? 700 : 500,
                 border: isActive
-                  ? '2px solid ' + (isCourse ? DY.gold : '#0D9488')
+                  ? '2px solid ' + (isCourse ? DY.gold : '#2F6FFF')
                   : '1px solid ' + PC.border,
                 background: isActive
                   ? isCourse
                     ? DY.goldLight
-                    : '#CCFBF1'
+                    : '#DCE7FF'
                   : 'rgba(255,255,255,' + (1 - intensity * 0.3) + ')',
-                color: isCourse ? DY.goldDark : '#0F766E',
+                color: isCourse ? DY.goldDark : '#105BFF',
                 cursor: 'pointer',
                 transition: 'all 0.15s',
                 opacity: isActive ? 1 : 0.6 + intensity * 0.4,
@@ -6349,10 +6347,10 @@ const ToastContainer = ({ toasts }) => {
       }}
     >
       {toasts.map(function (t) {
-        var bgColor = t.type === 'error' ? '#FEE2E2' : t.type === 'info' ? '#CCFBF1' : '#D1FAE5';
+        var bgColor = t.type === 'error' ? '#FEE2E2' : t.type === 'info' ? '#DCE7FF' : '#D1FAE5';
         var borderColor =
           t.type === 'error' ? '#DC2626' : t.type === 'info' ? '#3B82F6' : '#059669';
-        var textColor = t.type === 'error' ? '#991B1B' : t.type === 'info' ? '#115E59' : '#065F46';
+        var textColor = t.type === 'error' ? '#991B1B' : t.type === 'info' ? '#0A47D1' : '#065F46';
         var icon = t.type === 'error' ? '\u2716' : t.type === 'info' ? '\u2139' : '\u2714';
         return (
           <div
@@ -6453,7 +6451,7 @@ const ScrollToTopButton = () => {
         background: 'linear-gradient(135deg, ' + PC.navy + ', ' + PC.navyLight + ')',
         color: 'white',
         cursor: 'pointer',
-        boxShadow: '0 4px 16px rgba(27,42,74,0.35)',
+        boxShadow: '0 4px 16px rgba(11,46,115,0.35)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -7025,7 +7023,7 @@ const AdvancedSearchBar = ({
               icon =
                 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z M7 7h.01';
               label = '#Etiket';
-              color = '#0D9488';
+              color = '#2F6FFF';
             }
             return (
               <div
@@ -7202,7 +7200,7 @@ const ModerationQueuePanel = ({
         <div
           style={{
             padding: '16px 20px',
-            background: 'linear-gradient(135deg, #0F766E 0%, #0F766E 100%)',
+            background: 'linear-gradient(135deg, #105BFF 0%, #105BFF 100%)',
             color: 'white',
             display: 'flex',
             alignItems: 'center',
@@ -7246,7 +7244,7 @@ const ModerationQueuePanel = ({
       <div
         style={{
           padding: '16px 20px',
-          background: 'linear-gradient(135deg, #0F766E 0%, #0F766E 100%)',
+          background: 'linear-gradient(135deg, #105BFF 0%, #105BFF 100%)',
           color: 'white',
           display: 'flex',
           alignItems: 'center',
@@ -7294,7 +7292,7 @@ const ModerationQueuePanel = ({
                 padding: 16,
                 borderRadius: 12,
                 border: '1px solid ' + PC.border,
-                background: '#F0FDFA',
+                background: '#EEF3FF',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -7504,7 +7502,7 @@ const ModeratorPanel = ({ moderators, onAdd, onRemove }) => {
       <div
         style={{
           padding: '16px 20px',
-          background: 'linear-gradient(135deg, #1B2A4A 0%, #2D4A7A 100%)',
+          background: 'linear-gradient(135deg, #0B2E73 0%, #1D4FC4 100%)',
           color: 'white',
           display: 'flex',
           alignItems: 'center',
@@ -7730,7 +7728,7 @@ const ModeratorPanel = ({ moderators, onAdd, onRemove }) => {
                       fontFamily: 'inherit',
                     }}
                     onMouseEnter={function (e) {
-                      e.currentTarget.style.background = '#F8FAFC';
+                      e.currentTarget.style.background = '#F7F7F7';
                     }}
                     onMouseLeave={function (e) {
                       e.currentTarget.style.background = 'transparent';
@@ -8548,7 +8546,7 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
-                  boxShadow: '0 4px 16px rgba(27,42,74,0.25)',
+                  boxShadow: '0 4px 16px rgba(11,46,115,0.25)',
                   transition: 'all 0.2s',
                 }}
               >
@@ -8611,7 +8609,7 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
             marginBottom: 24,
           }}
         >
-          <StatCard label="Toplam Gönderi" value={posts.length} color="#0F766E" icon="file" />
+          <StatCard label="Toplam Gönderi" value={posts.length} color="#105BFF" icon="file" />
           <StatCard label="Tepkiler" value={totalReactions} color="#DC2626" icon="heart" />
           <StatCard label="Yorumlar" value={totalComments} color="#059669" icon="chat" />
           <StatCard
@@ -8808,13 +8806,13 @@ function OgrenciPortaliApp({ currentUser, activeDepartment }) {
                   gap: 6,
                   padding: '6px 14px',
                   borderRadius: 20,
-                  background: isCourseCode(tagFilter.replace(/^#/, '')) ? DY.goldLight : '#CCFBF1',
+                  background: isCourseCode(tagFilter.replace(/^#/, '')) ? DY.goldLight : '#DCE7FF',
                   border:
                     '1px solid ' +
-                    (isCourseCode(tagFilter.replace(/^#/, '')) ? DY.gold : '#0D9488'),
+                    (isCourseCode(tagFilter.replace(/^#/, '')) ? DY.gold : '#2F6FFF'),
                   fontSize: 12,
                   fontWeight: 600,
-                  color: isCourseCode(tagFilter.replace(/^#/, '')) ? DY.goldDark : '#0F766E',
+                  color: isCourseCode(tagFilter.replace(/^#/, '')) ? DY.goldDark : '#105BFF',
                   alignSelf: isMobile ? 'flex-start' : 'center',
                 }}
               >

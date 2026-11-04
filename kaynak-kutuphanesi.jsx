@@ -7,22 +7,22 @@ const { useState, useEffect, useRef, useCallback: _useCallback, useMemo } = Reac
 
 // ── Renkler ──
 const KTB = {
-  primary: '#0F766E',
-  primaryLight: '#14B8A6',
-  primaryPale: '#F0FDFA',
+  primary: '#105BFF',
+  primaryLight: '#4D84FF',
+  primaryPale: '#EEF3FF',
   green: '#059669',
   greenLight: '#d1fae5',
   red: '#dc2626',
   redLight: '#fee2e2',
-  blue: '#0f766e',
-  blueLight: '#ccfbf1',
+  blue: '#105BFF',
+  blueLight: '#DCE7FF',
   purple: '#7c3aed',
   purpleLight: '#ede9fe',
   bg: '#fffbeb',
   card: '#ffffff',
-  text: '#1e293b',
-  textMuted: '#64748b',
-  border: '#e2e8f0',
+  text: '#1F2329',
+  textMuted: '#5F6368',
+  border: '#E2E2E2',
 };
 
 const RESOURCE_CATEGORIES = [
@@ -31,7 +31,7 @@ const RESOURCE_CATEGORIES = [
     label: 'Ders Notları',
     icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
     color: '#3b82f6',
-    bg: '#ccfbf1',
+    bg: '#DCE7FF',
   },
   {
     key: 'sinav-sorusu',
@@ -65,24 +65,24 @@ const RESOURCE_CATEGORIES = [
     key: 'diger',
     label: 'Diğer',
     icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4',
-    color: '#64748b',
-    bg: '#f1f5f9',
+    color: '#5F6368',
+    bg: '#EDEDED',
   },
 ];
 
 const FILE_TYPE_ICONS = {
   pdf: { color: '#dc2626', label: 'PDF' },
-  doc: { color: '#0f766e', label: 'DOC' },
-  docx: { color: '#0f766e', label: 'DOCX' },
+  doc: { color: '#105BFF', label: 'DOC' },
+  docx: { color: '#105BFF', label: 'DOCX' },
   ppt: { color: '#ea580c', label: 'PPT' },
   pptx: { color: '#ea580c', label: 'PPTX' },
   xls: { color: '#059669', label: 'XLS' },
   xlsx: { color: '#059669', label: 'XLSX' },
-  zip: { color: '#64748b', label: 'ZIP' },
-  rar: { color: '#64748b', label: 'RAR' },
+  zip: { color: '#5F6368', label: 'ZIP' },
+  rar: { color: '#5F6368', label: 'RAR' },
   jpg: { color: '#8b5cf6', label: 'JPG' },
   png: { color: '#8b5cf6', label: 'PNG' },
-  txt: { color: '#334155', label: 'TXT' },
+  txt: { color: '#363A42', label: 'TXT' },
 };
 
 // ── SVG Icon Helper ──
@@ -315,9 +315,9 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
   }, [resources]);
 
   const getFileTypeInfo = (fileName) => {
-    if (!fileName) return { color: '#64748b', label: 'FILE' };
+    if (!fileName) return { color: '#5F6368', label: 'FILE' };
     const ext = fileName.split('.').pop().toLowerCase();
-    return FILE_TYPE_ICONS[ext] || { color: '#64748b', label: ext.toUpperCase() };
+    return FILE_TYPE_ICONS[ext] || { color: '#5F6368', label: ext.toUpperCase() };
   };
 
   const getCategoryInfo = (catKey) =>
@@ -409,7 +409,7 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
                 outline: 'none',
               }}
             />
-            <KtbIcon path={KTB_ICONS.search} size={16} color="#94a3b8" />
+            <KtbIcon path={KTB_ICONS.search} size={16} color="#80858E" />
           </div>
           <select
             value={sortBy}
@@ -473,7 +473,7 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
                 <span
                   style={{
                     fontSize: 11,
-                    background: '#f1f5f9',
+                    background: '#EDEDED',
                     padding: '2px 8px',
                     borderRadius: 10,
                   }}
@@ -499,7 +499,7 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
                     transition: 'all 0.15s',
                   }}
                   onMouseEnter={(e) => {
-                    if (selectedCategory !== cat.key) e.currentTarget.style.background = '#f8fafc';
+                    if (selectedCategory !== cat.key) e.currentTarget.style.background = '#F7F7F7';
                   }}
                   onMouseLeave={(e) => {
                     if (selectedCategory !== cat.key) e.currentTarget.style.background = 'white';
@@ -513,7 +513,7 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
                     style={{
                       fontSize: 11,
                       background:
-                        selectedCategory === cat.key ? 'rgba(255,255,255,0.6)' : '#f1f5f9',
+                        selectedCategory === cat.key ? 'rgba(255,255,255,0.6)' : '#EDEDED',
                       padding: '2px 8px',
                       borderRadius: 10,
                     }}
@@ -541,11 +541,11 @@ function KaynakKutuphanesiApp({ currentUser, activeDepartment }) {
                   border: `1px solid ${KTB.border}`,
                 }}
               >
-                <KtbIcon path={KTB_ICONS.folder} size={48} color="#cbd5e1" />
+                <KtbIcon path={KTB_ICONS.folder} size={48} color="#CFCFCF" />
                 <h3 style={{ color: KTB.textMuted, marginTop: 16 }}>
                   {searchQuery ? 'Sonuç bulunamadı' : 'Bu kategoride kaynak yok'}
                 </h3>
-                <p style={{ color: '#94a3b8', fontSize: 14, marginTop: 8 }}>
+                <p style={{ color: '#80858E', fontSize: 14, marginTop: 8 }}>
                   İlk kaynağı siz paylaşın!
                 </p>
               </div>
@@ -630,7 +630,7 @@ function ResourceCard({
             style={{
               cursor: interactive ? 'pointer' : 'default',
               fontSize: 16,
-              color: star <= (hoverRating || userRating || rating) ? '#d97706' : '#cbd5e1',
+              color: star <= (hoverRating || userRating || rating) ? '#d97706' : '#CFCFCF',
               transition: 'color 0.15s',
             }}
           >
@@ -725,7 +725,7 @@ function ResourceCard({
               {resource.courseCode && (
                 <span
                   style={{
-                    background: '#f1f5f9',
+                    background: '#EDEDED',
                     padding: '2px 8px',
                     borderRadius: 4,
                     fontWeight: 600,
@@ -926,7 +926,7 @@ function UploadResourceModal({ onClose, onUpload, categories }) {
               padding: 24,
               textAlign: 'center',
               cursor: 'pointer',
-              background: fileName ? KTB.greenLight : '#f8fafc',
+              background: fileName ? KTB.greenLight : '#F7F7F7',
               transition: 'all 0.2s',
             }}
           >
@@ -940,11 +940,11 @@ function UploadResourceModal({ onClose, onUpload, categories }) {
               </div>
             ) : (
               <div>
-                <KtbIcon path={KTB_ICONS.upload} size={32} color="#94a3b8" />
+                <KtbIcon path={KTB_ICONS.upload} size={32} color="#80858E" />
                 <div style={{ fontSize: 14, color: KTB.textMuted, marginTop: 8 }}>
                   Dosya seçmek için tıklayın
                 </div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: '#80858E', marginTop: 4 }}>
                   PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, ZIP, vb.
                 </div>
               </div>
