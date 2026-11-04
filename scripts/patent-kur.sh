@@ -178,7 +178,7 @@ echo "▸ nginx yeniden yüklendi (önceki ayar: $SITE_YEDEK)."
 # hem de "include etkin blokta değil, Offline Asistan sayfası döndü" (HTML)
 # demek olabilir. İstek gerçek alan adıyla (SNI dahil) yerel nginx'e yapılır.
 ALAN="${PATENT_ALAN:-$(grep -oE 'server_name [^;]+' "$NGINX_SITE" | head -1 | awk '{print $2}')}"
-if ! grep -rqsF "$INCLUDE_SATIRI" /etc/nginx/sites-enabled/; then
+if ! grep -RqsF "$INCLUDE_SATIRI" /etc/nginx/sites-enabled/; then
   echo "⚠ /etc/nginx/sites-enabled/ altındaki hiçbir dosyada '$INCLUDE_SATIRI' yok." >&2
   echo "  Etkin site dosyası $NGINX_SITE değil olabilir:" >&2
   ls -l /etc/nginx/sites-enabled/ >&2
