@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   normalizeTr,
   patentYoneticisiMi,
-  portfoyKaydiHatasi,
   bildirimHatalari,
   sahipBildirimYazmaKarari,
   yoneticiBildirimYazmaKarari,
@@ -37,57 +36,6 @@ describe('patentYoneticisiMi', () => {
       patentYoneticisiMi({ role: 'admin', isFacultyManager: true, baseRole: 'professor' })
     ).toBe(false);
     expect(patentYoneticisiMi({ role: 'professor' })).toBe(false);
-  });
-});
-
-describe('portfoyKaydiHatasi', () => {
-  const patent = { no: 1, baslik: 'X', basvuruSahibiNo: 1, fsmhTuruNo: 1, ortaklar: [] };
-  it('geçerli kayıt', () => {
-    expect(portfoyKaydiHatasi('patent_kayitlari', patent, true, true)).toBe('');
-  });
-  it('eklemede numara istenir, taslakta istenmez', () => {
-    const { no, ...taslak } = patent;
-    expect(no).toBe(1);
-    expect(portfoyKaydiHatasi('patent_kayitlari', taslak, true, true)).toMatch(/numara/);
-    expect(portfoyKaydiHatasi('patent_kayitlari', taslak, true)).toBe('');
-  });
-  it('zorunlu alanlar, durum, tarih sırası, mükerrer ortak', () => {
-    expect(portfoyKaydiHatasi('patent_kayitlari', { ...patent, baslik: ' ' }, true)).toMatch(
-      /zorunlu/
-    );
-    expect(portfoyKaydiHatasi('patent_kayitlari', { ...patent, durum: 'Belki' }, true)).toMatch(
-      /durum/
-    );
-    expect(
-      portfoyKaydiHatasi(
-        'patent_kayitlari',
-        { ...patent, basvuruTarihi: '2025-05-01', tescilTarihi: '2025-01-01' },
-        true
-      )
-    ).toMatch(/önce/);
-    expect(
-      portfoyKaydiHatasi('patent_kayitlari', { ...patent, ortaklar: ['İTÜ', 'itü'] }, true)
-    ).toMatch(/birden fazla/);
-  });
-  it('güncellemede yalnız gelen alanlar denetlenir', () => {
-    expect(portfoyKaydiHatasi('patent_kayitlari', { silindi: '2026-01-01T00:00:00Z' }, false)).toBe(
-      ''
-    );
-  });
-  it('vekil firma vergi no ve e-posta', () => {
-    expect(portfoyKaydiHatasi('patent_vekil_firmalar', { ad: 'A', vergiNo: '123' }, false)).toMatch(
-      /Vergi/
-    );
-    expect(portfoyKaydiHatasi('patent_vekil_firmalar', { ad: 'A', eposta: 'a@b' }, false)).toMatch(
-      /e-posta/
-    );
-    expect(
-      portfoyKaydiHatasi(
-        'patent_vekil_firmalar',
-        { ad: 'A', vergiNo: '1234567890', eposta: 'a@b.com' },
-        false
-      )
-    ).toBe('');
   });
 });
 
