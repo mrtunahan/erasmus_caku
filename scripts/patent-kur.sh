@@ -173,9 +173,40 @@ fi
 systemctl reload nginx
 echo "▸ nginx yeniden yüklendi (önceki ayar: $SITE_YEDEK)."
 
-# ── Denetim ──
-DURUM="$(curl -s -o /dev/null -w '%{http_code}' -k "https://127.0.0.1/patent/api/health" \
-  -H "Host: $(grep -m1 -oE 'server_name [^ ;]+' "$NGINX_SITE" | awk '{print $2}')" || true)"
+# ── Denetim: oturumsuz istek yetki kapısına TAKILMALI ──
+# Yalnız durum kodu yetmez: 200 hem "kapı çalışmıyor, uygulama açık" (JSON)
+# hem de "include etkin blokta değil, Offline Asistan sayfası döndü" (HTML)
+# demek olabilir. İstek gerçek alan adıyla (SNI dahil) yerel nginx'e yapılır.
+ALAN="${PATENT_ALAN:-$(grep -oE 'server_name [^;]+' "$NGINX_SITE" | head -1 | awk '{print $2}')}"
+if ! grep -rqsF "$INCLUDE_SATIRI" /etc/nginx/sites-enabled/; then
+  echo "⚠ /etc/nginx/sites-enabled/ altındaki hiçbir dosyada '$INCLUDE_SATIRI' yok." >&2
+  echo "  Etkin site dosyası $NGINX_SITE değil olabilir:" >&2
+  ls -l /etc/nginx/sites-enabled/ >&2
+fi
+GOVDE="$(mktemp)"
+SONUC="$(curl -s -o "$GOVDE" -w '%{http_code} %{content_type}' --max-time 15 \
+  --resolve "$ALAN:443:127.0.0.1" "https://$ALAN/patent/api/health" || true)"
+KOD="${SONUC%% *}"
+TUR="${SONUC#* }"
 echo
-echo "▸ Oturumsuz /patent/ isteği: HTTP $DURUM (beklenen 401 — yetki kapısı devrede)"
-echo "✔ Patent & FSMH Takibi hazır. Modülde \"Patent & FSMH Takibi →\" ile açılır."
+echo "▸ Oturumsuz https://$ALAN/patent/api/health → HTTP $KOD ($TUR)"
+case "$KOD" in
+  401 | 403)
+    rm -f "$GOVDE"
+    echo "✔ Yetki kapısı devrede. Patent & FSMH Takibi hazır; modülde \"Patent & FSMH Takibi →\" ile açılır."
+    ;;
+  200)
+    if grep -q '"status"' "$GOVDE"; then
+      rm -f "$GOVDE"
+      # Uygulama oturumsuz erişime AÇIK: güvenli tarafta kal.
+      pm2 stop "$PM2_AD" >/dev/null 2>&1 || true
+      dur "Yetki kapısı ÇALIŞMIYOR: oturumsuz istek uygulamaya ulaştı. Güvenlik için '$PM2_AD' durduruldu. Offline Asistan'ın /api/patent/yetki ucunu denetleyin: curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/api/patent/yetki (401 olmalı)."
+    fi
+    rm -f "$GOVDE"
+    dur "/patent/ isteği Offline Asistan'ın kendi sayfasına düştü: include satırı siteyi sunan HTTPS server bloğunda değil. '$INCLUDE_SATIRI' satırını '$ALAN' için 443'ü dinleyen server bloğuna elle ekleyin, sonra: nginx -t && systemctl reload nginx (yedek: $SITE_YEDEK)."
+    ;;
+  *)
+    rm -f "$GOVDE"
+    dur "Beklenmeyen yanıt (HTTP $KOD). Denetleyin: curl -sI https://$ALAN/patent/ ve nginx günlüğü (/var/log/nginx/error.log)."
+    ;;
+esac
