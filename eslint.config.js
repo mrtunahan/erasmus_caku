@@ -154,7 +154,7 @@ export default [
   // TTO Otomasyonu ekranları (tto-otomasyon/): veri katmanı tarayıcıda çalışır,
   // Tailwind yapılandırması Node'da (CommonJS).
   {
-    files: ['tto-otomasyon/**/*.js'],
+    files: ['tto-otomasyon/**/*.js', 'patent-otomasyon/**/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -162,7 +162,7 @@ export default [
     },
   },
   {
-    files: ['tto-otomasyon/**/*.cjs'],
+    files: ['tto-otomasyon/**/*.cjs', 'patent-otomasyon/**/*.cjs'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'commonjs',

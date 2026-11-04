@@ -205,6 +205,10 @@ window.__lazyModules = {
     loader: () => import('./tto-modulu.jsx'),
     component: 'TtoApp',
   },
+  patent: {
+    loader: () => import('./patent-modulu.jsx'),
+    component: 'PatentApp',
+  },
 };
 
 // ── Phase 3: App Shell (routing & navigation) ──

@@ -40,6 +40,7 @@ const BAYRAKLAR = [
   'isDeptManager',
   'isStajCoordinator',
   'isTtoYoneticisi',
+  'isPatentYoneticisi',
   'isMemur',
   'external',
 ];

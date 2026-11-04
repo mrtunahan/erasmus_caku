@@ -548,6 +548,8 @@ async function fetchProfessorProfile(professorName) {
       isStajCoordinator: !!doc.isStajCoordinator,
       // TTO yöneticisi — TTO birimine kayıtlı akademisyen (server/lib/tto-birim.js).
       isTtoYoneticisi: ttoYoneticisi,
+      // Patent & FSMH yöneticisi — üniversite yetkilisinin atadığı bayrak.
+      isPatentYoneticisi: !!doc.isPatentYoneticisi,
       // Memur rolü — akademisyenden sayılmaz; yalnız atandığı modüllere erişir.
       isMemur: !!doc.isMemur,
       memurModules: Array.isArray(doc.memurModules) ? doc.memurModules : [],
