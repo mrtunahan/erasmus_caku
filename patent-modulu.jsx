@@ -611,10 +611,32 @@ function Bilgi({ label, children, genis }) {
   );
 }
 
-function IncelemePaneli({ b, onDegisti, onPortfoydeAc }) {
+function IncelemePaneli({ b, onDegisti, onPortfoydeAc, onSilindi }) {
   const [not, setNot] = useState(b.yoneticiNotu || '');
   const [mesgul, setMesgul] = useState('');
   const [mesaj, setMesaj] = useState(null);
+  // Yönetici bildirimi her durumda silebilir (portföye alınmış olanlar dahil).
+  // Silinen yalnız bildirimdir; Patent & FSMH Takibi'ndeki kayıt ayrı
+  // uygulamada kalır — onay penceresi bunu açıkça söyler.
+  const sil = async () => {
+    const uyari =
+      b.durum === 'kabul'
+        ? 'Bu buluş bildirimi silinsin mi?\n\nPortföydeki kayıt' +
+          (b.patentNo ? ' (No ' + b.patentNo + ')' : '') +
+          " SİLİNMEZ; gerekiyorsa Patent & FSMH Takibi'nden ayrıca silin." +
+          '\n\nBildirimin sahibine silindiği bildirilir.'
+        : 'Bu buluş bildirimi silinsin mi? Bildirimin sahibine silindiği bildirilir.';
+    if (!window.confirm(uyari)) return;
+    setMesgul('sil');
+    setMesaj(null);
+    try {
+      await window.DBWrite.remove('patent_bildirimleri', String(b.id));
+      await onSilindi();
+    } catch (e) {
+      setMesaj({ tur: 'hata', metin: 'Silinemedi: ' + ((e && e.message) || '') });
+      setMesgul('');
+    }
+  };
   const karar = async (durum) => {
     if ((durum === 'ret' || durum === 'iade') && !metin(not)) {
       setMesaj({
@@ -699,12 +721,20 @@ function IncelemePaneli({ b, onDegisti, onPortfoydeAc }) {
         />
         <Eylemler
           sol={
-            b.durum === 'kabul' &&
-            b.patentNo && (
-              <button style={dugme('vurgu')} onClick={() => onPortfoydeAc(b.patentNo)}>
-                Portföyde aç →
+            <>
+              <button
+                style={{ ...dugme('tehlike'), ...(mesgul ? pasif : {}) }}
+                disabled={!!mesgul}
+                onClick={sil}
+              >
+                {mesgul === 'sil' ? 'Siliniyor…' : 'Bildirimi sil'}
               </button>
-            )
+              {b.durum === 'kabul' && b.patentNo && (
+                <button style={dugme('vurgu')} onClick={() => onPortfoydeAc(b.patentNo)}>
+                  Portföyde aç →
+                </button>
+              )}
+            </>
           }
         >
           {karariBekliyor && (
@@ -1028,6 +1058,11 @@ function PatentApp({ currentUser }) {
             b={incelenen}
             onDegisti={incelemeDegisti}
             onPortfoydeAc={(no) => takibiAc('patents/' + no)}
+            onSilindi={async () => {
+              setIncelenen(null);
+              setSekme('gelen');
+              await yukle();
+            }}
           />
         </div>
       )}
