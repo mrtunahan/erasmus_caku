@@ -33,7 +33,7 @@ import {
 import { mezuniyetHesapla, mezKuralNormalize } from './lib/mezuniyet.js';
 import { mezuniyetFormunuDoldur, bolumBasligi } from './lib/mezuniyet-form-doldur.js';
 
-const { useState, useEffect, useMemo, useCallback, useRef } = React;
+const { useState, useEffect, useMemo, useCallback } = React;
 
 const R = {
   navy: '#0B2E73',
@@ -261,17 +261,44 @@ export async function dilekceUret(basvuru, kurumFormu) {
     try {
       const r = await fetch(kurumFormu.url, { credentials: 'include', headers: yetkiBasligi() });
       if (!r.ok) throw new Error('form indirilemedi (HTTP ' + r.status + ')');
-      if (window.ensureDocxPreview) await window.ensureDocxPreview();
-      if (!window.JSZip) throw new Error('Word okuyucu yüklenemedi');
+      // Word dosyası (zip) tarayıcıda açılır; sistemin geri kalanıyla aynı JSZip.
+      if (!window.JSZip) {
+        await new Promise((tamam, hata) => {
+          const sc = document.createElement('script');
+          sc.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+          sc.onload = tamam;
+          sc.onerror = () => hata(new Error('Word okuyucu yüklenemedi'));
+          document.head.appendChild(sc);
+        });
+      }
       const zip = await window.JSZip.loadAsync(await r.arrayBuffer());
       const dosya = zip.file('word/document.xml');
       if (!dosya) throw new Error('Word belgesi okunamadı');
       const s = mezuniyetFormunuDoldur(await dosya.async('string'), v);
       zip.file('word/document.xml', s.xml);
-      const blob = await zip.generateAsync({
+      const docx = await zip.generateAsync({
         type: 'blob',
         mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       });
+      // Dilekçe YALNIZ salt okunur PDF olarak çıkar: sunucu (LibreOffice)
+      // düzenleme ve kopyalama izni kapalı PDF üretir. Word inmez.
+      const y = await fetch('/api/files/docx-pdf?saltOkunur=1', {
+        method: 'POST',
+        credentials: 'include',
+        headers: Object.assign(
+          {
+            'Content-Type':
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          },
+          yetkiBasligi()
+        ),
+        body: docx,
+      });
+      if (!y.ok) {
+        const j = await y.json().catch(() => ({}));
+        throw new Error(j.error || 'sunucu PDF üretemedi (HTTP ' + y.status + ')');
+      }
+      const blob = await y.blob();
       if (s.bulunamayan.length) {
         uyarilar.push(
           'Formda şu alanların yeri bulunamadı, çıktıda elle doldurun: ' +
@@ -289,7 +316,7 @@ export async function dilekceUret(basvuru, kurumFormu) {
             '.'
         );
       }
-      return { blob, ad: ad + '.docx', tur: 'docx', kaynak: 'form', uyarilar };
+      return { blob, ad: ad + '.pdf', tur: 'pdf', kaynak: 'form', uyarilar };
     } catch (e) {
       uyarilar.push(
         'Kurumun formu doldurulamadı (' +
@@ -318,8 +345,24 @@ export async function dilekceUret(basvuru, kurumFormu) {
     fontNormal: fN,
     fontKalin: fK,
   });
+  // Yerleşik PDF de salt okunur iner: sunucu düzenleme iznini kapatır.
+  // Kilitlenemezse dilekçe verilmez — düzenlenebilir belge çıkmasın.
+  const k = await fetch('/api/files/pdf-kilitle', {
+    method: 'POST',
+    credentials: 'include',
+    headers: Object.assign({ 'Content-Type': 'application/pdf' }, yetkiBasligi()),
+    body: new Blob([bayt], { type: 'application/pdf' }),
+  });
+  if (!k.ok) {
+    const j = await k.json().catch(() => ({}));
+    throw new Error(
+      'Dilekçe salt okunur PDF olarak hazırlanamadı' +
+        (j.error ? ' (' + j.error + ')' : '') +
+        '. Bölüm sekreterliğine ya da sistem yöneticisine bildirin.'
+    );
+  }
   return {
-    blob: new Blob([bayt], { type: 'application/pdf' }),
+    blob: await k.blob(),
     ad: ad + '.pdf',
     tur: 'pdf',
     kaynak: 'yerlesik',
@@ -327,63 +370,20 @@ export async function dilekceUret(basvuru, kurumFormu) {
   };
 }
 
-/** Önizleme penceresi: belge indirilmeden önce gösterilir. */
+/** Önizleme penceresi: inecek PDF'in KENDİSİ gösterilir, sonra indirilir. */
 function DilekceOnizleme({ sonuc, onKapat }) {
-  const kap = useRef(null);
-  const [hata, setHata] = useState('');
   const [pdfUrl, setPdfUrl] = useState('');
-  const [cevriliyor, setCevriliyor] = useState(false);
 
   useEffect(() => {
-    let url = '';
-    if (sonuc.tur === 'pdf') {
-      url = URL.createObjectURL(sonuc.blob);
-      setPdfUrl(url);
-    } else if (window.ensureDocxPreview) {
-      window
-        .ensureDocxPreview()
-        .then((d) =>
-          d.renderAsync(sonuc.blob, kap.current, null, {
-            inWrapper: true,
-            ignoreLastRenderedPageBreak: true,
-          })
-        )
-        .catch((e) =>
-          setHata('Önizleme gösterilemedi: ' + ((e && e.message) || 'görüntüleyici yüklenemedi'))
-        );
-    }
+    const url = URL.createObjectURL(sonuc.blob);
+    setPdfUrl(url);
     const once = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = once;
-      if (url) URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
     };
   }, [sonuc]);
-
-  const pdfIndir = async () => {
-    setCevriliyor(true);
-    setHata('');
-    try {
-      const y = await fetch('/api/files/docx-pdf', {
-        method: 'POST',
-        credentials: 'include',
-        headers: Object.assign(
-          {
-            'Content-Type':
-              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          },
-          yetkiBasligi()
-        ),
-        body: sonuc.blob,
-      });
-      if (!y.ok) throw new Error('sunucu PDF’e çeviremedi (HTTP ' + y.status + ')');
-      blobIndir(await y.blob(), sonuc.ad.replace(/\.docx$/i, '.pdf'));
-    } catch (e) {
-      setHata(e.message + ' — Word olarak indirip Word’de “PDF olarak kaydet” deyin.');
-    } finally {
-      setCevriliyor(false);
-    }
-  };
 
   return (
     <div
@@ -420,30 +420,25 @@ function DilekceOnizleme({ sonuc, onKapat }) {
         >
           <b style={{ fontSize: 15, color: R.navy, flex: 1 }}>Dilekçe önizlemesi</b>
           <span style={{ fontSize: 12, color: R.soluk }}>
-            {sonuc.kaynak === 'form' ? 'Kurumun formu (Formlar)' : 'Yerleşik dilekçe'}
+            {sonuc.kaynak === 'form' ? 'Kurumun formu · salt okunur PDF' : 'Yerleşik dilekçe · PDF'}
           </span>
         </div>
-        {(sonuc.uyarilar.length > 0 || hata) && (
+        {sonuc.uyarilar.length > 0 && (
           <div style={{ padding: '10px 18px 0' }}>
             {sonuc.uyarilar.map((u) => (
               <BilgiKutusu key={u} tur="uyari">
                 {u}
               </BilgiKutusu>
             ))}
-            {hata && <BilgiKutusu tur="hata">{hata}</BilgiKutusu>}
           </div>
         )}
         <div style={{ flex: 1, overflow: 'auto', background: '#E5E7EB', minHeight: 320 }}>
-          {sonuc.tur === 'pdf' ? (
-            pdfUrl && (
-              <iframe
-                title="Dilekçe önizlemesi"
-                src={pdfUrl}
-                style={{ width: '100%', height: '75vh', border: 0 }}
-              />
-            )
-          ) : (
-            <div ref={kap} />
+          {pdfUrl && (
+            <iframe
+              title="Dilekçe önizlemesi"
+              src={pdfUrl}
+              style={{ width: '100%', height: '75vh', border: 0 }}
+            />
           )}
         </div>
         <div
@@ -459,22 +454,12 @@ function DilekceOnizleme({ sonuc, onKapat }) {
           <button type="button" onClick={onKapat} style={dugme('ikincil')}>
             Kapat
           </button>
-          {sonuc.tur === 'docx' && (
-            <button
-              type="button"
-              onClick={pdfIndir}
-              disabled={cevriliyor}
-              style={dugme('ikincil', cevriliyor)}
-            >
-              {cevriliyor ? 'Çevriliyor…' : 'PDF olarak indir'}
-            </button>
-          )}
           <button
             type="button"
             onClick={() => blobIndir(sonuc.blob, sonuc.ad)}
             style={dugme('birincil')}
           >
-            {sonuc.tur === 'docx' ? 'Word olarak indir' : 'İndir'}
+            PDF olarak indir
           </button>
         </div>
       </div>

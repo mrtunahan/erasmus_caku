@@ -51,10 +51,35 @@ function birak() {
 }
 
 /**
+ * PDF dışa aktarım süzgeci. `saltOkunur`: belge parolasız açılır ve
+ * yazdırılır, ama DÜZENLEME ve metin kopyalama kapalıdır (izin parolası
+ * rastgeledir, hiçbir yerde saklanmaz). LibreOffice 7.4+ JSON seçenekleri.
+ */
+function disaAktarimSuzgeci(saltOkunur, filtre) {
+  const f = filtre || 'writer_pdf_Export';
+  if (!saltOkunur) return 'pdf:' + f;
+  const s = (tur, deger) => ({ type: tur, value: String(deger) });
+  return (
+    'pdf:' +
+    f +
+    ':' +
+    JSON.stringify({
+      RestrictPermissions: s('boolean', true),
+      PermissionPassword: s('string', crypto.randomBytes(18).toString('hex')),
+      Changes: s('long', 0), // değişiklik yok
+      EnableCopyingOfContent: s('boolean', false),
+      Printing: s('long', 2), // yüksek çözünürlükte yazdırma serbest
+    })
+  );
+}
+
+/**
  * @param {Buffer} docx
+ * @param {{saltOkunur?: boolean}} [secenek]
  * @returns {Promise<Buffer>} PDF baytları
  */
-async function docxPdfCevir(docx) {
+async function docxPdfCevir(docx, secenek) {
+  const saltOkunur = !!(secenek && secenek.saltOkunur);
   if (!Buffer.isBuffer(docx) || docx.length < 4 || docx.slice(0, 2).toString() !== 'PK') {
     throw Object.assign(new Error('Geçerli bir .docx dosyası değil.'), { durum: 400 });
   }
@@ -74,7 +99,7 @@ async function docxPdfCevir(docx) {
           '--headless',
           '--norestore',
           '--convert-to',
-          'pdf:writer_pdf_Export',
+          disaAktarimSuzgeci(saltOkunur),
           '--outdir',
           kok,
           giris,
@@ -95,11 +120,80 @@ async function docxPdfCevir(docx) {
         { durum: 501 }
       );
     }
-    return fs.readFileSync(cikis);
+    const pdf = fs.readFileSync(cikis);
+    // Eski LibreOffice JSON seçeneklerini sessizce yok sayar: salt okunur
+    // istenip şifresiz PDF çıktıysa bu, istenen belge DEĞİLDİR.
+    if (saltOkunur && pdf.indexOf('/Encrypt') < 0) {
+      throw Object.assign(
+        new Error('Sunucudaki LibreOffice salt okunur PDF üretemiyor (7.4 ya da üstü gerekir).'),
+        { durum: 501 }
+      );
+    }
+    return pdf;
   } finally {
     birak();
     fs.rm(kok, { recursive: true, force: true }, () => {});
   }
 }
 
-module.exports = { kullanilabilir, docxPdfCevir };
+/**
+ * Hazır bir PDF'i salt okunur hâle getirir (düzenleme/kopyalama kapalı,
+ * parolasız açılır ve yazdırılır). PDF, LibreOffice Draw'a alınıp aynı
+ * izinlerle yeniden dışa aktarılır. Tarayıcıda üretilen yerleşik mezuniyet
+ * dilekçesi için (pdf-lib şifreleme yapamıyor).
+ * @param {Buffer} pdf
+ * @returns {Promise<Buffer>}
+ */
+async function pdfKilitle(pdf) {
+  if (!Buffer.isBuffer(pdf) || pdf.slice(0, 4).toString() !== '%PDF') {
+    throw Object.assign(new Error('Geçerli bir PDF dosyası değil.'), { durum: 400 });
+  }
+  await sira();
+  const kok = fs.mkdtempSync(path.join(os.tmpdir(), 'pdf-kilit-'));
+  try {
+    const cikisKlasoru = path.join(kok, 'cikis');
+    fs.mkdirSync(cikisKlasoru);
+    const giris = path.join(kok, 'belge.pdf');
+    fs.writeFileSync(giris, pdf);
+    const profil = 'file://' + path.join(kok, 'profil-' + crypto.randomBytes(4).toString('hex'));
+    await new Promise((coz, red) => {
+      execFile(
+        SOFFICE,
+        [
+          '-env:UserInstallation=' + profil,
+          '--headless',
+          '--norestore',
+          '--infilter=draw_pdf_import',
+          '--convert-to',
+          disaAktarimSuzgeci(true, 'draw_pdf_Export'),
+          '--outdir',
+          cikisKlasoru,
+          giris,
+        ],
+        { timeout: ZAMAN_ASIMI_MS },
+        (hata, _c, hc) =>
+          hata ? red(new Error('Kilitleme başarısız: ' + (hc || hata.message))) : coz()
+      );
+    });
+    const cikis = path.join(cikisKlasoru, 'belge.pdf');
+    if (!fs.existsSync(cikis)) {
+      throw Object.assign(
+        new Error('LibreOffice Draw kurulu değil (apt install libreoffice-draw-nogui).'),
+        { durum: 501 }
+      );
+    }
+    const sonuc = fs.readFileSync(cikis);
+    if (sonuc.indexOf('/Encrypt') < 0) {
+      throw Object.assign(
+        new Error('Sunucudaki LibreOffice salt okunur PDF üretemiyor (7.4 ya da üstü gerekir).'),
+        { durum: 501 }
+      );
+    }
+    return sonuc;
+  } finally {
+    birak();
+    fs.rm(kok, { recursive: true, force: true }, () => {});
+  }
+}
+
+module.exports = { kullanilabilir, docxPdfCevir, pdfKilitle };
