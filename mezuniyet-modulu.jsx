@@ -31,6 +31,8 @@ import {
   imzaEksikleri,
   silinecekDersleriBirlestir,
   dersAnahtari,
+  silinecekleriTekille,
+  dersGrupAnahtari,
 } from './lib/mezuniyet-basvuru.js';
 import {
   mezuniyetHesapla,
@@ -911,7 +913,7 @@ function NotYaz({ onGonder, yer }) {
 }
 
 function IsaretOzeti({ basvuru }) {
-  const sil = (basvuru && basvuru.silinecekDersler) || [];
+  const sil = silinecekleriTekille(basvuru && basvuru.silinecekDersler);
   const staj = (basvuru && basvuru.eksikStajlar) || [];
   if (!sil.length && !staj.length) return null;
   return (
@@ -1653,8 +1655,8 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
             {silmeBeyani === 'yok' && (basvuru.silinecekDersler || []).length > 0 && (
               <div style={{ marginTop: 10 }}>
                 <BilgiKutusu tur="uyari">
-                  Danışmanınız {basvuru.silinecekDersler.length} dersin silinmesini istedi; ikinci
-                  kutu işaretlenmelidir.
+                  Danışmanınız {silinecekleriTekille(basvuru.silinecekDersler).length} dersin
+                  silinmesini istedi; ikinci kutu işaretlenmelidir.
                 </BilgiKutusu>
               </div>
             )}
@@ -1669,7 +1671,7 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
                   </BilgiKutusu>
                 ) : (
                   <SilinecekTablosu
-                    dersler={basvuru.silinecekDersler}
+                    dersler={silinecekleriTekille(basvuru.silinecekDersler)}
                     ek={silinecekEk}
                     onEk={setSilinecekEk}
                   />
@@ -1786,6 +1788,14 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
     </div>
   );
 }
+
+const DUZ_H = {
+  padding: '7px 9px',
+  fontSize: 12.5,
+  borderBottom: '1px solid #EDEDED',
+  textAlign: 'left',
+  color: R.soluk,
+};
 
 const IZGARA = {
   display: 'grid',
@@ -2025,7 +2035,10 @@ function DanismanDetay({ no, kimlik, onGeri }) {
   const [b, setB] = useState(null);
   const [mesaj, setMesaj] = useState({ tur: '', metin: '' });
   const [calisiyor, setCalisiyor] = useState('');
-  const [secim, setSecim] = useState(new Map()); // anahtar → ders
+  const [secim, setSecim] = useState(new Map()); // satır anahtarı → ders
+  // Dilekçeye gidecek dersin danışmanca düzeltilen yıl/yarıyıl/statüsü
+  // (ders grup anahtarı → alanlar). Okuma hatalarına karşı.
+  const [duzeltme, setDuzeltme] = useState({});
   const [stajlar, setStajlar] = useState([]);
   const [not, setNot] = useState('');
   const { kural, mufredat, hazir } = useBolumVerisi(b && b.departmentId);
@@ -2047,14 +2060,29 @@ function DanismanDetay({ no, kimlik, onGeri }) {
   useEffect(() => {
     if (!sonuc || !b) return;
     const m = new Map();
-    const kayitli = b.silinecekDersler || [];
+    const kayitli = silinecekleriTekille(b.silinecekDersler);
+    const gruplar = new Set(kayitli.map(dersGrupAnahtari));
+    // Bir dersin işaretli olması, o dersin BÜTÜN denemelerinin işaretli
+    // görünmesi demektir; kayda yine tek satır gider.
     sonuc.kayitlar.forEach((r, i) => {
-      const k = metin(r.kod) + '|' + metin(r.ad) + '|' + i;
-      if (kayitli.some((d) => metin(d.kod) === metin(r.kod) && metin(d.ad) === metin(r.ad))) {
-        m.set(k, silinecekDers(r));
+      if (gruplar.has(dersGrupAnahtari(r)) && r.durum !== 'gecti') {
+        m.set(metin(r.kod) + '|' + metin(r.ad) + '|' + i, silinecekDers(r));
       }
     });
     setSecim(m);
+    // Yalnız danışmanın ELLE düzelttiği dersler düzeltme sayılır; aksi hâlde
+    // eski kayıttaki ilk deneme dönemi en son dönemi ezerdi.
+    const d = {};
+    kayitli
+      .filter((x) => x.duzeltildi)
+      .forEach((x) => {
+        d[dersGrupAnahtari(x)] = {
+          yil: metin(x.yil),
+          yariyil: metin(x.yariyil),
+          statu: metin(x.statu),
+        };
+      });
+    setDuzeltme(d);
   }, [sonuc, b && JSON.stringify(b.silinecekDersler || [])]);
 
   // Transkriptte bulunamayan / BŞ olmayan stajlar ilk incelemede eksik
@@ -2073,7 +2101,18 @@ function DanismanDetay({ no, kimlik, onGeri }) {
   const stajSecenekleri = Array.from(
     new Set((mezKuralNormalize(kural).stajlar || []).concat(b.eksikStajlar || []))
   );
-  const silinecekler = Array.from(secim.values());
+  // Her ders bir kez, en son kalınan dönemiyle; danışmanın düzeltmesi üstüne.
+  const silinecekler = silinecekleriTekille(Array.from(secim.values())).map((d) => {
+    const z = duzeltme[dersGrupAnahtari(d)];
+    if (!z) return d;
+    return {
+      ...d,
+      yil: metin(z.yil) || metin(d.yil),
+      yariyil: metin(z.yariyil) || metin(d.yariyil),
+      statu: metin(z.statu) || metin(d.statu),
+      duzeltildi: true,
+    };
+  });
 
   const yaz = async (veri, olay, basariMetni) => {
     setMesaj({ tur: '', metin: '' });
@@ -2266,13 +2305,104 @@ function DanismanDetay({ no, kimlik, onGeri }) {
           secim={secim}
           secimKilitli={!isaretAcik}
           onSecim={(k, r, acik) => {
+            // Ders bir bütün olarak işaretlenir: aynı dersin başarısız bütün
+            // denemeleri birlikte açılır/kapanır.
+            const g = dersGrupAnahtari(r);
             const m = new Map(secim);
-            if (acik) m.set(k, silinecekDers(r));
-            else m.delete(k);
+            sonuc.kayitlar.forEach((x, i) => {
+              if (dersGrupAnahtari(x) !== g) return;
+              const xk = metin(x.kod) + '|' + metin(x.ad) + '|' + i;
+              if (acik && (x.durum !== 'gecti' || xk === k)) m.set(xk, silinecekDers(x));
+              if (!acik) m.delete(xk);
+            });
             setSecim(m);
           }}
         />
       </div>
+
+      {silinecekler.length > 0 && (
+        <div style={KART}>
+          <h3 style={BASLIK}>Dilekçeye gidecek dersler ({silinecekler.length})</h3>
+          <div style={{ fontSize: 12.5, color: R.soluk, marginBottom: 10 }}>
+            Her ders bir kez, en son kalındığı dönemle gider. Dönem ya da statü yanlış okunduysa
+            transkripte bakarak düzeltin.
+          </div>
+          <div style={{ border: '1px solid ' + R.kenar, borderRadius: 10, overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
+              <thead>
+                <tr style={{ background: '#F7F7F7' }}>
+                  {['Dersin kodu ve adı', 'Eğitim-öğretim yılı', 'Yarıyıl', 'AKTS', 'Statüsü'].map(
+                    (t) => (
+                      <th key={t} style={DUZ_H}>
+                        {t}
+                      </th>
+                    )
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {silinecekler.map((d) => {
+                  const g = dersGrupAnahtari(d);
+                  const alan = (ad, ipucu, gen) => (
+                    <input
+                      value={(duzeltme[g] && duzeltme[g][ad]) ?? metin(d[ad])}
+                      placeholder={ipucu}
+                      disabled={!isaretAcik}
+                      onChange={(e) =>
+                        setDuzeltme({
+                          ...duzeltme,
+                          [g]: { ...(duzeltme[g] || {}), [ad]: e.target.value },
+                        })
+                      }
+                      style={{ ...GIRDI, padding: '5px 8px', fontSize: 12.5, width: gen }}
+                    />
+                  );
+                  return (
+                    <tr key={g}>
+                      <td style={{ ...DUZ_H, fontWeight: 600, color: R.metin }}>
+                        {d.kod} {d.ad}
+                      </td>
+                      <td style={DUZ_H}>{alan('yil', 'örn. 2024-2025', 130)}</td>
+                      <td style={DUZ_H}>
+                        <select
+                          value={(duzeltme[g] && duzeltme[g].yariyil) ?? metin(d.yariyil)}
+                          disabled={!isaretAcik}
+                          onChange={(e) =>
+                            setDuzeltme({
+                              ...duzeltme,
+                              [g]: { ...(duzeltme[g] || {}), yariyil: e.target.value },
+                            })
+                          }
+                          style={{ ...GIRDI, padding: '5px 8px', fontSize: 12.5, width: 110 }}
+                        >
+                          {Array.from(
+                            new Set(
+                              ['', 'Güz', 'Bahar', 'Yaz', metin(d.yariyil)].concat(
+                                duzeltme[g] && duzeltme[g].yariyil ? [duzeltme[g].yariyil] : []
+                              )
+                            )
+                          ).map((v) => (
+                            <option key={v} value={v}>
+                              {v || '—'}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td style={{ ...DUZ_H, color: R.metin }}>{d.akts}</td>
+                      <td style={DUZ_H}>{alan('statu', 'Seçmeli', 120)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {isaretAcik && (
+            <div style={{ fontSize: 12, color: R.soluk, marginTop: 8 }}>
+              Düzeltmeler “Onayla” ya da “İşaretleri ve notu kaydet” ile kaydedilir.
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={KART}>
         <h3 style={BASLIK}>Eksik stajlar ve not</h3>
