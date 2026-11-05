@@ -181,6 +181,9 @@ test('öğrenci işaretleri silemez; imzasız gönderemez', async () => {
   assert.equal((await yaz(OGR, '2021001', { durum: 'imzali' })).durum, 403);
   // Tek dilekçe: silinecek dersler mezuniyet dilekçesinin içinde.
   await yaz(OGR, '2021001', { imzaliDilekce: { url: '/api/files/download/mezuniyet/d.pdf' } });
+  // Beyan kutusu işaretlenmeden gönderilemez.
+  assert.equal((await yaz(OGR, '2021001', { durum: 'imzali' })).durum, 403);
+  assert.equal((await yaz(OGR, '2021001', { silmeBeyani: 'var' })).durum, 200);
   assert.equal((await yaz(OGR, '2021001', { durum: 'imzali' })).durum, 200);
 });
 

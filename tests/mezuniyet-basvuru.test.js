@@ -111,7 +111,7 @@ describe('öğrenci yazma kararı', () => {
     expect(
       ogrenciYazmaKarari({
         tur: 'set',
-        mevcut: { ...mevcut, imzaliDilekce: imza },
+        mevcut: { ...mevcut, imzaliDilekce: imza, silmeBeyani: 'var' },
         veri: { durum: 'imzali' },
         numaralar: [NO],
       }).izin
@@ -122,10 +122,13 @@ describe('öğrenci yazma kararı', () => {
     const b = {
       ...form,
       imzaliDilekce: { url: 'u' },
+      silmeBeyani: 'var',
       silinecekDersler: [{ kod: 'BLM101', ad: 'Programlama' }],
     };
     expect(imzaEksikleri(b)).toHaveLength(0);
     expect(imzaEksikleri({ ...b, imzaliDilekce: null })).toHaveLength(1);
+    // Beyan kutularından biri işaretlenmeden gönderilemez.
+    expect(imzaEksikleri({ ...b, silmeBeyani: '' })).toHaveLength(1);
   });
 
   it('gönderilmiş başvuruyu silemez; taslağı silebilir', () => {
@@ -201,7 +204,7 @@ describe('danışman yazma kararı', () => {
     expect(danismanYazmaKarari({ tur: 'set', mevcut: d, veri: { durum: 'memurda' } }).izin).toBe(
       false
     );
-    const i = { ...form, durum: 'imzali', imzaliDilekce: { url: 'u' } };
+    const i = { ...form, durum: 'imzali', imzaliDilekce: { url: 'u' }, silmeBeyani: 'yok' };
     expect(danismanYazmaKarari({ tur: 'set', mevcut: i, veri: { durum: 'memurda' } }).izin).toBe(
       true
     );
