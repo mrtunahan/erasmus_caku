@@ -40,6 +40,22 @@ pm2 restart erasmus_caku                    # çevirici durumu süreç başında
 sessizce boş çıkar ("source file could not be loaded"); Writer bileşeni
 şarttır. Farklı bir yoldaysa: `SOFFICE_YOLU=/opt/libreoffice/program/soffice`.
 
+### Mezuniyet dilekçesi — ZORUNLU
+
+Öğrencinin mezuniyet dilekçesi **yalnız salt okunur PDF** olarak iner
+(düzenleme ve kopyalama kapalı; parolasız açılır ve yazdırılır). Formlar'daki
+Word formu doldurulup `POST /api/files/docx-pdf?saltOkunur=1` ile çevrilir;
+form yoksa tarayıcıda üretilen yerleşik PDF `POST /api/files/pdf-kilitle` ile
+kilitlenir. Burada Word'e düşülmez: çevirici yoksa öğrenci dilekçe
+**indiremez**. Bu yüzden Writer'a ek olarak Draw da kurulmalı ve LibreOffice
+**7.4 ya da üstü** olmalı (izin seçenekleri o sürümde geldi):
+
+```bash
+apt install -y libreoffice-writer-nogui libreoffice-draw-nogui
+soffice --version                           # 7.4+ olmalı
+pm2 restart erasmus_caku
+```
+
 ## nginx: iki tuzak
 
 **1. `sites-enabled/caku-erasmus` bir SYMLINK DEĞİL, ayrı bir kopyadır.**

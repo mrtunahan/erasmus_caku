@@ -955,7 +955,10 @@ router.post(
       if (!(await docxPdf.kullanilabilir())) {
         return res.status(501).json({ error: 'Sunucuda PDF çevirici (LibreOffice) kurulu değil.' });
       }
-      const pdf = await docxPdf.docxPdfCevir(req.body);
+      // ?saltOkunur=1 → düzenleme/kopyalama kapalı PDF (mezuniyet dilekçesi).
+      const pdf = await docxPdf.docxPdfCevir(req.body, {
+        saltOkunur: req.query.saltOkunur === '1',
+      });
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Cache-Control', 'no-store');
       return res.send(pdf);
@@ -964,6 +967,31 @@ router.post(
       return res
         .status(e && e.durum ? e.durum : 500)
         .json({ error: (e && e.message) || 'Çevrilemedi.' });
+    }
+  }
+);
+
+// POST /api/files/pdf-kilitle — hazır PDF'i salt okunur yapar (düzenleme ve
+// kopyalama kapalı). Tarayıcıda üretilen yerleşik mezuniyet dilekçesi için.
+router.post(
+  '/pdf-kilitle',
+  cevirLimiter,
+  requireAuth,
+  express.raw({ type: () => true, limit: '15mb' }),
+  async (req, res) => {
+    try {
+      if (!(await docxPdf.kullanilabilir())) {
+        return res.status(501).json({ error: 'Sunucuda PDF çevirici (LibreOffice) kurulu değil.' });
+      }
+      const pdf = await docxPdf.pdfKilitle(req.body);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(pdf);
+    } catch (e) {
+      console.warn('[pdf-kilitle]', e && e.message);
+      return res
+        .status(e && e.durum ? e.durum : 500)
+        .json({ error: (e && e.message) || 'Kilitlenemedi.' });
     }
   }
 );
