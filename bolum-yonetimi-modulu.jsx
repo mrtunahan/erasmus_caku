@@ -3849,6 +3849,9 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
   // burada duruyor, ayrıştırma alandan çıkışta yapılıyor.
   const [gecerMetin, setGecerMetin] = useState('');
   const [kalirMetin, setKalirMetin] = useState('');
+  // Mezuniyet formunda sarı işaretlenecek notlar ve staj listesi — ham metin.
+  const [uyariNotMetin, setUyariNotMetin] = useState('');
+  const [stajMetin, setStajMetin] = useState('');
 
   useEffect(() => {
     let iptal = false;
@@ -3871,6 +3874,8 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
         // göstermek aynı harfi iki yerde düzenlettirirdi.
         setGecerMetin((Array.isArray(d.gecerNotlar) ? d.gecerNotlar : []).join(', '));
         setKalirMetin((Array.isArray(d.kalirNotlar) ? d.kalirNotlar : []).join(', '));
+        setUyariNotMetin(((k.satirKurallari && k.satirKurallari.uyariNotlari) || []).join(', '));
+        setStajMetin((Array.isArray(k.stajlar) ? k.stajlar : []).join('\n'));
       })
       .catch(() => !iptal && setForm(Object.assign({}, varsayilan)))
       .finally(() => !iptal && setYukleniyor(false));
@@ -3930,6 +3935,17 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
           gecerNotlar: notAyristir(gecerMetin),
           kalirNotlar: notAyristir(kalirMetin),
           aciklama: form.aciklama || '',
+          // Mezuniyet modülü: transkript formunda kurala uymayan satırlar
+          // sarı görünür (lib/mezuniyet.js → mezSatirIhlalleri).
+          satirKurallari: {
+            ...satirKurali,
+            uyariNotlari: notAyristir(uyariNotMetin),
+          },
+          stajlar: String(stajMetin || '')
+            .split(/\n+/)
+            .map((x) => x.trim())
+            .filter(Boolean)
+            .slice(0, 20),
           updatedAt: new Date().toISOString(),
           updatedBy: currentUser?.name || currentUser?.identifier || '',
         },
@@ -3946,6 +3962,21 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
   if (yukleniyor || !form) {
     return <div style={{ padding: 40, textAlign: 'center', color: '#80858E' }}>Yükleniyor...</div>;
   }
+
+  const satirKurali = Object.assign(
+    {},
+    (window.MEZUNIYET_VARSAYILAN || {}).satirKurallari || {},
+    form.satirKurallari || {}
+  );
+  const satirKuralDegistir = (alan, deger) =>
+    setForm({ ...form, satirKurallari: { ...satirKurali, [alan]: deger } });
+  const SATIR_KURAL_SECENEKLERI = [
+    { id: 'kalanNot', ad: 'Başarısız (kalır) not alınmış ders' },
+    { id: 'belirsizNot', ad: 'Notu ölçekte tanınmayan ders' },
+    { id: 'mufredatDisi', ad: 'Bölüm müfredatında olmayan ders' },
+    { id: 'aktsFarki', ad: 'AKTS’i müfredattakinden farklı ders' },
+    { id: 'tekrar', ad: 'Transkriptte birden çok kez geçen ders' },
+  ];
 
   const etiket = {
     display: 'block',
@@ -4047,12 +4078,12 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
   return (
     <div>
       <p style={{ fontSize: 12.5, color: '#5F6368', margin: '0 0 16px', lineHeight: 1.55 }}>
-        Bu kurallar öğrencinin <b>Benim Sayfam → Mezuniyet Durumum</b> hesabında kullanılır. Öğrenci
-        transkriptini yükler, sistem bu kurallara göre geçilen/kalan dersleri ve mezuniyet
-        koşullarını çıkarır. Kural tanımlanmazsa varsayılanlar geçerlidir. Öğretim modeli iki
-        sayıyla tanımlanır — toplam yarıyıl ve bunun kaçının işyeri eğitimi olduğu — böylece MYO’nun
-        3+1’i, lisansın 7+1’i, 5 ve 6 yıllık programlar ve hazır kalıplarda olmayan her düzen aynı
-        alanla anlatılabilir.
+        Bu kurallar öğrencinin <b>Mezuniyet</b> modülündeki hesapta ve mezuniyet formunda
+        kullanılır. Öğrenci transkriptini yükler, sistem bu kurallara göre geçilen/kalan dersleri ve
+        mezuniyet koşullarını çıkarır. Kural tanımlanmazsa varsayılanlar geçerlidir. Öğretim modeli
+        iki sayıyla tanımlanır — toplam yarıyıl ve bunun kaçının işyeri eğitimi olduğu — böylece
+        MYO’nun 3+1’i, lisansın 7+1’i, 5 ve 6 yıllık programlar ve hazır kalıplarda olmayan her
+        düzen aynı alanla anlatılabilir.
       </p>
 
       <div
@@ -4204,6 +4235,71 @@ function MezuniyetKurallari({ activeDepartment, currentUser }) {
             />
             Mezuniyet için staj zorunlu
           </label>
+        </div>
+
+        {/* ── MEZUNİYET FORMU — DERS SATIRI KURALLARI ──
+            Öğrencinin transkripti forma olduğu gibi aktarılır; burada seçilen
+            kurallara uymayan satırlar formda SARI zeminle görünür. Öğrenci
+            satırı düzenleyemez; danışman bu işaretlere bakarak karar verir. */}
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            border: '1px solid #FCD34D',
+            background: '#FFFBEB',
+            borderRadius: 8,
+          }}
+        >
+          <label style={etiket}>Mezuniyet formu — sarı işaretlenecek dersler</label>
+          <div style={{ fontSize: 11.5, color: '#5F6368', marginBottom: 8, lineHeight: 1.55 }}>
+            Öğrencinin transkripti mezuniyet formuna olduğu gibi aktarılır. Aşağıdaki kurallara
+            uymayan ders satırları formda <b>sarı</b> zeminle görünür ve danışmana hangi kurala
+            uymadığı yazılır.
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 18px', marginBottom: 10 }}>
+            {SATIR_KURAL_SECENEKLERI.map((k) => (
+              <label
+                key={k.id}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={satirKurali[k.id] !== false}
+                  onChange={(e) => satirKuralDegistir(k.id, e.target.checked)}
+                />
+                {k.ad}
+              </label>
+            ))}
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: 12,
+            }}
+          >
+            <div>
+              <label style={etiket}>Ayrıca işaretlenecek notlar</label>
+              <input
+                value={uyariNotMetin}
+                onChange={(e) => setUyariNotMetin(e.target.value)}
+                placeholder="örn. DD, DC (koşullu geçer)"
+                style={girdi}
+              />
+            </div>
+            <div>
+              <label style={etiket}>
+                Stajlar (danışman “eksik” işaretler; her satıra bir staj)
+              </label>
+              <textarea
+                value={stajMetin}
+                onChange={(e) => setStajMetin(e.target.value)}
+                rows={3}
+                placeholder={'Staj I (İşyeri Stajı)\nStaj II (Mühendislik Stajı)'}
+                style={{ ...girdi, resize: 'vertical', fontFamily: 'inherit' }}
+              />
+            </div>
+          </div>
         </div>
 
         {/* ── DERS GEÇME ÖLÇEĞİ ──

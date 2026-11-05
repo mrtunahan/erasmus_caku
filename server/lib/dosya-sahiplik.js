@@ -98,6 +98,8 @@ const KISISEL_KLASORLER = [
   'muafiyet_belgeler',
   'capyandal_belgeler',
   'intibak_basari',
+  // Mezuniyet: imzalı dilekçeler (transkript 'transkriptler' altında).
+  'mezuniyet',
 ];
 
 /** Yol, kişisel belge klasörlerinden birinde mi? */

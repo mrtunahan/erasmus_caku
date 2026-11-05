@@ -52,6 +52,9 @@ const STUDENT_WRITABLE = new Set([
   // Transkriptten türetilen akademik kayıt — öğrenci kendi transkriptini
   // yükler, sonuç kendi kaydına yazılır (docId = öğrenci no).
   'ogrenci_akademik_kayit',
+  // Mezuniyet başvurusu — öğrenci kendi başvurusunu (docId = öğrenci no)
+  // sürecin kuralına göre yazar (lib/mezuniyet-basvuru.js; db.js a0g).
+  'mezuniyet_basvurulari',
   // Randevu talebi — öğrenci kendi talebini açar/iptal eder. Onay/ret
   // yetkisi YOKTUR; kural aşağıda (a2a-3).
   'randevu_talepleri',

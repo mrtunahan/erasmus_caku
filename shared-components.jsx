@@ -18,6 +18,7 @@ import {
   mezHarfKatsayisi,
   mezOlcekDogrula,
 } from './lib/mezuniyet.js';
+import { MEZ_DILEKCE_ALANLARI, MEZ_DILEKCE_SATIRLARI } from './lib/mezuniyet-basvuru.js';
 import { satirlariAyir, satirlariYerlestir, veriSatiriSec } from './lib/xlsx-satir.js';
 import { bolumModulIzinleri } from './lib/modul-izinleri.js';
 import {
@@ -1002,6 +1003,13 @@ const DEPARTMENT_MODULES = [
     id: 'staj',
     label: 'Staj',
     icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  },
+  {
+    // Mezuniyet — öğrencinin transkript formu, danışman onayı, dilekçeler ve
+    // memura iletim. Eskiden Benim Sayfam'da "Mezuniyet Durumum" penceresiydi.
+    id: 'mezuniyet',
+    label: 'Mezuniyet',
+    icon: 'M22 10v6M2 10l10-5 10 5-10 5z M6 12v5c3 3 9 3 12 0v-5',
   },
   {
     id: 'sinav',
@@ -3688,6 +3696,18 @@ window.TEMPLATE_VARS = {
 // Bir modül+belge-türü için değişken setini çöz
 // TTO — Üniversite ile İşbirliği Talep Formu. Değişkenler kural dosyasında
 // (lib/tto-talep.js) tanımlı; şablonu yalnız üniversite yetkilisi yükler.
+// Mezuniyet — öğrencinin indirdiği iki dilekçe. Alanlar lib/mezuniyet-basvuru.js
+// (MEZ_DILEKCE_ALANLARI) ile aynıdır: yerleşik PDF de aynı değişkenleri basar.
+window.TEMPLATE_VARS.mezuniyet = {
+  docTypes: [
+    { id: 'dilekce', label: 'Mezuniyet Dilekçesi (öğrenci)' },
+    { id: 'ders_sildirme', label: 'Ders Sildirme Dilekçesi (öğrenci)' },
+  ],
+  dilekce: { static: MEZ_DILEKCE_ALANLARI, row: MEZ_DILEKCE_SATIRLARI },
+  ders_sildirme: { static: MEZ_DILEKCE_ALANLARI, row: MEZ_DILEKCE_SATIRLARI },
+  default: { static: MEZ_DILEKCE_ALANLARI, row: MEZ_DILEKCE_SATIRLARI },
+};
+
 window.TEMPLATE_VARS.tto = {
   docTypes: [{ id: 'talep', label: 'Üniversite ile İşbirliği Talep Formu (TTO-TF-001)' }],
   talep: { static: TTO_SABLON_DEGISKENLERI, row: [] },

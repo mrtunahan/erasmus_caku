@@ -44,6 +44,7 @@ describe('öğrencinin yazabildikleri', () => {
 
   it('liste beklenmedik biçimde büyümemiş', () => {
     // Sayıyı sabitlemek, gözden kaçan bir eklemeyi gözle görülür kılar.
-    expect(STUDENT_WRITABLE.size).toBe(32);
+    // 33: mezuniyet_basvurulari (kuralı db.js a0g + lib/mezuniyet-basvuru.js).
+    expect(STUDENT_WRITABLE.size).toBe(33);
   });
 });

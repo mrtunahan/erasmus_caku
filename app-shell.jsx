@@ -3507,6 +3507,7 @@ function AppShell() {
         formlar: window.FormlarModuluApp,
         kullanici: window.KullaniciYonetimiApp,
         staj: window.StajModuluApp,
+        mezuniyet: window.MezuniyetApp,
         dersprogrami: window.DersProgramiApp,
         lisansustu: window.LisansustuApp,
         komisyonlar: window.KomisyonlarModuluApp,

@@ -27,6 +27,8 @@ const SB_MODULES = [
   { id: 'anket', label: 'Anketler', color: '#06B6D4' },
   { id: 'yoklama', label: 'Ders Devam Listesi', color: '#7C3AED' },
   { id: 'dersodalari', label: 'Ders Odaları (Not Çizelgesi)', color: '#2563EB' },
+  // Mezuniyet dilekçesi ve ders sildirme dilekçesi (öğrenci indirir, imzalar).
+  { id: 'mezuniyet', label: 'Mezuniyet', color: '#059669' },
   // TTO formu kurum geneli: sunucu yalnız üniversite yetkilisinin yüklemesine
   // izin verir (server/routes/templates.js), diğerlerine seçenek gösterilmez.
   { id: 'tto', label: 'TTO (Teknoloji Transfer Ofisi)', color: '#B45309', sadeceUni: true },
