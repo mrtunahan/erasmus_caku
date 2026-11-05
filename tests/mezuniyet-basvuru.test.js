@@ -27,6 +27,35 @@ const form = {
 };
 
 describe('öğrenci yazma kararı', () => {
+  // Ekranın taramada yazdığı HER alan sunucu listesinde olmalı: yeni bir alan
+  // eklenip listeye eklenmezse yeniden tarama "değiştiremezsiniz" diye
+  // reddediliyordu (transkriptAkts).
+  it('taramanın yazdığı bütün alanları kabul eder', () => {
+    const tarama = {
+      ...form,
+      durum: 'taslak',
+      agno: '2,39',
+      sinif: '4',
+      transkriptAdi: 't.pdf',
+      transkriptTarihi: '2026-11-05T10:00:00Z',
+      transkriptAkts: '238',
+      ozet: { gecilenAkts: 238 },
+      bolumAdi: 'Bilgisayar Mühendisliği',
+      fakulteAdi: '',
+      facultyId: '',
+      updatedAt: '2026-11-05T10:00:00Z',
+      gecmis: [{ olay: 'Transkript yüklendi' }],
+    };
+    expect(
+      ogrenciYazmaKarari({
+        tur: 'set',
+        mevcut: { ...form, durum: 'taslak' },
+        veri: tarama,
+        numaralar: [NO],
+      })
+    ).toEqual({ izin: true });
+  });
+
   it('kendi numarasıyla taslak açar', () => {
     const k = ogrenciYazmaKarari({ tur: 'set', mevcut: null, veri: form, numaralar: [NO] });
     expect(k.izin).toBe(true);
