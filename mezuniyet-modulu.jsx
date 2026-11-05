@@ -2074,6 +2074,28 @@ function DanismanDetay({ no, kimlik, onGeri }) {
     setCalisiyor('');
   };
 
+  const basvuruyuSil = async () => {
+    const ad = b.ogrenciAd || b.ogrenciNo;
+    if (
+      !window.confirm(
+        ad +
+          ' adlı öğrencinin mezuniyet başvurusu silinsin mi?\n\nForm, işaretler ve notlar silinir; öğrenci baştan başlar. Bu işlem geri alınamaz.'
+      )
+    ) {
+      return;
+    }
+    setCalisiyor('sil');
+    setMesaj({ tur: '', metin: '' });
+    try {
+      await window.DBWrite.remove(MEZ_BASVURU_KOLEKSIYONU, String(no));
+      if (window.apiInvalidate) window.apiInvalidate(MEZ_BASVURU_KOLEKSIYONU);
+      onGeri();
+    } catch (e) {
+      setMesaj({ tur: 'hata', metin: 'Silinemedi: ' + e.message });
+      setCalisiyor('');
+    }
+  };
+
   const memuraIlet = async () => {
     setCalisiyor('memur');
     setMesaj({ tur: '', metin: '' });
@@ -2262,6 +2284,37 @@ function DanismanDetay({ no, kimlik, onGeri }) {
           <NotYaz onGonder={notGonder} yer="Öğrenciye not gönderin…" />
         )}
       </div>
+
+      {/* Danışman isterse başvuruyu siler; öğrenci baştan başlar. Memura
+          iletildikten sonra silinmez (sunucu da reddeder). */}
+      {durum !== 'memurda' && durum !== 'tamamlandi' && (
+        <div
+          style={{
+            ...KART,
+            borderColor: '#FECACA',
+            display: 'flex',
+            gap: 12,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ flex: '1 1 260px' }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: R.kirmizi }}>Başvuruyu sil</div>
+            <div style={{ fontSize: 12.5, color: R.soluk, marginTop: 2 }}>
+              Form, işaretler, notlar ve yüklenen imzalı dilekçe kaydı silinir; öğrenciye bildirim
+              gider ve öğrenci başvuruya baştan başlar. Geri alınamaz.
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={!!calisiyor}
+            onClick={basvuruyuSil}
+            style={dugme('tehlike', !!calisiyor)}
+          >
+            {calisiyor === 'sil' ? 'Siliniyor…' : 'Başvuruyu sil'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

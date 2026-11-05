@@ -4015,12 +4015,17 @@ async function patentBildirimleriGonder(db, op, sonuc, user, touched) {
 // ══════════════════════════════════════════════════════════════
 async function mezuniyetBildirimleriGonder(db, op, touched) {
   if (!op || op.collection !== 'mezuniyet_basvurulari' || !op._mezOnce) return;
-  if (op.type === 'delete') return;
+  const silindi = op.type === 'delete';
   try {
     const M = await mezBasvuruKurali();
     const once = op._mezOnce.kayit || {};
-    const yeni = Object.assign({}, once, op.data || {});
-    const plan = M.mezuniyetZilPlani({ eski: once, yeni, yapanRol: op._mezOnce.rol });
+    const yeni = silindi ? once : Object.assign({}, once, op.data || {});
+    const plan = M.mezuniyetZilPlani({
+      eski: once,
+      yeni,
+      yapanRol: op._mezOnce.rol,
+      silindi,
+    });
     if (plan.length === 0) return;
     const simdi = new Date().toISOString();
     await db.collection('notifications').insertMany(
