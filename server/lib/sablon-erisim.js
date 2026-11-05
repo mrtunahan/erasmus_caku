@@ -31,10 +31,10 @@ function ayniFakulte(a, b, fakulteHaritasi) {
 // belgelerdir (başarı notlarını taşırlar) ve öğrenciye açılmaz.
 const STUDENT_TEMPLATE_DOCTYPES = {
   muafiyet: new Set(['intibak_dilekce', 'muafiyet_dilekce']),
-  //   mezuniyet/dilekce        → mezuniyet dilekçesi
-  //   mezuniyet/ders_sildirme  → danışmanın işaretlediği derslerin silinmesi
-  // İkisini de öğrenci indirir, imzalar ve imzalı hâlini yükler.
-  mezuniyet: new Set(['dilekce', 'ders_sildirme']),
+  //   mezuniyet/dilekce → mezuniyet dilekçesi (ders sildirme bölümü içinde,
+  //   TEK belge; satırlar danışmanın işaretlediği silinecek derslerdir).
+  // Öğrenci indirir, imzalar ve imzalı hâlini yükler.
+  mezuniyet: new Set(['dilekce']),
 };
 
 function ogrenciBelgesiMi(tpl) {

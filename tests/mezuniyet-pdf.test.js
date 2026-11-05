@@ -40,13 +40,19 @@ describe('mezuniyet dilekçesi PDF', () => {
     expect(doc.getTitle()).toContain('MEZUNİYET DİLEKÇESİ');
   });
 
-  it('ders sildirme dilekçesi üretilir', async () => {
-    const doc = await uret('ders_sildirme');
-    expect(doc.getTitle()).toContain('DERS SİLDİRME');
+  it('silinecek ders yoksa da üretilir', async () => {
+    const bayt = await mezuniyetPdfOlustur({
+      basvuru: { ...basvuru, silinecekDersler: [], eksikStajlar: [] },
+      PDFLib,
+      fontkit,
+      fontNormal: yazitipi('DejaVuSans-tr.ttf'),
+      fontKalin: yazitipi('DejaVuSans-Bold-tr.ttf'),
+    });
+    expect((await PDFLib.PDFDocument.load(bayt)).getPageCount()).toBe(1);
   });
 
-  it('metin türüne göre değişir', () => {
-    expect(dilekceGovdesi('dilekce', { ogrenciNo: '1' })).toMatch(/Mezuniyet/);
-    expect(dilekceGovdesi('ders_sildirme', { ogrenciNo: '1' })).toMatch(/silinmesini/);
+  it('silinecek ders varsa ders sildirme talebi aynı metinde', () => {
+    expect(dilekceGovdesi({ ogrenciNo: '1' }, false)).not.toMatch(/silinmesini/);
+    expect(dilekceGovdesi({ ogrenciNo: '1' }, true)).toMatch(/silinmesini/);
   });
 });

@@ -118,14 +118,14 @@ describe('öğrenci yazma kararı', () => {
     ).toBe(true);
   });
 
-  it('silinecek ders varsa ders sildirme dilekçesi de şart', () => {
+  it('tek dilekçe: silinecek ders olsa da yalnız mezuniyet dilekçesi istenir', () => {
     const b = {
       ...form,
       imzaliDilekce: { url: 'u' },
       silinecekDersler: [{ kod: 'BLM101', ad: 'Programlama' }],
     };
-    expect(imzaEksikleri(b)).toHaveLength(1);
-    expect(imzaEksikleri({ ...b, imzaliSildirme: { url: 'v' } })).toHaveLength(0);
+    expect(imzaEksikleri(b)).toHaveLength(0);
+    expect(imzaEksikleri({ ...b, imzaliDilekce: null })).toHaveLength(1);
   });
 
   it('gönderilmiş başvuruyu silemez; taslağı silebilir', () => {

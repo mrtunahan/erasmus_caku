@@ -4,7 +4,7 @@
 //   ÖĞRENCİ   transkriptini yükler → sistem tarar → dersler forma OLDUĞU
 //             GİBİ aktarılır (öğrenci düzenleyemez; kurala uymayan satır
 //             sarı) → danışmana gönderir → onaydan sonra mezuniyet
-//             dilekçesini (ve gerekiyorsa ders sildirme dilekçesini) indirir,
+//             dilekçesini (silinecek dersler içinde, TEK belge) indirir,
 //             imzalar, imzalı hâlini yükler → yeniden danışmana gider.
 //   DANIŞMAN  (Akademisyen → Benim Sayfam → Mezuniyet Bekleyen Öğrenciler)
 //             formu ve transkripti inceler, not yazar, silinecek dersleri ve
@@ -198,22 +198,20 @@ function blobIndir(blob, ad) {
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
 }
 
-export async function dilekceIndir(tur, basvuru) {
+// TEK dilekçe: silinecek dersler (şablonda satırlar) ve eksik stajlar
+// mezuniyet dilekçesinin içindedir.
+export async function dilekceIndir(basvuru) {
   const b = basvuru || {};
-  const ad =
-    (tur === 'ders_sildirme' ? 'Ders_Sildirme_Dilekcesi_' : 'Mezuniyet_Dilekcesi_') +
-    dosyaParcasi(b.ogrenciNo + '_' + b.ogrenciAd);
+  const tur = 'dilekce';
+  const ad = 'Mezuniyet_Dilekcesi_' + dosyaParcasi(b.ogrenciNo + '_' + b.ogrenciAd);
   const TE = window.TemplateEngine;
   if (TE && TE.produceFromTemplate) {
-    const satirlar =
-      tur === 'ders_sildirme'
-        ? (b.silinecekDersler || []).map((d) => ({
-            kod: metin(d.kod),
-            ad: metin(d.ad),
-            akts: metin(d.akts),
-            not: metin(d.not),
-          }))
-        : [];
+    const satirlar = (b.silinecekDersler || []).map((d) => ({
+      kod: metin(d.kod),
+      ad: metin(d.ad),
+      akts: metin(d.akts),
+      not: metin(d.not),
+    }));
     const r = await TE.produceFromTemplate({
       module: 'mezuniyet',
       docType: tur,
@@ -922,15 +920,15 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
-  const indir = async (tur) => {
-    setCalisiyor('indir-' + tur);
+  const indir = async () => {
+    setCalisiyor('indir');
     try {
       // İletişim bilgileri dilekçeye basılır; önce kaydedilir.
       if (JSON.stringify(iletisim) !== JSON.stringify(basvuru.iletisim || {})) {
         await basvuruYaz(ogrNo, { iletisim, updatedAt: new Date().toISOString() });
       }
       const b = (await yenile()) || basvuru;
-      const r = await dilekceIndir(tur, b);
+      const r = await dilekceIndir(b);
       if (r && r.uyari) setMesaj({ tur: 'uyari', metin: r.uyari });
     } catch (e) {
       setMesaj({ tur: 'hata', metin: 'Dilekçe oluşturulamadı: ' + e.message });
@@ -953,7 +951,6 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
     return <div style={{ padding: 40, textAlign: 'center', color: R.soluk }}>Yükleniyor…</div>;
   }
 
-  const sildirmeGerekli = ((basvuru && basvuru.silinecekDersler) || []).length > 0;
   const eksikler = basvuru ? imzaEksikleri(basvuru) : [];
 
   return (
@@ -1135,27 +1132,20 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <BelgeAdimi
               baslik="Mezuniyet dilekçesi"
-              indirMetni={calisiyor === 'indir-dilekce' ? 'Hazırlanıyor…' : 'Dilekçeyi indir'}
-              onIndir={() => indir('dilekce')}
+              indirMetni={calisiyor === 'indir' ? 'Hazırlanıyor…' : 'Dilekçeyi indir'}
+              onIndir={indir}
               yuklenen={basvuru.imzaliDilekce}
               yukleniyor={calisiyor === 'imzaliDilekce'}
               onYukle={(f) => imzaliYukle('imzaliDilekce', f)}
               mesgul={!!calisiyor}
             />
-            {sildirmeGerekli && (
-              <BelgeAdimi
-                baslik="Ders sildirme dilekçesi"
-                indirMetni={
-                  calisiyor === 'indir-ders_sildirme' ? 'Hazırlanıyor…' : 'Dilekçeyi indir'
-                }
-                onIndir={() => indir('ders_sildirme')}
-                yuklenen={basvuru.imzaliSildirme}
-                yukleniyor={calisiyor === 'imzaliSildirme'}
-                onYukle={(f) => imzaliYukle('imzaliSildirme', f)}
-                mesgul={!!calisiyor}
-              />
-            )}
           </div>
+          {(basvuru.silinecekDersler || []).length > 0 && (
+            <div style={{ marginTop: 8, fontSize: 12, color: R.soluk }}>
+              Danışmanınızın silinmesini istediği dersler dilekçenin içine işlenir; ayrı bir ders
+              sildirme dilekçesi gerekmez.
+            </div>
+          )}
           {kurumFormu && (
             <div style={{ marginTop: 10, fontSize: 12, color: R.soluk }}>
               Kurumun boş formu (Formlar):{' '}
@@ -1561,11 +1551,6 @@ function DanismanDetay({ no, kimlik, onGeri }) {
           docType: 'dilekce',
           url: b.imzaliDilekce && b.imzaliDilekce.url,
           title: 'Mezuniyet Dilekçesi (imzalı)',
-        },
-        {
-          docType: 'ders_sildirme',
-          url: b.imzaliSildirme && b.imzaliSildirme.url,
-          title: 'Ders Sildirme Dilekçesi (imzalı)',
         },
       ].filter((x) => x.url);
       for (const x of belgeler) {
