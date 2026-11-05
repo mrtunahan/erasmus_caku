@@ -207,3 +207,22 @@ test('memur iletilmeden göremez; danışman iletince görür ve kapatır', asyn
 test('gönderilmiş başvuruyu öğrenci silemez', async () => {
   assert.equal((await yaz(OGR, '2021001', null, 'delete')).durum, 403);
 });
+
+test('danışman başvuruyu silebilir; başka hoca silemez; öğrenciye zil düşer', async () => {
+  await db.collection('mezuniyet_basvurulari').insertOne({
+    _docId: '2021002',
+    ogrenciNo: '2021002',
+    ogrenciAd: 'Can Ak',
+    departmentId: 'bilgisayar',
+    durum: 'dilekce',
+    danisman: 'Mehmet Kaya',
+    danismanAnahtar: 'mehmet-kaya',
+  });
+  assert.equal((await yaz(HOCA, '2021002', null, 'delete')).durum, 403);
+  const r = await yaz(DANISMAN, '2021002', null, 'delete');
+  assert.equal(r.durum, 200, JSON.stringify(r.j));
+  assert.equal(await db.collection('mezuniyet_basvurulari').findOne({ _docId: '2021002' }), null);
+  assert.ok((await zil('2021002')).some((n) => n.type === 'mezuniyet_silindi'));
+  // Memura iletilmiş başvuru (2021001, tamamlandı) silinemez.
+  assert.equal((await yaz(DANISMAN, '2021001', null, 'delete')).durum, 403);
+});

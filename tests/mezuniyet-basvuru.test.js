@@ -225,9 +225,29 @@ describe('danışman yazma kararı', () => {
     expect(k.izin).toBe(false);
   });
 
-  it('kayıt açamaz, silemez', () => {
+  it('kayıt açamaz', () => {
     expect(danismanYazmaKarari({ tur: 'set', mevcut: null, veri: form }).izin).toBe(false);
-    expect(danismanYazmaKarari({ tur: 'delete', mevcut }).izin).toBe(false);
+  });
+
+  it('isterse başvuruyu siler; memura iletildikten sonra silemez', () => {
+    ['danismanda', 'iade', 'dilekce', 'imzali'].forEach((d) =>
+      expect(danismanYazmaKarari({ tur: 'delete', mevcut: { ...form, durum: d } }).izin).toBe(true)
+    );
+    ['memurda', 'tamamlandi'].forEach((d) =>
+      expect(danismanYazmaKarari({ tur: 'delete', mevcut: { ...form, durum: d } }).izin).toBe(false)
+    );
+  });
+
+  it('silince öğrenciye bildirim gider', () => {
+    const p = mezuniyetZilPlani({
+      eski: { ...form, durum: 'dilekce' },
+      yeni: { ...form, durum: 'dilekce' },
+      yapanRol: 'danisman',
+      silindi: true,
+    });
+    expect(p).toHaveLength(1);
+    expect(p[0].recipientId).toBe(NO);
+    expect(p[0].type).toBe('mezuniyet_silindi');
   });
 
   it('imzalı dilekçe gelmeden memura iletemez', () => {
