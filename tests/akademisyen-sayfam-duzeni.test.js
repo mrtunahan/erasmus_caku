@@ -46,17 +46,34 @@ describe('sütunlar', () => {
 
 describe('sekmeler', () => {
   it('dört sekme, sırası ekrandaki sıra', () => {
-    expect(AKADEMISYEN_SEKMELERI.map((s) => s.id)).toEqual(['genel', 'yoklama', 'gorusme', 'veri']);
+    expect(AKADEMISYEN_SEKMELERI.map((s) => s.id)).toEqual([
+      'genel',
+      'yoklama',
+      'gorusme',
+      'veri',
+      'mezuniyet',
+    ]);
   });
 
   it('tam yetkide hepsi açık', () => {
-    expect(acikSekmeler(TAM).map((s) => s.id)).toEqual(['genel', 'yoklama', 'gorusme', 'veri']);
+    expect(acikSekmeler(TAM).map((s) => s.id)).toEqual([
+      'genel',
+      'yoklama',
+      'gorusme',
+      'veri',
+      'mezuniyet',
+    ]);
   });
 
   // Adına tanımlı dersi olmayan kişi yoklama açamaz; sekme boş bir ekrana
   // götürürdü.
   it('dersi olmayanda yoklama sekmesi yok', () => {
-    expect(acikSekmeler(DERSSIZ).map((s) => s.id)).toEqual(['genel', 'gorusme', 'veri']);
+    expect(acikSekmeler(DERSSIZ).map((s) => s.id)).toEqual([
+      'genel',
+      'gorusme',
+      'veri',
+      'mezuniyet',
+    ]);
   });
 
   it('akademisyen kaydı olmayanda veri girişi yok', () => {
@@ -121,7 +138,7 @@ describe('sekmeOzeti', () => {
 describe('sekmeSeridi', () => {
   it('her sekme başlık ve özetiyle döner', () => {
     const s = sekmeSeridi(TAM, { dersSayisi: 2, acikSaat: 1, dersSaati: 8, yil: 2026 });
-    expect(s).toHaveLength(4);
+    expect(s).toHaveLength(5);
     expect(s[1]).toMatchObject({
       id: 'yoklama',
       baslik: 'Dijital Yoklama',

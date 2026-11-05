@@ -133,6 +133,7 @@ window.__lazyModules = {
     component: 'KaynakKutuphanesiApp',
   },
   staj: { loader: () => import('./staj-modulu.jsx'), component: 'StajModuluApp' },
+  mezuniyet: { loader: () => import('./mezuniyet-modulu.jsx'), component: 'MezuniyetApp' },
   dersprogrami: { loader: () => import('./ders-programi.jsx'), component: 'DersProgramiApp' },
   lisansustu: { loader: () => import('./lisansustu-modulu.jsx'), component: 'LisansustuApp' },
   roadmaps: { loader: () => import('./roadmaps-module.jsx'), component: 'RoadmapsModuleApp' },

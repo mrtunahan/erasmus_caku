@@ -338,6 +338,39 @@ async function patentYoneticileri(db) {
   return [...new Set(liste.map((p) => String((p && p.name) || '').trim()).filter(Boolean))];
 }
 
+// Mezuniyet başvurusu kuralları: istemciyle AYNI dosya (lib/mezuniyet-basvuru.js).
+let mezBasvuruKuraliSozu = null;
+function mezBasvuruKurali() {
+  if (!mezBasvuruKuraliSozu) mezBasvuruKuraliSozu = import('../../lib/mezuniyet-basvuru.js');
+  return mezBasvuruKuraliSozu;
+}
+
+/**
+ * Personel mezuniyet başvurusunu görür mü? Danışman kendi öğrencisininkini,
+ * bölüm/fakülte yetkilisi alanındakini, memur kendisine iletileni (atandığı
+ * bölümde 'mezuniyet' modülü), sistem/üniversite yetkilisi hepsini. Taslak
+ * yalnız öğrencinindir. Kural: lib/mezuniyet-basvuru.js → personelGorurMu.
+ */
+async function mezuniyetGorurFn(db, user) {
+  const M = await mezBasvuruKurali();
+  const flags = await getActorFlags(db, user);
+  if (user.role === 'admin' || flags.admin || flags.uniAdmin) {
+    return (d) => M.personelGorurMu(d, { tamErisim: true });
+  }
+  const yonetici = flags.deptManager || flags.facManager || user.role === 'bolum_yetkilisi';
+  const alan = yonetici ? await kullaniciAlani(db, user, true) : null;
+  const memur = await memurKimligi(db, user);
+  const atamalar = memur ? await memurAtamalari(db) : [];
+  return (d) =>
+    M.personelGorurMu(d, {
+      kimlik: user.identifier,
+      bolumAlaninda: alan ? (b) => !!b && bolumAlandaFn(alan, b) : null,
+      memurBolumunde: memur
+        ? (b) => !!b && memurBolumModulleri(atamalar, b, memur).indexOf('mezuniyet') >= 0
+        : null,
+    });
+}
+
 // TTO ödeme defteri kuralları: istemciyle AYNI dosya (lib/tto-odeme.js).
 let ttoOdemeKuraliSozu = null;
 function ttoOdemeKurali() {
@@ -578,6 +611,9 @@ const ALLOWED_COLLECTIONS = [
   // Öğrencinin transkriptinden türetilen akademik kayıt (doc id = öğrenci no):
   // aldığı dersler, notlar, AGNO. Öğrenci kendi kaydını yazar.
   'ogrenci_akademik_kayit',
+  // MEZUNİYET BAŞVURUSU (doc id = öğrenci no): taranan transkript formu,
+  // danışman onayı, dilekçeler, memura iletim. Kurallar lib/mezuniyet-basvuru.js.
+  'mezuniyet_basvurulari',
   // Programların taban puanları — modül panelinde çözülmüş, o modüle özel
   // kayıt (doc id = '<bölüm|fakülte>:<modül>').
   'taban_puanlar',
@@ -952,6 +988,8 @@ const STUDENT_READ_SCOPED = {
   muafiyet_records: 'studentNo',
   // Akademik kayıt not/AGNO içerir — öğrenci yalnız kendisininkini görür.
   ogrenci_akademik_kayit: 'studentNo',
+  // Mezuniyet başvurusu — öğrenci yalnız kendisininkini görür.
+  mezuniyet_basvurulari: 'ogrenciNo',
 };
 // ── ÖĞRENCİNİN OKUMA KİMLİĞİ ──
 // Kural dosyası üç şey soruyor: numaraları (ÇAP'ta iki tane olabilir), ADI
@@ -1557,6 +1595,78 @@ async function enforceWritePolicies(db, op, user) {
       }
       Object.defineProperty(op, '_patentOnce', { value: mevcutBildirim || {}, enumerable: false });
     }
+  }
+
+  // a0g) Mezuniyet başvurusu — öğrenci kendi başvurusunu sürecin kuralına
+  // göre yazar; danışman yalnız karar/işaret alanlarını, memur yalnız
+  // kapanışı. Kurallar lib/mezuniyet-basvuru.js'te.
+  if (op.collection === 'mezuniyet_basvurulari') {
+    const flags = await getActorFlags(db, user);
+    let mevcutBasvuru = null;
+    try {
+      mevcutBasvuru = op.docId ? await findExistingDoc(db, op) : null;
+    } catch (_) {
+      mevcutBasvuru = null;
+    }
+    const M = await mezBasvuruKurali();
+    let yapanRol = '';
+    if (user.role === 'admin' || flags.admin) {
+      yapanRol = '';
+    } else if (user.role === 'student') {
+      // Kayıt kimliği öğrenci numarasıdır: başkasının numarasına açılamaz.
+      const numaralar = await ogrenciKapsami(db, user.identifier);
+      if (op.type === 'add' || (op.docId && numaralar.indexOf(String(op.docId)) < 0)) {
+        return {
+          allow: false,
+          status: 403,
+          error: 'Mezuniyet başvurusu yalnız kendi numaranızla açılır.',
+        };
+      }
+      if (op.data && typeof op.data === 'object' && !mevcutBasvuru) {
+        op.data._owner = String(user.identifier || '');
+      }
+      // Danışman anahtarı istemciden alınmaz, addan türetilir.
+      if (op.data && typeof op.data === 'object' && 'danisman' in op.data) {
+        op.data.danismanAnahtar = M.danismanAnahtari(op.data.danisman);
+      }
+      const karar = M.ogrenciYazmaKarari({
+        tur: op.type,
+        mevcut: mevcutBasvuru,
+        veri: op.data || {},
+        numaralar,
+      });
+      if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
+      yapanRol = 'ogrenci';
+    } else {
+      const memur = await memurKimligi(db, user);
+      const atamalar = memur ? await memurAtamalari(db) : [];
+      const memurunMu =
+        !!memur &&
+        !!mevcutBasvuru &&
+        memurBolumModulleri(atamalar, String(mevcutBasvuru.departmentId || ''), memur).indexOf(
+          'mezuniyet'
+        ) >= 0;
+      let karar;
+      if (mevcutBasvuru && M.danismaniMi(mevcutBasvuru, user.identifier)) {
+        karar = M.danismanYazmaKarari({ tur: op.type, mevcut: mevcutBasvuru, veri: op.data || {} });
+        yapanRol = 'danisman';
+      } else if (memurunMu) {
+        karar = M.memurYazmaKarari({ tur: op.type, mevcut: mevcutBasvuru, veri: op.data || {} });
+        yapanRol = 'memur';
+      } else {
+        karar = {
+          izin: false,
+          hata: 'Mezuniyet başvurusunu yalnız öğrencinin danışmanı ya da iletilen memur değiştirir.',
+        };
+      }
+      if (!karar.izin) return { allow: false, status: 403, error: karar.hata };
+    }
+    if (op.type === 'set' && mevcutBasvuru) op.merge = true;
+    Object.defineProperty(op, '_mezOnce', {
+      value: { kayit: mevcutBasvuru || {}, rol: yapanRol },
+      enumerable: false,
+    });
+    return { allow: true };
   }
 
   // a1) Bölüm yetkilisi ROLÜ (bolum_yetkilisi) yapısal koleksiyonlarda yalnız
@@ -3899,6 +4009,40 @@ async function patentBildirimleriGonder(db, op, sonuc, user, touched) {
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// MEZUNİYET BAŞVURUSU BİLDİRİMLERİ — yazma BAŞARIYLA bittikten sonra.
+// Plan: lib/mezuniyet-basvuru.js → mezuniyetZilPlani.
+// ══════════════════════════════════════════════════════════════
+async function mezuniyetBildirimleriGonder(db, op, touched) {
+  if (!op || op.collection !== 'mezuniyet_basvurulari' || !op._mezOnce) return;
+  if (op.type === 'delete') return;
+  try {
+    const M = await mezBasvuruKurali();
+    const once = op._mezOnce.kayit || {};
+    const yeni = Object.assign({}, once, op.data || {});
+    const plan = M.mezuniyetZilPlani({ eski: once, yeni, yapanRol: op._mezOnce.rol });
+    if (plan.length === 0) return;
+    const simdi = new Date().toISOString();
+    await db.collection('notifications').insertMany(
+      plan.map((b) => ({
+        recipientType: 'user',
+        recipientId: b.recipientId,
+        module: 'mezuniyet',
+        type: b.type,
+        title: b.title,
+        body: b.body,
+        link: b.link,
+        meta: b.meta,
+        readBy: [],
+        createdAt: simdi,
+      }))
+    );
+    if (touched) touched.add('notifications');
+  } catch (e) {
+    console.warn('[mezuniyet] bildirim gönderilemedi:', e && e.message);
+  }
+}
+
 // ── MODÜL BİLDİRİMLERİ → ZİL (server/lib/bildirim-kopru.js) ──
 // Staj, öğrenci ve portal bildirimleri kendi koleksiyonlarına yazılıyor; zil
 // yalnız `notifications`ı okuyor. Eklenen her kaydın zil karşılığı burada
@@ -4339,6 +4483,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       addTouched(operations[0]);
       await ttoBildirimleriGonder(db, operations[0], result, req.user, touched);
       await patentBildirimleriGonder(db, operations[0], result, req.user, touched);
+      await mezuniyetBildirimleriGonder(db, operations[0], touched);
       await kopruBildirimleriGonder(db, operations[0], result, touched, req.user);
       await zilEsitle(db, operations[0], result, touched, req.user);
       emitDbWrite(req, touched);
@@ -4351,6 +4496,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       addTouched(op);
       await ttoBildirimleriGonder(db, op, result, req.user, touched);
       await patentBildirimleriGonder(db, op, result, req.user, touched);
+      await mezuniyetBildirimleriGonder(db, op, touched);
       await kopruBildirimleriGonder(db, op, result, touched, req.user);
       await zilEsitle(db, op, result, touched, req.user);
       if (result.id) addedIds.push(result.id);
@@ -4616,6 +4762,19 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
+    // Mezuniyet başvuruları: personel yalnız kendisini ilgilendireni görür
+    // (danışman, yetki alanı, iletilen memur). Öğrenci yukarıda kendi
+    // numarasına daraltıldı.
+    let mezSuz = null;
+    if (
+      DB_AUTH_ENFORCED &&
+      user &&
+      user.role !== 'student' &&
+      collection === 'mezuniyet_basvurulari'
+    ) {
+      mezSuz = await mezuniyetGorurFn(db, user);
+    }
+
     // Gizli alanlar (ör. yoklama anahtarı) veritabanından HİÇ okunmaz.
     const gizliProj = gizliAlanProjeksiyonu(collection);
     let cursor = gizliProj ? col.find(filter, { projection: gizliProj }) : col.find(filter);
@@ -4632,6 +4791,7 @@ router.get('/:collection', async (req, res) => {
     cursor = cursor.limit(limitVal > 0 ? Math.min(limitVal, MAX_READ_LIMIT) : MAX_READ_LIMIT);
 
     let docs = await cursor.toArray();
+    if (mezSuz) docs = docs.filter(mezSuz);
 
     // ── ÖĞRENCİ OKUMASI: BAŞKASININ KAYDI BURADA DÜŞER ──
     // Ekranların kendi süzgeci gizlilik sağlamıyordu: veri zaten tarayıcıya
@@ -4863,6 +5023,19 @@ router.get('/:collection/:docId', async (req, res) => {
       const gonderilmis = !!doc.durum && doc.durum !== 'taslak';
       if (!flags.admin && !kendisinin && !(flags.ttoYonetici && gonderilmis)) {
         return res.status(403).json({ error: 'Bu talebe erişim yetkiniz yok.' });
+      }
+    }
+
+    // Mezuniyet başvurusu: tek belgede de liste kuralı.
+    if (
+      DB_AUTH_ENFORCED &&
+      user &&
+      user.role !== 'student' &&
+      collection === 'mezuniyet_basvurulari'
+    ) {
+      const gorur = await mezuniyetGorurFn(db, user);
+      if (!gorur(doc)) {
+        return res.status(403).json({ error: 'Bu mezuniyet başvurusuna erişim yetkiniz yok.' });
       }
     }
 

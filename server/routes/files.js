@@ -326,6 +326,7 @@ const OGRENCI_KAYIT_KAYNAKLARI = [
   ['cap_yandal_basvurular', 'ogrenciNo'],
   ['yatay_gecis_basvurular', 'ogrenciNo'],
   ['ogrenci_akademik_kayit', 'studentNo'],
+  ['mezuniyet_basvurulari', 'ogrenciNo'],
   ['students', 'studentNumber'],
 ];
 const ogrenciKayitCache = new Map();

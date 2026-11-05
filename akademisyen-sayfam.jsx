@@ -742,6 +742,34 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   const [tamEkran, setTamEkran] = useState(null); // { oturum, saatFarki, ogrenciler }
   const [tazele, setTazele] = useState(0);
   const ilkYuklemeRef = useRef(false);
+  // Danışmanı olduğu öğrencilerden işlem bekleyen mezuniyet başvurusu sayısı
+  // (sekme özeti). Liste ve işlemler mezuniyet-modulu.jsx'teki panelde.
+  const [mezuniyetBekleyen, setMezuniyetBekleyen] = useState(0);
+  // Zildeki mezuniyet bildirimi: sekmeyi aç ve o öğrencinin başvurusunu göster.
+  const [mezuniyetHedef, setMezuniyetHedef] = useState('');
+  (window.useBildirimHedefi || (() => {}))('benimakademik', (h) => {
+    if (!h || h.module !== 'mezuniyet') return;
+    setMezuniyetHedef(String((h.meta && h.meta.basvuruId) || ''));
+    setSekme('mezuniyet');
+  });
+  useEffect(() => {
+    let canli = true;
+    if (!benimAd || !window.apiRead) return undefined;
+    import('./lib/mezuniyet-basvuru.js')
+      .then((M) =>
+        window.apiRead(M.MEZ_BASVURU_KOLEKSIYONU).then((liste) => {
+          if (!canli) return;
+          const n = (liste || []).filter(
+            (b) => M.danismaniMi(b, benimAd) && (b.durum === 'danismanda' || b.durum === 'imzali')
+          ).length;
+          setMezuniyetBekleyen(n);
+        })
+      )
+      .catch(() => {});
+    return () => {
+      canli = false;
+    };
+  }, [benimAd, sekme]);
 
   const donem =
     window.donemEtiketi && window.donemEtiketi(new Date()) === 'Bahar' ? 'bahar' : 'guz';
@@ -1619,6 +1647,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           dersSayisi: dersler.length,
           acikSaat: musaitlikler.length,
           yil: new Date().getFullYear(),
+          mezuniyetBekleyen,
         }
       )
     : [];
@@ -1770,6 +1799,24 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         </Pencere>
       )}
 
+      {/* Mezuniyet Bekleyen Öğrenciler — danışmanı olunan öğrencilerin
+          formu, transkripti ve dilekçeleri. Ekran Mezuniyet modülünde
+          (mezuniyet-modulu.jsx); burada gömülü kipte çiziliyor. */}
+      {Pencere && sekme === 'mezuniyet' && (
+        <Pencere
+          baslik="Mezuniyet Bekleyen Öğrenciler"
+          altBaslik="Danışmanı olduğunuz öğrencilerin mezuniyet formları ve dilekçeleri"
+          enCokGenislik={1180}
+          onKapat={() => setSekme('genel')}
+        >
+          <ASMezuniyetPaneli
+            key={mezuniyetHedef || 'liste'}
+            currentUser={currentUser}
+            baslangic={mezuniyetHedef}
+          />
+        </Pencere>
+      )}
+
       {tamEkran && (
         <TamEkranYoklama
           oturum={tamEkran.oturum}
@@ -1792,6 +1839,36 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
 // (gösterge tanımları + on iki aylık tablo); sekmeye girilene kadar
 // indirilmiyor.
 // ══════════════════════════════════════════════════════════════
+// Mezuniyet modülünün danışman paneli ilk açılışta indirilir.
+function ASMezuniyetPaneli({ currentUser, baslangic }) {
+  const [Bilesen, setBilesen] = useState(() => window.MezuniyetDanismanPaneli || null);
+  const [hata, setHata] = useState('');
+  useEffect(() => {
+    if (Bilesen) return undefined;
+    let canli = true;
+    import('./mezuniyet-modulu.jsx')
+      .then((m) => {
+        if (!canli) return;
+        const c = m.MezuniyetDanismanPaneli || window.MezuniyetDanismanPaneli;
+        if (c) setBilesen(() => c);
+        else setHata('Mezuniyet modülü yüklendi ama danışman paneli bulunamadı.');
+      })
+      .catch((e) => canli && setHata('Mezuniyet ekranı yüklenemedi: ' + (e.message || '')));
+    return () => {
+      canli = false;
+    };
+  }, [Bilesen]);
+  if (hata) {
+    return (
+      <div style={{ ...AS_KART, borderColor: '#FCA5A5', background: '#FEF2F2', color: '#B91C1C' }}>
+        {hata}
+      </div>
+    );
+  }
+  if (!Bilesen) return <div style={{ padding: 24, color: '#5F6368' }}>Yükleniyor…</div>;
+  return <Bilesen currentUser={currentUser} baslangic={baslangic} />;
+}
+
 function ASVeriGirisi({ currentUser, activeDepartment, departmentInfo }) {
   const [Bilesen, setBilesen] = useState(() => window.PerformansBilgileriApp || null);
   const [hata, setHata] = useState('');

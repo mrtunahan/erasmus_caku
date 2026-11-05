@@ -79,6 +79,7 @@ const OGRENCI_MODULLERI = [
   'projeler',
   'formlar',
   'staj',
+  'mezuniyet',
   'muafiyet',
   'capyandal',
   'yataygecis',

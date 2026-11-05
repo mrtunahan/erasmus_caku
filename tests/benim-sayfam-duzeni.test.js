@@ -47,13 +47,9 @@ describe('sütun tanımı', () => {
 });
 
 describe('panel tanımı', () => {
-  it('dört panel: dersler · mezuniyet · yoklama · randevu', () => {
-    expect(SAYFA_PANELLERI.map((p) => p.id)).toEqual([
-      'dersler',
-      'mezuniyet',
-      'yoklama',
-      'randevu',
-    ]);
+  // Mezuniyet paneli ayrı bölüm modülüne taşındı (mezuniyet-modulu.jsx).
+  it('üç panel: dersler · yoklama · randevu', () => {
+    expect(SAYFA_PANELLERI.map((p) => p.id)).toEqual(['dersler', 'yoklama', 'randevu']);
   });
 
   // Panel olan şey sütunda da durursa sayfada iki kere görünür.
@@ -129,8 +125,8 @@ describe('panelOzeti', () => {
     );
   });
 
-  it('mezuniyet paneli ne olduğunu anlatır', () => {
-    expect(panelOzeti('mezuniyet', {})).toMatch(/Transkript/);
+  it('mezuniyet artık panel değil — Benim Sayfam’da düğmesi yok', () => {
+    expect(panelOzeti('mezuniyet', {})).toBe('');
   });
 
   it('bilinmeyen panelde boş dize', () => {
@@ -141,17 +137,17 @@ describe('panelOzeti', () => {
 describe('panelDugmeleri', () => {
   it('her panel başlık ve özetiyle döner', () => {
     const d = panelDugmeleri({ dersOzet: { sayi: 5, toplamAkts: 28, tavan: 42 } });
-    expect(d).toHaveLength(4);
+    expect(d).toHaveLength(3);
     expect(d[0]).toMatchObject({ id: 'dersler', baslik: 'Derslerim', ozet: '5 ders · 28/42 AKTS' });
-    expect(d[1].baslik).toBe('Mezuniyet Durumum');
+    expect(d[1].baslik).toBe('Dijital Yoklama');
   });
 
   it('veri olmadan da çöker değil', () => {
     expect(panelDugmeleri().every((p) => typeof p.ozet === 'string')).toBe(true);
   });
 
-  it('dört düğme döner', () => {
-    expect(panelDugmeleri({})).toHaveLength(4);
+  it('üç düğme döner', () => {
+    expect(panelDugmeleri({})).toHaveLength(3);
   });
 });
 

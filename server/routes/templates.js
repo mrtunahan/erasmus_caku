@@ -71,6 +71,8 @@ const ALLOWED_MODULES = new Set([
   'dersodalari',
   // TTO işbirliği talep formu — YALNIZ üniversite yetkilisi yükler.
   'tto',
+  // Mezuniyet dilekçesi ve ders sildirme dilekçesi — öğrenci üretir.
+  'mezuniyet',
 ]);
 
 // İzinli dosya uzantıları + MIME
