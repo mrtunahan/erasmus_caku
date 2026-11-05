@@ -223,6 +223,19 @@ test('danışman başvuruyu silebilir; başka hoca silemez; öğrenciye zil dü�
   assert.equal(r.durum, 200, JSON.stringify(r.j));
   assert.equal(await db.collection('mezuniyet_basvurulari').findOne({ _docId: '2021002' }), null);
   assert.ok((await zil('2021002')).some((n) => n.type === 'mezuniyet_silindi'));
-  // Memura iletilmiş başvuru (2021001, tamamlandı) silinemez.
-  assert.equal((await yaz(DANISMAN, '2021001', null, 'delete')).durum, 403);
+  // Memura iletilmiş/tamamlanmış başvuru da silinir; memurdaki belgeleri
+  // birlikte kalkar, başka öğrencinin belgesi kalır.
+  await db.collection('memur_outputs').insertMany([
+    { _docId: 'mezuniyet__2021001_dilekce', module: 'mezuniyet', ogrenciNo: '2021001' },
+    { _docId: 'mezuniyet__2021001_transkript', module: 'mezuniyet', ogrenciNo: '2021001' },
+    { _docId: 'mezuniyet__2021009_dilekce', module: 'mezuniyet', ogrenciNo: '2021009' },
+  ]);
+  assert.equal((await yaz(HOCA, '2021001', null, 'delete')).durum, 403);
+  assert.equal((await yaz(DANISMAN, '2021001', null, 'delete')).durum, 200);
+  assert.equal(await kayit(), null);
+  const kalan = await db.collection('memur_outputs').find({}).toArray();
+  assert.deepEqual(
+    kalan.map((x) => x._docId),
+    ['mezuniyet__2021009_dilekce']
+  );
 });

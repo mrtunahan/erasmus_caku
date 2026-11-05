@@ -825,6 +825,183 @@ function TranskriptFormu({ sonuc, secim, onSecim, secimKilitli }) {
   );
 }
 
+/**
+ * Başvuru özeti — durum, danışman, önemli tarihler, belgeler ve geçmiş tek
+ * kartta. Öğrenci ve danışman aynı kartı görür (danışmanda öğrencinin adı
+ * başlıktadır).
+ */
+function BasvuruOzeti({ b, rol }) {
+  const [gecmisAcik, setGecmisAcik] = useState(false);
+  if (!b) return null;
+  const durum = b.durum || 'taslak';
+  const sil = silinecekleriTekille(b.silinecekDersler);
+  const staj = b.eksikStajlar || [];
+  const akts = metin(b.transkriptAkts) || metin(b.ozet && b.ozet.gecilenAkts);
+  const bilgiler = [
+    rol === 'danisman' ? null : ['Danışman', metin(b.danisman) || '—'],
+    ['Tamamlanan AKTS', akts ? akts + ' AKTS' : '—'],
+    ['GNO', metin(b.agno) || '—'],
+    ['Silinecek ders', sil.length ? sil.length + ' ders' : 'yok'],
+    ['Eksik staj', staj.length ? staj.join(', ') : 'yok'],
+  ].filter(Boolean);
+  const tarihler = [
+    ['Danışmana gönderildi', b.gonderimTarihi],
+    ['Danışman kararı', b.danismanKarariTarihi],
+    ['İmzalı dilekçe gönderildi', b.imzaTarihi],
+    ['Memura iletildi', b.memuraIletim && b.memuraIletim.tarih],
+    ['İşlem tamamlandı', b.tamamlanmaTarihi],
+  ].filter((x) => x[1]);
+  const gecmis = (b.gecmis || []).slice().reverse();
+  const etiket = { fontSize: 11, color: R.soluk, fontWeight: 600, marginBottom: 2 };
+  const deger = { fontSize: 13.5, color: R.metin, fontWeight: 700 };
+  return (
+    <div style={{ ...KART, padding: 0, overflow: 'hidden' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 12,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          padding: '16px 20px',
+          borderBottom: '1px solid ' + R.kenar,
+        }}
+      >
+        <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: R.navy }}>
+            {rol === 'danisman' ? b.ogrenciAd || b.ogrenciNo : 'Mezuniyet başvurum'}
+          </div>
+          <div style={{ fontSize: 12.5, color: R.soluk, marginTop: 2 }}>
+            {rol === 'danisman'
+              ? [b.ogrenciNo, b.bolumAdi, b.sinif ? 'Sınıf ' + b.sinif : '']
+                  .filter(Boolean)
+                  .join(' · ')
+              : 'Son güncelleme: ' + trTarih(b.updatedAt)}
+          </div>
+        </div>
+        <DurumRozeti durum={durum} />
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+          gap: 14,
+          padding: '14px 20px',
+        }}
+      >
+        {bilgiler.map(([e, v]) => (
+          <div key={e}>
+            <div style={etiket}>{e}</div>
+            <div style={deger}>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {tarihler.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            flexWrap: 'wrap',
+            padding: '0 20px 14px',
+          }}
+        >
+          {tarihler.map(([e, t]) => (
+            <span
+              key={e}
+              style={{
+                fontSize: 12,
+                padding: '4px 10px',
+                borderRadius: 999,
+                background: '#F5F6F7',
+                color: R.soluk,
+              }}
+            >
+              {e}: <b style={{ color: R.metin }}>{trTarih(t)}</b>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {durum === 'tamamlandi' && metin(b.memurNotu) && (
+        <div style={{ padding: '0 20px 14px' }}>
+          <BilgiKutusu tur="basari">Memur notu: {b.memurNotu}</BilgiKutusu>
+        </div>
+      )}
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          padding: '12px 20px',
+          background: '#FAFAFB',
+          borderTop: '1px solid ' + R.kenar,
+        }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 700, color: R.soluk, marginRight: 4 }}>
+          Belgeler
+        </span>
+        {b.transkriptUrl ? (
+          <BelgeSatiri etiket="Transkript" belge={{ url: b.transkriptUrl }} />
+        ) : (
+          <span style={{ fontSize: 12, color: R.soluk }}>Transkript yüklenmedi</span>
+        )}
+        <BelgeSatiri etiket="İmzalı mezuniyet dilekçesi" belge={b.imzaliDilekce} />
+        <BelgeSatiri etiket="İmzalı ders sildirme dilekçesi" belge={b.imzaliSildirme} />
+        {gecmis.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setGecmisAcik((v) => !v)}
+            style={{
+              marginLeft: 'auto',
+              border: 'none',
+              background: 'transparent',
+              color: R.mavi,
+              fontWeight: 700,
+              fontSize: 12.5,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            {gecmisAcik ? 'Geçmişi gizle' : 'Başvuru geçmişi (' + gecmis.length + ')'}
+          </button>
+        )}
+      </div>
+
+      {gecmisAcik && (
+        <div style={{ padding: '10px 20px 16px', borderTop: '1px solid ' + R.kenar }}>
+          {gecmis.map((g, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                gap: 12,
+                fontSize: 12.5,
+                padding: '6px 0',
+                borderBottom: i < gecmis.length - 1 ? '1px dashed #E5E7EB' : 'none',
+              }}
+            >
+              <span style={{ color: R.soluk, minWidth: 130 }}>
+                {g.tarih ? new Date(g.tarih).toLocaleString('tr-TR') : ''}
+              </span>
+              <span style={{ flex: 1, color: R.metin }}>{g.olay}</span>
+              <span style={{ color: R.soluk }}>
+                {g.yapan}
+                {g.rol
+                  ? ' · ' +
+                    ({ ogrenci: 'öğrenci', danisman: 'danışman', memur: 'memur' }[g.rol] || g.rol)
+                  : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BelgeSatiri({ etiket, belge }) {
   if (!belge || !belge.url) return null;
   return (
@@ -1388,19 +1565,7 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
         <BilgiKutusu tur={mesaj.tur || 'bilgi'}>{mesaj.metin}</BilgiKutusu>
       )}
 
-      {basvuru && (
-        <div style={{ ...KART, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <DurumRozeti durum={durum} />
-          {basvuru.danisman && (
-            <span style={{ fontSize: 13, color: R.soluk }}>
-              Danışman: <b style={{ color: R.metin }}>{basvuru.danisman}</b>
-            </span>
-          )}
-          <span style={{ fontSize: 12, color: R.soluk, marginLeft: 'auto' }}>
-            Son güncelleme: {trTarih(basvuru.updatedAt)}
-          </span>
-        </div>
-      )}
+      {basvuru && <BasvuruOzeti b={basvuru} rol="ogrenci" />}
 
       {durum === 'iade' && (
         <BilgiKutusu tur="uyari">
@@ -1751,25 +1916,6 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
 
           {mesaj.metin && <BilgiKutusu tur={mesaj.tur || 'bilgi'}>{mesaj.metin}</BilgiKutusu>}
           {onizleme && <DilekceOnizleme sonuc={onizleme} onKapat={() => setOnizleme(null)} />}
-        </div>
-      )}
-
-      {durum === 'memurda' && (
-        <BilgiKutusu tur="basari">
-          Transkriptiniz ve dilekçeniz {trTarih(basvuru.memuraIletim && basvuru.memuraIletim.tarih)}{' '}
-          tarihinde bölüm memuruna iletildi.
-        </BilgiKutusu>
-      )}
-      {durum === 'tamamlandi' && (
-        <BilgiKutusu tur="basari">
-          Mezuniyet başvurunuz bölüm memuru tarafından işlendi. {metin(basvuru.memurNotu)}
-        </BilgiKutusu>
-      )}
-
-      {basvuru && ['dilekce', 'imzali', 'memurda', 'tamamlandi'].indexOf(durum) >= 0 && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          <BelgeSatiri etiket="İmzalı mezuniyet dilekçesi" belge={basvuru.imzaliDilekce} />
-          <BelgeSatiri etiket="İmzalı ders sildirme dilekçesi" belge={basvuru.imzaliSildirme} />
         </div>
       )}
 
@@ -2201,7 +2347,7 @@ function DanismanDetay({ no, kimlik, onGeri }) {
     if (
       !window.confirm(
         ad +
-          ' adlı öğrencinin mezuniyet başvurusu silinsin mi?\n\nForm, işaretler ve notlar silinir; öğrenci baştan başlar. Bu işlem geri alınamaz.'
+          ' adlı öğrencinin mezuniyet başvurusu silinsin mi?\n\nForm, işaretler ve notlar silinir; memura iletilmiş belgeler de kalkar. Öğrenci baştan başlar. Bu işlem geri alınamaz.'
       )
     ) {
       return;
@@ -2280,24 +2426,15 @@ function DanismanDetay({ no, kimlik, onGeri }) {
       <SiradakiAdim rol="danisman" metin={DANISMAN_SIRADAKI[durum]} />
       {mesaj.metin && <BilgiKutusu tur={mesaj.tur || 'bilgi'}>{mesaj.metin}</BilgiKutusu>}
 
-      <div style={{ ...KART, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ flex: '1 1 260px' }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: R.navy }}>{b.ogrenciAd}</div>
-          <div style={{ fontSize: 12.5, color: R.soluk }}>
-            {b.ogrenciNo} · {b.bolumAdi} · Sınıf {b.sinif || '—'} · AGNO {b.agno || '—'}
-          </div>
-        </div>
-        <DurumRozeti durum={durum} />
-        <BelgeSatiri etiket="Transkript (PDF)" belge={{ url: b.transkriptUrl }} />
-        <BelgeSatiri etiket="İmzalı mezuniyet dilekçesi" belge={b.imzaliDilekce} />
-        <BelgeSatiri etiket="İmzalı ders sildirme dilekçesi" belge={b.imzaliSildirme} />
-      </div>
+      <BasvuruOzeti b={b} rol="danisman" />
 
       <div style={KART}>
         <h3 style={BASLIK}>Mezuniyet formu</h3>
         <div style={{ fontSize: 12.5, color: R.soluk, marginBottom: 10 }}>
           Form öğrencinin transkriptinden olduğu gibi aktarıldı; transkript PDF’iyle karşılaştırın.{' '}
-          {isaretAcik ? 'Silinmesi gereken dersleri “Sil” sütunundan işaretleyin.' : ''}
+          {isaretAcik
+            ? 'Silinmesi gereken dersleri “Silinecek” sütunundan işaretleyin; bir dersin bütün denemeleri birlikte işaretlenir.'
+            : ''}
         </div>
         <KosulOzeti sonuc={sonuc} />
         <TranskriptFormu
@@ -2456,7 +2593,42 @@ function DanismanDetay({ no, kimlik, onGeri }) {
           rows={3}
           style={{ ...GIRDI, resize: 'vertical' }}
         />
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+      </div>
+
+      <div style={KART}>
+        <h3 style={BASLIK}>Notlar</h3>
+        <Notlar basvuru={b} />
+        {['danismanda', 'dilekce', 'imzali'].indexOf(durum) >= 0 && (
+          <NotYaz onGonder={notGonder} yer="Öğrenciye not gönderin…" />
+        )}
+      </div>
+
+      {/* Danışman isterse başvuruyu siler; öğrenci baştan başlar. Memura
+          iletildikten sonra silinmez (sunucu da reddeder). */}
+      {/* İŞLEM ÇUBUĞU — aşamanın kararı her zaman görünür (ekranın altında). */}
+      {['danismanda', 'dilekce', 'imzali'].indexOf(durum) >= 0 && (
+        <div
+          style={{
+            position: 'sticky',
+            bottom: 12,
+            zIndex: 5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            padding: '12px 16px',
+            marginBottom: 16,
+            borderRadius: 14,
+            background: 'white',
+            border: '1px solid ' + R.kenar,
+            boxShadow: '0 8px 24px rgba(16,24,40,0.12)',
+          }}
+        >
+          <span style={{ flex: '1 1 220px', fontSize: 12.5, color: R.soluk }}>
+            <b style={{ color: R.metin }}>{silinecekler.length}</b> ders silinecek ·{' '}
+            <b style={{ color: R.metin }}>{stajlar.length}</b> staj eksik
+            {not.trim() ? ' · not yazıldı' : ''}
+          </span>
           {durum === 'danismanda' && (
             <>
               <button
@@ -2508,19 +2680,10 @@ function DanismanDetay({ no, kimlik, onGeri }) {
             </>
           )}
         </div>
-      </div>
+      )}
 
-      <div style={KART}>
-        <h3 style={BASLIK}>Notlar</h3>
-        <Notlar basvuru={b} />
-        {['danismanda', 'dilekce', 'imzali'].indexOf(durum) >= 0 && (
-          <NotYaz onGonder={notGonder} yer="Öğrenciye not gönderin…" />
-        )}
-      </div>
-
-      {/* Danışman isterse başvuruyu siler; öğrenci baştan başlar. Memura
-          iletildikten sonra silinmez (sunucu da reddeder). */}
-      {durum !== 'memurda' && durum !== 'tamamlandi' && (
+      {/* Danışman başvuruyu her aşamada silebilir. */}
+      {
         <div
           style={{
             ...KART,
@@ -2534,8 +2697,9 @@ function DanismanDetay({ no, kimlik, onGeri }) {
           <div style={{ flex: '1 1 260px' }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: R.kirmizi }}>Başvuruyu sil</div>
             <div style={{ fontSize: 12.5, color: R.soluk, marginTop: 2 }}>
-              Form, işaretler, notlar ve yüklenen imzalı dilekçe kaydı silinir; öğrenciye bildirim
-              gider ve öğrenci başvuruya baştan başlar. Geri alınamaz.
+              Form, işaretler, notlar ve yüklenen imzalı dilekçe kaydı silinir; memura iletilmiş
+              belgeler de Gelen Belgeler’den kalkar. Öğrenciye bildirim gider ve öğrenci başvuruya
+              baştan başlar. Geri alınamaz.
             </div>
           </div>
           <button
@@ -2547,7 +2711,7 @@ function DanismanDetay({ no, kimlik, onGeri }) {
             {calisiyor === 'sil' ? 'Siliniyor…' : 'Başvuruyu sil'}
           </button>
         </div>
-      )}
+      }
     </div>
   );
 }

@@ -4016,6 +4016,23 @@ async function patentBildirimleriGonder(db, op, sonuc, user, touched) {
 async function mezuniyetBildirimleriGonder(db, op, touched) {
   if (!op || op.collection !== 'mezuniyet_basvurulari' || !op._mezOnce) return;
   const silindi = op.type === 'delete';
+  // Silinen başvurunun memura iletilmiş belgeleri de kalkar (Gelen Belgeler'de
+  // başvurusu olmayan belge kalmasın). Belge kimliği belgeYonlendir'in
+  // verdiği biçimdedir: 'mezuniyet__<öğrenciNo>_<tür>'.
+  if (silindi) {
+    const no = String((op._mezOnce.kayit && op._mezOnce.kayit.ogrenciNo) || op.docId || '');
+    if (no) {
+      try {
+        const sonuc = await db.collection('memur_outputs').deleteMany({
+          module: 'mezuniyet',
+          ogrenciNo: no,
+        });
+        if (sonuc && sonuc.deletedCount && touched) touched.add('memur_outputs');
+      } catch (e) {
+        console.warn('[mezuniyet] memur belgeleri silinemedi:', e && e.message);
+      }
+    }
+  }
   try {
     const M = await mezBasvuruKurali();
     const once = op._mezOnce.kayit || {};
