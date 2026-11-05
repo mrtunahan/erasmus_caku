@@ -52,9 +52,16 @@ kilitlenir. Burada Word'e düşülmez: çevirici yoksa öğrenci dilekçe
 
 ```bash
 apt install -y libreoffice-writer-nogui libreoffice-draw-nogui
+apt install -y fonts-crosextra-carlito fonts-crosextra-caladea fonts-liberation2
+fc-match Calibri                            # "Carlito" görünmeli
 soffice --version                           # 7.4+ olmalı
 pm2 restart erasmus_caku
 ```
+
+⚠ **Yazı tipleri şart.** Kurumun Word formu Calibri/Times kullanır; sunucuda
+bunlar yoksa LibreOffice yerine daha geniş bir yazı tipi (DejaVu) koyar,
+satırlar uzar ve "Tarih / İmza" satırı ikinci sayfaya kayar. Carlito (Calibri
+ile aynı ölçüler), Caladea (Cambria) ve Liberation (Arial/Times) bunu önler.
 
 ## nginx: iki tuzak
 

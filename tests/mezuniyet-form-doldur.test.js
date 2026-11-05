@@ -162,4 +162,26 @@ describe('kurumun mezuniyet formunu doldurma', () => {
     expect(y).toContain('MAT166 Matematik-II');
     expect(y).toContain('Bahar');
   });
+
+  it('öğretim yılı ve dönem boşluklarını doldurur; bölünmüş noktaları tek boşluk sayar', () => {
+    const xml =
+      '<w:body>' +
+      p(
+        r('……') +
+          r('……… ') +
+          r('öğretim yılı ') +
+          r('…………') +
+          r(' dönemi sonu itibariyle 240 AKTS’yi tamamladım.')
+      ) +
+      '</w:body>';
+    const s2 = mezuniyetFormunuDoldur(xml, { ogretimYili: '2025-2026', donem: 'Güz' });
+    const y = gorunenMetin(s2.xml);
+    expect(y).toBe('2025-2026 öğretim yılı Güz dönemi sonu itibariyle 240 AKTS’yi tamamladım.');
+    expect(s2.dolan).toContain('donem');
+  });
+
+  it('doldurulan hücre dikeyde ortalanır', () => {
+    const s3 = mezuniyetFormunuDoldur(FORM, VERI);
+    expect((s3.xml.match(/<w:vAlign w:val="center"\/>/g) || []).length).toBeGreaterThanOrEqual(6);
+  });
 });
