@@ -405,13 +405,81 @@ describe('ders satırı kuralları (sarı satırlar)', () => {
     );
     const ids = s.kayitlar.map((r) => r.ihlaller.map((x) => x.id));
     expect(ids[0]).toEqual([]);
-    // Önce FF, sonra BB: ders GEÇİLDİ — ne başarısız deneme ne tekrar sarı;
-    // yalnız gerçek bir sorun (AKTS farkı) kalır.
-    expect(ids[1]).toEqual(['aktsFarki']);
+    // Önce FF, sonra BB: ders GEÇİLDİ — önceki deneme sarı değil.
+    expect(ids[1]).toEqual([]);
     expect(s.kayitlar[1].sonradanGecildi).toBe(true);
     expect(ids[2]).toEqual([]);
-    expect(ids[3]).toEqual(['mufredatDisi']);
-    expect(s.ihlalSayisi).toBe(2);
+    // Geçilmiş müfredat dışı ders (TAR101, CC) sarı değil.
+    expect(ids[3]).toEqual([]);
+    expect(s.ihlalSayisi).toBe(0);
+  });
+
+  it('geçilmemiş derste müfredat dışı ve AKTS farkı sarıdır', () => {
+    const s = mezuniyetHesapla(
+      mufredat,
+      [
+        { kod: 'CIS101', ad: 'Bölüm Dışı', akts: 3, not: 'FF' },
+        { kod: 'BLM102', ad: 'Veri Yapıları', akts: 4, not: 'FF' },
+      ],
+      {}
+    );
+    expect(s.kayitlar[0].ihlaller.map((x) => x.id)).toEqual(
+      expect.arrayContaining(['kalanNot', 'mufredatDisi'])
+    );
+    expect(s.kayitlar[1].ihlaller.map((x) => x.id)).toEqual(
+      expect.arrayContaining(['kalanNot', 'aktsFarki'])
+    );
+  });
+
+  it('kodu değişmiş ders eşdeğer koduyla müfredata sayılır, eski denemesi sarı olmaz', () => {
+    const muf = [
+      { code: 'BİL494', name: 'Bitirme Projesi', akts: 5, statu: 'Z', sinif: 4, donem: 'bahar' },
+    ];
+    const s = mezuniyetHesapla(
+      muf,
+      [
+        { kod: 'BİL494', ad: 'Bitirme Projesi', akts: 5, not: 'F2' },
+        { kod: 'BM498', ad: 'Bitirme Tezi', akts: 5, not: 'B3', esdeger: 'BİL494' },
+      ],
+      {}
+    );
+    expect(s.kalanZorunlu).toEqual([]);
+    expect(s.kayitlar[0].sonradanGecildi).toBe(true);
+    expect(s.kayitlar[0].ihlaller).toEqual([]);
+    expect(s.kayitlar[1].mufredatta).toBe(true);
+  });
+
+  it('aynı adla sonradan geçilen ders (kodu farklı) önceki denemeyi kapatır', () => {
+    const s = mezuniyetHesapla(
+      mufredat,
+      [
+        { kod: 'BİL122', ad: 'Ayrık Matematik', akts: 6, not: 'F2' },
+        { kod: 'MAT142', ad: 'Ayrık Matematik', akts: 6, not: 'C1' },
+      ],
+      {}
+    );
+    expect(s.kayitlar[0].sonradanGecildi).toBe(true);
+    expect(s.kayitlar[0].ihlaller).toEqual([]);
+  });
+
+  it('transkriptin birikimli tamamlanan AKTS değeri esas alınır', () => {
+    const s = mezuniyetHesapla(
+      mufredat,
+      [{ kod: 'BLM101', ad: 'Programlama', akts: 6, not: 'AA' }],
+      { toplamAkts: 240 },
+      { transkriptAkts: '238' }
+    );
+    expect(s.gecilenAkts).toBe(238);
+    expect(s.hesaplananAkts).toBe(6);
+    expect(s.aktsKaynagi).toBe('transkript');
+    expect(s.kalanAkts).toBe(2);
+    const h = mezuniyetHesapla(
+      mufredat,
+      [{ kod: 'BLM101', ad: 'Programlama', akts: 6, not: 'AA' }],
+      {}
+    );
+    expect(h.aktsKaynagi).toBe('hesap');
+    expect(h.gecilenAkts).toBe(6);
   });
 
   it('hiç geçilmemiş tekrar ders sarı kalır', () => {

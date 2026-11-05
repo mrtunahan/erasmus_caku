@@ -39,8 +39,8 @@ const harf = (v) =>
 const SATIR_KURALLARI = [
   { id: 'kalanNot', ad: 'Başarısız (kalır) notu olan ders' },
   { id: 'belirsizNot', ad: 'Notu ölçekte tanınmayan ders' },
-  { id: 'mufredatDisi', ad: 'Bölüm müfredatında olmayan ders' },
-  { id: 'aktsFarki', ad: 'AKTS’i müfredattakinden farklı ders' },
+  { id: 'mufredatDisi', ad: 'Bölüm müfredatında olmayan ders (geçilmemişse)' },
+  { id: 'aktsFarki', ad: 'AKTS’i müfredattakinden farklı ders (geçilmemişse)' },
   { id: 'tekrar', ad: 'Transkriptte birden çok kez geçen ders' },
 ];
 

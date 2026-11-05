@@ -164,9 +164,13 @@ function hesapla(basvuru, mufredat, kural) {
     yil: d.yil,
     yariyil: d.yariyil,
     statu: d.statu,
+    esdeger: d.esdeger,
   }));
   if (dersler.length === 0) return null;
-  return mezuniyetHesapla(mufredat, dersler, kural, { agno: basvuru.agno });
+  return mezuniyetHesapla(mufredat, dersler, kural, {
+    agno: basvuru.agno,
+    transkriptAkts: basvuru.transkriptAkts,
+  });
 }
 
 function ozetCikar(sonuc) {
@@ -619,6 +623,11 @@ function KosulOzeti({ sonuc }) {
       >
         <span style={{ fontSize: 13.5, fontWeight: 800, color: R.navy }}>
           {sonuc.gecilenAkts} / {sonuc.kural.toplamAkts} AKTS
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: R.soluk, marginLeft: 8 }}>
+            {sonuc.aktsKaynagi === 'transkript'
+              ? 'transkriptteki birikimli tamamlanan AKTS'
+              : 'derslerden hesaplandı — transkriptin toplamı okunamadı'}
+          </span>
         </span>
         <span style={{ fontSize: 12, color: R.soluk }}>
           {sonuc.kalanAkts} AKTS kaldı · {sonuc.modelEtiketi}
@@ -932,13 +941,17 @@ function transkriptSutunlari(kural) {
   return [
     { id: 'kod', label: 'Ders Kodu', hint: 'örn. BLM101; transkriptte yazdığı gibi' },
     { id: 'ad', label: 'Ders Adı' },
-    { id: 'akts', label: 'AKTS', hint: 'yalnız sayı; kredi sütunuyla karıştırma' },
+    {
+      id: 'akts',
+      label: 'AKTS',
+      hint: 'yalnız sayı; "Kredi | AKTS" sütununda "6 | 5" yazıyorsa çizgiden SONRAKİ sayı (5)',
+    },
     {
       id: 'not',
-      label: 'Harf Notu',
+      label: 'Harf Notu (HBN)',
       hint: (
-        'Harf notunu RAKAMIYLA BİRLİKTE, yazdığı gibi al (B2, C3, F1 gibi; "B2"yi "B" diye kısaltma). ' +
-        'Geçerli notlar: ' +
+        'Harf notu (HBN sütunu), RAKAMIYLA ve yazdığı gibi: B2, C3, F1, BŞ ("B2"yi "B" yapma). ' +
+        'Geçerli: ' +
         notlar.join(', ')
       ).slice(0, 240),
     },
@@ -958,11 +971,26 @@ function transkriptSutunlari(kural) {
       label: 'Statü',
       hint: 'Zorunlu ya da Seçmeli (transkriptte Z/S); yoksa boş bırak',
     },
+    {
+      // Kodu değişmiş ders: "BM498 … Açıklama: 2025 - Bahar : BİL494".
+      id: 'esdeger',
+      label: 'Yerine Sayılan Ders Kodu',
+      hint: 'Açıklama sütununda bir ders kodu varsa yalnız o kod (örn. "2025 - Bahar : BİL494" → BİL494); yoksa boş',
+    },
   ];
 }
 const TRANSKRIPT_UST_BILGI = [
-  { id: 'agno', label: 'AGNO / GANO', hint: 'genel not ortalaması, örn. 3,42' },
+  {
+    id: 'agno',
+    label: 'GNO / AGNO',
+    hint: 'genel not ortalaması; EN SON dönemin "Birikimli" satırındaki GNO, örn. 2,39',
+  },
   { id: 'sinif', label: 'Sınıf', hint: 'yalnız rakam' },
+  {
+    id: 'tamamlananAkts',
+    label: 'Birikimli Tamamlanan AKTS',
+    hint: 'EN SON dönemin "Birikimli" satırındaki "Tamamlanan Kredi | AKTS" değerinin AKTS kısmı ("145 | 238" ise 238); yalnız sayı',
+  },
 ];
 
 function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
@@ -1170,11 +1198,17 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
           yil: metin(s.yil),
           yariyil: metin(s.yariyil),
           statu: metin(s.statu),
+          esdeger: metin(s.esdeger).toLocaleUpperCase('tr-TR'),
         }))
         .filter((d) => d.kod || d.ad);
       const taslak = {
         dersler,
         agno: metin(ust.agno && ust.agno.deger),
+        // Transkriptin resmî birikimli tamamlanan AKTS'i (hesap bunu esas alır).
+        transkriptAkts: metin(ust.tamamlananAkts && ust.tamamlananAkts.deger).replace(
+          /[^\d,.]/g,
+          ''
+        ),
         sinif: metin(ust.sinif && ust.sinif.deger),
         transkriptUrl: yuklenen.url,
         transkriptAdi: yuklenen.ad,
