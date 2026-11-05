@@ -261,12 +261,9 @@ describe('danışman yazma kararı', () => {
     expect(danismanYazmaKarari({ tur: 'set', mevcut: null, veri: form }).izin).toBe(false);
   });
 
-  it('isterse başvuruyu siler; memura iletildikten sonra silemez', () => {
-    ['danismanda', 'iade', 'dilekce', 'imzali'].forEach((d) =>
+  it('isterse başvuruyu HER AŞAMADA siler', () => {
+    ['danismanda', 'iade', 'dilekce', 'imzali', 'memurda', 'tamamlandi'].forEach((d) =>
       expect(danismanYazmaKarari({ tur: 'delete', mevcut: { ...form, durum: d } }).izin).toBe(true)
-    );
-    ['memurda', 'tamamlandi'].forEach((d) =>
-      expect(danismanYazmaKarari({ tur: 'delete', mevcut: { ...form, durum: d } }).izin).toBe(false)
     );
   });
 
