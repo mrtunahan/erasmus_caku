@@ -172,6 +172,37 @@ describe('öğrenci yazma kararı', () => {
   });
 });
 
+describe('dilekçe aşamasında öğrencinin tamamladığı bilgiler', () => {
+  const mevcut = {
+    ...form,
+    durum: 'dilekce',
+    silinecekDersler: [{ kod: 'BLM101', ad: 'Programlama' }],
+  };
+  it('mezuniyet dönemini ve eksik ders bilgisini yazar', () => {
+    expect(
+      ogrenciYazmaKarari({
+        tur: 'set',
+        mevcut,
+        veri: {
+          mezuniyetDonemi: { ogretimYili: '2025-2026', donem: 'Güz' },
+          silinecekEk: { 'BLM101|Programlama': { yil: '2023-2024', yariyil: 'Güz' } },
+        },
+        numaralar: [NO],
+      }).izin
+    ).toBe(true);
+  });
+  it('danışmanın ders listesine yine dokunamaz', () => {
+    expect(
+      ogrenciYazmaKarari({
+        tur: 'set',
+        mevcut,
+        veri: { silinecekDersler: [{ kod: 'BLM101', ad: 'Programlama', yil: 'x' }] },
+        numaralar: [NO],
+      }).izin
+    ).toBe(false);
+  });
+});
+
 describe('danışman yazma kararı', () => {
   const mevcut = { ...form, durum: 'danismanda' };
 

@@ -29,25 +29,16 @@ import {
   dosyaParcasi,
   gecmisKaydi,
   imzaEksikleri,
+  silinecekDersleriBirlestir,
+  dersAnahtari,
 } from './lib/mezuniyet-basvuru.js';
 import { mezuniyetHesapla, mezKuralNormalize } from './lib/mezuniyet.js';
 import { mezuniyetFormunuDoldur, bolumBasligi } from './lib/mezuniyet-form-doldur.js';
+import { R, dugme, GIRDI, BilgiNotu, GeriDon, BolumKarti } from './mezuniyet-ui.jsx';
+import MezuniyetKurallari from './mezuniyet-kurallari.jsx';
 
 const { useState, useEffect, useMemo, useCallback } = React;
 
-const R = {
-  navy: '#0B2E73',
-  mavi: '#105BFF',
-  turuncu: '#FE8500',
-  zemin: '#F0F0F0',
-  metin: '#1F2329',
-  soluk: '#5F6368',
-  kenar: '#E2E2E2',
-  sari: '#FEF3C7',
-  sariKenar: '#F59E0B',
-  yesil: '#059669',
-  kirmizi: '#DC2626',
-};
 const KART = {
   background: '#FFFFFF',
   border: '1px solid ' + R.kenar,
@@ -56,15 +47,6 @@ const KART = {
   marginBottom: 16,
 };
 const BASLIK = { fontSize: 14.5, fontWeight: 800, color: R.navy, margin: '0 0 12px' };
-const GIRDI = {
-  width: '100%',
-  padding: '8px 10px',
-  border: '1px solid #CFCFCF',
-  borderRadius: 8,
-  fontSize: 13,
-  fontFamily: 'inherit',
-  boxSizing: 'border-box',
-};
 const ETIKET = {
   display: 'block',
   fontSize: 11,
@@ -74,26 +56,6 @@ const ETIKET = {
   letterSpacing: '0.04em',
   marginBottom: 5,
 };
-
-function dugme(tur, pasif) {
-  const t = {
-    birincil: { background: R.mavi, color: 'white', border: 'none' },
-    turuncu: { background: R.turuncu, color: 'white', border: 'none' },
-    yesil: { background: R.yesil, color: 'white', border: 'none' },
-    ikincil: { background: 'white', color: R.navy, border: '1px solid #CFCFCF' },
-    tehlike: { background: 'white', color: R.kirmizi, border: '1px solid #FCA5A5' },
-  }[tur || 'ikincil'];
-  return {
-    ...t,
-    padding: '8px 16px',
-    borderRadius: 9,
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: pasif ? 'not-allowed' : 'pointer',
-    opacity: pasif ? 0.55 : 1,
-    fontFamily: 'inherit',
-  };
-}
 
 const metin = (v) => String(v == null ? '' : v).trim();
 const trTarih = (v) => (v ? new Date(v).toLocaleDateString('tr-TR') : '—');
@@ -165,10 +127,18 @@ function useBolumVerisi(bolumId) {
   return { kural, mufredat, hazir };
 }
 
+/** Statü: transkriptte yazan (Z/S…) önce, yoksa müfredattaki. */
+function statuMetni(r) {
+  const t = metin(r && (r.statuTranskript || r.statu)).toLocaleUpperCase('tr-TR');
+  if (!t) return '';
+  if (t === 'Z' || t.indexOf('ZORUNLU') === 0) return 'Zorunlu';
+  if (t === 'S' || t.indexOf('SEÇMELİ') === 0 || t.indexOf('SECMELI') === 0) return 'Seçmeli';
+  return metin(r.statuTranskript || r.statu);
+}
+
 // Danışmanın tiklediği ders, dilekçenin ders tablosundaki sütunlarla saklanır:
 // DERSİN KODU VE ADI · EĞİTİM-ÖĞRETİM YILI · YARIYIL · AKTS · STATÜSÜ.
 function silinecekDers(r) {
-  const statu = r.statu === 'Z' ? 'Zorunlu' : r.statu === 'S' ? 'Seçmeli' : metin(r.statu);
   return {
     kod: r.kod,
     ad: r.ad,
@@ -176,7 +146,7 @@ function silinecekDers(r) {
     not: r.not,
     yil: metin(r.yil),
     yariyil: metin(r.yariyil) || (r.mufredatYariyil ? r.mufredatYariyil + '. yarıyıl' : ''),
-    statu,
+    statu: statuMetni(r),
   };
 }
 
@@ -188,6 +158,7 @@ function hesapla(basvuru, mufredat, kural) {
     not: d.not,
     yil: d.yil,
     yariyil: d.yariyil,
+    statu: d.statu,
   }));
   if (dersler.length === 0) return null;
   return mezuniyetHesapla(mufredat, dersler, kural, { agno: basvuru.agno });
@@ -232,7 +203,9 @@ function formVerisi(b) {
     eposta: metin(il.eposta),
     bolumBaslik: bolumBasligi(bolum),
     silmeBeyani: metin(b.silmeBeyani),
-    dersler: b.silmeBeyani === 'var' ? b.silinecekDersler || [] : [],
+    ogretimYili: metin(b.mezuniyetDonemi && b.mezuniyetDonemi.ogretimYili),
+    donem: metin(b.mezuniyetDonemi && b.mezuniyetDonemi.donem),
+    dersler: b.silmeBeyani === 'var' ? silinecekDersleriBirlestir(b) : [],
   };
 }
 
@@ -244,6 +217,7 @@ const ALAN_ADLARI = {
   adres: 'Adres',
   eposta: 'e-posta',
   beyan: 'beyan kutusu',
+  donem: '“… öğretim yılı … dönemi” boşlukları',
 };
 
 function yetkiBasligi() {
@@ -491,29 +465,74 @@ function DurumRozeti({ durum }) {
 }
 
 function AdimSeridi({ durum }) {
-  const aktif = durum ? adimSirasi(durum) : -1;
+  const aktif = durum ? adimSirasi(durum) : 0;
   const bitti = durum === 'tamamlandi';
   return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        background: 'white',
+        border: '1px solid ' + R.kenar,
+        borderRadius: 14,
+        padding: '16px 12px',
+        marginBottom: 16,
+        overflowX: 'auto',
+      }}
+    >
       {MEZ_ADIMLAR.map((a, i) => {
         const gecildi = i < aktif || bitti;
         const simdi = i === aktif && !bitti;
+        const renk = gecildi ? R.yesil : simdi ? R.turuncu : '#B6BBC2';
         return (
           <div
             key={a.id}
-            style={{
-              flex: '1 1 140px',
-              padding: '9px 12px',
-              borderRadius: 10,
-              border: '1px solid ' + (simdi ? R.turuncu : gecildi ? '#A7F3D0' : R.kenar),
-              background: simdi ? '#FFF3E6' : gecildi ? '#ECFDF5' : 'white',
-              fontSize: 12.5,
-              fontWeight: 700,
-              color: simdi ? '#B45309' : gecildi ? R.yesil : R.soluk,
-            }}
+            style={{ flex: '1 1 0', minWidth: 96, position: 'relative', textAlign: 'center' }}
           >
-            {gecildi ? '✓ ' : i + 1 + '. '}
-            {a.etiket}
+            {i > 0 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 14,
+                  right: '50%',
+                  width: '100%',
+                  height: 2,
+                  background: i <= aktif || bitti ? R.yesil : R.kenar,
+                }}
+              />
+            )}
+            <span
+              style={{
+                position: 'relative',
+                zIndex: 1,
+                width: 30,
+                height: 30,
+                margin: '0 auto',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 13,
+                fontWeight: 800,
+                color: gecildi || simdi ? 'white' : R.soluk,
+                background: gecildi ? R.yesil : simdi ? R.turuncu : 'white',
+                border: '2px solid ' + renk,
+                boxShadow: simdi ? '0 0 0 4px ' + R.turuncuAcik : 'none',
+              }}
+            >
+              {gecildi ? '✓' : i + 1}
+            </span>
+            <div
+              style={{
+                marginTop: 7,
+                fontSize: 12,
+                fontWeight: simdi ? 800 : 600,
+                color: simdi ? R.navy : gecildi ? R.yesil : R.soluk,
+                padding: '0 4px',
+              }}
+            >
+              {a.etiket}
+            </div>
           </div>
         );
       })}
@@ -521,30 +540,63 @@ function AdimSeridi({ durum }) {
   );
 }
 
-function BilgiKutusu({ tur, children }) {
-  const t = {
-    bilgi: { bg: '#E8F0FF', kenar: '#BFD3FF', renk: R.navy },
-    uyari: { bg: '#FFFBEB', kenar: '#FCD34D', renk: '#92400E' },
-    hata: { bg: '#FEF2F2', kenar: '#FCA5A5', renk: '#B91C1C' },
-    basari: { bg: '#ECFDF5', kenar: '#A7F3D0', renk: '#065F46' },
-  }[tur || 'bilgi'];
+/** Öğrencinin şu an ne yapması gerektiği — tek cümle. */
+const OGRENCI_SIRADAKI = {
+  '': 'Transkriptinizi yükleyin; sistem dersleri forma aktarsın.',
+  taslak: 'Formunuzu kontrol edin ve danışmanınıza gönderin.',
+  iade: 'Danışmanınızın notunu okuyun, gerekiyorsa transkriptinizi yeniden yükleyip tekrar gönderin.',
+  danismanda: 'Danışmanınız formunuzu inceliyor; onaylayınca bildirim alacaksınız.',
+  dilekce: 'Dilekçenizi hazırlayın, imzalayın ve imzalı hâlini yükleyin.',
+  imzali: 'İmzalı dilekçeniz danışmanınızda; belgeleriniz memura iletilecek.',
+  memurda: 'Belgeleriniz bölüm memurunda işleniyor.',
+  tamamlandi: 'Mezuniyet başvurunuz tamamlandı.',
+};
+/** Danışmandan beklenen — tek cümle. */
+const DANISMAN_SIRADAKI = {
+  danismanda:
+    'Formu transkriptle karşılaştırın; silinecek dersleri ve eksik stajları işaretleyip onaylayın ya da düzeltme isteyin.',
+  dilekce:
+    'Öğrenci dilekçesini hazırlıyor. Gerekirse işaretleri güncelleyebilir, not gönderebilirsiniz.',
+  imzali: 'İmzalı dilekçeyi kontrol edin; uygunsa transkript ve dilekçeyi memura iletin.',
+  iade: 'Öğrencinin düzeltip yeniden göndermesi bekleniyor.',
+  memurda: 'Belgeler memura iletildi.',
+  tamamlandi: 'Memur işlemi tamamladı.',
+};
+
+function SiradakiAdim({ metin: m, rol }) {
+  if (!m) return null;
   return (
     <div
       style={{
-        padding: '10px 13px',
-        borderRadius: 10,
-        background: t.bg,
-        border: '1px solid ' + t.kenar,
-        color: t.renk,
-        fontSize: 12.5,
-        lineHeight: 1.55,
-        marginBottom: 12,
+        display: 'flex',
+        gap: 12,
+        alignItems: 'center',
+        padding: '12px 16px',
+        borderRadius: 12,
+        background: R.turuncuAcik,
+        border: '1px solid #FFD3A6',
+        marginBottom: 16,
       }}
     >
-      {children}
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 800,
+          color: 'white',
+          background: R.turuncu,
+          borderRadius: 999,
+          padding: '3px 10px',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {rol === 'danisman' ? 'Sizden beklenen' : 'Sıradaki adım'}
+      </span>
+      <span style={{ fontSize: 13.5, color: R.metin, fontWeight: 600 }}>{m}</span>
     </div>
   );
 }
+
+const BilgiKutusu = BilgiNotu;
 
 function KosulOzeti({ sonuc }) {
   if (!sonuc) return null;
@@ -662,11 +714,20 @@ function TranskriptFormu({ sonuc, secim, onSecim, secimKilitli }) {
           maxHeight: 460,
         }}
       >
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
           <thead>
             <tr style={{ background: '#F7F7F7', position: 'sticky', top: 0 }}>
-              {(secim ? ['Sil'] : [])
-                .concat(['Kod', 'Ders Adı', 'AKTS', 'Not', 'Durum'])
+              {(secim ? ['Silinecek'] : [])
+                .concat([
+                  'Kod',
+                  'Ders Adı',
+                  'Eğitim-Öğretim Yılı',
+                  'Yarıyıl',
+                  'Statü',
+                  'AKTS',
+                  'Not',
+                  'Durum',
+                ])
                 .map((t) => (
                   <th
                     key={t}
@@ -712,8 +773,15 @@ function TranskriptFormu({ sonuc, secim, onSecim, secimKilitli }) {
                       </div>
                     )}
                   </td>
-                  <td style={{ ...h, width: 55 }}>{r.akts}</td>
-                  <td style={{ ...h, width: 55, fontWeight: 700 }}>{r.not}</td>
+                  <td style={{ ...h, width: 96, color: r.yil ? R.metin : '#B6BBC2' }}>
+                    {r.yil || '—'}
+                  </td>
+                  <td style={{ ...h, width: 74, color: r.yariyil ? R.metin : '#B6BBC2' }}>
+                    {r.yariyil || '—'}
+                  </td>
+                  <td style={{ ...h, width: 74 }}>{statuMetni(r) || '—'}</td>
+                  <td style={{ ...h, width: 50 }}>{r.akts}</td>
+                  <td style={{ ...h, width: 50, fontWeight: 700 }}>{r.not}</td>
                   <td style={{ ...h, width: 70, color: durumRenk[r.durum], fontWeight: 700 }}>
                     {durumEtiket[r.durum]}
                   </td>
@@ -849,6 +917,11 @@ const TRANSKRIPT_SUTUNLARI = [
     hint: 'dersin alındığı dönemin başlığındaki yıl, örn. 2022-2023',
   },
   { id: 'yariyil', label: 'Yarıyıl', hint: 'dersin alındığı dönem: Güz, Bahar ya da Yaz' },
+  {
+    id: 'statu',
+    label: 'Statü',
+    hint: 'Zorunlu ya da Seçmeli (transkriptte Z/S); yoksa boş bırak',
+  },
 ];
 const TRANSKRIPT_UST_BILGI = [
   { id: 'agno', label: 'AGNO / GANO', hint: 'genel not ortalaması, örn. 3,42' },
@@ -879,6 +952,11 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
   });
   // Dilekçedeki iki kutudan hangisi: 'yok' (silinecek dersim yok) | 'var'.
   const [silmeBeyani, setSilmeBeyani] = useState('');
+  // "… öğretim yılı … dönemi" ve silinecek dersin eksik yıl/yarıyıl/statüsü.
+  const [donemBilgisi, setDonemBilgisi] = useState({ ogretimYili: '', donem: '' });
+  const [silinecekEk, setSilinecekEk] = useState({});
+  // Form aşaması geçtikten sonra transkript formu katlı durur (dilekçe öne çıksın).
+  const [formAcik, setFormAcik] = useState(false);
   const [onizleme, setOnizleme] = useState(null);
   const [kurumFormu, setKurumFormu] = useState(null);
   const [eskiKayit, setEskiKayit] = useState(null);
@@ -887,6 +965,8 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
     const b = await basvuruOku(ogrNo);
     setBasvuru(b);
     if (b && b.iletisim) setIletisim((x) => ({ ...x, ...b.iletisim }));
+    if (b && b.mezuniyetDonemi) setDonemBilgisi((x) => ({ ...x, ...b.mezuniyetDonemi }));
+    if (b && b.silinecekEk) setSilinecekEk(b.silinecekEk);
     if (b) {
       setSilmeBeyani(
         (s) => metin(b.silmeBeyani) || s || ((b.silinecekDersler || []).length > 0 ? 'var' : '')
@@ -1049,6 +1129,7 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
           not: metin(s.not).toLocaleUpperCase('tr-TR'),
           yil: metin(s.yil),
           yariyil: metin(s.yariyil),
+          statu: metin(s.statu),
         }))
         .filter((d) => d.kod || d.ad);
       const taslak = {
@@ -1172,8 +1253,12 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
       });
       return;
     }
+    if (!metin(donemBilgisi.ogretimYili) || !metin(donemBilgisi.donem)) {
+      setMesaj({ tur: 'hata', metin: 'Mezuniyet dönemini (öğretim yılı ve dönem) girin.' });
+      return;
+    }
     if (!silmeBeyani) {
-      setMesaj({ tur: 'hata', metin: 'Dilekçedeki iki kutudan birini işaretleyin.' });
+      setMesaj({ tur: 'hata', metin: 'Beyan kutularından birini işaretleyin.' });
       return;
     }
     setCalisiyor('indir');
@@ -1184,6 +1269,12 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
       if (JSON.stringify(iletisim) !== JSON.stringify(basvuru.iletisim || {}))
         yama.iletisim = iletisim;
       if (silmeBeyani !== metin(basvuru.silmeBeyani)) yama.silmeBeyani = silmeBeyani;
+      if (JSON.stringify(donemBilgisi) !== JSON.stringify(basvuru.mezuniyetDonemi || {})) {
+        yama.mezuniyetDonemi = donemBilgisi;
+      }
+      if (JSON.stringify(silinecekEk) !== JSON.stringify(basvuru.silinecekEk || {})) {
+        yama.silinecekEk = silinecekEk;
+      }
       if (Object.keys(yama).length) {
         await basvuruYaz(ogrNo, { ...yama, updatedAt: new Date().toISOString() });
       }
@@ -1215,6 +1306,7 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
   return (
     <div>
       <AdimSeridi durum={durum || 'taslak'} />
+      <SiradakiAdim metin={OGRENCI_SIRADAKI[durum || '']} />
       {/* Dilekçe aşamasında mesaj, öğrencinin baktığı yerde (düğmenin altında) çıkar. */}
       {mesaj.metin && durum !== 'dilekce' && (
         <BilgiKutusu tur={mesaj.tur || 'bilgi'}>{mesaj.metin}</BilgiKutusu>
@@ -1302,25 +1394,53 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
 
       {sonuc && (
         <div style={KART}>
-          <h3 style={BASLIK}>Mezuniyet formu</h3>
-          <BilgiKutusu tur="uyari">
-            Bu hesap <b>bilgilendirme amaçlıdır</b>; resmî karar öğrenci bilgi sistemindedir.
-          </BilgiKutusu>
           <div
-            style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 13, marginBottom: 12 }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginBottom: formAsamasi || formAcik ? 12 : 0,
+            }}
           >
-            <span>
-              Öğrenci: <b>{metin(currentUser?.name)}</b> ({ogrNo})
-            </span>
-            <span>
-              AGNO: <b>{metin(basvuru.agno) || '—'}</b>
-            </span>
-            <span>
-              Sınıf: <b>{metin(basvuru.sinif) || '—'}</b>
-            </span>
+            <h3 style={{ ...BASLIK, margin: 0, flex: 1 }}>Mezuniyet formu</h3>
+            {!formAsamasi && (
+              <button
+                type="button"
+                onClick={() => setFormAcik((v) => !v)}
+                style={{ ...dugme('ikincil'), padding: '6px 12px', fontSize: 12.5 }}
+              >
+                {formAcik ? 'Gizle' : 'Formu göster (' + sonuc.kayitlar.length + ' ders)'}
+              </button>
+            )}
           </div>
-          <KosulOzeti sonuc={sonuc} />
-          <TranskriptFormu sonuc={sonuc} />
+          {(formAsamasi || formAcik) && (
+            <>
+              <BilgiKutusu tur="uyari">
+                Bu hesap <b>bilgilendirme amaçlıdır</b>; resmî karar öğrenci bilgi sistemindedir.
+              </BilgiKutusu>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 18,
+                  flexWrap: 'wrap',
+                  fontSize: 13,
+                  marginBottom: 12,
+                }}
+              >
+                <span>
+                  Öğrenci: <b>{metin(currentUser?.name)}</b> ({ogrNo})
+                </span>
+                <span>
+                  AGNO: <b>{metin(basvuru.agno) || '—'}</b>
+                </span>
+                <span>
+                  Sınıf: <b>{metin(basvuru.sinif) || '—'}</b>
+                </span>
+              </div>
+              <KosulOzeti sonuc={sonuc} />
+              <TranskriptFormu sonuc={sonuc} />
+            </>
+          )}
         </div>
       )}
 
@@ -1351,186 +1471,213 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
         </div>
       )}
 
-      {durum === 'danismanda' && (
-        <BilgiKutusu>
-          Formunuz ve transkriptiniz danışmanınızın onayında. Onaylandığında bildirim alacak ve
-          mezuniyet dilekçenizi oluşturabileceksiniz.
-        </BilgiKutusu>
-      )}
-
-      {/* ── 2) DİLEKÇE ── */}
+      {/* ── 2) DİLEKÇE ── numaralı adımlar */}
       {durum === 'dilekce' && (
-        <div style={KART}>
-          <h3 style={BASLIK}>Mezuniyet dilekçesi</h3>
-          <BilgiKutusu tur="basari">
-            Danışmanınız formunuzu onayladı. Kimlik bilgilerinizi kontrol edin, beyanınızı
-            işaretleyin, dilekçenizi önizleyip indirin, imzalayın ve imzalı hâlini PDF olarak
-            yükleyin.
-          </BilgiKutusu>
+        <div>
           <IsaretOzeti basvuru={basvuru} />
 
-          <div style={{ ...ETIKET, marginTop: 4 }}>Kimlik bilgileri</div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: 10,
-              marginBottom: 16,
-            }}
+          <BolumKarti
+            no={1}
+            baslik="Kimlik bilgileri"
+            aciklama="Sistemden geldi; eksik olanları tamamlayın. Dilekçeye olduğu gibi basılır."
           >
-            {[
-              ['adSoyad', 'Adı ve Soyadı'],
-              ['ogrenciNo', 'Öğrenci No'],
-              ['bolum', 'Bölümü'],
-              ['telefon', 'Telefon'],
-              ['adres', 'Adres'],
-              ['eposta', 'e-posta'],
-            ].map(([k, l]) => {
-              const sabit = k === 'ogrenciNo';
-              const deger = sabit ? ogrNo : iletisim[k] || '';
-              return (
-                <div key={k}>
-                  <label
-                    style={{ fontSize: 12, color: R.soluk, display: 'block', marginBottom: 4 }}
-                  >
-                    {l}
-                    {!sabit && !deger && <span style={{ color: R.kirmizi }}> · girilmeli</span>}
-                  </label>
-                  <input
+            <div style={IZGARA}>
+              {[
+                ['adSoyad', 'Adı ve Soyadı'],
+                ['ogrenciNo', 'Öğrenci No'],
+                ['bolum', 'Bölümü'],
+                ['telefon', 'Telefon'],
+                ['adres', 'Adres'],
+                ['eposta', 'e-posta'],
+              ].map(([k, l]) => {
+                const sabit = k === 'ogrenciNo';
+                const deger = sabit ? ogrNo : iletisim[k] || '';
+                return (
+                  <Girdi
+                    key={k}
+                    etiket={l}
+                    eksik={!sabit && !deger}
                     value={deger}
                     readOnly={sabit}
-                    onChange={(e) => setIletisim({ ...iletisim, [k]: e.target.value })}
-                    style={{
-                      ...GIRDI,
-                      background: sabit ? '#F7F7F7' : 'white',
-                      borderColor: !sabit && !deger ? '#FCA5A5' : '#CFCFCF',
-                    }}
+                    onChange={(v) => setIletisim({ ...iletisim, [k]: v })}
                   />
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </BolumKarti>
 
-          <div style={{ ...ETIKET }}>Beyan (dilekçede işaretlenir)</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 6 }}>
-            {[
-              [
-                'yok',
-                'Mezuniyet için transkriptimden silinmesi gereken seçmeli başarısız dersim bulunmamaktadır.',
-              ],
-              [
-                'var',
-                'Mezuniyet için aşağıda bildirdiğim seçmeli derslerin transkriptimden silinmesini istiyorum.',
-              ],
-            ].map(([k, t]) => (
-              <label
-                key={k}
-                style={{
-                  display: 'flex',
-                  gap: 10,
-                  alignItems: 'flex-start',
-                  fontSize: 13,
-                  padding: '9px 12px',
-                  borderRadius: 10,
-                  cursor: 'pointer',
-                  border: '1px solid ' + (silmeBeyani === k ? R.mavi : R.kenar),
-                  background: silmeBeyani === k ? '#E8F0FF' : 'white',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={silmeBeyani === k}
-                  onChange={(e) => setSilmeBeyani(e.target.checked ? k : '')}
-                  style={{ marginTop: 2 }}
-                />
-                <span>{t}</span>
-              </label>
-            ))}
-          </div>
-          {silmeBeyani === 'yok' && (basvuru.silinecekDersler || []).length > 0 && (
-            <BilgiKutusu tur="uyari">
-              Danışmanınız {basvuru.silinecekDersler.length} dersin silinmesini istedi; bu durumda
-              ikinci kutu işaretlenmelidir.
-            </BilgiKutusu>
-          )}
-          {silmeBeyani === 'var' && (basvuru.silinecekDersler || []).length > 0 && (
-            <div style={{ fontSize: 12, color: R.soluk, marginBottom: 6 }}>
-              Dilekçedeki ders tablosuna şu dersler işlenir:{' '}
-              {basvuru.silinecekDersler
-                .map((d) =>
-                  [d.kod + ' ' + d.ad, d.yil, d.yariyil, d.akts && d.akts + ' AKTS', d.statu]
-                    .filter(Boolean)
-                    .join(' · ')
-                )
-                .join(' | ')}
-            </div>
-          )}
-          {silmeBeyani === 'var' && (basvuru.silinecekDersler || []).length === 0 && (
-            <BilgiKutusu tur="uyari">
-              Danışmanınız silinecek ders işaretlemedi; dilekçedeki ders tablosu boş kalır.
-            </BilgiKutusu>
-          )}
-          <div style={{ height: 10 }} />
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <BelgeAdimi
-              baslik="Mezuniyet dilekçesi"
-              indirMetni={calisiyor === 'indir' ? 'Hazırlanıyor…' : 'Dilekçeyi önizle ve indir'}
-              onIndir={onizle}
-              yuklenen={basvuru.imzaliDilekce}
-              yukleniyor={calisiyor === 'imzaliDilekce'}
-              onYukle={(f) => imzaliYukle('imzaliDilekce', f)}
-              mesgul={!!calisiyor}
-            />
-          </div>
-          {mesaj.metin && (
-            <div style={{ marginTop: 10 }}>
-              <BilgiKutusu tur={mesaj.tur || 'bilgi'}>{mesaj.metin}</BilgiKutusu>
-            </div>
-          )}
-          {onizleme && <DilekceOnizleme sonuc={onizleme} onKapat={() => setOnizleme(null)} />}
-          {kurumFormu && (
-            <div style={{ marginTop: 10, fontSize: 12, color: R.soluk }}>
-              Kurumun boş formu (Formlar):{' '}
-              <a
-                href={kurumFormu.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: R.mavi }}
-              >
-                {kurumFormu.ad || 'Mezuniyet dilekçesi'}
-              </a>
-            </div>
-          )}
-          <div
-            style={{
-              marginTop: 14,
-              display: 'flex',
-              gap: 10,
-              alignItems: 'center',
-              flexWrap: 'wrap',
-            }}
+          <BolumKarti
+            no={2}
+            baslik="Mezuniyet dönemi"
+            aciklama="Dilekçedeki “… öğretim yılı … dönemi sonu itibariyle” cümlesine yazılır."
           >
-            <button
-              type="button"
-              disabled={eksikler.length > 0 || !!calisiyor}
-              onClick={imzaliGonder}
-              style={dugme('turuncu', eksikler.length > 0 || !!calisiyor)}
-            >
-              {calisiyor === 'imza' ? 'Gönderiliyor…' : 'İmzalı dilekçeyi danışmana gönder'}
-            </button>
-            {eksikler.length > 0 && (
-              <span style={{ fontSize: 12, color: R.soluk }}>{eksikler.join(' ')}</span>
+            <div style={IZGARA}>
+              <Girdi
+                etiket="Öğretim yılı"
+                eksik={!donemBilgisi.ogretimYili}
+                value={donemBilgisi.ogretimYili}
+                placeholder="örn. 2025-2026"
+                onChange={(v) => setDonemBilgisi({ ...donemBilgisi, ogretimYili: v })}
+              />
+              <label style={{ display: 'block' }}>
+                <span style={ALAN_ETIKETI}>
+                  Dönem
+                  {!donemBilgisi.donem && <span style={{ color: R.kirmizi }}> · seçilmeli</span>}
+                </span>
+                <select
+                  value={donemBilgisi.donem}
+                  onChange={(e) => setDonemBilgisi({ ...donemBilgisi, donem: e.target.value })}
+                  style={{ ...GIRDI, borderColor: donemBilgisi.donem ? '#D5D7DB' : '#FCA5A5' }}
+                >
+                  <option value="">Seçin</option>
+                  {['Güz', 'Bahar', 'Yaz'].map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </BolumKarti>
+
+          <BolumKarti no={3} baslik="Beyan" aciklama="Dilekçedeki iki kutudan birini işaretleyin.">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                [
+                  'yok',
+                  'Mezuniyet için transkriptimden silinmesi gereken seçmeli başarısız dersim bulunmamaktadır.',
+                ],
+                [
+                  'var',
+                  'Mezuniyet için aşağıda bildirdiğim seçmeli derslerin transkriptimden silinmesini istiyorum.',
+                ],
+              ].map(([k, t]) => (
+                <label
+                  key={k}
+                  style={{
+                    display: 'flex',
+                    gap: 10,
+                    alignItems: 'flex-start',
+                    fontSize: 13,
+                    padding: '11px 14px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    border: '1px solid ' + (silmeBeyani === k ? R.mavi : R.kenar),
+                    background: silmeBeyani === k ? R.maviAcik : 'white',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={silmeBeyani === k}
+                    onChange={(e) => setSilmeBeyani(e.target.checked ? k : '')}
+                    style={{ marginTop: 2 }}
+                  />
+                  <span>{t}</span>
+                </label>
+              ))}
+            </div>
+            {silmeBeyani === 'yok' && (basvuru.silinecekDersler || []).length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <BilgiKutusu tur="uyari">
+                  Danışmanınız {basvuru.silinecekDersler.length} dersin silinmesini istedi; ikinci
+                  kutu işaretlenmelidir.
+                </BilgiKutusu>
+              </div>
             )}
-          </div>
+            {silmeBeyani === 'var' && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: R.navy, marginBottom: 6 }}>
+                  Dilekçedeki ders tablosu
+                </div>
+                {(basvuru.silinecekDersler || []).length === 0 ? (
+                  <BilgiKutusu tur="uyari">
+                    Danışmanınız silinecek ders işaretlemedi; tablo boş kalır.
+                  </BilgiKutusu>
+                ) : (
+                  <SilinecekTablosu
+                    dersler={basvuru.silinecekDersler}
+                    ek={silinecekEk}
+                    onEk={setSilinecekEk}
+                  />
+                )}
+              </div>
+            )}
+          </BolumKarti>
+
+          <BolumKarti
+            no={4}
+            baslik="Dilekçeyi indirin, imzalayın, yükleyin"
+            aciklama="Dilekçe salt okunur PDF olarak iner. İmzaladıktan sonra taranmış hâlini PDF olarak yükleyin."
+          >
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={onizle}
+                disabled={!!calisiyor}
+                style={dugme('birincil', !!calisiyor)}
+              >
+                {calisiyor === 'indir' ? 'Hazırlanıyor…' : 'Dilekçeyi önizle ve indir'}
+              </button>
+              <label style={{ cursor: calisiyor ? 'not-allowed' : 'pointer' }}>
+                <input
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  style={{ display: 'none' }}
+                  disabled={!!calisiyor}
+                  onChange={(e) => {
+                    const f = (e.target.files && e.target.files[0]) || null;
+                    e.target.value = '';
+                    if (f) imzaliYukle('imzaliDilekce', f);
+                  }}
+                />
+                <span style={dugme('ikincil', !!calisiyor)}>
+                  {calisiyor === 'imzaliDilekce'
+                    ? 'Yükleniyor…'
+                    : basvuru.imzaliDilekce
+                      ? 'İmzalı PDF’i değiştir'
+                      : 'İmzalı PDF’i yükle'}
+                </span>
+              </label>
+              {basvuru.imzaliDilekce && basvuru.imzaliDilekce.url && (
+                <a
+                  href={basvuru.imzaliDilekce.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 12.5, color: R.yesil, fontWeight: 700 }}
+                >
+                  ✓ {basvuru.imzaliDilekce.ad || 'yüklendi'}
+                </a>
+              )}
+            </div>
+            {kurumFormu && (
+              <div style={{ marginTop: 10, fontSize: 12, color: R.soluk }}>
+                Dilekçe kurumun formundan hazırlanır:{' '}
+                <span style={{ color: R.metin }}>{kurumFormu.ad || 'Mezuniyet dilekçesi'}</span>
+              </div>
+            )}
+          </BolumKarti>
+
+          <BolumKarti no={5} baslik="Danışmana gönderin">
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                disabled={eksikler.length > 0 || !!calisiyor}
+                onClick={imzaliGonder}
+                style={dugme('turuncu', eksikler.length > 0 || !!calisiyor)}
+              >
+                {calisiyor === 'imza' ? 'Gönderiliyor…' : 'İmzalı dilekçeyi danışmana gönder'}
+              </button>
+              {eksikler.length > 0 && (
+                <span style={{ fontSize: 12.5, color: R.soluk }}>{eksikler.join(' ')}</span>
+              )}
+            </div>
+          </BolumKarti>
+
+          {mesaj.metin && <BilgiKutusu tur={mesaj.tur || 'bilgi'}>{mesaj.metin}</BilgiKutusu>}
+          {onizleme && <DilekceOnizleme sonuc={onizleme} onKapat={() => setOnizleme(null)} />}
         </div>
       )}
 
-      {durum === 'imzali' && (
-        <BilgiKutusu>
-          İmzalı dilekçeniz danışmanınızda. Danışmanınız belgelerinizi bölüm memuruna iletecek.
-        </BilgiKutusu>
-      )}
       {durum === 'memurda' && (
         <BilgiKutusu tur="basari">
           Transkriptiniz ve dilekçeniz {trTarih(basvuru.memuraIletim && basvuru.memuraIletim.tarih)}{' '}
@@ -1566,50 +1713,103 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
   );
 }
 
-function BelgeAdimi({ baslik, indirMetni, onIndir, yuklenen, yukleniyor, onYukle, mesgul }) {
+const IZGARA = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  gap: 12,
+};
+const ALAN_ETIKETI = {
+  display: 'block',
+  fontSize: 12.5,
+  fontWeight: 600,
+  color: R.metin,
+  marginBottom: 5,
+};
+
+function Girdi({ etiket, eksik, value, onChange, readOnly, placeholder }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 10,
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        padding: '10px 12px',
-        border: '1px solid ' + R.kenar,
-        borderRadius: 10,
-        background: '#FAFAFA',
-      }}
-    >
-      <b style={{ fontSize: 13, color: R.navy, flex: '1 1 180px' }}>{baslik}</b>
-      <button type="button" onClick={onIndir} disabled={mesgul} style={dugme('birincil', mesgul)}>
-        {indirMetni}
-      </button>
-      <label style={{ cursor: mesgul ? 'not-allowed' : 'pointer' }}>
-        <input
-          type="file"
-          accept=".pdf,application/pdf"
-          style={{ display: 'none' }}
-          disabled={mesgul}
-          onChange={(e) => {
-            const f = (e.target.files && e.target.files[0]) || null;
-            e.target.value = '';
-            if (f) onYukle(f);
-          }}
-        />
-        <span style={dugme('ikincil', mesgul)}>
-          {yukleniyor ? 'Yükleniyor…' : yuklenen ? 'İmzalıyı değiştir' : 'İmzalı PDF yükle'}
-        </span>
-      </label>
-      {yuklenen && yuklenen.url && (
-        <a
-          href={yuklenen.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ fontSize: 12, color: R.yesil, fontWeight: 700 }}
-        >
-          ✓ {yuklenen.ad || 'yüklendi'}
-        </a>
-      )}
+    <label style={{ display: 'block' }}>
+      <span style={ALAN_ETIKETI}>
+        {etiket}
+        {eksik && <span style={{ color: R.kirmizi }}> · girilmeli</span>}
+      </span>
+      <input
+        value={value}
+        readOnly={readOnly}
+        placeholder={placeholder}
+        onChange={(e) => onChange && onChange(e.target.value)}
+        style={{
+          ...GIRDI,
+          background: readOnly ? '#F5F6F7' : 'white',
+          color: readOnly ? R.soluk : R.metin,
+          borderColor: eksik ? '#FCA5A5' : '#D5D7DB',
+        }}
+      />
+    </label>
+  );
+}
+
+/**
+ * Dilekçedeki ders tablosunun önizlemesi. Transkriptten okunamayan
+ * eğitim-öğretim yılı / yarıyıl / statü öğrenci tarafından tamamlanır
+ * (danışmanın ders listesi değişmez; ek bilgi ayrı saklanır).
+ */
+function SilinecekTablosu({ dersler, ek, onEk }) {
+  const h = {
+    padding: '7px 9px',
+    fontSize: 12.5,
+    borderBottom: '1px solid #EDEDED',
+    textAlign: 'left',
+  };
+  const hucre = (d, alan, ipucu) => {
+    if (metin(d[alan])) return metin(d[alan]);
+    const k = dersAnahtari(d);
+    const e = ek[k] || {};
+    return (
+      <input
+        value={e[alan] || ''}
+        placeholder={ipucu}
+        onChange={(ev) => onEk({ ...ek, [k]: { ...e, [alan]: ev.target.value } })}
+        style={{
+          ...GIRDI,
+          padding: '5px 8px',
+          fontSize: 12.5,
+          borderColor: e[alan] ? '#D5D7DB' : '#FCA5A5',
+        }}
+      />
+    );
+  };
+  return (
+    <div style={{ border: '1px solid ' + R.kenar, borderRadius: 10, overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
+        <thead>
+          <tr style={{ background: '#F7F7F7' }}>
+            {['Dersin kodu ve adı', 'Eğitim-öğretim yılı', 'Yarıyıl', 'AKTS', 'Statüsü'].map(
+              (t) => (
+                <th key={t} style={{ ...h, fontSize: 11, color: R.soluk }}>
+                  {t}
+                </th>
+              )
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {dersler.map((d) => (
+            <tr key={dersAnahtari(d)}>
+              <td style={{ ...h, fontWeight: 600 }}>
+                {d.kod} {d.ad}
+              </td>
+              <td style={{ ...h, width: 150 }}>{hucre(d, 'yil', 'örn. 2023-2024')}</td>
+              <td style={{ ...h, width: 120 }}>{hucre(d, 'yariyil', 'Güz/Bahar')}</td>
+              <td style={{ ...h, width: 60 }}>{d.akts}</td>
+              <td style={{ ...h, width: 120 }}>{hucre(d, 'statu', 'Seçmeli')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ fontSize: 11.5, color: R.soluk, padding: '7px 10px' }}>
+        Kırmızı kenarlı alanlar transkriptten okunamadı; transkriptinize bakarak doldurun.
+      </div>
     </div>
   );
 }
@@ -1931,10 +2131,9 @@ function DanismanDetay({ no, kimlik, onGeri }) {
 
   return (
     <div>
-      <button type="button" onClick={onGeri} style={{ ...dugme('ikincil'), marginBottom: 12 }}>
-        ← Listeye dön
-      </button>
+      <GeriDon onClick={onGeri} />
       <AdimSeridi durum={durum} />
+      <SiradakiAdim rol="danisman" metin={DANISMAN_SIRADAKI[durum]} />
       {mesaj.metin && <BilgiKutusu tur={mesaj.tur || 'bilgi'}>{mesaj.metin}</BilgiKutusu>}
 
       <div style={{ ...KART, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -2143,9 +2342,7 @@ function PersonelDetay({ b, memur, onGeri, onTamamla }) {
   const [not, setNot] = useState('');
   return (
     <div>
-      <button type="button" onClick={onGeri} style={{ ...dugme('ikincil'), marginBottom: 12 }}>
-        ← Listeye dön
-      </button>
+      <GeriDon onClick={onGeri} />
       <AdimSeridi durum={b.durum} />
       <div style={{ ...KART, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ flex: '1 1 260px' }}>
@@ -2190,6 +2387,7 @@ function PersonelDetay({ b, memur, onGeri, onTamamla }) {
 // ══════════════════════════════════════════════════════════════
 function MezuniyetApp({ currentUser, activeDepartment, departmentInfo }) {
   const Banner = window.CakuBanner;
+  const SekmeSeridi = window.SayfaSekmeSeridi;
   const ogrenci = currentUser?.role === 'student';
   const memur = !ogrenci && !!(currentUser?.isMemur || currentUser?.role === 'memur');
   const yonetici =
@@ -2216,27 +2414,42 @@ function MezuniyetApp({ currentUser, activeDepartment, departmentInfo }) {
   } else if (memur) {
     govde = <PersonelListesi currentUser={currentUser} activeDepartment={activeDepartment} memur />;
   } else {
-    const sekmeler = [{ id: 'danismanlik', ad: 'Danışmanı olduğum öğrenciler' }].concat(
-      yonetici ? [{ id: 'bolum', ad: 'Bölümdeki başvurular' }] : []
+    // Akademisyen: danışmanlık; yetkili ayrıca bölümdeki başvurular ve
+    // Mezuniyet Kuralları (eskiden Bölüm Yönetimi'ndeydi).
+    const sekmeler = [
+      {
+        id: 'danismanlik',
+        baslik: 'Danışmanlığım',
+        ikon: 'kisi',
+        ozet: 'Danışmanı olduğunuz öğrenciler',
+      },
+    ].concat(
+      yonetici
+        ? [
+            {
+              id: 'bolum',
+              baslik: 'Bölüm başvuruları',
+              ikon: 'pano',
+              ozet: 'Bölümdeki tüm mezuniyet başvuruları',
+            },
+            {
+              id: 'kurallar',
+              baslik: 'Mezuniyet kuralları',
+              ikon: 'kitap',
+              ozet: 'AKTS, AGNO, not ölçeği, sarı satırlar',
+            },
+          ]
+        : []
     );
     govde = (
       <div>
-        {sekmeler.length > 1 && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-            {sekmeler.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setSekme(s.id)}
-                style={dugme(sekme === s.id ? 'birincil' : 'ikincil')}
-              >
-                {s.ad}
-              </button>
-            ))}
-          </div>
+        {sekmeler.length > 1 && SekmeSeridi && (
+          <SekmeSeridi sekmeler={sekmeler} aktif={sekme} onSec={setSekme} />
         )}
         {sekme === 'bolum' && yonetici ? (
           <PersonelListesi currentUser={currentUser} activeDepartment={activeDepartment} />
+        ) : sekme === 'kurallar' && yonetici ? (
+          <MezuniyetKurallari activeDepartment={activeDepartment} currentUser={currentUser} />
         ) : (
           <MezuniyetDanismanPaneli currentUser={currentUser} />
         )}
@@ -2252,7 +2465,7 @@ function MezuniyetApp({ currentUser, activeDepartment, departmentInfo }) {
           subtitle={
             ogrenci
               ? 'Transkript formu, danışman onayı ve mezuniyet dilekçesi'
-              : 'Mezuniyet formları, dilekçeler ve memura iletim'
+              : 'Mezuniyet formları, dilekçeler, memura iletim ve mezuniyet kuralları'
           }
         />
       ) : (
