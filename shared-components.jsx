@@ -3696,15 +3696,12 @@ window.TEMPLATE_VARS = {
 // Bir modül+belge-türü için değişken setini çöz
 // TTO — Üniversite ile İşbirliği Talep Formu. Değişkenler kural dosyasında
 // (lib/tto-talep.js) tanımlı; şablonu yalnız üniversite yetkilisi yükler.
-// Mezuniyet — öğrencinin indirdiği iki dilekçe. Alanlar lib/mezuniyet-basvuru.js
+// Mezuniyet — öğrencinin indirdiği TEK dilekçe (ders sildirme bölümü içinde;
+// tablo satırları silinecek derslerdir). Alanlar lib/mezuniyet-basvuru.js
 // (MEZ_DILEKCE_ALANLARI) ile aynıdır: yerleşik PDF de aynı değişkenleri basar.
 window.TEMPLATE_VARS.mezuniyet = {
-  docTypes: [
-    { id: 'dilekce', label: 'Mezuniyet Dilekçesi (öğrenci)' },
-    { id: 'ders_sildirme', label: 'Ders Sildirme Dilekçesi (öğrenci)' },
-  ],
+  docTypes: [{ id: 'dilekce', label: 'Mezuniyet Dilekçesi (öğrenci)' }],
   dilekce: { static: MEZ_DILEKCE_ALANLARI, row: MEZ_DILEKCE_SATIRLARI },
-  ders_sildirme: { static: MEZ_DILEKCE_ALANLARI, row: MEZ_DILEKCE_SATIRLARI },
   default: { static: MEZ_DILEKCE_ALANLARI, row: MEZ_DILEKCE_SATIRLARI },
 };
 

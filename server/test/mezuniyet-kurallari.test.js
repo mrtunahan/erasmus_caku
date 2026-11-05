@@ -179,10 +179,8 @@ test('danışman onaylar ve ders sildirme işaretler; öğrenciye zil', async ()
 test('öğrenci işaretleri silemez; imzasız gönderemez', async () => {
   assert.equal((await yaz(OGR, '2021001', { silinecekDersler: [] })).durum, 403);
   assert.equal((await yaz(OGR, '2021001', { durum: 'imzali' })).durum, 403);
-  // Mezuniyet dilekçesi tek başına yetmez: sildirme dilekçesi de istenmişti.
+  // Tek dilekçe: silinecek dersler mezuniyet dilekçesinin içinde.
   await yaz(OGR, '2021001', { imzaliDilekce: { url: '/api/files/download/mezuniyet/d.pdf' } });
-  assert.equal((await yaz(OGR, '2021001', { durum: 'imzali' })).durum, 403);
-  await yaz(OGR, '2021001', { imzaliSildirme: { url: '/api/files/download/mezuniyet/s.pdf' } });
   assert.equal((await yaz(OGR, '2021001', { durum: 'imzali' })).durum, 200);
 });
 
