@@ -26,14 +26,14 @@ import {
   MEZ_ADIMLAR,
   adimSirasi,
   danismaniMi,
-  dilekceVerisi,
   dosyaParcasi,
   gecmisKaydi,
   imzaEksikleri,
 } from './lib/mezuniyet-basvuru.js';
 import { mezuniyetHesapla, mezKuralNormalize } from './lib/mezuniyet.js';
+import { mezuniyetFormunuDoldur, bolumBasligi } from './lib/mezuniyet-form-doldur.js';
 
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 const R = {
   navy: '#0B2E73',
@@ -165,12 +165,29 @@ function useBolumVerisi(bolumId) {
   return { kural, mufredat, hazir };
 }
 
+// Danışmanın tiklediği ders, dilekçenin ders tablosundaki sütunlarla saklanır:
+// DERSİN KODU VE ADI · EĞİTİM-ÖĞRETİM YILI · YARIYIL · AKTS · STATÜSÜ.
+function silinecekDers(r) {
+  const statu = r.statu === 'Z' ? 'Zorunlu' : r.statu === 'S' ? 'Seçmeli' : metin(r.statu);
+  return {
+    kod: r.kod,
+    ad: r.ad,
+    akts: r.akts,
+    not: r.not,
+    yil: metin(r.yil),
+    yariyil: metin(r.yariyil) || (r.mufredatYariyil ? r.mufredatYariyil + '. yarıyıl' : ''),
+    statu,
+  };
+}
+
 function hesapla(basvuru, mufredat, kural) {
   const dersler = (basvuru && Array.isArray(basvuru.dersler) ? basvuru.dersler : []).map((d) => ({
     kod: d.kod,
     ad: d.ad,
     akts: d.akts,
     not: d.not,
+    yil: d.yil,
+    yariyil: d.yariyil,
   }));
   if (dersler.length === 0) return null;
   return mezuniyetHesapla(mufredat, dersler, kural, { agno: basvuru.agno });
@@ -198,58 +215,94 @@ function blobIndir(blob, ad) {
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
 }
 
-// TEK dilekçe: silinecek dersler (şablonda satırlar) ve eksik stajlar
-// mezuniyet dilekçesinin içindedir.
-export async function dilekceIndir(basvuru) {
+// ── DİLEKÇE ÜRETİMİ ──
+// 1) Formlar'daki kurumun mezuniyet dilekçesi (.docx) OLDUĞU GİBİ doldurulur
+//    (lib/mezuniyet-form-doldur.js — satır/sütun eklenmez).
+// 2) Form yoksa ya da Word değilse yerleşik PDF (lib/mezuniyet-pdf.js).
+// Sonuç önce ÖNİZLENİR, öğrenci onaylayınca iner.
+function formVerisi(b) {
+  const il = b.iletisim || {};
+  const bolum = metin(il.bolum) || metin(b.bolumAdi);
+  return {
+    adSoyad: metin(il.adSoyad) || metin(b.ogrenciAd),
+    ogrenciNo: metin(b.ogrenciNo),
+    bolum,
+    telefon: metin(il.telefon),
+    adres: metin(il.adres),
+    eposta: metin(il.eposta),
+    bolumBaslik: bolumBasligi(bolum),
+    silmeBeyani: metin(b.silmeBeyani),
+    dersler: b.silmeBeyani === 'var' ? b.silinecekDersler || [] : [],
+  };
+}
+
+const ALAN_ADLARI = {
+  adSoyad: 'Adı ve Soyadı',
+  ogrenciNo: 'Öğrenci No',
+  bolum: 'Bölümü',
+  telefon: 'Telefon',
+  adres: 'Adres',
+  eposta: 'e-posta',
+  beyan: 'beyan kutusu',
+};
+
+function yetkiBasligi() {
+  const token = localStorage.getItem('caku_auth_token');
+  return token ? { Authorization: 'Bearer ' + token } : {};
+}
+
+export async function dilekceUret(basvuru, kurumFormu) {
   const b = basvuru || {};
-  const tur = 'dilekce';
   const ad = 'Mezuniyet_Dilekcesi_' + dosyaParcasi(b.ogrenciNo + '_' + b.ogrenciAd);
-  const TE = window.TemplateEngine;
-  if (TE && TE.produceFromTemplate) {
-    const satirlar = (b.silinecekDersler || []).map((d) => ({
-      kod: metin(d.kod),
-      ad: metin(d.ad),
-      akts: metin(d.akts),
-      not: metin(d.not),
-    }));
-    const r = await TE.produceFromTemplate({
-      module: 'mezuniyet',
-      docType: tur,
-      departmentId: b.departmentId || '',
-      staticData: dilekceVerisi(b),
-      rows: satirlar,
-      filename: ad + '.docx',
-      noDownload: true,
-    });
-    if (r && r.ok && r.blob) {
-      try {
-        const token = localStorage.getItem('caku_auth_token');
-        const y = await fetch('/api/files/docx-pdf', {
-          method: 'POST',
-          credentials: 'include',
-          headers: Object.assign(
-            {
-              'Content-Type':
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            },
-            token ? { Authorization: 'Bearer ' + token } : {}
-          ),
-          body: r.blob,
-        });
-        if (y.ok) {
-          blobIndir(await y.blob(), ad + '.pdf');
-          return { ok: true, kaynak: 'sablon' };
-        }
-      } catch (_) {
-        /* çeviri yoksa Word iner */
+  const uyarilar = [];
+  const v = formVerisi(b);
+  const docxMi = kurumFormu && /\.docx$/i.test(metin(kurumFormu.dosyaAdi) || metin(kurumFormu.url));
+  if (docxMi) {
+    try {
+      const r = await fetch(kurumFormu.url, { credentials: 'include', headers: yetkiBasligi() });
+      if (!r.ok) throw new Error('form indirilemedi (HTTP ' + r.status + ')');
+      if (window.ensureDocxPreview) await window.ensureDocxPreview();
+      if (!window.JSZip) throw new Error('Word okuyucu yüklenemedi');
+      const zip = await window.JSZip.loadAsync(await r.arrayBuffer());
+      const dosya = zip.file('word/document.xml');
+      if (!dosya) throw new Error('Word belgesi okunamadı');
+      const s = mezuniyetFormunuDoldur(await dosya.async('string'), v);
+      zip.file('word/document.xml', s.xml);
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+      if (s.bulunamayan.length) {
+        uyarilar.push(
+          'Formda şu alanların yeri bulunamadı, çıktıda elle doldurun: ' +
+            s.bulunamayan.map((k) => ALAN_ADLARI[k] || k).join(', ') +
+            '.'
+        );
       }
-      blobIndir(r.blob, ad + '.docx');
-      return {
-        ok: true,
-        kaynak: 'sablon-word',
-        uyari: 'Dilekçe Word olarak indi; Word’de açıp çıktısını alın ve imzalayın.',
-      };
+      if (v.dersler.length && !s.dersTablosu) {
+        uyarilar.push('Formda “DERSİN KODU VE ADI” tablosu bulunamadı; dersleri elle yazın.');
+      }
+      if (s.sigmayan.length) {
+        uyarilar.push(
+          'Formun ders tablosunda yeterli boş satır yok; şu dersleri elle ekleyin: ' +
+            s.sigmayan.map((d) => metin(d.kod) + ' ' + metin(d.ad)).join(', ') +
+            '.'
+        );
+      }
+      return { blob, ad: ad + '.docx', tur: 'docx', kaynak: 'form', uyarilar };
+    } catch (e) {
+      uyarilar.push(
+        'Kurumun formu doldurulamadı (' +
+          ((e && e.message) || 'Word okuyucu yüklenemedi; bağlantınızı kontrol edin') +
+          '); yerleşik dilekçe hazırlandı.'
+      );
     }
+  } else if (kurumFormu) {
+    uyarilar.push(
+      'Formlar’daki mezuniyet dilekçesi Word (.docx) değil, doldurulamıyor; yerleşik dilekçe hazırlandı.'
+    );
+  } else {
+    uyarilar.push('Formlar’da mezuniyet dilekçesi bulunamadı; yerleşik dilekçe hazırlandı.');
   }
   const [PDFLib, fontkitMod, P, fN, fK] = await Promise.all([
     import('pdf-lib'),
@@ -259,15 +312,174 @@ export async function dilekceIndir(basvuru) {
     fetch('/yazitipi/DejaVuSans-Bold-tr.ttf').then((r) => r.arrayBuffer()),
   ]);
   const bayt = await P.mezuniyetPdfOlustur({
-    tur,
     basvuru: b,
     PDFLib,
     fontkit: fontkitMod.default || fontkitMod,
     fontNormal: fN,
     fontKalin: fK,
   });
-  blobIndir(new Blob([bayt], { type: 'application/pdf' }), ad + '.pdf');
-  return { ok: true, kaynak: 'yerlesik' };
+  return {
+    blob: new Blob([bayt], { type: 'application/pdf' }),
+    ad: ad + '.pdf',
+    tur: 'pdf',
+    kaynak: 'yerlesik',
+    uyarilar,
+  };
+}
+
+/** Önizleme penceresi: belge indirilmeden önce gösterilir. */
+function DilekceOnizleme({ sonuc, onKapat }) {
+  const kap = useRef(null);
+  const [hata, setHata] = useState('');
+  const [pdfUrl, setPdfUrl] = useState('');
+  const [cevriliyor, setCevriliyor] = useState(false);
+
+  useEffect(() => {
+    let url = '';
+    if (sonuc.tur === 'pdf') {
+      url = URL.createObjectURL(sonuc.blob);
+      setPdfUrl(url);
+    } else if (window.ensureDocxPreview) {
+      window
+        .ensureDocxPreview()
+        .then((d) =>
+          d.renderAsync(sonuc.blob, kap.current, null, {
+            inWrapper: true,
+            ignoreLastRenderedPageBreak: true,
+          })
+        )
+        .catch((e) =>
+          setHata('Önizleme gösterilemedi: ' + ((e && e.message) || 'görüntüleyici yüklenemedi'))
+        );
+    }
+    const once = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = once;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [sonuc]);
+
+  const pdfIndir = async () => {
+    setCevriliyor(true);
+    setHata('');
+    try {
+      const y = await fetch('/api/files/docx-pdf', {
+        method: 'POST',
+        credentials: 'include',
+        headers: Object.assign(
+          {
+            'Content-Type':
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          },
+          yetkiBasligi()
+        ),
+        body: sonuc.blob,
+      });
+      if (!y.ok) throw new Error('sunucu PDF’e çeviremedi (HTTP ' + y.status + ')');
+      blobIndir(await y.blob(), sonuc.ad.replace(/\.docx$/i, '.pdf'));
+    } catch (e) {
+      setHata(e.message + ' — Word olarak indirip Word’de “PDF olarak kaydet” deyin.');
+    } finally {
+      setCevriliyor(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 3000,
+        background: 'rgba(15,23,42,0.55)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        style={{
+          background: 'white',
+          borderRadius: 16,
+          width: 'min(980px, 100%)',
+          maxHeight: '94vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            padding: '14px 18px',
+            borderBottom: '1px solid ' + R.kenar,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <b style={{ fontSize: 15, color: R.navy, flex: 1 }}>Dilekçe önizlemesi</b>
+          <span style={{ fontSize: 12, color: R.soluk }}>
+            {sonuc.kaynak === 'form' ? 'Kurumun formu (Formlar)' : 'Yerleşik dilekçe'}
+          </span>
+        </div>
+        {(sonuc.uyarilar.length > 0 || hata) && (
+          <div style={{ padding: '10px 18px 0' }}>
+            {sonuc.uyarilar.map((u) => (
+              <BilgiKutusu key={u} tur="uyari">
+                {u}
+              </BilgiKutusu>
+            ))}
+            {hata && <BilgiKutusu tur="hata">{hata}</BilgiKutusu>}
+          </div>
+        )}
+        <div style={{ flex: 1, overflow: 'auto', background: '#E5E7EB', minHeight: 320 }}>
+          {sonuc.tur === 'pdf' ? (
+            pdfUrl && (
+              <iframe
+                title="Dilekçe önizlemesi"
+                src={pdfUrl}
+                style={{ width: '100%', height: '75vh', border: 0 }}
+              />
+            )
+          ) : (
+            <div ref={kap} />
+          )}
+        </div>
+        <div
+          style={{
+            padding: '12px 18px',
+            borderTop: '1px solid ' + R.kenar,
+            display: 'flex',
+            gap: 8,
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+          }}
+        >
+          <button type="button" onClick={onKapat} style={dugme('ikincil')}>
+            Kapat
+          </button>
+          {sonuc.tur === 'docx' && (
+            <button
+              type="button"
+              onClick={pdfIndir}
+              disabled={cevriliyor}
+              style={dugme('ikincil', cevriliyor)}
+            >
+              {cevriliyor ? 'Çevriliyor…' : 'PDF olarak indir'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => blobIndir(sonuc.blob, sonuc.ad)}
+            style={dugme('birincil')}
+          >
+            {sonuc.tur === 'docx' ? 'Word olarak indir' : 'İndir'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -646,6 +858,12 @@ const TRANSKRIPT_SUTUNLARI = [
   { id: 'ad', label: 'Ders Adı' },
   { id: 'akts', label: 'AKTS', hint: 'yalnız sayı; kredi sütunuyla karıştırma' },
   { id: 'not', label: 'Harf Notu', hint: 'AA/BA/CC/FF gibi; yoksa boş bırak' },
+  {
+    id: 'yil',
+    label: 'Eğitim-Öğretim Yılı',
+    hint: 'dersin alındığı dönemin başlığındaki yıl, örn. 2022-2023',
+  },
+  { id: 'yariyil', label: 'Yarıyıl', hint: 'dersin alındığı dönem: Güz, Bahar ya da Yaz' },
 ];
 const TRANSKRIPT_UST_BILGI = [
   { id: 'agno', label: 'AGNO / GANO', hint: 'genel not ortalaması, örn. 3,42' },
@@ -666,7 +884,17 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
   const [dosya, setDosya] = useState(null);
   const [calisiyor, setCalisiyor] = useState('');
   const [mesaj, setMesaj] = useState({ tur: '', metin: '' });
-  const [iletisim, setIletisim] = useState({ telefon: '', eposta: '', adres: '' });
+  // Dilekçenin kimlik bilgileri: sistemden gelir, gelmeyeni öğrenci yazar.
+  const [iletisim, setIletisim] = useState({
+    adSoyad: '',
+    bolum: '',
+    telefon: '',
+    eposta: '',
+    adres: '',
+  });
+  // Dilekçedeki iki kutudan hangisi: 'yok' (silinecek dersim yok) | 'var'.
+  const [silmeBeyani, setSilmeBeyani] = useState('');
+  const [onizleme, setOnizleme] = useState(null);
   const [kurumFormu, setKurumFormu] = useState(null);
   const [eskiKayit, setEskiKayit] = useState(null);
 
@@ -674,6 +902,11 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
     const b = await basvuruOku(ogrNo);
     setBasvuru(b);
     if (b && b.iletisim) setIletisim((x) => ({ ...x, ...b.iletisim }));
+    if (b) {
+      setSilmeBeyani(
+        (s) => metin(b.silmeBeyani) || s || ((b.silinecekDersler || []).length > 0 ? 'var' : '')
+      );
+    }
     if (b && b.danisman) setDanisman(b.danisman);
     return b;
   }, [ogrNo]);
@@ -719,15 +952,30 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
         setDanisman((d) => d || (benimSecimler[0] && metin(benimSecimler[0].advisor)) || '');
         const ben = (ogrenciler || []).find((s) => metin(s.studentNumber) === ogrNo) || {};
         setIletisim((x) => ({
+          adSoyad: x.adSoyad || metin(currentUser?.name || ben.name || ben.adSoyad),
+          bolum: x.bolum || bolumAdi,
           telefon: x.telefon || metin(ben.phone || ben.telefon),
           eposta: x.eposta || metin(ben.email || currentUser?.email),
           adres: x.adres || metin(ben.address || ben.adres),
         }));
-        // Kurumun boş mezuniyet dilekçesi Formlar'da duruyorsa bağlantısı.
-        const f = (formlar || []).find((x) =>
-          /mezuniyet/i.test(String(x.baslik || x.title || '').toLocaleLowerCase('tr-TR'))
+        // Kurumun mezuniyet dilekçesi (Formlar). Öğrencinin bölümüne ait ve
+        // Word (.docx) olan öncelikli: doldurulabilen yalnız odur.
+        const adaylar = (formlar || []).filter(
+          (x) =>
+            (x.dosyaURL || x.url) &&
+            /mezuniyet/.test(String(x.baslik || x.title || '').toLocaleLowerCase('tr-TR'))
         );
-        if (f && (f.dosyaURL || f.url)) setKurumFormu({ url: f.dosyaURL || f.url, ad: f.baslik });
+        const puan = (x) =>
+          (/\.docx$/i.test(metin(x.dosyaAdi) || metin(x.dosyaURL || x.url)) ? 2 : 0) +
+          (vset.has(String(x.departmentId || '')) ? 1 : 0);
+        const f = adaylar.sort((a, c) => puan(c) - puan(a))[0];
+        if (f) {
+          setKurumFormu({
+            url: f.dosyaURL || f.url,
+            ad: f.baslik || f.title,
+            dosyaAdi: f.dosyaAdi || '',
+          });
+        }
         if (akademik && akademik.exists && Array.isArray(akademik.data.dersler)) {
           setEskiKayit(akademik.data);
         }
@@ -814,6 +1062,8 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
           ad: metin(s.ad),
           akts: metin(s.akts).replace(/[^\d]/g, ''),
           not: metin(s.not).toLocaleUpperCase('tr-TR'),
+          yil: metin(s.yil),
+          yariyil: metin(s.yariyil),
         }))
         .filter((d) => d.kod || d.ad);
       const taslak = {
@@ -904,6 +1154,7 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
     try {
       await basvuruYaz(ogrNo, {
         iletisim,
+        silmeBeyani,
         durum: 'imzali',
         imzaTarihi: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -920,16 +1171,39 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
-  const indir = async () => {
+  const onizle = async () => {
+    // Sistemden gelmeyen kimlik bilgisi öğrenciden istenir; boş dilekçe inmez.
+    const eksikAlan = [
+      ['adSoyad', 'Adı ve Soyadı'],
+      ['bolum', 'Bölümü'],
+      ['telefon', 'Telefon'],
+      ['adres', 'Adres'],
+      ['eposta', 'e-posta'],
+    ].filter(([k]) => !metin(iletisim[k]));
+    if (eksikAlan.length) {
+      setMesaj({
+        tur: 'hata',
+        metin: 'Kimlik bilgilerinde eksik var: ' + eksikAlan.map((x) => x[1]).join(', ') + '.',
+      });
+      return;
+    }
+    if (!silmeBeyani) {
+      setMesaj({ tur: 'hata', metin: 'Dilekçedeki iki kutudan birini işaretleyin.' });
+      return;
+    }
     setCalisiyor('indir');
+    setMesaj({ tur: '', metin: '' });
     try {
-      // İletişim bilgileri dilekçeye basılır; önce kaydedilir.
-      if (JSON.stringify(iletisim) !== JSON.stringify(basvuru.iletisim || {})) {
-        await basvuruYaz(ogrNo, { iletisim, updatedAt: new Date().toISOString() });
+      // Kimlik/iletişim bilgileri ve beyan dilekçeye basılır; önce kaydedilir.
+      const yama = {};
+      if (JSON.stringify(iletisim) !== JSON.stringify(basvuru.iletisim || {}))
+        yama.iletisim = iletisim;
+      if (silmeBeyani !== metin(basvuru.silmeBeyani)) yama.silmeBeyani = silmeBeyani;
+      if (Object.keys(yama).length) {
+        await basvuruYaz(ogrNo, { ...yama, updatedAt: new Date().toISOString() });
       }
       const b = (await yenile()) || basvuru;
-      const r = await dilekceIndir(b);
-      if (r && r.uyari) setMesaj({ tur: 'uyari', metin: r.uyari });
+      setOnizleme(await dilekceUret(b, kurumFormu));
     } catch (e) {
       setMesaj({ tur: 'hata', metin: 'Dilekçe oluşturulamadı: ' + e.message });
     } finally {
@@ -951,12 +1225,15 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
     return <div style={{ padding: 40, textAlign: 'center', color: R.soluk }}>Yükleniyor…</div>;
   }
 
-  const eksikler = basvuru ? imzaEksikleri(basvuru) : [];
+  const eksikler = basvuru ? imzaEksikleri({ ...basvuru, silmeBeyani }) : [];
 
   return (
     <div>
       <AdimSeridi durum={durum || 'taslak'} />
-      {mesaj.metin && <BilgiKutusu tur={mesaj.tur || 'bilgi'}>{mesaj.metin}</BilgiKutusu>}
+      {/* Dilekçe aşamasında mesaj, öğrencinin baktığı yerde (düğmenin altında) çıkar. */}
+      {mesaj.metin && durum !== 'dilekce' && (
+        <BilgiKutusu tur={mesaj.tur || 'bilgi'}>{mesaj.metin}</BilgiKutusu>
+      )}
 
       {basvuru && (
         <div style={{ ...KART, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1101,51 +1378,132 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
         <div style={KART}>
           <h3 style={BASLIK}>Mezuniyet dilekçesi</h3>
           <BilgiKutusu tur="basari">
-            Danışmanınız formunuzu onayladı. İletişim bilgilerinizi kontrol edin, dilekçenizi
-            indirin, imzalayın ve imzalı hâlini PDF olarak yükleyin.
+            Danışmanınız formunuzu onayladı. Kimlik bilgilerinizi kontrol edin, beyanınızı
+            işaretleyin, dilekçenizi önizleyip indirin, imzalayın ve imzalı hâlini PDF olarak
+            yükleyin.
           </BilgiKutusu>
           <IsaretOzeti basvuru={basvuru} />
+
+          <div style={{ ...ETIKET, marginTop: 4 }}>Kimlik bilgileri</div>
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
               gap: 10,
-              marginBottom: 14,
+              marginBottom: 16,
             }}
           >
             {[
+              ['adSoyad', 'Adı ve Soyadı'],
+              ['ogrenciNo', 'Öğrenci No'],
+              ['bolum', 'Bölümü'],
               ['telefon', 'Telefon'],
-              ['eposta', 'E-posta'],
               ['adres', 'Adres'],
-            ].map(([k, l]) => (
-              <div key={k}>
-                <label style={ETIKET}>{l}</label>
+              ['eposta', 'e-posta'],
+            ].map(([k, l]) => {
+              const sabit = k === 'ogrenciNo';
+              const deger = sabit ? ogrNo : iletisim[k] || '';
+              return (
+                <div key={k}>
+                  <label
+                    style={{ fontSize: 12, color: R.soluk, display: 'block', marginBottom: 4 }}
+                  >
+                    {l}
+                    {!sabit && !deger && <span style={{ color: R.kirmizi }}> · girilmeli</span>}
+                  </label>
+                  <input
+                    value={deger}
+                    readOnly={sabit}
+                    onChange={(e) => setIletisim({ ...iletisim, [k]: e.target.value })}
+                    style={{
+                      ...GIRDI,
+                      background: sabit ? '#F7F7F7' : 'white',
+                      borderColor: !sabit && !deger ? '#FCA5A5' : '#CFCFCF',
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ ...ETIKET }}>Beyan (dilekçede işaretlenir)</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 6 }}>
+            {[
+              [
+                'yok',
+                'Mezuniyet için transkriptimden silinmesi gereken seçmeli başarısız dersim bulunmamaktadır.',
+              ],
+              [
+                'var',
+                'Mezuniyet için aşağıda bildirdiğim seçmeli derslerin transkriptimden silinmesini istiyorum.',
+              ],
+            ].map(([k, t]) => (
+              <label
+                key={k}
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'flex-start',
+                  fontSize: 13,
+                  padding: '9px 12px',
+                  borderRadius: 10,
+                  cursor: 'pointer',
+                  border: '1px solid ' + (silmeBeyani === k ? R.mavi : R.kenar),
+                  background: silmeBeyani === k ? '#E8F0FF' : 'white',
+                }}
+              >
                 <input
-                  value={iletisim[k] || ''}
-                  onChange={(e) => setIletisim({ ...iletisim, [k]: e.target.value })}
-                  style={GIRDI}
+                  type="checkbox"
+                  checked={silmeBeyani === k}
+                  onChange={(e) => setSilmeBeyani(e.target.checked ? k : '')}
+                  style={{ marginTop: 2 }}
                 />
-              </div>
+                <span>{t}</span>
+              </label>
             ))}
           </div>
+          {silmeBeyani === 'yok' && (basvuru.silinecekDersler || []).length > 0 && (
+            <BilgiKutusu tur="uyari">
+              Danışmanınız {basvuru.silinecekDersler.length} dersin silinmesini istedi; bu durumda
+              ikinci kutu işaretlenmelidir.
+            </BilgiKutusu>
+          )}
+          {silmeBeyani === 'var' && (basvuru.silinecekDersler || []).length > 0 && (
+            <div style={{ fontSize: 12, color: R.soluk, marginBottom: 6 }}>
+              Dilekçedeki ders tablosuna şu dersler işlenir:{' '}
+              {basvuru.silinecekDersler
+                .map((d) =>
+                  [d.kod + ' ' + d.ad, d.yil, d.yariyil, d.akts && d.akts + ' AKTS', d.statu]
+                    .filter(Boolean)
+                    .join(' · ')
+                )
+                .join(' | ')}
+            </div>
+          )}
+          {silmeBeyani === 'var' && (basvuru.silinecekDersler || []).length === 0 && (
+            <BilgiKutusu tur="uyari">
+              Danışmanınız silinecek ders işaretlemedi; dilekçedeki ders tablosu boş kalır.
+            </BilgiKutusu>
+          )}
+          <div style={{ height: 10 }} />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <BelgeAdimi
               baslik="Mezuniyet dilekçesi"
-              indirMetni={calisiyor === 'indir' ? 'Hazırlanıyor…' : 'Dilekçeyi indir'}
-              onIndir={indir}
+              indirMetni={calisiyor === 'indir' ? 'Hazırlanıyor…' : 'Dilekçeyi önizle ve indir'}
+              onIndir={onizle}
               yuklenen={basvuru.imzaliDilekce}
               yukleniyor={calisiyor === 'imzaliDilekce'}
               onYukle={(f) => imzaliYukle('imzaliDilekce', f)}
               mesgul={!!calisiyor}
             />
           </div>
-          {(basvuru.silinecekDersler || []).length > 0 && (
-            <div style={{ marginTop: 8, fontSize: 12, color: R.soluk }}>
-              Danışmanınızın silinmesini istediği dersler dilekçenin içine işlenir; ayrı bir ders
-              sildirme dilekçesi gerekmez.
+          {mesaj.metin && (
+            <div style={{ marginTop: 10 }}>
+              <BilgiKutusu tur={mesaj.tur || 'bilgi'}>{mesaj.metin}</BilgiKutusu>
             </div>
           )}
+          {onizleme && <DilekceOnizleme sonuc={onizleme} onKapat={() => setOnizleme(null)} />}
           {kurumFormu && (
             <div style={{ marginTop: 10, fontSize: 12, color: R.soluk }}>
               Kurumun boş formu (Formlar):{' '}
@@ -1434,7 +1792,7 @@ function DanismanDetay({ no, kimlik, onGeri }) {
     sonuc.kayitlar.forEach((r, i) => {
       const k = metin(r.kod) + '|' + metin(r.ad) + '|' + i;
       if (kayitli.some((d) => metin(d.kod) === metin(r.kod) && metin(d.ad) === metin(r.ad))) {
-        m.set(k, { kod: r.kod, ad: r.ad, akts: r.akts, not: r.not });
+        m.set(k, silinecekDers(r));
       }
     });
     setSecim(m);
@@ -1620,7 +1978,7 @@ function DanismanDetay({ no, kimlik, onGeri }) {
           secimKilitli={!isaretAcik}
           onSecim={(k, r, acik) => {
             const m = new Map(secim);
-            if (acik) m.set(k, { kod: r.kod, ad: r.ad, akts: r.akts, not: r.not });
+            if (acik) m.set(k, silinecekDers(r));
             else m.delete(k);
             setSecim(m);
           }}
