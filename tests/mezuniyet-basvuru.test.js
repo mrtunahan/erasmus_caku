@@ -405,10 +405,68 @@ describe('ders satırı kuralları (sarı satırlar)', () => {
     );
     const ids = s.kayitlar.map((r) => r.ihlaller.map((x) => x.id));
     expect(ids[0]).toEqual([]);
-    expect(ids[1]).toEqual(expect.arrayContaining(['kalanNot', 'aktsFarki', 'tekrar']));
-    expect(ids[2]).toEqual(['tekrar']);
+    // Önce FF, sonra BB: ders GEÇİLDİ — ne başarısız deneme ne tekrar sarı;
+    // yalnız gerçek bir sorun (AKTS farkı) kalır.
+    expect(ids[1]).toEqual(['aktsFarki']);
+    expect(s.kayitlar[1].sonradanGecildi).toBe(true);
+    expect(ids[2]).toEqual([]);
     expect(ids[3]).toEqual(['mufredatDisi']);
-    expect(s.ihlalSayisi).toBe(3);
+    expect(s.ihlalSayisi).toBe(2);
+  });
+
+  it('hiç geçilmemiş tekrar ders sarı kalır', () => {
+    const s = mezuniyetHesapla(
+      mufredat,
+      [
+        { kod: 'BLM102', ad: 'Veri Yapıları', akts: 5, not: 'FF' },
+        { kod: 'BLM102', ad: 'Veri Yapıları', akts: 5, not: 'FD' },
+      ],
+      {}
+    );
+    s.kayitlar.forEach((r) => {
+      expect(r.sonradanGecildi).toBe(false);
+      expect(r.ihlaller.map((x) => x.id)).toEqual(expect.arrayContaining(['kalanNot', 'tekrar']));
+    });
+  });
+
+  it('staj: kodlu stajlar transkriptte BŞ notuyla aranır', () => {
+    const kural = {
+      stajZorunlu: true,
+      stajDersleri: [
+        { ad: 'Staj I', kod: 'BİL200' },
+        { ad: 'Staj II', kod: 'BİL300' },
+      ],
+    };
+    const eksik = mezuniyetHesapla(
+      mufredat,
+      [{ kod: 'BİL200', ad: 'Staj I', akts: 0, not: 'BŞ' }],
+      kural
+    );
+    const k1 = eksik.kosullar.find((k) => k.id === 'staj');
+    expect(k1.saglandi).toBe(false);
+    expect(eksik.stajEksik).toEqual(['Staj II']);
+    const tam = mezuniyetHesapla(
+      mufredat,
+      [
+        { kod: 'BIL200', ad: 'Staj I', akts: 0, not: 'BS' },
+        { kod: 'BİL300', ad: 'Staj II', akts: 0, not: 'BZ' },
+        { kod: 'BİL300', ad: 'Staj II', akts: 0, not: 'BŞ' },
+      ],
+      kural
+    );
+    expect(tam.kosullar.find((k) => k.id === 'staj').saglandi).toBe(true);
+    // BZ sonra BŞ: staj tekrarı da sarı değil.
+    expect(tam.kayitlar[1].ihlaller.map((x) => x.id)).not.toContain('kalanNot');
+  });
+
+  it('eski kayıttaki staj adı listesi kodsuz staja çevrilir', () => {
+    const k = mezKuralNormalize({ stajlar: ['Staj A', 'Staj B'] });
+    expect(k.stajDersleri).toEqual([
+      { ad: 'Staj A', kod: '' },
+      { ad: 'Staj B', kod: '' },
+    ]);
+    expect(k.stajlar).toEqual(['Staj A', 'Staj B']);
+    expect(k.stajBasariNotu).toBe('BŞ');
   });
 
   it('kapatılan kural işaretlemez; ek notlar işaretlenir', () => {
