@@ -32,7 +32,12 @@ import {
   silinecekDersleriBirlestir,
   dersAnahtari,
 } from './lib/mezuniyet-basvuru.js';
-import { mezuniyetHesapla, mezKuralNormalize } from './lib/mezuniyet.js';
+import {
+  mezuniyetHesapla,
+  mezKuralNormalize,
+  mezGecerliNotlar,
+  mezNotDuzelt,
+} from './lib/mezuniyet.js';
 import { mezuniyetFormunuDoldur, bolumBasligi } from './lib/mezuniyet-form-doldur.js';
 import { R, dugme, GIRDI, BilgiNotu, GeriDon, BolumKarti } from './mezuniyet-ui.jsx';
 import MezuniyetKurallari from './mezuniyet-kurallari.jsx';
@@ -155,7 +160,7 @@ function hesapla(basvuru, mufredat, kural) {
     kod: d.kod,
     ad: d.ad,
     akts: d.akts,
-    not: d.not,
+    not: mezNotDuzelt(d.not, d.puan, kural).not,
     yil: d.yil,
     yariyil: d.yariyil,
     statu: d.statu,
@@ -906,23 +911,41 @@ function IsaretOzeti({ basvuru }) {
 // ══════════════════════════════════════════════════════════════
 // ÖĞRENCİ
 // ══════════════════════════════════════════════════════════════
-const TRANSKRIPT_SUTUNLARI = [
-  { id: 'kod', label: 'Ders Kodu', hint: 'örn. BLM101' },
-  { id: 'ad', label: 'Ders Adı' },
-  { id: 'akts', label: 'AKTS', hint: 'yalnız sayı; kredi sütunuyla karıştırma' },
-  { id: 'not', label: 'Harf Notu', hint: 'AA/BA/CC/FF gibi; yoksa boş bırak' },
-  {
-    id: 'yil',
-    label: 'Eğitim-Öğretim Yılı',
-    hint: 'dersin alındığı dönemin başlığındaki yıl, örn. 2022-2023',
-  },
-  { id: 'yariyil', label: 'Yarıyıl', hint: 'dersin alındığı dönem: Güz, Bahar ya da Yaz' },
-  {
-    id: 'statu',
-    label: 'Statü',
-    hint: 'Zorunlu ya da Seçmeli (transkriptte Z/S); yoksa boş bırak',
-  },
-];
+// Notun ipucu bölümün ölçeğinden kurulur: "AA/BA/CC gibi" yazan sabit ipucu
+// okuyucuyu eski iki harfli sisteme yöneltiyor, "B2"yi "B" diye getiriyordu.
+function transkriptSutunlari(kural) {
+  const notlar = mezGecerliNotlar(kural);
+  return [
+    { id: 'kod', label: 'Ders Kodu', hint: 'örn. BLM101; transkriptte yazdığı gibi' },
+    { id: 'ad', label: 'Ders Adı' },
+    { id: 'akts', label: 'AKTS', hint: 'yalnız sayı; kredi sütunuyla karıştırma' },
+    {
+      id: 'not',
+      label: 'Harf Notu',
+      hint: (
+        'Harf notunu RAKAMIYLA BİRLİKTE, yazdığı gibi al (B2, C3, F1 gibi; "B2"yi "B" diye kısaltma). ' +
+        'Geçerli notlar: ' +
+        notlar.join(', ')
+      ).slice(0, 240),
+    },
+    {
+      id: 'puan',
+      label: 'Yüzlük Not',
+      hint: 'dersin 0-100 arası sayısal notu (başarı puanı) varsa; yoksa boş bırak',
+    },
+    {
+      id: 'yil',
+      label: 'Eğitim-Öğretim Yılı',
+      hint: 'dersin alındığı dönemin başlığındaki yıl, örn. 2022-2023',
+    },
+    { id: 'yariyil', label: 'Yarıyıl', hint: 'dersin alındığı dönem: Güz, Bahar ya da Yaz' },
+    {
+      id: 'statu',
+      label: 'Statü',
+      hint: 'Zorunlu ya da Seçmeli (transkriptte Z/S); yoksa boş bırak',
+    },
+  ];
+}
 const TRANSKRIPT_UST_BILGI = [
   { id: 'agno', label: 'AGNO / GANO', hint: 'genel not ortalaması, örn. 3,42' },
   { id: 'sinif', label: 'Sınıf', hint: 'yalnız rakam' },
@@ -1105,7 +1128,7 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
         window.aiSatirCikar({
           module: 'benim',
           docType: 'transkript',
-          sutunlar: TRANSKRIPT_SUTUNLARI,
+          sutunlar: transkriptSutunlari(kural),
           satirTanimi: 'transkriptte yer alan her ders satırı',
           dosyalar,
         }),
@@ -1126,7 +1149,10 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
           kod: metin(s.kod),
           ad: metin(s.ad),
           akts: metin(s.akts).replace(/[^\d]/g, ''),
-          not: metin(s.not).toLocaleUpperCase('tr-TR'),
+          // Bozuk okunan not ("C-3", rakamı düşmüş "B") ölçeğe oturtulur;
+          // yüzlük puan okunduysa harf ondan hesaplanır (lib/mezuniyet.js).
+          not: mezNotDuzelt(s.not, s.puan, kural).not,
+          puan: metin(s.puan),
           yil: metin(s.yil),
           yariyil: metin(s.yariyil),
           statu: metin(s.statu),

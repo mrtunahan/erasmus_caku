@@ -16,6 +16,8 @@ import {
   mezHarfKatsayisi,
   mezOlcekDogrula,
   NOT_OLCEGI_VARSAYILAN,
+  mezNotDuzelt,
+  mezGecerliNotlar,
 } from '../lib/mezuniyet.js';
 
 // Yönetmelikteki gerçek ölçek. Kodda SABİT DEĞİL — bölüm yetkilisi Mezuniyet
@@ -386,5 +388,31 @@ describe('mezuniyetHesapla — mezunOlabilir kararı', () => {
     expect(r.gecilenAkts).toBe(0);
     expect(r.belirsizVar).toBe(true);
     expect(r.kalanZorunlu.map((c) => c.code)).toContain('BLM101');
+  });
+});
+
+describe('mezNotDuzelt — okunan notu ölçeğe oturtma', () => {
+  it('boşluk, tire ve küçük harfi düzeltir', () => {
+    expect(mezNotDuzelt('C-3', '', {}).not).toBe('C3');
+    expect(mezNotDuzelt('b 2', '', {}).not).toBe('B2');
+    expect(mezNotDuzelt('C3', '', {}).kaynak).toBe('okunan');
+  });
+
+  it('rakamı düşmüş harfi yüzlük puandan tamamlar', () => {
+    expect(mezNotDuzelt('B', '82', {})).toEqual({ not: 'B2', kaynak: 'puan' });
+    expect(mezNotDuzelt('', '45', {})).toEqual({ not: 'F2', kaynak: 'puan' });
+  });
+
+  it('puan da yoksa TAHMİN ETMEZ', () => {
+    expect(mezNotDuzelt('B', '', {})).toEqual({ not: 'B', kaynak: 'tanınmadı' });
+  });
+
+  it('eski iki harfli notlar da tanınır', () => {
+    expect(mezNotDuzelt('aa', '', {}).not).toBe('AA');
+  });
+
+  it('geçerli not listesi ölçekten gelir', () => {
+    const l = mezGecerliNotlar({});
+    ['B2', 'C3', 'F1', 'FF1', 'AA'].forEach((h) => expect(l).toContain(h));
   });
 });
