@@ -754,6 +754,8 @@ function TranskriptFormu({ sonuc, secim, onSecim, secimKilitli }) {
                   style={{
                     background: silinecek ? '#FEE2E2' : sari ? R.sari : 'white',
                     boxShadow: sari ? 'inset 3px 0 0 ' + R.sariKenar : 'none',
+                    // Sonradan geçilen dersin eski denemesi: soluk, sarı değil.
+                    color: r.sonradanGecildi && !silinecek ? '#9AA0A6' : undefined,
                   }}
                 >
                   {secim && (
@@ -777,6 +779,11 @@ function TranskriptFormu({ sonuc, secim, onSecim, secimKilitli }) {
                         ⚠ {r.ihlaller.map((x) => x.etiket).join(' · ')}
                       </div>
                     )}
+                    {r.sonradanGecildi && (
+                      <div style={{ fontSize: 11, color: R.yesil, marginTop: 2 }}>
+                        ✓ Sonradan geçildi — önceki deneme
+                      </div>
+                    )}
                   </td>
                   <td style={{ ...h, width: 96, color: r.yil ? R.metin : '#B6BBC2' }}>
                     {r.yil || '—'}
@@ -787,7 +794,14 @@ function TranskriptFormu({ sonuc, secim, onSecim, secimKilitli }) {
                   <td style={{ ...h, width: 74 }}>{statuMetni(r) || '—'}</td>
                   <td style={{ ...h, width: 50 }}>{r.akts}</td>
                   <td style={{ ...h, width: 50, fontWeight: 700 }}>{r.not}</td>
-                  <td style={{ ...h, width: 70, color: durumRenk[r.durum], fontWeight: 700 }}>
+                  <td
+                    style={{
+                      ...h,
+                      width: 70,
+                      color: r.sonradanGecildi ? '#9AA0A6' : durumRenk[r.durum],
+                      fontWeight: 700,
+                    }}
+                  >
                     {durumEtiket[r.durum]}
                   </td>
                 </tr>
@@ -2009,6 +2023,15 @@ function DanismanDetay({ no, kimlik, onGeri }) {
     setSecim(m);
   }, [sonuc, b && JSON.stringify(b.silinecekDersler || [])]);
 
+  // Transkriptte bulunamayan / BŞ olmayan stajlar ilk incelemede eksik
+  // olarak işaretli gelir (danışman değiştirebilir).
+  useEffect(() => {
+    if (!sonuc || !b || b.durum !== 'danismanda') return;
+    if ((b.eksikStajlar || []).length === 0 && (sonuc.stajEksik || []).length > 0) {
+      setStajlar(sonuc.stajEksik);
+    }
+  }, [sonuc, b && b.durum]);
+
   if (!b || !hazir) return <div style={{ padding: 24, color: R.soluk }}>Yükleniyor…</div>;
 
   const durum = b.durum;
@@ -2233,11 +2256,31 @@ function DanismanDetay({ no, kimlik, onGeri }) {
                 }
               />
               {s} eksik
+              {(() => {
+                const d = ((sonuc && sonuc.stajDurumlari) || []).find((x) => x.ad === s);
+                if (!d) return null;
+                return (
+                  <span
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      color: d.tamam ? R.yesil : R.kirmizi,
+                    }}
+                  >
+                    · {d.kod}:{' '}
+                    {d.tamam
+                      ? 'transkriptte başarılı'
+                      : d.alindi
+                        ? 'başarılı değil'
+                        : 'transkriptte yok'}
+                  </span>
+                );
+              })()}
             </label>
           ))}
           {stajSecenekleri.length === 0 && (
             <span style={{ fontSize: 12, color: R.soluk }}>
-              Bölümün staj listesi tanımlı değil (Bölüm Yönetimi → Mezuniyet Kuralları).
+              Bölümün staj listesi tanımlı değil (Mezuniyet → Mezuniyet kuralları).
             </span>
           )}
         </div>

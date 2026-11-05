@@ -82,7 +82,7 @@ export default function MezuniyetKurallari({ activeDepartment, currentUser }) {
   const [mesaj, setMesaj] = useState({ tur: '', metin: '' });
   // Virgüllü/satırlı listelerin HAM metni: her tuşta ayrıştırmak yazılan
   // virgülü siliyordu; ayrıştırma kayıtta yapılır.
-  const [metinler, setMetinler] = useState({ gecer: '', kalir: '', uyari: '', staj: '' });
+  const [metinler, setMetinler] = useState({ gecer: '', kalir: '', uyari: '' });
   const [gelismis, setGelismis] = useState(false);
 
   useEffect(() => {
@@ -100,7 +100,6 @@ export default function MezuniyetKurallari({ activeDepartment, currentUser }) {
           gecer: (Array.isArray(d.gecerNotlar) ? d.gecerNotlar : []).join(', '),
           kalir: (Array.isArray(d.kalirNotlar) ? d.kalirNotlar : []).join(', '),
           uyari: (k.satirKurallari.uyariNotlari || []).join(', '),
-          staj: (k.stajlar || []).join('\n'),
         };
         setForm(k);
         setMetinler(m);
@@ -180,11 +179,17 @@ export default function MezuniyetKurallari({ activeDepartment, currentUser }) {
           gecerNotlar: notAyristir(metinler.gecer),
           kalirNotlar: notAyristir(metinler.kalir),
           satirKurallari: { ...satirKurali, uyariNotlari: notAyristir(metinler.uyari) },
-          stajlar: metinler.staj
-            .split(/\n+/)
-            .map((x) => x.trim())
+          // Stajlar ders koduyla: kodu girilen staj transkriptte aranır ve
+          // notu stajBasariNotu (BŞ) ise tamamlanmış sayılır.
+          stajDersleri: (form.stajDersleri || [])
+            .map((x) => ({ ad: String(x.ad || '').trim(), kod: String(x.kod || '').trim() }))
+            .filter((x) => x.ad || x.kod)
+            .slice(0, 20),
+          stajlar: (form.stajDersleri || [])
+            .map((x) => String(x.ad || x.kod || '').trim())
             .filter(Boolean)
             .slice(0, 20),
+          stajBasariNotu: harf(form.stajBasariNotu) || 'BŞ',
           aciklama: form.aciklama || '',
           updatedAt: new Date().toISOString(),
           updatedBy: currentUser?.name || currentUser?.identifier || '',
@@ -330,13 +335,89 @@ export default function MezuniyetKurallari({ activeDepartment, currentUser }) {
             etiket="Mezuniyet için staj zorunlu"
           />
         </div>
+
+        {/* Stajlar ders olarak: kod girilirse transkriptte aranır. */}
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: R.navy }}>Stajlar</div>
+          <div style={{ fontSize: 12, color: R.soluk, margin: '2px 0 8px' }}>
+            Staj transkriptte bir ders olarak geçer. Ders kodu girilen staj transkriptte aranır ve
+            notu başarı notu ise tamamlanmış sayılır; eksik staj danışmana işaretli gelir. Kodu boş
+            stajı yalnız danışman işaretler.
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
+              <thead>
+                <tr>
+                  {['Staj adı', 'Ders kodu', ''].map((t) => (
+                    <th key={t} style={THS}>
+                      {t}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(form.stajDersleri || []).map((r, i) => (
+                  <tr key={i}>
+                    <td style={TDS}>
+                      <input
+                        value={r.ad || ''}
+                        placeholder="örn. Staj I"
+                        onChange={(e) => satir('stajDersleri', i, 'ad', e.target.value)}
+                        style={hucre}
+                      />
+                    </td>
+                    <td style={{ ...TDS, width: 160 }}>
+                      <input
+                        value={r.kod || ''}
+                        placeholder="örn. BİL200"
+                        onChange={(e) =>
+                          satir('stajDersleri', i, 'kod', e.target.value.toLocaleUpperCase('tr-TR'))
+                        }
+                        style={{ ...hucre, fontWeight: 700 }}
+                      />
+                    </td>
+                    <td style={{ ...TDS, textAlign: 'right', width: 40 }}>
+                      <SilDugmesi onClick={() => satirSil('stajDersleri', i)} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              alignItems: 'flex-end',
+              flexWrap: 'wrap',
+              marginTop: 10,
+            }}
+          >
+            <button
+              type="button"
+              style={kucukDugme}
+              onClick={() => satirEkle('stajDersleri', { ad: '', kod: '' })}
+            >
+              + Staj ekle
+            </button>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+              Başarı notu
+              <input
+                value={form.stajBasariNotu || ''}
+                onChange={(e) => set({ stajBasariNotu: e.target.value })}
+                style={{ ...hucre, width: 70, fontWeight: 700 }}
+              />
+              <span style={{ color: R.soluk }}>(BŞ = başarılı)</span>
+            </label>
+          </div>
+        </div>
       </BolumKarti>
 
       {/* 3 ── MEZUNİYET FORMU */}
       <BolumKarti
         no={3}
         baslik="Mezuniyet formu"
-        aciklama="Transkript forma olduğu gibi aktarılır; açık olan kurallara uymayan dersler sarı görünür."
+        aciklama="Transkript forma olduğu gibi aktarılır; açık olan kurallara uymayan dersler sarı görünür. Sonradan geçilen dersin önceki başarısız denemeleri sarı olmaz."
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
           {SATIR_KURALLARI.map((k) => (
@@ -354,14 +435,6 @@ export default function MezuniyetKurallari({ activeDepartment, currentUser }) {
               value={metinler.uyari}
               onChange={(e) => setMetinler({ ...metinler, uyari: e.target.value })}
               style={GIRDI}
-            />
-          </Alan>
-          <Alan etiket="Stajlar" ipucu="Her satıra bir staj; danışman eksik olanı işaretler">
-            <textarea
-              rows={3}
-              value={metinler.staj}
-              onChange={(e) => setMetinler({ ...metinler, staj: e.target.value })}
-              style={{ ...GIRDI, resize: 'vertical' }}
             />
           </Alan>
         </div>
