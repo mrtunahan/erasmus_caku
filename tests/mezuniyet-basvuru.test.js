@@ -13,6 +13,9 @@ import {
   imzaEksikleri,
   adimSirasi,
   sonaEklenenler,
+  silinecekleriTekille,
+  silinecekDersleriBirlestir,
+  donemSirasi,
 } from '../lib/mezuniyet-basvuru.js';
 import { mezuniyetHesapla, mezKuralNormalize } from '../lib/mezuniyet.js';
 
@@ -588,5 +591,39 @@ describe('ders satırı kuralları (sarı satırlar)', () => {
     const k = mezKuralNormalize({ toplamAkts: 240 });
     expect(k.satirKurallari.kalanNot).toBe(true);
     expect(k.stajlar.length).toBeGreaterThan(0);
+  });
+});
+
+describe('silinecek dersler — her ders bir kez, en son dönemiyle', () => {
+  const ml = [
+    { kod: 'BİL321', ad: 'Makine Öğrenmesi', yil: '2023', yariyil: 'Bahar' },
+    { kod: 'BİL471', ad: 'Sayısal Analiz', yil: '2023', yariyil: 'Bahar', statu: 'Zorunlu' },
+    { kod: 'BİL321', ad: 'Makine Öğrenmesi', yil: '2025', yariyil: 'Bahar' },
+    { kod: 'BİL321', ad: 'Makine Öğrenmesi', yil: '2024', yariyil: 'Bahar' },
+    { kod: 'BİL471', ad: 'Sayısal Analiz', yil: '2024-2025', yariyil: 'Güz', statu: 'Zorunlu' },
+  ];
+  it('tekiller ve en son dönemi seçer', () => {
+    const t = silinecekleriTekille(ml);
+    expect(t).toHaveLength(2);
+    expect(t[0]).toMatchObject({ kod: 'BİL321', yil: '2025' });
+    // 2025 denemesinde statü yok — önceki denemeden tamamlanır.
+    expect(
+      silinecekleriTekille([
+        { kod: 'BİL321', yil: '2023', yariyil: 'Bahar', statu: 'Seçmeli' },
+        { kod: 'BİL321', yil: '2025', yariyil: 'Bahar', statu: '' },
+      ])[0]
+    ).toMatchObject({ yil: '2025', statu: 'Seçmeli' });
+    expect(t[1]).toMatchObject({ kod: 'BİL471', yil: '2024-2025', yariyil: 'Güz' });
+  });
+  it('kayıtlı çoklu liste dilekçeye tek satır gider', () => {
+    expect(silinecekDersleriBirlestir({ silinecekDersler: ml })).toHaveLength(2);
+  });
+  it('dönem sırası: Güz < Bahar < Yaz, yıl önce', () => {
+    expect(donemSirasi({ yil: '2023', yariyil: 'Bahar' })).toBeGreaterThan(
+      donemSirasi({ yil: '2023', yariyil: 'Güz' })
+    );
+    expect(donemSirasi({ yil: '2024-2025', yariyil: 'Güz' })).toBeGreaterThan(
+      donemSirasi({ yil: '2023', yariyil: 'Yaz' })
+    );
   });
 });
