@@ -3,7 +3,16 @@
 // Sınav otomasyonu için gerekli tüm derslerin eklendiği ve yönetildiği alan
 // ══════════════════════════════════════════════════════════════
 
+import { mezProgramlar, mezProgramAdi } from './lib/mezuniyet.js';
+
 const { useState, useEffect, useMemo } = React;
+
+// "Lisans — 7+1" → "7+1": listede kısa etiket.
+const mufredatKisa = (id) => {
+  const ad = mezProgramAdi(id) || id;
+  const i = ad.lastIndexOf('— ');
+  return i >= 0 ? ad.slice(i + 2) : ad;
+};
 
 // Shared bileşenlerden importlar
 const C = window.C;
@@ -762,7 +771,11 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
     uygulamaVar: false,
     teoriSaati: '',
     uygulamaSaati: '',
+    // Dersin okutulduğu müfredatlar (kalıp kimlikleri). Boş: hepsinde.
+    mufredatlar: [],
   });
+  // Bölümün Mezuniyet kurallarında tanımlı müfredatları ([{id, ad}]).
+  const [bolumProgramlari, setBolumProgramlari] = useState([]);
   const [saving, setSaving] = useState(false);
   const [filterClass, setFilterClass] = useState('all');
   const [filterTerm, setFilterTerm] = useState('all');
@@ -783,6 +796,16 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
         whereParam ? { where: whereParam } : {}
       );
       setCourses(allCourses);
+
+      // Bölümün müfredatları (Mezuniyet kuralları → Program yapısı).
+      try {
+        const r = activeDepartment
+          ? await window.apiReadDoc('mezuniyet_kurallari', String(activeDepartment))
+          : null;
+        setBolumProgramlari(mezProgramlar((r && r.exists && r.data) || {}));
+      } catch (_e) {
+        setBolumProgramlari(mezProgramlar({}));
+      }
 
       // Akademisyenleri getir (dropdown için) — çapraz-bölüm desteği için
       // tüm listeyi al, sonra (admin değilse) profMatchesDept ile filtrele.
@@ -829,6 +852,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
       uygulamaVar: !!c.uygulamaVar,
       teoriSaati: c.teoriSaati ? String(c.teoriSaati) : '',
       uygulamaSaati: c.uygulamaSaati ? String(c.uygulamaSaati) : '',
+      mufredatlar: Array.isArray(c.mufredatlar) ? c.mufredatlar.slice() : [],
     });
   };
 
@@ -848,6 +872,7 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
       uygulamaVar: false,
       teoriSaati: '',
       uygulamaSaati: '',
+      mufredatlar: [],
     });
   };
 
@@ -872,6 +897,8 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
         bolognaLink: bolognaLink,
         statu: form.statu,
         seviye: form.seviye || 'lisans',
+        // Müfredat: boş liste = bölümün bütün müfredatlarında okutulur.
+        mufredatlar: (form.mufredatlar || []).filter(Boolean),
         // Teori/uygulama alanları tek yerden normalize edilir; bayrak
         // kapatılsa bile saatler korunur (lib/ders-parcasi.js).
         ...(window.DersParcasi ? window.DersParcasi.parcaAlanlari(form) : {}),
@@ -1343,6 +1370,21 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                           {c.statu}
                         </span>
                       )}
+                      {Array.isArray(c.mufredatlar) &&
+                        c.mufredatlar.length > 0 &&
+                        bolumProgramlari.length > 1 && (
+                          <div
+                            title="Yalnız bu müfredatlarda okutulur"
+                            style={{
+                              marginTop: 4,
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: '#0F766E',
+                            }}
+                          >
+                            {c.mufredatlar.map(mufredatKisa).join(' · ')}
+                          </div>
+                        )}
                     </td>
                     {/* Süre boşken " dk" yazıyordu — değeri olmayan hücre
                         birimini değil, boş olduğunu göstermeli. */}
@@ -1503,6 +1545,65 @@ function DersYonetimiModuluApp({ currentUser, activeDepartment }) {
                 <option value="S">S (Seçmeli)</option>
               </Select>
             </FormField>
+            <div style={dyTamSatir}>
+              <FormField label="Müfredat">
+                {(() => {
+                  const liste = bolumProgramlari.slice();
+                  (form.mufredatlar || []).forEach((id) => {
+                    if (!liste.some((p) => p.id === id))
+                      liste.push({ id, ad: mezProgramAdi(id) || id });
+                  });
+                  const secim = form.mufredatlar || [];
+                  const degis = (id) => {
+                    const l = secim.filter((x) => x !== id);
+                    if (secim.indexOf(id) < 0) l.push(id);
+                    setForm({
+                      ...form,
+                      mufredatlar: liste.map((p) => p.id).filter((x) => l.indexOf(x) >= 0),
+                    });
+                  };
+                  return (
+                    <div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {liste.map((p) => {
+                          const on = secim.indexOf(p.id) >= 0;
+                          return (
+                            <label
+                              key={p.id}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '6px 12px',
+                                borderRadius: 8,
+                                border: '1px solid ' + (on ? '#1E40AF' : '#D1D5DB'),
+                                background: on ? '#E8F0FF' : 'white',
+                                color: on ? '#1E40AF' : '#1F2937',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <input type="checkbox" checked={on} onChange={() => degis(p.id)} />
+                              {p.ad}
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <div
+                        style={{ fontSize: 11.5, color: '#6B7280', marginTop: 6, lineHeight: 1.5 }}
+                      >
+                        {secim.length === 0
+                          ? 'Hiçbiri işaretli değil: ders bölümün bütün müfredatlarında okutulur.'
+                          : 'Ders yalnız işaretli müfredatlarda okutulur; diğer müfredattaki öğrencinin mezuniyet hesabında aranmaz.'}
+                        {bolumProgramlari.length <= 1 &&
+                          ' Bölümde tek müfredat tanımlı — ikinci müfredatı Mezuniyet kuralları › Program yapısı’ndan ekleyin.'}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </FormField>
+            </div>
             <FormField label="Sınav Süresi (dk)">
               <Select
                 value={form.duration}

@@ -40,6 +40,8 @@ import {
   mezGecerliNotlar,
   mezNotDuzelt,
   mezSilinmeSiniflandir,
+  mezProgramlar,
+  mezProgramAdi,
 } from './lib/mezuniyet.js';
 import { mezuniyetFormunuDoldur, bolumBasligi } from './lib/mezuniyet-form-doldur.js';
 import { R, dugme, GIRDI, BilgiNotu, GeriDon, BolumKarti } from './mezuniyet-ui.jsx';
@@ -173,6 +175,8 @@ function hesapla(basvuru, mufredat, kural) {
   return mezuniyetHesapla(mufredat, dersler, kural, {
     agno: basvuru.agno,
     transkriptAkts: basvuru.transkriptAkts,
+    // Öğrencinin müfredatı: yalnız o müfredatın dersleri aranır.
+    program: basvuru.program,
   });
 }
 
@@ -1098,6 +1102,7 @@ function BasvuruOzeti({ b, rol }) {
   const bilgiler = [
     rol === 'danisman' ? null : ['Danışman', metin(b.danisman) || '—'],
     ['Tamamlanan AKTS', akts ? akts + ' AKTS' : '—'],
+    b.program ? ['Müfredat', mezProgramAdi(b.program) || b.program] : null,
     ['GNO', metin(b.agno) || '—'],
     ['Silinecek ders', sil.length ? sil.length + ' ders' : 'yok'],
     ['Eksik staj', staj.length ? staj.join(', ') : 'yok'],
@@ -1462,10 +1467,15 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
   const [onizleme, setOnizleme] = useState(null);
   const [kurumFormu, setKurumFormu] = useState(null);
   const [eskiKayit, setEskiKayit] = useState(null);
+  // Öğrencinin müfredatı (bölümde birden çok müfredat varsa seçilir).
+  const [program, setProgram] = useState('');
+  const programlar = useMemo(() => mezProgramlar(kural || {}), [kural]);
+  const programSecimiGerekli = programlar.length > 1;
 
   const yenile = useCallback(async () => {
     const b = await basvuruOku(ogrNo);
     setBasvuru(b);
+    if (b && b.program) setProgram(b.program);
     if (b && b.iletisim) setIletisim((x) => ({ ...x, ...b.iletisim }));
     if (b && b.mezuniyetDonemi) setDonemBilgisi((x) => ({ ...x, ...b.mezuniyetDonemi }));
     if (b && b.silinecekEk) setSilinecekEk(b.silinecekEk);
@@ -1650,6 +1660,7 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
         transkriptUrl: yuklenen.url,
         transkriptAdi: yuklenen.ad,
         transkriptTarihi: yuklenen.tarih,
+        ...(program ? { program } : {}),
       };
       const s = hesapla(taslak, mufredat, kural);
       await formuKaydet({ ...taslak, ozet: ozetCikar(s) }, 'Transkript yüklendi ve tarandı');
@@ -1676,6 +1687,7 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
         transkriptUrl: metin(eskiKayit.transkriptUrl),
         transkriptAdi: 'Transkript',
         transkriptTarihi: eskiKayit.transkriptTarihi || new Date().toISOString(),
+        ...(program ? { program } : {}),
       };
       await formuKaydet(
         { ...taslak, ozet: ozetCikar(hesapla(taslak, mufredat, kural)) },
@@ -1688,7 +1700,29 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
+  const programSec = async (id) => {
+    setProgram(id);
+    if (!basvuru) return; // transkript yüklenince taslakla birlikte yazılır
+    setCalisiyor('program');
+    setMesaj({ tur: '', metin: '' });
+    try {
+      const yeni = { ...basvuru, program: id };
+      await formuKaydet(
+        { program: id, ozet: ozetCikar(hesapla(yeni, mufredat, kural)) },
+        'Müfredat seçildi: ' + (mezProgramAdi(id) || id)
+      );
+    } catch (e) {
+      setMesaj({ tur: 'hata', metin: e.message });
+    } finally {
+      setCalisiyor('');
+    }
+  };
+
   const danismanaGonder = async () => {
+    if (programSecimiGerekli && !(basvuru && basvuru.program)) {
+      setMesaj({ tur: 'hata', metin: 'Önce müfredatınızı seçin.' });
+      return;
+    }
     if (!danisman) {
       setMesaj({ tur: 'hata', metin: 'Önce danışmanınızı seçin.' });
       return;
@@ -1830,6 +1864,55 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
           <b>Danışmanınız düzeltme istedi.</b> {metin(basvuru.danismanNotu)} Gerekirse güncel
           transkriptinizi yeniden yükleyin ve formu tekrar gönderin.
         </BilgiKutusu>
+      )}
+
+      {/* ── 0) MÜFREDAT ── bölümde birden çok müfredat varsa (8+0, 7+1 …) */}
+      {formAsamasi && programSecimiGerekli && (
+        <div style={KART}>
+          <h3 style={BASLIK}>Müfredatım</h3>
+          <div style={{ fontSize: 12.5, color: R.soluk, marginBottom: 10, lineHeight: 1.55 }}>
+            Bölümünüzde birden çok müfredat okutuluyor. Kayıtlı olduğunuz müfredatı seçin; mezuniyet
+            hesabı yalnız bu müfredatın dersleriyle yapılır (örneğin 8+0 öğrencisi 7+1
+            müfredatındaki dersleri almadı diye eksik görünmez).
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {programlar.map((p) => {
+              const on = program === p.id;
+              return (
+                <label
+                  key={p.id}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 14px',
+                    borderRadius: 10,
+                    border: '1.5px solid ' + (on ? R.mavi : R.kenar),
+                    background: on ? '#E8F0FF' : 'white',
+                    color: on ? R.mavi : R.metin,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: calisiyor ? 'wait' : 'pointer',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="mez-program"
+                    checked={on}
+                    disabled={!!calisiyor}
+                    onChange={() => programSec(p.id)}
+                  />
+                  {p.ad}
+                </label>
+              );
+            })}
+          </div>
+          {!program && (
+            <div style={{ fontSize: 12, color: '#B45309', marginTop: 8 }}>
+              Müfredat seçilmeden form danışmana gönderilemez.
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── 1) TRANSKRİPT VE FORM ── */}

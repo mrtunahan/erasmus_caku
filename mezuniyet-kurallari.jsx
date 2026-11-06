@@ -190,6 +190,10 @@ export default function MezuniyetKurallari({ activeDepartment, currentUser }) {
             .filter(Boolean)
             .slice(0, 20),
           stajBasariNotu: harf(form.stajBasariNotu) || 'BŞ',
+          // Bölümde okutulan müfredatlar (kalıp kimlikleri). Boş: tek müfredat.
+          programlar: (form.programlar || []).filter((id) =>
+            MEZUNIYET_KALIPLARI.some((k) => k.id === id)
+          ),
           aciklama: form.aciklama || '',
           updatedAt: new Date().toISOString(),
           updatedBy: currentUser?.name || currentUser?.identifier || '',
@@ -280,6 +284,59 @@ export default function MezuniyetKurallari({ activeDepartment, currentUser }) {
               style={GIRDI}
             />
           </Alan>
+        </div>
+
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px dashed ' + R.kenar }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>
+            Bölümde okutulan müfredatlar
+          </div>
+          <div style={{ fontSize: 12, color: R.soluk, marginBottom: 10, lineHeight: 1.5 }}>
+            Bölümde aynı anda birden çok müfredat varsa (örn. eski 8+0 ve yeni 7+1) hepsini
+            işaretleyin. Öğrenci mezuniyet başvurusunda kendi müfredatını seçer; Ders Yönetimi'nde
+            derslere hangi müfredatta okutulduğu işaretlenir. Hiçbiri işaretlenmezse yukarıdaki yapı
+            tek müfredat sayılır.
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {MEZUNIYET_KALIPLARI.map((k) => {
+              const secili = (form.programlar || []).indexOf(k.id) >= 0;
+              return (
+                <label
+                  key={k.id}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    border: '1px solid ' + (secili ? R.mavi : R.kenar),
+                    background: secili ? '#E8F0FF' : 'white',
+                    color: secili ? R.mavi : R.metin,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={secili}
+                    onChange={() =>
+                      setForm((f) => {
+                        const l = (f.programlar || []).filter((x) => x !== k.id);
+                        if (!secili) l.push(k.id);
+                        return {
+                          ...f,
+                          programlar: MEZUNIYET_KALIPLARI.map((x) => x.id).filter(
+                            (id) => l.indexOf(id) >= 0
+                          ),
+                        };
+                      })
+                    }
+                  />
+                  {k.ad}
+                </label>
+              );
+            })}
+          </div>
         </div>
       </BolumKarti>
 
