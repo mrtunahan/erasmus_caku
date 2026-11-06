@@ -305,6 +305,7 @@ const BOLUMDEN_BAGIMSIZ_MODULLER = new Set([
   'patent',
   'univ',
   'tanitim',
+  'yardimkilavuzu',
   'fakulte',
   'akreditasyon',
   'yapayzeka',

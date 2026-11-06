@@ -331,3 +331,32 @@ test('proje grubu daveti: davetli yalnız kendi satırını yanıtlar', async ()
   // Verilmiş yanıt tekrar değiştirilemez.
   assert.equal((await yanit(CEYDA, ['accepted', 'rejected', 'pending'])).durum, 403);
 });
+
+test('yardım kılavuzu: herkes okur, yalnız üniversite yetkilisi yazar', async () => {
+  const YONETICI = jeton({ role: 'admin', identifier: 'admin' });
+  const veri = { icerik: '# Kılavuz\n\nDeneme', updatedBy: 'Yönetici' };
+  for (const t of [OGR, HOCA]) {
+    const r = await yaz(t, {
+      collection: 'yardim_kilavuzlari',
+      type: 'set',
+      docId: 'ogrenci',
+      data: veri,
+    });
+    assert.equal(r.durum, 403, JSON.stringify(r.j));
+  }
+  assert.equal(await bul('yardim_kilavuzlari', { _docId: 'ogrenci' }), null);
+
+  const ok = await yaz(YONETICI, {
+    collection: 'yardim_kilavuzlari',
+    type: 'set',
+    docId: 'ogrenci',
+    data: veri,
+  });
+  assert.equal(ok.durum, 200, JSON.stringify(ok.j));
+
+  // Giriş ekranı oturumsuz okur.
+  const r = await fetch(taban + '/api/db/yardim_kilavuzlari/ogrenci');
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.match(JSON.stringify(j), /Kılavuz/);
+});

@@ -190,6 +190,11 @@ window.__lazyModules = {
     loader: () => import('./tanitim-yonetimi.jsx'),
     component: 'TanitimYonetimiApp',
   },
+  // Giriş ekranındaki Yardım Kılavuzu'nun içeriği (üniversite yetkilisi).
+  yardimkilavuzu: {
+    loader: () => import('./yardim-kilavuzu.jsx'),
+    component: 'YardimKilavuzuApp',
+  },
   fakulte: {
     loader: () => import('./fak-yonetimi-modulu.jsx'),
     component: 'FakYonetimiApp',
@@ -214,6 +219,9 @@ window.__lazyModules = {
 
 // Üst banttaki genel arama (Ctrl+K) — kabuk bunu window.GenelArama'dan okur.
 import './genel-arama.jsx';
+
+// Yardım Kılavuzu penceresi — giriş ekranı (oturum açılmadan) kullanır.
+import './yardim-kilavuzu.jsx';
 
 // ── Phase 3: App Shell (routing & navigation) ──
 import './app-shell.jsx';
