@@ -474,6 +474,9 @@ const ALLOWED_COLLECTIONS = [
   // (PUBLIC_READ), yazması yalnız üniversite yetkilisinde (TANITIM_YAZ).
   'tanitim_slaytlari',
   'tanitim_modulleri',
+  // Yardım kılavuzu (giriş ekranındaki "Yardım Kılavuzu"). Okuması anonim
+  // (PUBLIC_READ), yazması yalnız üniversite yetkilisinde (YARDIM_YAZ).
+  'yardim_kilavuzlari',
   'sinav_programi',
   'sinav_dersler',
   'sinav_donemler',
@@ -703,6 +706,8 @@ const PUBLIC_READ = new Set([
   'tenant_config',
   'tanitim_slaytlari',
   'tanitim_modulleri',
+  // Yardım kılavuzu giriş ekranında, oturum açılmadan okunur; PII yok.
+  'yardim_kilavuzlari',
 ]);
 // Giriş ekranındaki akademisyen adı araması için gerekli asgari alanlar
 const PUBLIC_READ_STRIPPED = { professors: ['name', 'title', 'departmentId'] };
@@ -783,6 +788,11 @@ const TABAN_SIL_UNI_ADMIN = new Set(['taban_puanlar', 'taban_tablolari']);
 // yüzden DEPT_MANAGER_WRITE değil, ayrı ve daha dar bir kapı.
 // Okuma tarafı anonimdir (PUBLIC_READ) — sayfa oturum taşımaz.
 const TANITIM_YAZ = new Set(['tanitim_slaytlari', 'tanitim_modulleri']);
+
+// ── YARDIM KILAVUZU: YAZMAK ÜNİVERSİTE YETKİLİSİNİN ──
+// Kılavuz bütün öğrencilere giriş ekranında gösterilir; kurum adına tek
+// metindir. Bölüm/fakülte yetkilisi değil, üniversite yetkilisi düzenler.
+const YARDIM_YAZ = new Set(['yardim_kilavuzlari']);
 
 // Yayın kapsamı taşıyan koleksiyonlar: kaydı ancak KAPSAMINA giren yetkili
 // kaldırabilir. Kural istemcide de var (yönetim listesi süzülüyor) ama YALNIZ
@@ -1984,6 +1994,16 @@ async function enforceWritePolicies(db, op, user) {
   // bölümlerin değerlendirmesini sessizce bozar. Yükleme ve güncelleme
   // bölüm yetkilisinde kalır (yukarıdaki DEPT_MANAGER_WRITE); kaldıran tek
   // merci üniversitedir.
+  if (YARDIM_YAZ.has(op.collection)) {
+    const flags = await getActorFlags(db, user);
+    if (!flags.uniAdmin) {
+      return {
+        allow: false,
+        status: 403,
+        error: 'Yardım kılavuzunu yalnız üniversite yetkilisi düzenleyebilir.',
+      };
+    }
+  }
   if (TANITIM_YAZ.has(op.collection)) {
     const flags = await getActorFlags(db, user);
     if (!flags.uniAdmin) {

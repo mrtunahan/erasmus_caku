@@ -98,6 +98,7 @@ const YONETIM_MODULLERI = [
   'audit',
   'univ',
   'tanitim',
+  'yardimkilavuzu',
   'fakulte',
   'akreditasyon',
   'yapayzeka',
