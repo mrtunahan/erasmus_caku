@@ -9179,6 +9179,8 @@ const LoginModal = ({ onLogin }) => {
   // null | 'unuttum' | 'yenile'
   const [hesapModu, setHesapModu] = useState(() => (window.__sifreYenileJetonu ? 'yenile' : null));
   const [activeTab, setActiveTab] = useState('student'); // student, professor, admin
+  // Rol halkasındaki vurgu yayının açısı (yalnız görsel; en kısa yoldan döner).
+  const lgYayAci = React.useRef(null);
   // Kiracı kimliği (marka/kurum adları) DB'den geç yüklenebilir — event ile tazele.
   const [, setTenantTick] = useState(0);
   useEffect(() => {
@@ -9727,19 +9729,10 @@ const LoginModal = ({ onLogin }) => {
     /* ── Outer wrapper ── */
     .lg-wrap {
       position: fixed; inset: 0;
-      background-color: #121828;
-      background-image:
-        linear-gradient(rgba(8, 12, 24, 0.30), rgba(8, 12, 24, 0.50)),
-        url('/login-bg.jpg');
-      background-size: cover;
-      background-position: center;
-      animation: lgBgDrift 45s ease-in-out infinite alternate;
-      display: flex; align-items: center; justify-content: center;
-      padding: 24px;
       overflow: auto;
       z-index: 10000;
       font-family: 'Inter', 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      color: #0F172A;
+      color: #15263b;
       -webkit-font-smoothing: antialiased;
     }
 
@@ -10250,142 +10243,308 @@ const LoginModal = ({ onLogin }) => {
       .lg-tab { font-size: 12.5px; padding: 10px 4px; }
     }
 
-    /* ══ ÇAKÜ 3D Gün Batımı Teması — koyu cam kart ══ */
-    @keyframes lgBgDrift {
-      from { background-position: 46% 50%; }
-      to   { background-position: 54% 50%; }
+    /* ══ Kurumsal giriş teması — açık zemin, kampüs fotoğrafı, rol halkası ══ */
+    .lg-wrap {
+      --accent: #14b8a6; --accent-dark: #164454;
+      --lg-strong: #15263b; --lg-soft: #3f5366; --lg-muted: #74838f;
+      --lg-link: #0b8e7f; --lg-err: #b42318;
+      --lg-chip-text: #1f3448; --lg-chip-border: #dce6ec; --lg-chip-bg: #f8fafc;
+      background: #eefaf8;
+      transition: background-color .65s ease;
     }
-    .lg-card-split {
-      max-width: 450px;
-      grid-template-columns: 1fr;
-      background: rgba(12, 20, 34, 0.60);
-      -webkit-backdrop-filter: blur(22px) saturate(1.15);
-      backdrop-filter: blur(22px) saturate(1.15);
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      box-shadow:
-        0 40px 90px rgba(0, 0, 0, 0.60),
-        0 0 60px rgba(0, 229, 204, 0.10),
-        inset 0 1px 0 rgba(255, 255, 255, 0.10);
+    .lg-wrap[data-role="akademisyen"] { --accent: #6176e8; --accent-dark: #263965; --lg-link: #4f5fd0; background: #f0f1fd; }
+    .lg-wrap[data-role="aday"] { --accent: #e48c54; --accent-dark: #784d57; --lg-link: #b4612d; background: #fff2e8; }
+    .lg-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; transition: background .7s ease;
+      background: radial-gradient(ellipse at 9% 10%, #c3f4e7 0%, transparent 46%), radial-gradient(ellipse at 94% 88%, #d7f8f3 0%, transparent 48%), linear-gradient(135deg, #effdfa, #f5fbff); }
+    .lg-wrap[data-role="akademisyen"] .lg-bg { background: radial-gradient(ellipse at 8% 12%, #dcdfff 0%, transparent 48%), radial-gradient(ellipse at 90% 88%, #e9dcff 0%, transparent 46%), linear-gradient(135deg, #f4f5ff, #edf1ff); }
+    .lg-wrap[data-role="aday"] .lg-bg { background: radial-gradient(ellipse at 9% 10%, #ffe1c6 0%, transparent 47%), radial-gradient(ellipse at 92% 86%, #ffe5d9 0%, transparent 47%), linear-gradient(135deg, #fff8f0, #fff3ec); }
+
+    /* Sol kenarda ekranın ortasına doğru saydamlaşan kampüs fotoğrafı */
+    .lg-photo { position: fixed; inset: 0 auto 0 0; width: 56%; pointer-events: none; z-index: 0; overflow: hidden; }
+    .lg-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 47% center; display: block; }
+    .lg-photo-base {
+      filter: saturate(.93) brightness(.94);
+      -webkit-mask-image: linear-gradient(to right, #000 0%, #000 22%, rgba(0,0,0,.9) 36%, rgba(0,0,0,.55) 56%, rgba(0,0,0,.18) 78%, transparent 100%);
+      mask-image: linear-gradient(to right, #000 0%, #000 22%, rgba(0,0,0,.9) 36%, rgba(0,0,0,.55) 56%, rgba(0,0,0,.18) 78%, transparent 100%);
     }
-    .lg-left {
-      background: transparent;
-      padding: 30px 34px 0;
-      justify-content: flex-start;
+    .lg-photo-blur {
+      filter: blur(13px) brightness(.7) saturate(.72); transform: scale(1.03);
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, transparent 28%, rgba(0,0,0,.2) 42%, rgba(0,0,0,.45) 60%, rgba(0,0,0,.18) 78%, transparent 100%);
+      mask-image: linear-gradient(to right, transparent 0%, transparent 28%, rgba(0,0,0,.2) 42%, rgba(0,0,0,.45) 60%, rgba(0,0,0,.18) 78%, transparent 100%);
     }
-    .lg-left-blob1, .lg-left-blob2, .lg-illus, .lg-left-tagline { display: none; }
-    .lg-brand-row { flex-direction: column; gap: 10px; justify-content: center; text-align: center; }
-    .lg-brand-mini-logo { width: 46px; height: 46px; }
-    .lg-brand-mini-img { width: 38px; height: 38px; }
-    .lg-brand-name {
-      color: #EAF6F4;
-      font-size: 19px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      text-shadow: 0 0 18px rgba(0, 229, 204, 0.35);
+
+    .lg-shell { position: relative; z-index: 1; min-height: 100%; max-width: 1180px; margin: 0 auto; padding: 18px 26px 18px;
+      display: flex; flex-direction: column; box-sizing: border-box; animation: loginFadeIn .5s ease-out; }
+
+    /* Üst kimlik şeridi */
+    .lg-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .lg-identity { display: flex; align-items: center; gap: 13px; min-width: 0; padding: 10px 16px 10px 10px;
+      background: rgba(255,255,255,.92); border: 1px solid #e3eaf2; border-radius: 22px; box-shadow: 0 12px 35px rgba(32,59,91,.10); }
+    .lg-mark { width: 64px; height: 64px; flex: none; padding: 5px; border-radius: 18px; background: #fff; border: 1px solid #e3eaf2; display: grid; place-items: center; overflow: hidden; }
+    .lg-mark img { width: 100%; height: 100%; object-fit: contain; border-radius: 50%; display: block; }
+    .lg-brand { display: flex; align-items: baseline; gap: .22em; font-size: 22px; font-weight: 800; letter-spacing: -.05em; line-height: 1.05; color: #183048; white-space: nowrap; }
+    .lg-brand-accent { color: var(--accent); transition: color .4s; }
+    .lg-strap { font-weight: 700; color: #25374b; font-size: 13px; margin-top: 6px; }
+    .lg-caption { font-size: 11px; color: #8b99a8; margin-top: 2px; }
+    .lg-top-tag { background: rgba(255,255,255,.7); border: 1px solid #dae4eb; border-radius: 40px; padding: 10px 15px; color: #617084;
+      font-size: 10px; font-weight: 800; letter-spacing: .1em; white-space: nowrap; }
+    .lg-live-dot { display: inline-block; width: 7px; height: 7px; background: var(--accent); border-radius: 50%; margin-right: 6px;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); vertical-align: 1px; }
+
+    /* Gövde: form solda (fotoğrafın üstünde), rol halkası sağda */
+    .lg-layout { flex: 1; display: grid; grid-template-columns: minmax(300px, 430px) minmax(280px, 420px); justify-content: center;
+      align-items: center; column-gap: clamp(24px, 5vw, 72px); padding: 24px 0 8px; }
+    .lg-layout .lg-panel { grid-column: 1; grid-row: 1; }
+    .lg-layout .lg-chooser { grid-column: 2; grid-row: 1; }
+
+    .lg-panel.lg-right { background: #fff; border: 1px solid #e6edf1; border-radius: 24px; padding: 28px 30px 26px;
+      box-shadow: 0 20px 60px rgba(48,70,91,.12); width: 100%; box-sizing: border-box; transition: box-shadow .5s; }
+    .lg-wrap[data-role="aday"] .lg-panel.lg-right { box-shadow: 0 18px 58px rgba(189,105,49,.14); }
+    .lg-right-heading { color: #15263b; text-align: left; font-size: 24px; letter-spacing: -.035em; margin: 0; }
+    .lg-right-sub { color: #7d8b99; text-align: left; margin: 4px 0 20px; padding-bottom: 16px; border-bottom: 1px solid #edf1f4; }
+    .lg-label { color: #526476; font-weight: 700; }
+    .lg-input { background: #f8fafc; border-color: #dce6ec; color: #1f3448; }
+    .lg-input:focus { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 15%, transparent); }
+    .lg-input-eye-btn:hover { color: var(--accent); }
+    .lg-btn-primary { background: linear-gradient(110deg, var(--accent-dark), var(--accent)); color: #fff;
+      box-shadow: 0 11px 22px color-mix(in srgb, var(--accent) 26%, transparent); }
+    .lg-btn-primary:hover:not(:disabled) { background: linear-gradient(110deg, var(--accent-dark), var(--accent)); filter: brightness(1.05); transform: translateY(-1px); }
+    .lg-btn-primary:disabled { background: #c7d3d7; color: #fff; box-shadow: none; }
+    .lg-btn-secondary:hover { color: var(--accent-dark); border-color: var(--accent); }
+    .lg-tab-active { color: var(--accent-dark); }
+    .lg-tab:hover:not(.lg-tab-active) { color: var(--accent); }
+    .lg-greeting { background: color-mix(in srgb, var(--accent) 9%, white); border-color: color-mix(in srgb, var(--accent) 28%, white); }
+    .lg-greeting-label { color: var(--accent); }
+    .lg-setup-icon { background: color-mix(in srgb, var(--accent) 14%, white); }
+    .lg-prof-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, white); }
+    .lg-prof-row:hover { background: color-mix(in srgb, var(--accent) 8%, white); }
+    .lg-footer { color: #5f6f7e; margin: 6px auto 0; padding: 6px 16px; border-radius: 14px; background: rgba(255,255,255,.82); backdrop-filter: blur(6px); align-self: center; }
+    .lg-footer-dev { color: var(--accent); }
+
+    /* Rol halkası */
+    .lg-chooser { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .lg-orb { width: min(100%, 390px); aspect-ratio: 1; position: relative; display: grid; place-items: center; }
+    .lg-ring { position: absolute; inset: 9%; border: 1px dashed #bdcbd3; border-radius: 50%; box-shadow: 0 0 0 28px rgba(255,255,255,.42), 0 0 0 29px #e6eef1; }
+    .lg-ring::before { content: ''; position: absolute; inset: 12%; border: 1px solid #e3edf0; border-radius: 50%; }
+    .lg-orbit { position: absolute; inset: 9%; width: 82%; height: 82%; overflow: visible; pointer-events: none; z-index: 1; }
+    .lg-orbit-track { fill: none; stroke: #dce6eb; stroke-width: 2.5; }
+    .lg-orbit-arc { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 16 84;
+      transform-origin: 50% 50%; transition: transform .75s cubic-bezier(.22,1,.36,1), stroke .4s; filter: drop-shadow(0 0 5px var(--accent)); }
+    .lg-center { z-index: 2; width: 43%; aspect-ratio: 1; border-radius: 50%; background: linear-gradient(145deg, var(--accent-dark), var(--accent));
+      box-shadow: 0 19px 45px color-mix(in srgb, var(--accent-dark) 45%, transparent), inset 0 1px 0 rgba(255,255,255,.36);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #fff; text-align: center;
+      transition: background .3s; animation: lgArrive .45s ease; }
+    .lg-center-icon svg { width: 30px; height: 30px; display: block; }
+    .lg-center strong { font-size: clamp(14px, 1.7vw, 18px); letter-spacing: -.025em; }
+    .lg-center small { font-size: 9.5px; letter-spacing: .13em; opacity: .8; }
+    @keyframes lgArrive { from { opacity: .5; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+    .lg-role { position: absolute; z-index: 3; width: 92px; height: 92px; border-radius: 50%; border: 1px solid #c7cdd5; background: #dce0e5;
+      color: #818993; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font: inherit;
+      font-size: 12.5px; font-weight: 700; cursor: pointer; box-shadow: 0 5px 15px rgba(66,80,97,.08); filter: grayscale(1); opacity: .8;
+      transition: transform .25s, box-shadow .25s, background .25s, opacity .25s, color .25s, filter .25s; }
+    .lg-role svg { width: 24px; height: 24px; }
+    .lg-role:hover:not(:disabled) { transform: scale(1.07); background: #fff; color: #2c5762; opacity: 1; filter: none; }
+    .lg-role:disabled { cursor: not-allowed; opacity: .45; }
+    .lg-role[aria-pressed="true"] { filter: none; opacity: 1; transform: scale(1.14); color: var(--accent); border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, white); box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 18%, transparent), 0 14px 27px rgba(36,57,72,.18); }
+    .lg-role:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    .lg-role-student { left: 50%; top: 1%; translate: -50% 0; }
+    .lg-role-professor { right: 0; top: 69%; translate: 0 -50%; }
+    .lg-role-aday { left: 0; top: 69%; translate: 0 -50%; }
+    .lg-helper { font-size: 12px; color: #8493a1; letter-spacing: .02em; text-align: center; }
+
+    /* Geniş ekranda sekmeler yerine rol halkası kullanılır */
+    @media (min-width: 901px) { .lg-panel .lg-tabs { display: none; } }
+
+    @media (max-width: 1100px) and (min-width: 901px) {
+      .lg-layout { grid-template-columns: minmax(280px, 400px) minmax(220px, 330px); column-gap: 24px; }
+      .lg-role { width: 76px; height: 76px; font-size: 11px; }
     }
-    .lg-brand-sub { color: rgba(234, 246, 244, 0.55); letter-spacing: 0.08em; }
-    .lg-right { background: transparent; padding: 20px 34px 30px; }
-    .lg-right-heading { color: #FFFFFF; text-align: center; }
-    .lg-right-sub { color: rgba(255, 255, 255, 0.60); text-align: center; }
-    .lg-tabs { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); }
-    .lg-tab { color: rgba(255, 255, 255, 0.65); }
-    .lg-tab:hover:not(.lg-tab-active) { color: #FFFFFF; background: rgba(255, 255, 255, 0.08); }
-    .lg-tab-active { background: #FFFFFF; color: #0B2341; }
-    .lg-label { color: rgba(255, 255, 255, 0.78); }
-    .lg-input {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.18);
-      color: #F4F8F7;
+    @media (max-width: 900px) {
+      .lg-photo { width: 100%; height: 190px; inset: 0 0 auto 0; }
+      .lg-photo-base { -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.7) 50%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.7) 50%, transparent 100%); }
+      .lg-photo-blur { display: none; }
+      .lg-shell { padding: 12px 14px; }
+      .lg-top-tag, .lg-caption { display: none; }
+      .lg-layout { display: flex; flex-direction: column; align-items: stretch; padding-top: 70px; }
+      .lg-chooser { display: none; }
+      .lg-panel.lg-right { max-width: 520px; margin: 0 auto; padding: 22px 20px; }
     }
-    .lg-input::placeholder { color: rgba(255, 255, 255, 0.40); }
-    .lg-input:focus {
-      border-color: #2EC4B6;
-      background: rgba(255, 255, 255, 0.12);
-      box-shadow: 0 0 0 3px rgba(46, 196, 182, 0.22);
+    @media (max-width: 520px) {
+      .lg-mark { width: 48px; height: 48px; border-radius: 14px; }
+      .lg-brand { font-size: 18px; }
+      .lg-strap { font-size: 11.5px; }
+      .lg-right-heading { font-size: 21px; }
     }
-    select.lg-input { color: #F4F8F7; }
-    select.lg-input option { color: #0F172A; background: #FFFFFF; }
-    .lg-input-icon-left, .lg-input-eye-btn { color: rgba(255, 255, 255, 0.55); }
-    .lg-hint { color: rgba(255, 255, 255, 0.55); }
-    .lg-btn-primary { background: #F2F6F5; color: #0B2341; }
-    .lg-btn-primary:hover:not(:disabled) { background: #FFFFFF; }
-    .lg-btn-primary:disabled { background: rgba(255, 255, 255, 0.25); color: rgba(11, 35, 65, 0.55); }
-    .lg-btn-secondary {
-      background: rgba(255, 255, 255, 0.10);
-      color: #EAF6F4;
-      border-color: rgba(255, 255, 255, 0.22);
+    @media (prefers-reduced-motion: reduce) {
+      .lg-orbit-arc, .lg-center, .lg-role, .lg-bg, .lg-shell { transition: none; animation: none; }
     }
-    .lg-error { background: rgba(248, 113, 113, 0.14); color: #FCA5A5; border-color: rgba(248, 113, 113, 0.35); }
-    .lg-footer { color: rgba(255, 255, 255, 0.55); }
-    .lg-footer-dev { color: #7FE7DC; }
-    .lg-setup-title, .lg-greeting-name { color: #FFFFFF; }
-    .lg-setup-sub, .lg-greeting-label, .lg-greeting-id { color: rgba(255, 255, 255, 0.60); }
-    .lg-greeting { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); }
-    .lg-prof-list { background: transparent; border-color: rgba(255, 255, 255, 0.14); }
-    .lg-prof-row { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.10); color: #EAF6F4; }
-    .lg-prof-row:hover { background: rgba(255, 255, 255, 0.12); }
-    .lg-prof-empty { color: rgba(255, 255, 255, 0.50); }
-    .lg-prof-selected { background: rgba(46, 196, 182, 0.15); border-color: rgba(46, 196, 182, 0.45); }
   `;
 
+  // Giriş türleri — sekmeler (dar ekran) ve rol halkası (geniş ekran) aynı listeyi
+  // ve aynı seçim işlevini kullanır.
+  const girisRolleri = [
+    { key: 'student', label: 'Öğrenci' },
+    { key: 'professor', label: 'Akademisyen' },
+    // Numarası olmayan geçiş adayı (dikey / kurumlararası /
+    // merkezi yerleştirme) — bkz. aday-hesap-ekrani.jsx.
+    ...(window.AdayGirisPaneli ? [{ key: 'aday', label: 'Aday' }] : []),
+  ];
+  const girisRoluSec = (key) => {
+    setActiveTab(key);
+    setError('');
+    setIdentifier('');
+    setPassword('');
+    setStudentStep('number');
+    setStudentInfo(null);
+    resetSetupState();
+    setProfSearch('');
+    setProfDropdownOpen(false);
+  };
+  // Rol değiştirilebilir mi — eskiden sekmelerin görünme koşuluyla birebir aynı.
+  const rolSecilebilir =
+    !hesapModu &&
+    activeTab !== 'admin' &&
+    !registerMode &&
+    !setupPasswordMode &&
+    !(activeTab === 'student' && studentStep === 'password');
+  const ROL_TEMASI = {
+    student: 'ogrenci',
+    professor: 'akademisyen',
+    aday: 'aday',
+    admin: 'akademisyen',
+  };
+  const ROL_YAY = { student: -118, professor: 10, aday: 122, admin: 10 };
+  const ROL_ADI = { student: 'Öğrenci', professor: 'Akademisyen', aday: 'Aday', admin: 'Yönetici' };
+  {
+    const hedef = ROL_YAY[activeTab] ?? -118;
+    if (lgYayAci.current == null) lgYayAci.current = hedef;
+    const simdi = ((lgYayAci.current % 360) + 360) % 360;
+    lgYayAci.current += ((hedef - simdi + 540) % 360) - 180;
+  }
+  const rolIkonu = (key) => {
+    const ortak = {
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      stroke: 'currentColor',
+      strokeWidth: 1.7,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      'aria-hidden': 'true',
+    };
+    if (key === 'professor' || key === 'admin')
+      return (
+        <svg {...ortak}>
+          <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 9h.01M15 9h.01" />
+        </svg>
+      );
+    if (key === 'aday')
+      return (
+        <svg {...ortak}>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 21c0-5 3-8 8-8s8 3 8 8" />
+        </svg>
+      );
+    return (
+      <svg {...ortak}>
+        <path d="m12 3 10 5-10 5L2 8l10-5Z" />
+        <path d="M6 10.5V16c0 3 12 3 12 0v-5.5" />
+      </svg>
+    );
+  };
+  const markaAdi = T.appName || 'Offline Asistan';
+  const markaBosluk = markaAdi.lastIndexOf(' ');
+
   return (
-    <div className="lg-wrap">
+    <div className="lg-wrap" data-role={ROL_TEMASI[activeTab] || 'ogrenci'}>
       <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
+      <div className="lg-bg" aria-hidden="true" />
+      <div className="lg-photo" aria-hidden="true">
+        <img className="lg-photo-base" src="/login-bg.jpg" alt="" />
+        <img className="lg-photo-blur" src="/login-bg.jpg" alt="" />
+      </div>
 
-      <div
-        style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
-      >
-        <div className="lg-card-split">
-          {/* Left panel — brand + illustration + tagline */}
-          <div className="lg-left">
-            <div className="lg-left-blob1" aria-hidden="true" />
-            <div className="lg-left-blob2" aria-hidden="true" />
-
-            <div className="lg-brand-row">
-              <div className="lg-brand-mini-logo" aria-hidden="true">
-                <img
-                  src="/marka.png"
-                  alt=""
-                  className="lg-brand-mini-img"
-                  onError={(e) => {
-                    if (e.currentTarget.src.indexOf('/logo.png') < 0)
-                      e.currentTarget.src = '/logo.png';
-                  }}
-                />
-                <div className="lg-brand-mini-ring">
-                  <span className="lg-brand-mini-dot d1" />
-                  <span className="lg-brand-mini-dot d2" />
-                  <span className="lg-brand-mini-dot d3" />
-                </div>
-              </div>
-              <div>
-                <div className="lg-brand-name">{T.appName || 'Offline Asistan'}</div>
-              </div>
+      <div className="lg-shell">
+        <header className="lg-top">
+          <div className="lg-identity">
+            <div className="lg-mark" aria-hidden="true">
+              <img
+                src="/marka.png"
+                alt=""
+                onError={(e) => {
+                  if (e.currentTarget.src.indexOf('/logo.png') < 0)
+                    e.currentTarget.src = '/logo.png';
+                }}
+              />
             </div>
-
-            <div className="lg-illus">
-              <div className="lg-illus-wrap">
-                <div className="lg-illus-circle">
-                  <img src="/logo.png" alt="ÇAKÜ Logo" className="lg-illus-logo" />
-                </div>
-                <div className="lg-illus-orbit" aria-hidden="true">
-                  <span className="lg-illus-orbit-dot d1" />
-                  <span className="lg-illus-orbit-dot d2" />
-                  <span className="lg-illus-orbit-dot d3" />
-                  <span className="lg-illus-orbit-dot d4" />
-                </div>
+            <div style={{ minWidth: 0 }}>
+              <div className="lg-brand">
+                {markaBosluk > 0 ? (
+                  <>
+                    <span>{markaAdi.slice(0, markaBosluk)}</span>
+                    <span className="lg-brand-accent">{markaAdi.slice(markaBosluk + 1)}</span>
+                  </>
+                ) : (
+                  <span className="lg-brand-accent">{markaAdi}</span>
+                )}
               </div>
-            </div>
-
-            <div className="lg-left-tagline">
-              <div className="lg-left-tagline-main">
-                Akademik yaşamı kolaylaştıran dijital asistanınız.
-              </div>
+              {T.universityName && <div className="lg-strap">{T.universityName}</div>}
+              <div className="lg-caption">Dijital kampüs erişim platformu</div>
             </div>
           </div>
+          <div className="lg-top-tag">
+            <span className="lg-live-dot" />
+            KURUMSAL ERİŞİM
+          </div>
+        </header>
 
-          {/* Right panel — form */}
-          <div className="lg-right">
+        <main className="lg-layout">
+          <section className="lg-chooser" aria-label="Giriş türü seçimi">
+            <div className="lg-orb">
+              <div className="lg-ring" />
+              <svg className="lg-orbit" viewBox="0 0 100 100" aria-hidden="true">
+                <circle className="lg-orbit-track" cx="50" cy="50" r="48" />
+                <circle
+                  className="lg-orbit-arc"
+                  cx="50"
+                  cy="50"
+                  r="48"
+                  pathLength="100"
+                  style={{ transform: `rotate(${lgYayAci.current}deg)` }}
+                />
+              </svg>
+              {girisRolleri.map((r) => {
+                const secili = activeTab === r.key;
+                return (
+                  <button
+                    key={r.key}
+                    type="button"
+                    className={`lg-role lg-role-${r.key}`}
+                    aria-pressed={secili}
+                    disabled={!rolSecilebilir && !secili}
+                    onClick={() => {
+                      if (rolSecilebilir && !secili) girisRoluSec(r.key);
+                    }}
+                  >
+                    {rolIkonu(r.key)}
+                    <span>{r.label}</span>
+                  </button>
+                );
+              })}
+              <div className="lg-center" key={activeTab}>
+                <div className="lg-center-icon">{rolIkonu(activeTab)}</div>
+                <strong>{ROL_ADI[activeTab] || 'Öğrenci'}</strong>
+                <small>SEÇİLEN GİRİŞ</small>
+              </div>
+            </div>
+            <div className="lg-helper">
+              {rolSecilebilir
+                ? 'Diğer giriş türünü seçmek için dokunun'
+                : 'Giriş türü bu adımda değiştirilemez'}
+            </div>
+          </section>
+
+          <section className="lg-right lg-panel">
             <h2 className="lg-right-heading">
               {hesapModu === 'destek' ? 'Destek' : hesapModu ? 'Hesap Kurtarma' : 'Giriş Yap'}
             </h2>
@@ -10432,28 +10591,12 @@ const LoginModal = ({ onLogin }) => {
                   !setupPasswordMode &&
                   !(activeTab === 'student' && studentStep === 'password') && (
                     <div className="lg-tabs">
-                      {[
-                        { key: 'student', label: 'Öğrenci' },
-                        { key: 'professor', label: 'Akademisyen' },
-                        // Numarası olmayan geçiş adayı (dikey / kurumlararası /
-                        // merkezi yerleştirme) — bkz. aday-hesap-ekrani.jsx.
-                        ...(window.AdayGirisPaneli ? [{ key: 'aday', label: 'Aday' }] : []),
-                      ].map((tab) => {
+                      {girisRolleri.map((tab) => {
                         const active = activeTab === tab.key;
                         return (
                           <button
                             key={tab.key}
-                            onClick={() => {
-                              setActiveTab(tab.key);
-                              setError('');
-                              setIdentifier('');
-                              setPassword('');
-                              setStudentStep('number');
-                              setStudentInfo(null);
-                              resetSetupState();
-                              setProfSearch('');
-                              setProfDropdownOpen(false);
-                            }}
+                            onClick={() => girisRoluSec(tab.key)}
                             type="button"
                             className={`lg-tab${active ? ' lg-tab-active' : ''}`}
                           >
@@ -11478,7 +11621,7 @@ const LoginModal = ({ onLogin }) => {
                         background: 'none',
                         border: 'none',
                         padding: 0,
-                        color: '#7FE7DC',
+                        color: 'var(--lg-link, #7FE7DC)',
                         fontWeight: 600,
                         fontSize: 13,
                         cursor: 'pointer',
@@ -11496,7 +11639,7 @@ const LoginModal = ({ onLogin }) => {
                           background: 'none',
                           border: 'none',
                           padding: 0,
-                          color: '#7FE7DC',
+                          color: 'var(--lg-link, #7FE7DC)',
                           fontWeight: 600,
                           fontSize: 13,
                           cursor: 'pointer',
@@ -11510,8 +11653,8 @@ const LoginModal = ({ onLogin }) => {
                 )}
               </>
             )}
-          </div>
-        </div>
+          </section>
+        </main>
 
         <p className="lg-footer">
           © {new Date().getFullYear()} {T.unitName || ''} · {T.appName || ''}
