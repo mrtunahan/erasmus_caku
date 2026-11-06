@@ -9175,6 +9175,52 @@ const KvkkMetniModal = ({ onClose }) => {
 window.KvkkMetniModal = KvkkMetniModal;
 
 // ── Login Modal ──
+// Giriş ekranı arka planı: seyrek, farklı boyda altıgenler. Ortası (rol
+// seçici + kart) boş kalır, şekiller kenarlarda toplanır. Siyah/saydam bir
+// MASKE olarak üretilir; rengi CSS'te seçili rolden (--accent-dark) gelir.
+// Tohumlu üreteç: her açılışta aynı desen.
+let _girisDeseni = null;
+function girisAltigenDeseni() {
+  if (_girisDeseni) return _girisDeseni;
+  const W = 1440;
+  const H = 900;
+  let tohum = 21;
+  const rnd = () => (tohum = (tohum * 16807) % 2147483647) / 2147483647;
+  let sekiller = '';
+  for (let n = 0; n < 26; n++) {
+    const x = rnd() * W;
+    const y = rnd() * H;
+    const r = 20 + Math.pow(rnd(), 1.6) * 120;
+    const dolu = rnd() < 0.3;
+    const cizgiSaydam = (0.1 + rnd() * 0.12).toFixed(2);
+    if (Math.hypot((x - W / 2) / W, (y - H / 2) / H) <= 0.28) continue;
+    const noktalar = [0, 1, 2, 3, 4, 5]
+      .map((k) => {
+        const a = (Math.PI / 3) * k + Math.PI / 6;
+        return (x + r * Math.cos(a)).toFixed(1) + ',' + (y + r * Math.sin(a)).toFixed(1);
+      })
+      .join(' ');
+    sekiller +=
+      '<polygon points="' +
+      noktalar +
+      '" fill="' +
+      (dolu ? '#000' : 'none') +
+      '" fill-opacity=".07" stroke="#000" stroke-opacity="' +
+      cizgiSaydam +
+      '" stroke-width="1.4"/>';
+  }
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' +
+    W +
+    ' ' +
+    H +
+    '" preserveAspectRatio="xMidYMid slice">' +
+    sekiller +
+    '</svg>';
+  _girisDeseni = 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '")';
+  return _girisDeseni;
+}
+
 const LoginModal = ({ onLogin }) => {
   // Şifremi unuttum / e-postadaki yenileme bağlantısı (eposta-ekrani.jsx).
   // null | 'unuttum' | 'yenile'
@@ -10257,6 +10303,11 @@ const LoginModal = ({ onLogin }) => {
     .lg-wrap[data-role="aday"] { --accent: #e48c54; --accent-dark: #784d57; --lg-link: #b4612d; background: #fff2e8; }
     .lg-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; transition: background .7s ease;
       background: linear-gradient(135deg, #f7fafc, color-mix(in srgb, var(--accent) 12%, white)); }
+    /* Seyrek altıgen deseni (rol renginde) ve köşelere doğru karartma */
+    .lg-bg::before { content: ''; position: absolute; inset: 0; background: var(--accent-dark); transition: background .7s ease;
+      -webkit-mask: var(--lg-desen) center / cover no-repeat; mask: var(--lg-desen) center / cover no-repeat; }
+    .lg-bg::after { content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 80% at 50% 50%, transparent 50%, color-mix(in srgb, var(--accent-dark) 20%, transparent) 82%, color-mix(in srgb, var(--accent-dark) 42%, transparent) 100%); }
 
     .lg-shell { position: relative; z-index: 1; min-height: 100%; max-width: 1180px; margin: 0 auto; padding: 18px 26px 18px;
       display: flex; flex-direction: column; box-sizing: border-box; animation: loginFadeIn .5s ease-out; }
@@ -10446,7 +10497,7 @@ const LoginModal = ({ onLogin }) => {
   return (
     <div className="lg-wrap" data-role={ROL_TEMASI[activeTab] || 'ogrenci'}>
       <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
-      <div className="lg-bg" aria-hidden="true" />
+      <div className="lg-bg" aria-hidden="true" style={{ '--lg-desen': girisAltigenDeseni() }} />
       <div className="lg-shell">
         <main className="lg-layout">
           <section className="lg-chooser" aria-label="Giriş türü seçimi">
