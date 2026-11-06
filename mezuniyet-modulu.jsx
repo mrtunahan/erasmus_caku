@@ -39,6 +39,7 @@ import {
   mezKuralNormalize,
   mezGecerliNotlar,
   mezNotDuzelt,
+  mezSilinmeSiniflandir,
 } from './lib/mezuniyet.js';
 import { mezuniyetFormunuDoldur, bolumBasligi } from './lib/mezuniyet-form-doldur.js';
 import { R, dugme, GIRDI, BilgiNotu, GeriDon, BolumKarti } from './mezuniyet-ui.jsx';
@@ -694,7 +695,7 @@ function KosulOzeti({ sonuc }) {
  * görünür, nedeni satırın altında yazar. `secim` verilirse (danışman) her
  * satırda "silinecek" kutusu çıkar.
  */
-function TranskriptFormu({ sonuc, secim, onSecim, secimKilitli }) {
+function TranskriptTablosu({ sonuc, secim, onSecim, secimKilitli }) {
   if (!sonuc) return null;
   const durumRenk = { gecti: R.yesil, kaldi: R.kirmizi, belirsiz: '#B45309' };
   const durumEtiket = { gecti: 'Geçti', kaldi: 'Kaldı', belirsiz: 'Belirsiz' };
@@ -820,6 +821,263 @@ function TranskriptFormu({ sonuc, secim, onSecim, secimKilitli }) {
             })}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Mezuniyet formu — SADE görünüm. Transkriptin tamamı yerine yalnız karar
+ * gerektiren dersler (lib/mezuniyet.js → mezSilinmeSiniflandir):
+ *   silinmesi önerilen · mezuniyete engel · kontrol gerekir.
+ * Tam transkript altta kapalı bölümde durur.
+ *
+ * rol: 'danisman' (işaretler + "önerilenleri işaretle"), 'ogrenci' (bilgi),
+ *      'memur' (yalnız tam transkript; işaretlenenler IsaretOzeti'nde).
+ */
+function TranskriptFormu({ sonuc, secim, onSecim, onTopluSecim, secimKilitli, rol }) {
+  const [tumuAcik, setTumuAcik] = useState(false);
+  const sinif = useMemo(() => (sonuc ? mezSilinmeSiniflandir(sonuc) : null), [sonuc]);
+  if (!sonuc || !sinif) return null;
+  const anahtar = (r, i) => metin(r.kod) + '|' + metin(r.ad) + '|' + i;
+  const danisman = rol === 'danisman' && !!secim;
+  const isaretli = (x) => danisman && secim.has(anahtar(x.r, x.i));
+  const isaretsizOneri = sinif.silinmeli.filter((x) => !isaretli(x));
+  // Danışmanın önerilerin dışında, tam transkriptten işaretledikleri.
+  const oneriAnahtarlari = new Set(
+    sinif.silinmeli.concat(sinif.kontrol).map((x) => dersGrupAnahtari(x.r))
+  );
+  const ekIsaretli = danisman
+    ? silinecekleriTekille(
+        sonuc.kayitlar
+          .filter((r, i) => secim.has(anahtar(r, i)) && !oneriAnahtarlari.has(dersGrupAnahtari(r)))
+          .map(silinecekDers)
+      )
+    : [];
+
+  const h = { padding: '8px 10px', fontSize: 12.5, borderBottom: '1px solid #EDEDED' };
+  const th = { ...h, textAlign: 'left', fontSize: 10.5, color: R.soluk, background: '#F7F7F7' };
+  const Rozet = ({ renk, zemin, children }) => (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '5px 11px',
+        borderRadius: 999,
+        background: zemin,
+        color: renk,
+        fontSize: 12.5,
+        fontWeight: 700,
+      }}
+    >
+      {children}
+    </span>
+  );
+  const Bolum = ({ baslik, aciklama, renk, children }) => (
+    <div
+      style={{
+        border: '1px solid ' + R.kenar,
+        borderLeft: '4px solid ' + renk,
+        borderRadius: 10,
+        marginTop: 12,
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ padding: '10px 14px', background: '#FAFAFA' }}>
+        <div style={{ fontWeight: 800, fontSize: 13.5, color: R.metin }}>{baslik}</div>
+        {aciklama && <div style={{ fontSize: 12, color: R.soluk, marginTop: 2 }}>{aciklama}</div>}
+      </div>
+      <div style={{ overflowX: 'auto' }}>{children}</div>
+    </div>
+  );
+  const DersTablosu = ({ liste, isaretKutusu }) => (
+    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
+      <thead>
+        <tr>
+          {(isaretKutusu ? ['Sil'] : [])
+            .concat(['Kod', 'Ders Adı', 'Yıl / Yarıyıl', 'Statü', 'AKTS', 'Not', 'Neden'])
+            .map((t) => (
+              <th key={t} style={th}>
+                {t}
+              </th>
+            ))}
+        </tr>
+      </thead>
+      <tbody>
+        {liste.map((x) => {
+          const r = x.r;
+          const k = anahtar(r, x.i);
+          const sec = isaretli(x);
+          return (
+            <tr key={k} style={{ background: sec ? '#FEE2E2' : 'white' }} data-silinme-satiri>
+              {isaretKutusu && (
+                <td style={{ ...h, width: 34 }}>
+                  <input
+                    type="checkbox"
+                    checked={sec}
+                    disabled={secimKilitli}
+                    onChange={(e) => onSecim && onSecim(k, r, e.target.checked)}
+                    title="Silinecek olarak işaretle"
+                  />
+                </td>
+              )}
+              <td style={{ ...h, width: 88, fontWeight: 700 }}>{r.kod}</td>
+              <td style={{ ...h, textDecoration: sec ? 'line-through' : 'none' }}>{r.ad}</td>
+              <td style={{ ...h, width: 130, color: R.soluk }}>
+                {[r.yil, r.yariyil].filter(Boolean).join(' · ') || '—'}
+              </td>
+              <td style={{ ...h, width: 70 }}>{statuMetni(r) || '—'}</td>
+              <td style={{ ...h, width: 44 }}>{r.akts}</td>
+              <td style={{ ...h, width: 44, fontWeight: 700, color: R.kirmizi }}>{r.not}</td>
+              <td style={{ ...h, color: '#92400E', fontSize: 12 }}>{x.neden}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+
+  const hicYok =
+    sinif.silinmeli.length === 0 && sinif.engel.length === 0 && sinif.kontrol.length === 0;
+
+  return (
+    <div data-silinme-ozeti>
+      {rol !== 'memur' && (
+        <>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Rozet renk="#B91C1C" zemin="#FEE2E2">
+              {sinif.silinmeli.length} ders silinmeli
+            </Rozet>
+            <Rozet renk="#92400E" zemin="#FEF3C7">
+              {sinif.engel.length} zorunlu eksik
+            </Rozet>
+            <Rozet renk="#475569" zemin="#F1F5F9">
+              {sinif.kontrol.length} kontrol gerekir
+            </Rozet>
+            {danisman && !secimKilitli && isaretsizOneri.length > 0 && onTopluSecim && (
+              <button
+                type="button"
+                style={{ ...dugme('birincil'), marginLeft: 'auto' }}
+                onClick={() => onTopluSecim(isaretsizOneri.map((x) => [anahtar(x.r, x.i), x.r]))}
+                data-onerileri-isaretle
+              >
+                Önerilenlerin hepsini işaretle ({isaretsizOneri.length})
+              </button>
+            )}
+          </div>
+
+          {hicYok && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: '12px 14px',
+                borderRadius: 10,
+                background: R.yesilAcik,
+                color: R.yesil,
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              Silinmesi gereken ders yok; zorunlu derslerin tamamı geçilmiş görünüyor.
+            </div>
+          )}
+
+          {sinif.silinmeli.length > 0 && (
+            <Bolum
+              renk={R.kirmizi}
+              baslik="Silinmesi önerilen dersler"
+              aciklama={
+                danisman
+                  ? 'Başarısız ve sonradan geçilmemiş seçmeli dersler ile yerine kodu/adı değişmiş benzer bir dersin geçildiği dersler. Karar sizindir; işaretlediğiniz dersler dilekçeye gider.'
+                  : 'Başarısız ve sonradan geçilmemiş seçmeli dersler ile yerine benzer bir dersin geçildiği dersler. Hangilerinin silineceğine danışmanınız karar verir.'
+              }
+            >
+              <DersTablosu liste={sinif.silinmeli} isaretKutusu={danisman} />
+            </Bolum>
+          )}
+
+          {sinif.engel.length > 0 && (
+            <Bolum
+              renk={R.sariKenar}
+              baslik="Mezuniyete engel — zorunlu dersler"
+              aciklama="Zorunlu ders silinemez; geçilmesi gerekir."
+            >
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
+                <thead>
+                  <tr>
+                    {['Kod', 'Ders Adı', 'Durum'].map((t) => (
+                      <th key={t} style={th}>
+                        {t}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sinif.engel.map((x) => (
+                    <tr key={'e' + x.kod + x.ad}>
+                      <td style={{ ...h, width: 88, fontWeight: 700 }}>{x.kod}</td>
+                      <td style={h}>{x.ad}</td>
+                      <td style={{ ...h, color: '#92400E', fontWeight: 600 }}>{x.neden}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Bolum>
+          )}
+
+          {sinif.kontrol.length > 0 && (
+            <Bolum
+              renk="#94A3B8"
+              baslik="Kontrol gerekir"
+              aciklama="Notu tanınmayan ya da zorunlu/seçmeli olduğu bilinmeyen başarısız dersler. Transkript PDF’iyle karşılaştırın."
+            >
+              <DersTablosu liste={sinif.kontrol} isaretKutusu={danisman} />
+            </Bolum>
+          )}
+
+          {ekIsaretli.length > 0 && (
+            <Bolum
+              renk={R.navy}
+              baslik="Ayrıca işaretlediğiniz dersler"
+              aciklama="Önerilerin dışında, tam transkriptten işaretlendi."
+            >
+              <div style={{ padding: '8px 14px', fontSize: 13 }}>
+                {ekIsaretli.map((d) => (
+                  <div key={dersAnahtari(d)} style={{ padding: '3px 0' }}>
+                    <b>{d.kod}</b> {d.ad}
+                  </div>
+                ))}
+              </div>
+            </Bolum>
+          )}
+        </>
+      )}
+
+      <div style={{ marginTop: rol === 'memur' ? 0 : 14 }}>
+        <button
+          type="button"
+          onClick={() => setTumuAcik((v) => !v)}
+          style={{ ...dugme('ikincil'), width: '100%', justifyContent: 'space-between' }}
+          aria-expanded={tumuAcik}
+          data-tum-transkript
+        >
+          <span>
+            {tumuAcik ? 'Tam transkripti gizle' : 'Tam transkripti göster'} ({sonuc.kayitlar.length}{' '}
+            ders)
+          </span>
+          <span>{tumuAcik ? '▴' : '▾'}</span>
+        </button>
+        {tumuAcik && (
+          <div style={{ marginTop: 10 }}>
+            <TranskriptTablosu
+              sonuc={sonuc}
+              secim={danisman ? secim : undefined}
+              onSecim={onSecim}
+              secimKilitli={secimKilitli}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1679,7 +1937,7 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
                 </span>
               </div>
               <KosulOzeti sonuc={sonuc} />
-              <TranskriptFormu sonuc={sonuc} />
+              <TranskriptFormu sonuc={sonuc} rol="ogrenci" />
             </>
           )}
         </div>
@@ -2244,6 +2502,18 @@ function DanismanDetay({ no, kimlik, onGeri }) {
 
   const durum = b.durum;
   const isaretAcik = durum === 'danismanda' || durum === 'dilekce';
+  // Ders bir bütün olarak işaretlenir: aynı dersin başarısız bütün denemeleri
+  // birlikte açılır/kapanır. Verilen Map'i değiştirip döndürür.
+  const grupIsaretle = (m, k, r, acik) => {
+    const g = dersGrupAnahtari(r);
+    (sonuc ? sonuc.kayitlar : []).forEach((x, i) => {
+      if (dersGrupAnahtari(x) !== g) return;
+      const xk = metin(x.kod) + '|' + metin(x.ad) + '|' + i;
+      if (acik && (x.durum !== 'gecti' || xk === k)) m.set(xk, silinecekDers(x));
+      if (!acik) m.delete(xk);
+    });
+    return m;
+  };
   const stajSecenekleri = Array.from(
     new Set((mezKuralNormalize(kural).stajlar || []).concat(b.eksikStajlar || []))
   );
@@ -2433,25 +2703,20 @@ function DanismanDetay({ no, kimlik, onGeri }) {
         <div style={{ fontSize: 12.5, color: R.soluk, marginBottom: 10 }}>
           Form öğrencinin transkriptinden olduğu gibi aktarıldı; transkript PDF’iyle karşılaştırın.{' '}
           {isaretAcik
-            ? 'Silinmesi gereken dersleri “Silinecek” sütunundan işaretleyin; bir dersin bütün denemeleri birlikte işaretlenir.'
+            ? 'Aşağıda yalnız karar gerektiren dersler var. Silinmesi gerekenleri işaretleyin ya da “Önerilenlerin hepsini işaretle”yi kullanın; bir dersin bütün denemeleri birlikte işaretlenir.'
             : ''}
         </div>
         <KosulOzeti sonuc={sonuc} />
         <TranskriptFormu
           sonuc={sonuc}
+          rol="danisman"
           secim={secim}
           secimKilitli={!isaretAcik}
-          onSecim={(k, r, acik) => {
-            // Ders bir bütün olarak işaretlenir: aynı dersin başarısız bütün
-            // denemeleri birlikte açılır/kapanır.
-            const g = dersGrupAnahtari(r);
+          onSecim={(k, r, acik) => setSecim(grupIsaretle(new Map(secim), k, r, acik))}
+          onTopluSecim={(liste) => {
+            // "Önerilenlerin hepsini işaretle": tek seferde, tek durum güncellemesi.
             const m = new Map(secim);
-            sonuc.kayitlar.forEach((x, i) => {
-              if (dersGrupAnahtari(x) !== g) return;
-              const xk = metin(x.kod) + '|' + metin(x.ad) + '|' + i;
-              if (acik && (x.durum !== 'gecti' || xk === k)) m.set(xk, silinecekDers(x));
-              if (!acik) m.delete(xk);
-            });
+            liste.forEach(([k, r]) => grupIsaretle(m, k, r, true));
             setSecim(m);
           }}
         />
@@ -2810,7 +3075,7 @@ function PersonelDetay({ b, memur, onGeri, onTamamla }) {
       {hazir && sonuc && (
         <div style={KART}>
           <KosulOzeti sonuc={sonuc} />
-          <TranskriptFormu sonuc={sonuc} />
+          <TranskriptFormu sonuc={sonuc} rol={memur ? 'memur' : 'personel'} />
         </div>
       )}
       {memur && b.durum === 'memurda' && (
