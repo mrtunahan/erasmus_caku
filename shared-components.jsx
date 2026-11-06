@@ -10289,11 +10289,11 @@ const LoginModal = ({ onLogin }) => {
     .lg-strap { font-weight: 700; color: rgba(255,255,255,.92); font-size: 12.5px; margin-top: 5px; }
     .lg-caption { font-size: 11px; color: rgba(255,255,255,.7); margin-top: 2px; }
 
-    /* Gövde: form solda (fotoğrafın üstünde), rol halkası sağda */
-    .lg-layout { flex: 1; display: grid; grid-template-columns: minmax(300px, 430px) minmax(280px, 420px); justify-content: center;
+    /* Gövde: rol halkası solda (fotoğrafın üstünde), form sağda */
+    .lg-layout { flex: 1; display: grid; grid-template-columns: minmax(280px, 420px) minmax(300px, 430px); justify-content: center;
       align-items: center; column-gap: clamp(24px, 5vw, 72px); padding: 24px 0 8px; }
-    .lg-layout .lg-panel-col { grid-column: 1; grid-row: 1; }
-    .lg-layout .lg-chooser { grid-column: 2; grid-row: 1; }
+    .lg-layout .lg-chooser { grid-column: 1; grid-row: 1; }
+    .lg-layout .lg-panel-col { grid-column: 2; grid-row: 1; }
 
     .lg-panel.lg-right { background: #fff; border: 1px solid #e6edf1; border-top: none; border-radius: 0 0 24px 24px; padding: 24px 30px 26px;
       box-shadow: none; width: 100%; box-sizing: border-box; transition: box-shadow .5s; }
@@ -10350,13 +10350,14 @@ const LoginModal = ({ onLogin }) => {
     .lg-role-student { left: 50%; top: 1%; translate: -50% 0; }
     .lg-role-professor { right: 0; top: 69%; translate: 0 -50%; }
     .lg-role-aday { left: 0; top: 69%; translate: 0 -50%; }
-    .lg-helper { font-size: 12px; color: #8493a1; letter-spacing: .02em; text-align: center; }
+    .lg-helper { font-size: 12px; color: #4a5a68; letter-spacing: .02em; text-align: center;
+      background: rgba(255,255,255,.82); padding: 4px 12px; border-radius: 999px; backdrop-filter: blur(4px); }
 
     /* Geniş ekranda sekmeler yerine rol halkası kullanılır */
     @media (min-width: 901px) { .lg-panel .lg-tabs { display: none; } }
 
     @media (max-width: 1100px) and (min-width: 901px) {
-      .lg-layout { grid-template-columns: minmax(280px, 400px) minmax(220px, 330px); column-gap: 24px; }
+      .lg-layout { grid-template-columns: minmax(220px, 330px) minmax(280px, 400px); column-gap: 24px; }
       .lg-role { width: 76px; height: 76px; font-size: 11px; }
     }
     @media (max-width: 900px) {
@@ -10550,7 +10551,6 @@ const LoginModal = ({ onLogin }) => {
                     <span className="lg-brand-accent">{markaAdi}</span>
                   )}
                 </div>
-                {T.universityName && <div className="lg-strap">{T.universityName}</div>}
                 <div className="lg-caption">Dijital kampüs erişim platformu</div>
               </div>
             </div>

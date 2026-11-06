@@ -412,6 +412,8 @@ export function AdayGirisPaneli({ onLogin }) {
         fontSize: 12.5,
         color: 'var(--lg-soft, rgba(255, 255, 255, 0.78))',
         lineHeight: 1.5,
+        textAlign: 'justify',
+        hyphens: 'auto',
       }}
     >
       Henüz öğrenci numaranız yoksa (dikey geçiş, kurumlararası yatay geçiş ya da merkezi
