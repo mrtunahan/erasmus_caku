@@ -740,7 +740,9 @@ async function karsilastir(opt) {
 // doğru okunur ya okunmaz; hücre başına güven hem gereksiz hem de çıktı
 // token'ını (dolayısıyla maliyeti) katlar.
 // ══════════════════════════════════════════════════════════════
-const MAX_SATIR = 100;
+// Uzun transkriptler (tekrar alınan derslerle) 100 satırı rahatça aşıyor;
+// eski 100 tavanı son dönemlerin (ör. yaz okulu) derslerini sessizce atıyordu.
+const MAX_SATIR = 300;
 
 function satirSemasi(satirAlanlari) {
   const properties = {};
@@ -796,8 +798,9 @@ async function satirCikar(opt) {
 
   const sistem = await sistemBloklari(opt.module, opt.docType);
   const sema = satirSemasi(alanlar);
-  // Satır başına ~20 token × sütun sayısı, üstüne tavan.
-  const maxTokens = Math.max(2048, Math.min(8192, MAX_SATIR * alanlar.length * 20));
+  // Satır başına ~25 token × sütun sayısı. Tavan 16000: 8192'de ~100 satırlık
+  // transkriptin çıktısı yarıda kesiliyordu (ücret yalnız üretilen token için).
+  const maxTokens = Math.max(2048, Math.min(16000, MAX_SATIR * alanlar.length * 25));
 
   const alanMetni =
     SATIR_TALIMATI +
@@ -867,6 +870,7 @@ async function satirCikar(opt) {
   // normalize birleşimi anahtar olarak kullanılır.
   const gorulen = new Set();
   const satirlar = [];
+  let kesilen = 0;
   hepsi.forEach((ham) => {
     if (!ham || typeof ham !== 'object') return;
     const satir = {};
@@ -882,7 +886,10 @@ async function satirCikar(opt) {
     if (gorulen.has(anahtar)) return;
     gorulen.add(anahtar);
     if (satirlar.length < MAX_SATIR) satirlar.push(satir);
+    else kesilen += 1;
   });
+  // Tavanı aşan satır sessizce düşmesin: istemci uyarı gösterebilsin.
+  if (kesilen > 0) hatalar.push({ reason: 'satir-tavani', message: kesilen + ' satır alınamadı' });
 
   return {
     ok: true,
