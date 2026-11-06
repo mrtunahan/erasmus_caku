@@ -3053,6 +3053,7 @@ window.TENANT = {
   facultyName: FACULTY.name,
   unitName: 'ÇAKÜ Bilgisayar Mühendisliği',
   developerNote: 'Offline Asistan, Arş. Gör. A. Tunahan KORKMAZ tarafından geliştirilmektedir.',
+  contributorsNote: 'Katkıda bulunanlar: M. Melih MEMİŞ ve Tuğçe EĞİ',
   logoUrl: '/marka.png',
   studentEmailDomain: 'ogrenci.karatekin.edu.tr',
   // KVKK aydınlatma metninin başvuru bölümü. Boş bırakılırsa metin
@@ -10317,6 +10318,7 @@ const LoginModal = ({ onLogin }) => {
     .lg-prof-row:hover { background: color-mix(in srgb, var(--accent) 8%, white); }
     .lg-footer { color: #3f5366; margin: 6px auto 0; padding: 6px 16px; background: none; align-self: center; text-shadow: 0 0 6px rgba(255,255,255,.95), 0 0 2px rgba(255,255,255,.9); }
     .lg-footer-dev { color: var(--accent-dark); }
+    .lg-footer-katki { font-size: .92em; opacity: .85; }
 
     /* Rol halkası */
     .lg-chooser { display: flex; flex-direction: column; align-items: center; gap: 10px; }
@@ -11672,6 +11674,12 @@ const LoginModal = ({ onLogin }) => {
           © {new Date().getFullYear()} {T.unitName || ''} · {T.appName || ''}
           <br />
           <span className="lg-footer-dev">{T.developerNote || ''}</span>
+          {T.contributorsNote && (
+            <>
+              <br />
+              <span className="lg-footer-katki">{T.contributorsNote}</span>
+            </>
+          )}
         </p>
       </div>
     </div>
