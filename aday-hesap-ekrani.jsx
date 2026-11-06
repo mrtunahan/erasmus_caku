@@ -145,7 +145,7 @@ const BAG = {
   border: 'none',
   padding: 0,
   font: 'inherit',
-  color: '#7FE7DC',
+  color: 'var(--lg-link, #7FE7DC)',
   fontWeight: 600,
   cursor: 'pointer',
 };
@@ -295,7 +295,10 @@ function Alan({ etiket, hata, children }) {
       <label className="lg-label">{etiket}</label>
       {children}
       {hata && (
-        <div style={{ color: '#FCA5A5', fontSize: 12.5, marginTop: 6 }} data-aday-hata>
+        <div
+          style={{ color: 'var(--lg-err, #FCA5A5)', fontSize: 12.5, marginTop: 6 }}
+          data-aday-hata
+        >
           {hata}
         </div>
       )}
@@ -407,7 +410,7 @@ export function AdayGirisPaneli({ onLogin }) {
         borderRadius: 10,
         padding: '10px 12px',
         fontSize: 12.5,
-        color: 'rgba(255, 255, 255, 0.78)',
+        color: 'var(--lg-soft, rgba(255, 255, 255, 0.78))',
         lineHeight: 1.5,
       }}
     >
@@ -534,9 +537,13 @@ export function AdayGirisPaneli({ onLogin }) {
                   cursor: 'pointer',
                   padding: '10px 12px',
                   borderRadius: 10,
-                  color: '#F4F8F7',
-                  border: '1.5px solid ' + (secili ? '#2EC4B6' : 'rgba(255, 255, 255, 0.18)'),
-                  background: secili ? 'rgba(46, 196, 182, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                  color: 'var(--lg-chip-text, #F4F8F7)',
+                  border:
+                    '1.5px solid ' +
+                    (secili ? '#2EC4B6' : 'var(--lg-chip-border, rgba(255, 255, 255, 0.18))'),
+                  background: secili
+                    ? 'rgba(46, 196, 182, 0.15)'
+                    : 'var(--lg-chip-bg, rgba(255, 255, 255, 0.06))',
                   transition: 'border-color 0.18s ease, background 0.18s ease',
                 }}
               >
@@ -550,7 +557,11 @@ export function AdayGirisPaneli({ onLogin }) {
                 <span>
                   <b style={{ fontWeight: 600 }}>{t.ad}</b>
                   <span
-                    style={{ display: 'block', color: 'rgba(255, 255, 255, 0.55)', fontSize: 12 }}
+                    style={{
+                      display: 'block',
+                      color: 'var(--lg-muted, rgba(255, 255, 255, 0.55))',
+                      fontSize: 12,
+                    }}
                   >
                     {t.aciklama}
                   </span>
@@ -598,7 +609,13 @@ export function AdayGirisPaneli({ onLogin }) {
           data-k="sifre2"
         />
       </Alan>
-      <div style={{ fontSize: 12.5, color: 'rgba(255, 255, 255, 0.78)', lineHeight: 1.5 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: 'var(--lg-soft, rgba(255, 255, 255, 0.78))',
+          lineHeight: 1.5,
+        }}
+      >
         <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
           <input
             type="checkbox"
@@ -618,14 +635,16 @@ export function AdayGirisPaneli({ onLogin }) {
             okudum.
           </span>
         </label>
-        {h('kvkk') && <div style={{ color: '#FCA5A5', marginTop: 4 }}>{h('kvkk')}</div>}
+        {h('kvkk') && (
+          <div style={{ color: 'var(--lg-err, #FCA5A5)', marginTop: 4 }}>{h('kvkk')}</div>
+        )}
         {metinAcik && (
           <div
             style={{
               marginTop: 8,
               padding: 10,
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.14)',
+              background: 'var(--lg-chip-bg, rgba(255, 255, 255, 0.06))',
+              border: '1px solid var(--lg-chip-border, rgba(255, 255, 255, 0.14))',
               borderRadius: 10,
               maxHeight: 220,
               overflowY: 'auto',

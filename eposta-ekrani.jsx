@@ -463,7 +463,7 @@ const lgBilgi = {
   borderRadius: 10,
   padding: '12px 14px',
   fontSize: 13,
-  color: 'rgba(255, 255, 255, 0.85)',
+  color: 'var(--lg-soft, rgba(255, 255, 255, 0.85))',
   lineHeight: 1.55,
 };
 
@@ -494,7 +494,14 @@ export function SifremiUnuttumPaneli({ onGeri }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} data-sifremi-unuttum-panel>
-      <div style={{ color: '#FFFFFF', fontSize: 17, fontWeight: 700, textAlign: 'center' }}>
+      <div
+        style={{
+          color: 'var(--lg-strong, #FFFFFF)',
+          fontSize: 17,
+          fontWeight: 700,
+          textAlign: 'center',
+        }}
+      >
         Şifremi unuttum
       </div>
       {mesaj ? (
@@ -606,7 +613,14 @@ export function DestekTalebiPaneli({ onGeri }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} data-destek-talebi-panel>
-      <div style={{ color: '#FFFFFF', fontSize: 17, fontWeight: 700, textAlign: 'center' }}>
+      <div
+        style={{
+          color: 'var(--lg-strong, #FFFFFF)',
+          fontSize: 17,
+          fontWeight: 700,
+          textAlign: 'center',
+        }}
+      >
         Destek talebi
       </div>
       {tamam ? (
@@ -636,7 +650,8 @@ export function DestekTalebiPaneli({ onGeri }) {
               height="22"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#7FE7DC"
+              stroke="currentColor"
+              style={{ color: 'var(--lg-link, #7FE7DC)' }}
               strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -645,7 +660,7 @@ export function DestekTalebiPaneli({ onGeri }) {
               <path d="M20 6L9 17l-5-5" />
             </svg>
           </span>
-          <b style={{ color: '#FFFFFF' }}>Talebiniz iletildi</b>
+          <b style={{ color: 'var(--lg-strong, #FFFFFF)' }}>Talebiniz iletildi</b>
           <span>
             Üniversite yetkilisi talebinizi aldı. Yanıt, yazdığınız <b>{metin(f.eposta)}</b>{' '}
             adresine e-postayla gelecek.
@@ -797,7 +812,14 @@ export function SifreYenilePaneli({ jeton, onBitti }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} data-sifre-yenile-panel>
-      <div style={{ color: '#FFFFFF', fontSize: 17, fontWeight: 700, textAlign: 'center' }}>
+      <div
+        style={{
+          color: 'var(--lg-strong, #FFFFFF)',
+          fontSize: 17,
+          fontWeight: 700,
+          textAlign: 'center',
+        }}
+      >
         Yeni şifre belirleyin
       </div>
       {kontrol.yukleniyor ? (
