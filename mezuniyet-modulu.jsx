@@ -42,8 +42,17 @@ import {
   mezSilinmeSiniflandir,
   mezProgramlar,
   mezProgramAdi,
+  mezDersProgramda,
+  mezNorm,
 } from './lib/mezuniyet.js';
 import { mezuniyetFormunuDoldur, bolumBasligi } from './lib/mezuniyet-form-doldur.js';
+import {
+  onerileriNormalize,
+  oneriKarari,
+  oneriKimligi,
+  kabulEdilenOneriler,
+  eslesmeleriUygula,
+} from './lib/mezuniyet-eslestirme.js';
 import { R, dugme, GIRDI, BilgiNotu, GeriDon, BolumKarti } from './mezuniyet-ui.jsx';
 import MezuniyetKurallari from './mezuniyet-kurallari.jsx';
 
@@ -161,7 +170,7 @@ function silinecekDers(r) {
 }
 
 function hesapla(basvuru, mufredat, kural) {
-  const dersler = (basvuru && Array.isArray(basvuru.dersler) ? basvuru.dersler : []).map((d) => ({
+  const ham = (basvuru && Array.isArray(basvuru.dersler) ? basvuru.dersler : []).map((d) => ({
     kod: d.kod,
     ad: d.ad,
     akts: d.akts,
@@ -171,6 +180,8 @@ function hesapla(basvuru, mufredat, kural) {
     statu: d.statu,
     esdeger: d.esdeger,
   }));
+  // Danışmanın kabul ettiği eşleştirme önerileri (kodu/adı farklı dersler).
+  const dersler = eslesmeleriUygula(ham, kabulEdilenOneriler(basvuru));
   if (dersler.length === 0) return null;
   return mezuniyetHesapla(mufredat, dersler, kural, {
     agno: basvuru.agno,
@@ -839,10 +850,355 @@ function TranskriptTablosu({ sonuc, secim, onSecim, secimKilitli }) {
  * rol: 'danisman' (işaretler + "önerilenleri işaretle"), 'ogrenci' (bilgi),
  *      'memur' (yalnız tam transkript; işaretlenenler IsaretOzeti'nde).
  */
-function TranskriptFormu({ sonuc, secim, onSecim, onTopluSecim, secimKilitli, rol }) {
+/** Başvurudaki öneriler, danışman kararıyla birlikte. */
+function oneriListesi(b) {
+  return onerileriNormalize(b && b.eslesmeOnerileri).map((o) => ({
+    ...o,
+    karar: oneriKarari(b, o),
+  }));
+}
+
+const KARAR_ROZETI = {
+  bekliyor: { yazi: 'Danışman kararı bekleniyor', renk: '#92400E', zemin: '#FEF3C7' },
+  kabul: { yazi: 'Kabul edildi', renk: '#166534', zemin: '#DCFCE7' },
+  red: { yazi: 'Reddedildi', renk: '#B91C1C', zemin: '#FEE2E2' },
+};
+
+function KararRozeti({ karar }) {
+  const k = KARAR_ROZETI[karar] || KARAR_ROZETI.bekliyor;
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 8px',
+        borderRadius: 999,
+        background: k.zemin,
+        color: k.renk,
+        fontSize: 11,
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {k.yazi}
+    </span>
+  );
+}
+
+const dersYazisi = (kod, ad) => [metin(kod), metin(ad)].filter(Boolean).join(' — ');
+
+/**
+ * Öğrencinin eşleştirme önerileri. Öğrenci (form aşamasında) geri alabilir,
+ * danışman kabul/red eder, diğerleri yalnız görür.
+ */
+function EslesmeOnerileri({ oneriler, rol, onSil, onKarar, kilitli }) {
+  if (!oneriler || oneriler.length === 0) return null;
+  const h = { padding: '8px 10px', fontSize: 12.5, borderBottom: '1px solid #EDEDED' };
+  const th = { ...h, textAlign: 'left', fontSize: 10.5, color: R.soluk, background: '#F7F7F7' };
+  return (
+    <div
+      data-eslesme-onerileri
+      style={{
+        border: '1px solid ' + R.kenar,
+        borderLeft: '4px solid ' + R.mavi,
+        borderRadius: 10,
+        marginTop: 12,
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ padding: '10px 14px', background: '#FAFAFA' }}>
+        <div style={{ fontWeight: 800, fontSize: 13.5, color: R.metin }}>
+          {rol === 'ogrenci' ? 'Eşleştirme önerilerim' : 'Öğrencinin eşleştirme önerileri'} (
+          {oneriler.length})
+        </div>
+        <div style={{ fontSize: 12, color: R.soluk, marginTop: 2 }}>
+          {rol === 'danisman'
+            ? 'Öğrenci, transkriptindeki bu derslerin müfredatta farklı kod/adla yer aldığını söylüyor. Kabul ettiğiniz eşleşme hesaba hemen yansır.'
+            : 'Transkriptteki ders müfredatta farklı kod ya da adla yer alıyor. Hesaba yalnız danışmanın kabul ettiği eşleşmeler girer.'}
+        </div>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
+          <thead>
+            <tr>
+              {['Transkriptteki ders', 'Müfredattaki karşılığı', 'Açıklama', 'Durum', ''].map(
+                (t, i) => (
+                  <th key={i} style={th}>
+                    {t}
+                  </th>
+                )
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {oneriler.map((o) => (
+              <tr key={o.id}>
+                <td style={{ ...h, fontWeight: 600 }}>
+                  {dersYazisi(o.transkriptKod, o.transkriptAd)}
+                </td>
+                <td style={{ ...h, fontWeight: 600, color: R.mavi }}>
+                  → {dersYazisi(o.mufredatKod, o.mufredatAd)}
+                </td>
+                <td style={{ ...h, color: R.soluk, fontSize: 12 }}>{o.aciklama || '—'}</td>
+                <td style={h}>
+                  <KararRozeti karar={o.karar} />
+                </td>
+                <td style={{ ...h, whiteSpace: 'nowrap', textAlign: 'right' }}>
+                  {rol === 'ogrenci' && onSil && !kilitli && (
+                    <button
+                      type="button"
+                      onClick={() => onSil(o)}
+                      style={{ ...dugme('ikincil'), padding: '4px 10px', fontSize: 12 }}
+                    >
+                      Geri al
+                    </button>
+                  )}
+                  {rol === 'danisman' && onKarar && !kilitli && (
+                    <span style={{ display: 'inline-flex', gap: 6 }}>
+                      <button
+                        type="button"
+                        data-eslesme-kabul
+                        disabled={o.karar === 'kabul'}
+                        onClick={() => onKarar(o, 'kabul')}
+                        style={{
+                          ...dugme('yesil', o.karar === 'kabul'),
+                          padding: '4px 10px',
+                          fontSize: 12,
+                        }}
+                      >
+                        Kabul
+                      </button>
+                      <button
+                        type="button"
+                        disabled={o.karar === 'red'}
+                        onClick={() => onKarar(o, 'red')}
+                        style={{
+                          ...dugme('tehlike', o.karar === 'red'),
+                          padding: '4px 10px',
+                          fontSize: 12,
+                        }}
+                      >
+                        Reddet
+                      </button>
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Öğrencinin bir satırı eşleştirdiği küçük form.
+ *  hedef.tur === 'satir'    → transkript satırı verildi, müfredat dersi seçilir
+ *  hedef.tur === 'mufredat' → müfredat dersi verildi, transkript satırı seçilir
+ */
+function EslestirmeFormu({ hedef, sonuc, mufredat, onKaydet, onIptal }) {
+  const [secilen, setSecilen] = useState('');
+  const [aciklama, setAciklama] = useState(hedef.aciklama || '');
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+  const satirMi = hedef.tur === 'satir';
+
+  // Seçenekler: önce en olası olanlar.
+  const gruplar = useMemo(() => {
+    if (satirMi) {
+      const kalan = new Set(
+        ((sonuc && sonuc.kalanZorunlu) || []).map((c) => metin(c.code) + '|' + metin(c.name))
+      );
+      const liste = (mufredat || [])
+        .filter((c) => metin(c.code) || metin(c.name))
+        .map((c) => ({
+          deger: metin(c.code) + '|' + metin(c.name),
+          kod: metin(c.code),
+          ad: metin(c.name),
+        }))
+        .sort((a, b) => a.kod.localeCompare(b.kod, 'tr'));
+      return [
+        ['Geçilmemiş zorunlu dersler', liste.filter((x) => kalan.has(x.deger))],
+        ['Diğer müfredat dersleri', liste.filter((x) => !kalan.has(x.deger))],
+      ];
+    }
+    const gorulen = new Set();
+    const liste = [];
+    ((sonuc && sonuc.kayitlar) || []).forEach((r) => {
+      const d = metin(r.kod) + '|' + metin(r.ad);
+      if (gorulen.has(d)) return;
+      gorulen.add(d);
+      liste.push({ deger: d, kod: metin(r.kod), ad: metin(r.ad), disarida: !r.mufredatta });
+    });
+    return [
+      ['Müfredatla eşleşmeyen transkript dersleri', liste.filter((x) => x.disarida)],
+      ['Diğer transkript dersleri', liste.filter((x) => !x.disarida)],
+    ];
+  }, [satirMi, sonuc, mufredat]);
+
+  const kaydet = async () => {
+    if (!secilen) return;
+    const i = secilen.indexOf('|');
+    const kod = secilen.slice(0, i);
+    const ad = secilen.slice(i + 1);
+    setKaydediliyor(true);
+    try {
+      await onKaydet(
+        satirMi
+          ? {
+              transkriptKod: hedef.kod,
+              transkriptAd: hedef.ad,
+              mufredatKod: kod,
+              mufredatAd: ad,
+              aciklama,
+            }
+          : {
+              transkriptKod: kod,
+              transkriptAd: ad,
+              mufredatKod: hedef.kod,
+              mufredatAd: hedef.ad,
+              aciklama,
+            }
+      );
+    } finally {
+      setKaydediliyor(false);
+    }
+  };
+
+  return (
+    <div
+      data-eslestirme-formu
+      style={{
+        marginTop: 10,
+        padding: 14,
+        borderRadius: 10,
+        border: '1.5px solid ' + R.mavi,
+        background: '#F5F8FF',
+      }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 800, color: R.navy, marginBottom: 4 }}>
+        {satirMi ? 'Müfredattaki karşılığını seçin' : 'Transkriptinizdeki karşılığını seçin'}
+      </div>
+      <div style={{ fontSize: 12.5, color: R.metin, marginBottom: 10 }}>
+        {satirMi ? 'Transkriptteki ders: ' : 'Müfredattaki ders: '}
+        <b>{dersYazisi(hedef.kod, hedef.ad)}</b>
+      </div>
+      <select
+        value={secilen}
+        onChange={(e) => setSecilen(e.target.value)}
+        style={{ ...GIRDI, marginBottom: 8 }}
+        aria-label="Karşılık gelen ders"
+      >
+        <option value="">— Ders seçin —</option>
+        {gruplar
+          .filter((g) => g[1].length > 0)
+          .map(([baslik, liste]) => (
+            <optgroup key={baslik} label={baslik}>
+              {liste.map((x) => (
+                <option key={x.deger} value={x.deger}>
+                  {dersYazisi(x.kod, x.ad)}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+      </select>
+      <textarea
+        value={aciklama}
+        onChange={(e) => setAciklama(e.target.value.slice(0, 500))}
+        placeholder="Danışmanınıza kısa açıklama (isteğe bağlı) — örn. dersin kodu 2023'te değişti"
+        rows={2}
+        style={{ ...GIRDI, resize: 'vertical', marginBottom: 10 }}
+        aria-label="Açıklama"
+      />
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button type="button" onClick={onIptal} style={dugme('ikincil')}>
+          Vazgeç
+        </button>
+        <button
+          type="button"
+          disabled={!secilen || kaydediliyor}
+          onClick={kaydet}
+          style={dugme('birincil', !secilen || kaydediliyor)}
+          data-eslestirme-oner
+        >
+          {kaydediliyor ? 'Kaydediliyor…' : 'Danışmana öner'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TranskriptFormu({
+  sonuc,
+  secim,
+  onSecim,
+  onTopluSecim,
+  secimKilitli,
+  rol,
+  oneriler,
+  mufredat,
+  onOneri,
+  onOneriSil,
+  onKarar,
+  kararKilitli,
+}) {
+  // Açık eşleştirme formu: { bolum, tur, kod, ad }.
+  const [eslestir, setEslestir] = useState(null);
   const [tumuAcik, setTumuAcik] = useState(false);
   const sinif = useMemo(() => (sonuc ? mezSilinmeSiniflandir(sonuc) : null), [sonuc]);
   if (!sonuc || !sinif) return null;
+  const oneriVar = (oneriler || []).length > 0;
+  const eslestirebilir = rol === 'ogrenci' && !!onOneri;
+  // Satırın (transkript) ya da müfredat dersinin önerisi.
+  const satirOnerisi = (kod, ad) => (oneriler || []).find((o) => o.id === oneriKimligi(kod, ad));
+  const mufredatOnerisi = (kod, ad) =>
+    (oneriler || []).find(
+      (o) =>
+        (metin(kod) && mezNorm(o.mufredatKod) === mezNorm(kod)) ||
+        (!metin(kod) && mezNorm(o.mufredatAd) === mezNorm(ad))
+    );
+  const eslesmeHucresi = (bolum, tur, kod, ad) => {
+    const o = tur === 'satir' ? satirOnerisi(kod, ad) : mufredatOnerisi(kod, ad);
+    const acik = eslestir && eslestir.bolum === bolum && eslestir.kod === kod && eslestir.ad === ad;
+    return (
+      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        {o && <KararRozeti karar={o.karar} />}
+        {eslestirebilir && (
+          <button
+            type="button"
+            data-eslestir
+            onClick={() => setEslestir(acik ? null : { bolum, tur, kod, ad })}
+            title="Bu ders müfredatta farklı kod ya da adla mı? Eşleştirip danışmanınıza önerin."
+            style={{
+              ...dugme(acik ? 'birincil' : 'ikincil'),
+              padding: '3px 10px',
+              fontSize: 11.5,
+            }}
+          >
+            {o ? 'Değiştir' : 'Eşleştir'}
+          </button>
+        )}
+      </span>
+    );
+  };
+  // Eşleştirme sütunu: öğrencide her zaman, diğerlerinde öneri olan tabloda.
+  const engelOnerisi = (x) =>
+    x.r && !x.r.mufredatta ? satirOnerisi(x.r.kod, x.r.ad) : mufredatOnerisi(x.kod, x.ad);
+  const sutunVar = (liste, bul) => eslestirebilir || (oneriVar && liste.some((x) => !!bul(x)));
+  const formuGoster = (bolum) =>
+    eslestir &&
+    eslestir.bolum === bolum && (
+      <EslestirmeFormu
+        key={bolum + eslestir.kod + eslestir.ad}
+        hedef={eslestir}
+        sonuc={sonuc}
+        mufredat={mufredat}
+        onIptal={() => setEslestir(null)}
+        onKaydet={async (o) => {
+          await onOneri(o);
+          setEslestir(null);
+        }}
+      />
+    );
   const anahtar = (r, i) => metin(r.kod) + '|' + metin(r.ad) + '|' + i;
   const danisman = rol === 'danisman' && !!secim;
   const isaretli = (x) => danisman && secim.has(anahtar(x.r, x.i));
@@ -895,52 +1251,61 @@ function TranskriptFormu({ sonuc, secim, onSecim, onTopluSecim, secimKilitli, ro
       <div style={{ overflowX: 'auto' }}>{children}</div>
     </div>
   );
-  const DersTablosu = ({ liste, isaretKutusu }) => (
-    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
-      <thead>
-        <tr>
-          {(isaretKutusu ? ['Sil'] : [])
-            .concat(['Kod', 'Ders Adı', 'Yıl / Yarıyıl', 'Statü', 'AKTS', 'Not', 'Neden'])
-            .map((t) => (
-              <th key={t} style={th}>
-                {t}
-              </th>
-            ))}
-        </tr>
-      </thead>
-      <tbody>
-        {liste.map((x) => {
-          const r = x.r;
-          const k = anahtar(r, x.i);
-          const sec = isaretli(x);
-          return (
-            <tr key={k} style={{ background: sec ? '#FEE2E2' : 'white' }} data-silinme-satiri>
-              {isaretKutusu && (
-                <td style={{ ...h, width: 34 }}>
-                  <input
-                    type="checkbox"
-                    checked={sec}
-                    disabled={secimKilitli}
-                    onChange={(e) => onSecim && onSecim(k, r, e.target.checked)}
-                    title="Silinecek olarak işaretle"
-                  />
+  const DersTablosu = ({ liste, isaretKutusu, bolum }) => {
+    const eslesmeSutunu = sutunVar(liste, (x) => satirOnerisi(x.r.kod, x.r.ad));
+    return (
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
+        <thead>
+          <tr>
+            {(isaretKutusu ? ['Sil'] : [])
+              .concat(['Kod', 'Ders Adı', 'Yıl / Yarıyıl', 'Statü', 'AKTS', 'Not', 'Neden'])
+              .concat(eslesmeSutunu ? ['Eşleştirme'] : [])
+              .map((t) => (
+                <th key={t} style={th}>
+                  {t}
+                </th>
+              ))}
+          </tr>
+        </thead>
+        <tbody>
+          {liste.map((x) => {
+            const r = x.r;
+            const k = anahtar(r, x.i);
+            const sec = isaretli(x);
+            return (
+              <tr key={k} style={{ background: sec ? '#FEE2E2' : 'white' }} data-silinme-satiri>
+                {isaretKutusu && (
+                  <td style={{ ...h, width: 34 }}>
+                    <input
+                      type="checkbox"
+                      checked={sec}
+                      disabled={secimKilitli}
+                      onChange={(e) => onSecim && onSecim(k, r, e.target.checked)}
+                      title="Silinecek olarak işaretle"
+                    />
+                  </td>
+                )}
+                <td style={{ ...h, width: 88, fontWeight: 700 }}>{r.kod}</td>
+                <td style={{ ...h, textDecoration: sec ? 'line-through' : 'none' }}>{r.ad}</td>
+                <td style={{ ...h, width: 130, color: R.soluk }}>
+                  {[r.yil, r.yariyil].filter(Boolean).join(' · ') || '—'}
                 </td>
-              )}
-              <td style={{ ...h, width: 88, fontWeight: 700 }}>{r.kod}</td>
-              <td style={{ ...h, textDecoration: sec ? 'line-through' : 'none' }}>{r.ad}</td>
-              <td style={{ ...h, width: 130, color: R.soluk }}>
-                {[r.yil, r.yariyil].filter(Boolean).join(' · ') || '—'}
-              </td>
-              <td style={{ ...h, width: 70 }}>{statuMetni(r) || '—'}</td>
-              <td style={{ ...h, width: 44 }}>{r.akts}</td>
-              <td style={{ ...h, width: 44, fontWeight: 700, color: R.kirmizi }}>{r.not}</td>
-              <td style={{ ...h, color: '#92400E', fontSize: 12 }}>{x.neden}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
+                <td style={{ ...h, width: 70 }}>{statuMetni(r) || '—'}</td>
+                <td style={{ ...h, width: 44 }}>{r.akts}</td>
+                <td style={{ ...h, width: 44, fontWeight: 700, color: R.kirmizi }}>{r.not}</td>
+                <td style={{ ...h, color: '#92400E', fontSize: 12 }}>{x.neden}</td>
+                {eslesmeSutunu && (
+                  <td style={{ ...h, width: 150 }}>
+                    {eslesmeHucresi(bolum, 'satir', r.kod, r.ad)}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  };
 
   const hicYok =
     sinif.silinmeli.length === 0 && sinif.engel.length === 0 && sinif.kontrol.length === 0;
@@ -971,6 +1336,22 @@ function TranskriptFormu({ sonuc, secim, onSecim, onTopluSecim, secimKilitli, ro
             )}
           </div>
 
+          {eslestirebilir && !hicYok && (
+            <div style={{ fontSize: 12, color: R.soluk, marginTop: 10, lineHeight: 1.5 }}>
+              Aşağıdaki bir ders aslında müfredatınızda <b>farklı kod ya da adla</b> yer alıyorsa
+              (örn. kodu değişmiş ders) satırdaki <b>Eşleştir</b> düğmesiyle müfredattaki
+              karşılığını seçip danışmanınıza önerin. Hesaba danışman kabul edince girer.
+            </div>
+          )}
+
+          <EslesmeOnerileri
+            oneriler={oneriler}
+            rol={rol}
+            onSil={onOneriSil}
+            onKarar={onKarar}
+            kilitli={rol === 'danisman' ? kararKilitli : !onOneriSil}
+          />
+
           {hicYok && (
             <div
               style={{
@@ -997,9 +1378,10 @@ function TranskriptFormu({ sonuc, secim, onSecim, onTopluSecim, secimKilitli, ro
                   : 'Başarısız ve sonradan geçilmemiş seçmeli dersler ile yerine benzer bir dersin geçildiği dersler. Hangilerinin silineceğine danışmanınız karar verir.'
               }
             >
-              <DersTablosu liste={sinif.silinmeli} isaretKutusu={danisman} />
+              <DersTablosu liste={sinif.silinmeli} isaretKutusu={danisman} bolum="silinmeli" />
             </Bolum>
           )}
+          {formuGoster('silinmeli')}
 
           {sinif.engel.length > 0 && (
             <Bolum
@@ -1010,11 +1392,13 @@ function TranskriptFormu({ sonuc, secim, onSecim, onTopluSecim, secimKilitli, ro
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}>
                 <thead>
                   <tr>
-                    {['Kod', 'Ders Adı', 'Durum'].map((t) => (
-                      <th key={t} style={th}>
-                        {t}
-                      </th>
-                    ))}
+                    {['Kod', 'Ders Adı', 'Durum']
+                      .concat(sutunVar(sinif.engel, engelOnerisi) ? ['Eşleştirme'] : [])
+                      .map((t) => (
+                        <th key={t} style={th}>
+                          {t}
+                        </th>
+                      ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -1023,12 +1407,22 @@ function TranskriptFormu({ sonuc, secim, onSecim, onTopluSecim, secimKilitli, ro
                       <td style={{ ...h, width: 88, fontWeight: 700 }}>{x.kod}</td>
                       <td style={h}>{x.ad}</td>
                       <td style={{ ...h, color: '#92400E', fontWeight: 600 }}>{x.neden}</td>
+                      {sutunVar(sinif.engel, engelOnerisi) && (
+                        <td style={{ ...h, width: 150 }}>
+                          {/* Müfredatta olmayan kalınmış zorunlu ders bir transkript
+                              satırıdır; diğerleri müfredat dersidir. */}
+                          {x.r && !x.r.mufredatta
+                            ? eslesmeHucresi('engel', 'satir', x.r.kod, x.r.ad)
+                            : eslesmeHucresi('engel', 'mufredat', x.kod, x.ad)}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </Bolum>
           )}
+          {formuGoster('engel')}
 
           {sinif.kontrol.length > 0 && (
             <Bolum
@@ -1036,9 +1430,10 @@ function TranskriptFormu({ sonuc, secim, onSecim, onTopluSecim, secimKilitli, ro
               baslik="Kontrol gerekir"
               aciklama="Notu tanınmayan ya da zorunlu/seçmeli olduğu bilinmeyen başarısız dersler. Transkript PDF’iyle karşılaştırın."
             >
-              <DersTablosu liste={sinif.kontrol} isaretKutusu={danisman} />
+              <DersTablosu liste={sinif.kontrol} isaretKutusu={danisman} bolum="kontrol" />
             </Bolum>
           )}
+          {formuGoster('kontrol')}
 
           {ekIsaretli.length > 0 && (
             <Bolum
@@ -1718,6 +2113,49 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
     }
   };
 
+  // Öğrencinin eşleştirme önerisi: transkript satırı ↔ müfredat dersi.
+  const oneriKaydet = async (o) => {
+    setMesaj({ tur: '', metin: '' });
+    try {
+      const id = oneriKimligi(o.transkriptKod, o.transkriptAd);
+      const yeni = onerileriNormalize(
+        onerileriNormalize(basvuru && basvuru.eslesmeOnerileri)
+          .filter((x) => x.id !== id)
+          .concat([{ ...o, tarih: new Date().toISOString() }])
+      );
+      await formuKaydet(
+        { eslesmeOnerileri: yeni },
+        'Eşleştirme önerildi: ' +
+          [o.transkriptKod || o.transkriptAd, o.mufredatKod || o.mufredatAd].join(' → ')
+      );
+      setMesaj({
+        tur: 'basari',
+        metin: 'Eşleştirme öneriniz kaydedildi; formu gönderdiğinizde danışmanınız karar verir.',
+      });
+    } catch (e) {
+      setMesaj({ tur: 'hata', metin: e.message });
+      throw e;
+    }
+  };
+  const oneriSil = async (o) => {
+    try {
+      await formuKaydet(
+        {
+          eslesmeOnerileri: onerileriNormalize(basvuru && basvuru.eslesmeOnerileri).filter(
+            (x) => x.id !== o.id
+          ),
+        },
+        'Eşleştirme önerisi geri alındı: ' + (o.transkriptKod || o.transkriptAd)
+      );
+    } catch (e) {
+      setMesaj({ tur: 'hata', metin: e.message });
+    }
+  };
+  const ogrenciMufredati = useMemo(
+    () => (mufredat || []).filter((c) => mezDersProgramda(c, basvuru && basvuru.program)),
+    [mufredat, basvuru && basvuru.program]
+  );
+
   const danismanaGonder = async () => {
     if (programSecimiGerekli && !(basvuru && basvuru.program)) {
       setMesaj({ tur: 'hata', metin: 'Önce müfredatınızı seçin.' });
@@ -2020,7 +2458,14 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
                 </span>
               </div>
               <KosulOzeti sonuc={sonuc} />
-              <TranskriptFormu sonuc={sonuc} rol="ogrenci" />
+              <TranskriptFormu
+                sonuc={sonuc}
+                rol="ogrenci"
+                oneriler={oneriListesi(basvuru)}
+                mufredat={ogrenciMufredati}
+                onOneri={formAsamasi ? oneriKaydet : undefined}
+                onOneriSil={formAsamasi ? oneriSil : undefined}
+              />
             </>
           )}
         </div>
@@ -2628,6 +3073,32 @@ function DanismanDetay({ no, kimlik, onGeri }) {
     }
   };
 
+  // Öğrencinin eşleştirme önerisine karar: kabul edilen hesaba hemen girer.
+  const oneriKarariVer = async (o, karar) => {
+    setCalisiyor('eslesme');
+    await yaz(
+      {
+        eslesmeKararlari: {
+          ...(b.eslesmeKararlari || {}),
+          [o.id]: {
+            karar,
+            mufredatKod: o.mufredatKod,
+            mufredatAd: o.mufredatAd,
+            tarih: new Date().toISOString(),
+            yazan: kimlik,
+          },
+        },
+      },
+      'Eşleştirme önerisi ' +
+        (karar === 'kabul' ? 'kabul edildi: ' : 'reddedildi: ') +
+        [o.transkriptKod || o.transkriptAd, o.mufredatKod || o.mufredatAd].join(' → '),
+      karar === 'kabul'
+        ? 'Eşleştirme kabul edildi; hesap güncellendi.'
+        : 'Eşleştirme önerisi reddedildi.'
+    );
+    setCalisiyor('');
+  };
+
   const isaretler = () => ({
     silinecekDersler: silinecekler,
     eksikStajlar: stajlar,
@@ -2635,6 +3106,15 @@ function DanismanDetay({ no, kimlik, onGeri }) {
   });
 
   const onayla = async () => {
+    const bekleyen = oneriListesi(b).filter((o) => o.karar === 'bekliyor').length;
+    if (
+      bekleyen > 0 &&
+      !window.confirm(
+        bekleyen +
+          ' eşleştirme önerisine henüz karar vermediniz; bunlar hesaba girmez. Yine de onaylansın mı?'
+      )
+    )
+      return;
     setCalisiyor('onay');
     await yaz(
       { ...isaretler(), durum: 'dilekce', danismanKarariTarihi: new Date().toISOString() },
@@ -2793,6 +3273,9 @@ function DanismanDetay({ no, kimlik, onGeri }) {
         <TranskriptFormu
           sonuc={sonuc}
           rol="danisman"
+          oneriler={oneriListesi(b)}
+          onKarar={oneriKarariVer}
+          kararKilitli={!isaretAcik || !!calisiyor}
           secim={secim}
           secimKilitli={!isaretAcik}
           onSecim={(k, r, acik) => setSecim(grupIsaretle(new Map(secim), k, r, acik))}
@@ -3158,7 +3641,11 @@ function PersonelDetay({ b, memur, onGeri, onTamamla }) {
       {hazir && sonuc && (
         <div style={KART}>
           <KosulOzeti sonuc={sonuc} />
-          <TranskriptFormu sonuc={sonuc} rol={memur ? 'memur' : 'personel'} />
+          <TranskriptFormu
+            sonuc={sonuc}
+            rol={memur ? 'memur' : 'personel'}
+            oneriler={oneriListesi(b)}
+          />
         </div>
       )}
       {memur && b.durum === 'memurda' && (
