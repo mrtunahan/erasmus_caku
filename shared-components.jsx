@@ -10256,32 +10256,21 @@ const LoginModal = ({ onLogin }) => {
     .lg-wrap[data-role="akademisyen"] { --accent: #6176e8; --accent-dark: #263965; --lg-link: #4f5fd0; background: #f0f1fd; }
     .lg-wrap[data-role="aday"] { --accent: #e48c54; --accent-dark: #784d57; --lg-link: #b4612d; background: #fff2e8; }
     .lg-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; transition: background .7s ease;
-      background: radial-gradient(ellipse at 9% 10%, #c3f4e7 0%, transparent 46%), radial-gradient(ellipse at 94% 88%, #d7f8f3 0%, transparent 48%), linear-gradient(135deg, #effdfa, #f5fbff); }
-    .lg-wrap[data-role="akademisyen"] .lg-bg { background: radial-gradient(ellipse at 8% 12%, #dcdfff 0%, transparent 48%), radial-gradient(ellipse at 90% 88%, #e9dcff 0%, transparent 46%), linear-gradient(135deg, #f4f5ff, #edf1ff); }
-    .lg-wrap[data-role="aday"] .lg-bg { background: radial-gradient(ellipse at 9% 10%, #ffe1c6 0%, transparent 47%), radial-gradient(ellipse at 92% 86%, #ffe5d9 0%, transparent 47%), linear-gradient(135deg, #fff8f0, #fff3ec); }
-
-    /* Sol kenarda ekranın ortasına doğru saydamlaşan kampüs fotoğrafı */
-    .lg-photo { position: fixed; inset: 0 auto 0 0; width: 56%; pointer-events: none; z-index: 0; overflow: hidden; }
-    .lg-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 47% center; display: block; }
-    .lg-photo-base {
-      filter: saturate(.93) brightness(.94);
-      -webkit-mask-image: linear-gradient(to right, #000 0%, #000 22%, rgba(0,0,0,.9) 36%, rgba(0,0,0,.55) 56%, rgba(0,0,0,.18) 78%, transparent 100%);
-      mask-image: linear-gradient(to right, #000 0%, #000 22%, rgba(0,0,0,.9) 36%, rgba(0,0,0,.55) 56%, rgba(0,0,0,.18) 78%, transparent 100%);
-    }
-    .lg-photo-blur {
-      filter: blur(13px) brightness(.7) saturate(.72); transform: scale(1.03);
-      -webkit-mask-image: linear-gradient(to right, transparent 0%, transparent 28%, rgba(0,0,0,.2) 42%, rgba(0,0,0,.45) 60%, rgba(0,0,0,.18) 78%, transparent 100%);
-      mask-image: linear-gradient(to right, transparent 0%, transparent 28%, rgba(0,0,0,.2) 42%, rgba(0,0,0,.45) 60%, rgba(0,0,0,.18) 78%, transparent 100%);
-    }
+      background: linear-gradient(135deg, #f7fafc, color-mix(in srgb, var(--accent) 12%, white)); }
 
     .lg-shell { position: relative; z-index: 1; min-height: 100%; max-width: 1180px; margin: 0 auto; padding: 18px 26px 18px;
       display: flex; flex-direction: column; box-sizing: border-box; animation: loginFadeIn .5s ease-out; }
 
     /* Kimlik şeridi — giriş kartının üstüne bitişik, rol rengiyle */
     .lg-panel-col { width: 100%; display: flex; flex-direction: column; filter: drop-shadow(0 20px 40px rgba(48,70,91,.14)); }
-    .lg-identity { display: flex; align-items: center; gap: 13px; min-width: 0; padding: 16px 22px;
-      background: linear-gradient(110deg, var(--accent-dark), var(--accent)); color: #fff;
-      border-radius: 24px 24px 0 0; transition: background .5s; }
+    /* Kampüs fotoğrafı kart başlığında, rol rengiyle boyanmış */
+    .lg-identity { position: relative; overflow: hidden; display: flex; align-items: center; gap: 13px; min-width: 0;
+      padding: 46px 22px 18px; background: var(--accent-dark); color: #fff; border-radius: 24px 24px 0 0; }
+    .lg-identity-foto { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 35%;
+      z-index: 0; display: block; }
+    .lg-identity::before { content: ''; position: absolute; inset: 0; z-index: 1; transition: background .5s;
+      background: linear-gradient(110deg, color-mix(in srgb, var(--accent-dark) 88%, transparent), color-mix(in srgb, var(--accent) 55%, transparent)); }
+    .lg-identity > :not(.lg-identity-foto) { position: relative; z-index: 2; }
     .lg-mark { width: 52px; height: 52px; flex: none; display: grid; place-items: center; }
     .lg-mark img { width: 100%; height: 100%; object-fit: contain; border-radius: 50%; display: block; box-shadow: 0 0 0 2px rgba(255,255,255,.55); }
     .lg-brand { display: flex; align-items: baseline; gap: .22em; font-size: 21px; font-weight: 800; letter-spacing: -.05em; line-height: 1.05; color: #fff; white-space: nowrap; }
@@ -10361,12 +10350,10 @@ const LoginModal = ({ onLogin }) => {
       .lg-role { width: 76px; height: 76px; font-size: 11px; }
     }
     @media (max-width: 900px) {
-      .lg-photo { width: 100%; height: 190px; inset: 0 0 auto 0; }
-      .lg-photo-base { -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.7) 50%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.7) 50%, transparent 100%); }
-      .lg-photo-blur { display: none; }
       .lg-shell { padding: 12px 14px; }
       .lg-caption { display: none; }
-      .lg-layout { display: flex; flex-direction: column; align-items: stretch; padding-top: 110px; }
+      .lg-layout { display: flex; flex-direction: column; align-items: stretch; padding-top: 12px; }
+      .lg-identity { padding-top: 34px; }
       .lg-chooser { display: none; }
       .lg-panel-col { max-width: 520px; margin: 0 auto; }
       .lg-panel.lg-right { padding: 22px 20px; }
@@ -10460,27 +10447,6 @@ const LoginModal = ({ onLogin }) => {
     <div className="lg-wrap" data-role={ROL_TEMASI[activeTab] || 'ogrenci'}>
       <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
       <div className="lg-bg" aria-hidden="true" />
-      <div className="lg-photo" aria-hidden="true">
-        <img
-          className="lg-photo-base"
-          src="https://krtknadmn.karatekin.edu.tr/files/uls/slide/9308407ea060439ca418634e8c504854.jpg"
-          alt=""
-          onError={(e) => {
-            if (e.currentTarget.src.indexOf('/login-bg.jpg') < 0)
-              e.currentTarget.src = '/login-bg.jpg';
-          }}
-        />
-        <img
-          className="lg-photo-blur"
-          src="https://krtknadmn.karatekin.edu.tr/files/uls/slide/9308407ea060439ca418634e8c504854.jpg"
-          alt=""
-          onError={(e) => {
-            if (e.currentTarget.src.indexOf('/login-bg.jpg') < 0)
-              e.currentTarget.src = '/login-bg.jpg';
-          }}
-        />
-      </div>
-
       <div className="lg-shell">
         <main className="lg-layout">
           <section className="lg-chooser" aria-label="Giriş türü seçimi">
@@ -10530,6 +10496,16 @@ const LoginModal = ({ onLogin }) => {
 
           <div className="lg-panel-col">
             <div className="lg-identity">
+              <img
+                className="lg-identity-foto"
+                src="https://krtknadmn.karatekin.edu.tr/files/uls/slide/9308407ea060439ca418634e8c504854.jpg"
+                alt=""
+                aria-hidden="true"
+                onError={(e) => {
+                  if (e.currentTarget.src.indexOf('/login-bg.jpg') < 0)
+                    e.currentTarget.src = '/login-bg.jpg';
+                }}
+              />
               <div className="lg-mark" aria-hidden="true">
                 <img
                   src="/marka.png"
