@@ -390,8 +390,70 @@ const TopHeader = ({
   onNavigate,
   availableDepts = [],
   onDepartmentChange,
+  onRequestChangePassword,
+  onRequestEposta,
 }) => {
   const dept = DEPARTMENTS.find((d) => d.id === activeDepartment);
+  // Genel aramada sunulan işlemler — yalnız bu kullanıcıya zaten açık olanlar
+  // (sol menüdeki düğmelerle aynı koşullar).
+  const IK = {
+    anahtar:
+      'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
+    posta:
+      'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+    mesaj:
+      'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z',
+    bolum: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4',
+    cikis:
+      'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1',
+  };
+  const aramaIslemleri = [];
+  if (currentUser && !currentUser.aday && onRequestChangePassword)
+    aramaIslemleri.push({
+      id: 'sifre',
+      ad: 'Şifre değiştir',
+      anahtarlar: ['parola', 'şifre', 'hesap'],
+      ikon: IK.anahtar,
+      calistir: onRequestChangePassword,
+    });
+  if (onRequestEposta)
+    aramaIslemleri.push({
+      id: 'eposta',
+      ad: 'E-posta adresim',
+      anahtarlar: ['mail', 'e-posta', 'iletişim'],
+      ikon: IK.posta,
+      calistir: onRequestEposta,
+    });
+  if (currentUser && !currentUser.aday)
+    aramaIslemleri.push({
+      id: 'geribildirim',
+      ad: 'Hata / öneri bildir',
+      anahtarlar: ['geri bildirim', 'hata', 'öneri', 'şikayet', 'destek'],
+      ikon: IK.mesaj,
+      calistir: () => window.dispatchEvent(new CustomEvent(GB_AC, { detail: {} })),
+    });
+  if (availableDepts.length > 1 && onDepartmentChange)
+    availableDepts
+      .filter((d) => d.id !== activeDepartment)
+      .forEach((d) =>
+        aramaIslemleri.push({
+          id: 'bolum-' + d.id,
+          ad: 'Bölüme geç: ' + d.name,
+          anahtarlar: ['bölüm değiştir', d.name],
+          ipucu: 'Bölüm',
+          ikon: IK.bolum,
+          calistir: () => onDepartmentChange(d.id),
+        })
+      );
+  if (onLogout)
+    aramaIslemleri.push({
+      id: 'cikis',
+      ad: 'Çıkış yap',
+      anahtarlar: ['oturumu kapat', 'çıkış'],
+      ikon: IK.cikis,
+      calistir: onLogout,
+    });
+  const GenelArama = window.GenelArama;
   const [deptMenuOpen, setDeptMenuOpen] = React.useState(false);
   const canSwitchDept = availableDepts.length > 1;
   // Banttaki fakülte adı kurum geneli tek bir ayardan geliyordu; çok fakülteli
@@ -411,10 +473,12 @@ const TopHeader = ({
   return (
     <header
       style={{
-        // TTO Otomasyonu başlığı gibi: zemin renginde, hafif gölgeli, altta
-        // ince turuncu marka çizgisi.
-        background: '#F0F0F0',
-        boxShadow: '0 4px 14px rgba(0,0,0,0.05), inset 0 -2px 0 #FE8500',
+        // Gövdeden AYRI dursun diye koyu lacivert bant; altta turuncu marka
+        // çizgisi korunur. (Eskiden zemin renginde gri bir banttı; içerikle
+        // birleşip sınırı seçilmiyordu.)
+        background: 'linear-gradient(90deg, #0B2341 0%, #0E2F63 60%, #12408A 100%)',
+        boxShadow: '0 6px 20px rgba(11,35,65,0.28), inset 0 -3px 0 #FE8500',
+        color: '#FFFFFF',
         position: 'sticky',
         top: 0,
         zIndex: 1000,
@@ -436,7 +500,7 @@ const TopHeader = ({
               cursor: 'pointer',
               padding: 6,
               display: 'flex',
-              color: '#1F2329',
+              color: '#FFFFFF',
             }}
           >
             <svg
@@ -483,17 +547,19 @@ const TopHeader = ({
               style={{
                 width: isMobile ? 36 : 44,
                 height: isMobile ? 36 : 44,
-                borderRadius: 10,
+                borderRadius: 12,
                 objectFit: 'cover',
                 cursor: 'pointer',
-                boxShadow: '3px 3px 6px rgba(0,0,0,0.08), -3px -3px 6px rgba(255,255,255,0.9)',
+                background: '#FFFFFF',
+                padding: 2,
+                boxShadow: '0 0 0 2px rgba(255,255,255,0.35), 0 4px 10px rgba(0,0,0,0.25)',
               }}
             />
           </a>
           <div>
             <div
               style={{
-                color: '#0B2E73',
+                color: '#FFFFFF',
                 fontSize: isMobile ? 13 : 15,
                 fontWeight: 700,
                 fontFamily: "'Playfair Display', serif",
@@ -503,7 +569,7 @@ const TopHeader = ({
             >
               {bantFakulte}
             </div>
-            <div style={{ color: '#5F6368', fontSize: isMobile ? 10 : 11 }}>
+            <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: isMobile ? 10 : 11 }}>
               {window.TENANT?.universityName || FACULTY.university}
             </div>
           </div>
@@ -523,10 +589,9 @@ const TopHeader = ({
               gap: 8,
               padding: '7px 16px',
               borderRadius: 999,
-              background: '#F0F0F0',
-              border: 'none',
-              boxShadow: '3px 3px 6px rgba(0,0,0,0.07), -3px -3px 6px rgba(255,255,255,0.9)',
-              color: '#1F2329',
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid rgba(255,255,255,0.22)',
+              color: '#FFFFFF',
               fontSize: 13,
               fontWeight: 600,
               cursor: canSwitchDept ? 'pointer' : 'default',
@@ -614,8 +679,16 @@ const TopHeader = ({
         </div>
       )}
 
-      {/* Right: Bildirim + User info + Logout */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
+      {/* Right: Arama + Bildirim + User info + Logout */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14 }}>
+        {GenelArama && currentUser && (
+          <GenelArama
+            currentUser={currentUser}
+            isMobile={isMobile}
+            onNavigate={onNavigate}
+            islemler={aramaIslemleri}
+          />
+        )}
         {window.BellMenu && currentUser && (
           <window.BellMenu
             currentUser={currentUser}
@@ -625,10 +698,10 @@ const TopHeader = ({
         )}
         {!isMobile && (
           <div style={{ textAlign: 'right' }}>
-            <div style={{ color: '#1F2329', fontSize: 13, fontWeight: 600 }}>
+            <div style={{ color: '#FFFFFF', fontSize: 13, fontWeight: 600 }}>
               {currentUser?.name || 'Kullanıcı'}
             </div>
-            <div style={{ color: '#5F6368', fontSize: 11 }}>
+            <div style={{ color: '#FFB866', fontSize: 11, fontWeight: 600 }}>
               {currentUser?.role === 'memur' || currentUser?.isMemur
                 ? 'Memur'
                 : currentUser?.isUniversityAdmin
@@ -651,10 +724,9 @@ const TopHeader = ({
           onClick={onLogout}
           style={{
             padding: isMobile ? '7px 10px' : '8px 14px',
-            border: 'none',
-            background: '#F0F0F0',
-            boxShadow: '3px 3px 6px rgba(0,0,0,0.07), -3px -3px 6px rgba(255,255,255,0.9)',
-            color: '#5F6368',
+            border: '1px solid rgba(255,255,255,0.22)',
+            background: 'rgba(255,255,255,0.10)',
+            color: 'rgba(255,255,255,0.88)',
             borderRadius: 10,
             cursor: 'pointer',
             fontSize: 12,
@@ -665,10 +737,12 @@ const TopHeader = ({
             gap: 6,
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#DC2626';
+            e.currentTarget.style.color = '#FFFFFF';
+            e.currentTarget.style.background = 'rgba(220,38,38,0.85)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#5F6368';
+            e.currentTarget.style.color = 'rgba(255,255,255,0.88)';
+            e.currentTarget.style.background = 'rgba(255,255,255,0.10)';
           }}
         >
           <svg
@@ -3744,6 +3818,12 @@ function AppShell() {
         onNavigate={navigate}
         availableDepts={topAvailableDepts}
         onDepartmentChange={handleDepartmentChange}
+        onRequestChangePassword={() => setShowChangePassword(true)}
+        onRequestEposta={
+          window.EpostaPenceresi && epostaDurumu && epostaDurumu.destek && epostaDurumu.hazir
+            ? () => setEpostaAcik(true)
+            : undefined
+        }
       />
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>

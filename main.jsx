@@ -212,6 +212,9 @@ window.__lazyModules = {
   },
 };
 
+// Üst banttaki genel arama (Ctrl+K) — kabuk bunu window.GenelArama'dan okur.
+import './genel-arama.jsx';
+
 // ── Phase 3: App Shell (routing & navigation) ──
 import './app-shell.jsx';
 

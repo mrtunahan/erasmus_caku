@@ -4664,6 +4664,68 @@ router.get('/student-search', async (req, res) => {
 });
 
 // ══════════════════════════════════════════════
+// GET /api/db/genel-arama/ogrenci?q=... — üst banttaki genel aramanın
+// öğrenci sonuçları.
+//
+// YETKİ TAŞIRMAZ:
+//   • Öğrenci ve aday için kapalıdır (boş liste) — başka öğrenci bulamazlar.
+//   • Personel yalnız TAM GÖREBİLDİĞİ öğrenciyi bulur: kapsam, koleksiyon
+//     okumasının kullandığı personelOgrenciKapsami ile aynıdır (bölüm/fakülte
+//     yetki alanı, memur atamaları, sistem yetkilisi). Okumada kapsam dışı
+//     kayıt temel alanlara iner; burada hiç dönmez.
+//   • En az 2 karakter, en çok 8 sonuç; yalnız numara, ad ve bölüm döner.
+// NOT: /:collection param rotasından ÖNCE tanımlanmalı.
+// ══════════════════════════════════════════════
+router.get('/genel-arama/ogrenci', async (req, res) => {
+  try {
+    const user = decodeUser(req);
+    if (!user) return res.status(401).json({ error: 'Giriş gerekli.', ogrenciler: [] });
+    if (user.role === 'student' || user.aday) return res.json({ ogrenciler: [] });
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.json({ ogrenciler: [] });
+
+    const db = await getDbSafe();
+    const desen = new RegExp(trAramaDeseni(q), 'i');
+    const kosul = [{ firstName: desen }, { lastName: desen }, { name: desen }];
+    if (/^\d+$/.test(q)) {
+      kosul.push({ studentNumber: new RegExp('^' + q) });
+      kosul.push({ studentNumber: Number(q) });
+    }
+    const adaylar = await db
+      .collection('students')
+      .find({ $or: kosul })
+      .project({
+        studentNumber: 1,
+        firstName: 1,
+        lastName: 1,
+        name: 1,
+        departmentId: 1,
+        additionalDepartments: 1,
+        sinif: 1,
+        _id: 0,
+      })
+      .limit(300)
+      .toArray();
+    const icinde = await personelOgrenciKapsami(db, user);
+    const ogrenciler = adaylar
+      .filter((o) => icinde(o))
+      .slice(0, 8)
+      .map((o) => ({
+        no: String(o.studentNumber || ''),
+        ad: (o.name || [o.firstName, o.lastName].filter(Boolean).join(' ')).toLocaleUpperCase(
+          'tr-TR'
+        ),
+        bolum: o.departmentId || '',
+        sinif: o.sinif || null,
+      }));
+    return res.json({ ogrenciler });
+  } catch (err) {
+    console.error('genel-arama error:', err);
+    return res.status(500).json({ error: 'Arama yapılamadı.', ogrenciler: [] });
+  }
+});
+
+// ══════════════════════════════════════════════
 // GET /api/db/:collection - Koleksiyon okuma
 // Query params:
 //   where=field:op:value (tekrarlanabilir) - op: eq, ne, gt, gte, lt, lte
