@@ -10277,7 +10277,7 @@ const LoginModal = ({ onLogin }) => {
       display: flex; flex-direction: column; box-sizing: border-box; animation: loginFadeIn .5s ease-out; }
 
     /* Üst kimlik şeridi */
-    .lg-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .lg-top { display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
     .lg-identity { display: flex; align-items: center; gap: 13px; min-width: 0; padding: 10px 16px 10px 10px;
       background: rgba(255,255,255,.92); border: 1px solid #e3eaf2; border-radius: 22px; box-shadow: 0 12px 35px rgba(32,59,91,.10); }
     .lg-mark { width: 64px; height: 64px; flex: none; padding: 5px; border-radius: 18px; background: #fff; border: 1px solid #e3eaf2; display: grid; place-items: center; overflow: hidden; }
@@ -10286,10 +10286,6 @@ const LoginModal = ({ onLogin }) => {
     .lg-brand-accent { color: var(--accent); transition: color .4s; }
     .lg-strap { font-weight: 700; color: #25374b; font-size: 13px; margin-top: 6px; }
     .lg-caption { font-size: 11px; color: #8b99a8; margin-top: 2px; }
-    .lg-top-tag { background: rgba(255,255,255,.7); border: 1px solid #dae4eb; border-radius: 40px; padding: 10px 15px; color: #617084;
-      font-size: 10px; font-weight: 800; letter-spacing: .1em; white-space: nowrap; }
-    .lg-live-dot { display: inline-block; width: 7px; height: 7px; background: var(--accent); border-radius: 50%; margin-right: 6px;
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); vertical-align: 1px; }
 
     /* Gövde: form solda (fotoğrafın üstünde), rol halkası sağda */
     .lg-layout { flex: 1; display: grid; grid-template-columns: minmax(300px, 430px) minmax(280px, 420px); justify-content: center;
@@ -10365,7 +10361,7 @@ const LoginModal = ({ onLogin }) => {
       .lg-photo-base { -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.7) 50%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.7) 50%, transparent 100%); }
       .lg-photo-blur { display: none; }
       .lg-shell { padding: 12px 14px; }
-      .lg-top-tag, .lg-caption { display: none; }
+      .lg-caption { display: none; }
       .lg-layout { display: flex; flex-direction: column; align-items: stretch; padding-top: 70px; }
       .lg-chooser { display: none; }
       .lg-panel.lg-right { max-width: 520px; margin: 0 auto; padding: 22px 20px; }
@@ -10491,10 +10487,6 @@ const LoginModal = ({ onLogin }) => {
               {T.universityName && <div className="lg-strap">{T.universityName}</div>}
               <div className="lg-caption">Dijital kampüs erişim platformu</div>
             </div>
-          </div>
-          <div className="lg-top-tag">
-            <span className="lg-live-dot" />
-            KURUMSAL ERİŞİM
           </div>
         </header>
 
