@@ -2013,7 +2013,8 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
           module: 'benim',
           docType: 'transkript',
           sutunlar: transkriptSutunlari(kural),
-          satirTanimi: 'transkriptte yer alan her ders satırı',
+          satirTanimi:
+            'transkriptte yer alan her ders satırı — bütün dönemler (yaz okulu dahil) ve son sayfa dahil',
           dosyalar,
         }),
         window
@@ -2027,6 +2028,9 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
       ]);
       const satirlar = (satirSonuc && satirSonuc.satirlar) || [];
       if (satirlar.length === 0) throw new Error('Transkriptten ders satırı çıkarılamadı.');
+      const kesildi = ((satirSonuc && satirSonuc.hatalar) || []).some(
+        (h) => h && h.reason === 'satir-tavani'
+      );
       const ust = (ustSonuc && ustSonuc.data) || {};
       const dersler = satirlar
         .map((s) => ({
@@ -2061,8 +2065,11 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
       await formuKaydet({ ...taslak, ozet: ozetCikar(s) }, 'Transkript yüklendi ve tarandı');
       setDosya(null);
       setMesaj({
-        tur: 'basari',
-        metin: dersler.length + ' ders forma aktarıldı. Kontrol edip danışmanınıza gönderin.',
+        tur: kesildi ? 'uyari' : 'basari',
+        metin: kesildi
+          ? dersler.length +
+            ' ders forma aktarıldı, ancak transkript çok uzun olduğu için bazı satırlar alınamadı. Danışmanınıza bildirin.'
+          : dersler.length + ' ders forma aktarıldı. Kontrol edip danışmanınıza gönderin.',
       });
     } catch (e) {
       setMesaj({ tur: 'hata', metin: e.message });
