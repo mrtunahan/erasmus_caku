@@ -644,7 +644,11 @@ function KosulOzeti({ sonuc }) {
           <span style={{ fontSize: 11.5, fontWeight: 600, color: R.soluk, marginLeft: 8 }}>
             {sonuc.aktsKaynagi === 'transkript'
               ? 'transkriptteki birikimli tamamlanan AKTS'
-              : 'derslerden hesaplandı — transkriptin toplamı okunamadı'}
+              : sonuc.aktsKaynagi === 'hesap-okuma-hatasi'
+                ? 'geçilen derslerden hesaplandı — transkriptten okunan toplam (' +
+                  sonuc.okunanTranskriptAkts +
+                  ') derslerin toplamından küçük, okuma hatası sayıldı'
+                : 'geçilen derslerden hesaplandı — transkriptin toplamı okunamadı'}
           </span>
         </span>
         <span style={{ fontSize: 12, color: R.soluk }}>
@@ -697,8 +701,40 @@ function KosulOzeti({ sonuc }) {
       </div>
       {sonuc.kalanZorunlu.length > 0 && (
         <div style={{ marginTop: 10, fontSize: 12, color: '#991B1B' }}>
-          <b>Kalan zorunlu dersler:</b>{' '}
-          {sonuc.kalanZorunlu.map((c) => c.code + ' ' + c.name).join(', ')}
+          <b>Kalan zorunlu dersler ({sonuc.kalanZorunlu.length}):</b>{' '}
+          {sonuc.kalanZorunlu
+            .map(
+              (c) =>
+                c.code +
+                ' ' +
+                c.name +
+                ((c.digerKodlar || []).length
+                  ? ' (diğer kodu: ' + c.digerKodlar.join(', ') + ')'
+                  : '')
+            )
+            .join(', ')}
+        </div>
+      )}
+      {(sonuc.benzerleSaglanan || []).length > 0 && (
+        <div style={{ marginTop: 6, fontSize: 12, color: R.soluk }} data-benzerle-saglanan>
+          <b style={{ color: R.metin }}>Benzer adlı dersle karşılanan zorunlular:</b>{' '}
+          {sonuc.benzerleSaglanan
+            .map(
+              (b) => b.code + ' ' + b.name + ' ← ' + [b.ileKod, b.ileAd].filter(Boolean).join(' ')
+            )
+            .join('; ')}
+          . Danışmanınız bu eşleşmeyi kontrol eder.
+        </div>
+      )}
+      {(sonuc.stajDurumlari || []).length > 0 && (
+        <div style={{ marginTop: 6, fontSize: 12, color: R.soluk }} data-staj-durumu>
+          <b style={{ color: R.metin }}>Staj durumu:</b>{' '}
+          {sonuc.stajDurumlari.map((st) => (
+            <span key={st.kod} style={{ marginRight: 12, whiteSpace: 'nowrap' }}>
+              <b style={{ color: st.tamam ? R.yesil : '#991B1B' }}>{st.tamam ? '✓' : '✕'}</b>{' '}
+              {st.kod} {st.ad} — {st.durumMetni}
+            </span>
+          ))}
         </div>
       )}
     </div>
@@ -1826,7 +1862,7 @@ const TRANSKRIPT_UST_BILGI = [
   {
     id: 'tamamlananAkts',
     label: 'Birikimli Tamamlanan AKTS',
-    hint: 'EN SON dönemin "Birikimli" satırındaki "Tamamlanan Kredi | AKTS" değerinin AKTS kısmı ("145 | 238" ise 238); yalnız sayı',
+    hint: 'EN SON dönemin (yaz okulu dahil, belgenin en altındaki) "Birikimli" satırındaki "Tamamlanan Kredi | AKTS" değerinin AKTS kısmı ("145 | 238" ise 238). "Yıllık" satırını ALMA; yalnız sayı',
   },
 ];
 
