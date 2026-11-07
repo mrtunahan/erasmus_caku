@@ -3886,9 +3886,46 @@ async function readDecision(collection, user, getDb) {
 }
 
 // Yazma yetkisi kararı (tek işlem için)
+// ── İSTEMCİ DENETİM KAYDI (window.audit) ──
+// audit_logs API'den DEĞİŞTİRİLEMEZ ve SİLİNEMEZ; yalnız EKLENEBİLİR ve
+// kim / rol / zaman alanları oturumdan damgalanır (sahte kayıt olamaz).
+// Eskiden koleksiyon tümden yasaktı: istemcinin 53 yerdeki anlamlı kaydı
+// ("ders oluşturuldu" …) hiç yazılmıyor, her deneme günlüğe ayrıca bir 403
+// satırı düşürüyordu.
+function istemciDenetimKaydi(op, user) {
+  if (op.collection !== 'audit_logs' || op.type !== 'add') return false;
+  const d = op.data && typeof op.data === 'object' ? op.data : {};
+  const kisa = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const jsonKisa = (v) => {
+    if (v == null) return null;
+    try {
+      const t = JSON.stringify(v);
+      return t.length > 8000 ? { kesildi: true, ozet: t.slice(0, 8000) } : v;
+    } catch (_) {
+      return null;
+    }
+  };
+  op.data = {
+    action: kisa(d.action, 80),
+    target: kisa(d.target, 80),
+    targetId: kisa(d.targetId, 200),
+    departmentId: kisa(d.departmentId, 80),
+    before: jsonKisa(d.before),
+    after: jsonKisa(d.after),
+    meta: jsonKisa(d.meta) || {},
+    actor: kisa(user.identifier, 200),
+    actorRole: kisa(user.role, 40),
+    kaynak: 'istemci',
+    createdAt: new Date().toISOString(),
+    at: new Date(),
+  };
+  return !!op.data.action;
+}
+
 function writeDecision(op, user) {
   if (!DB_AUTH_ENFORCED) return { allow: true };
   if (!user) return { allow: false, status: 401, error: 'Yazma işlemi için giriş gereklidir.' };
+  if (istemciDenetimKaydi(op, user)) return { allow: true };
   if (WRITE_DENY.has(op.collection)) {
     return {
       allow: false,

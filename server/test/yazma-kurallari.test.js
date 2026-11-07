@@ -550,3 +550,22 @@ test('toplu bildirim: bölüm öğrencilerine sunucuda tek seferde, öğrenci g�
     s2.close();
   }
 });
+
+test('denetim kaydı: istemci yalnız ekler, kim/rol sunucuda damgalanır', async () => {
+  const ekle = await yaz(HOCA, {
+    collection: 'audit_logs',
+    type: 'add',
+    data: { action: 'course_update', target: 'sinav_dersler', targetId: 'c1', actor: 'Sahte KİŞİ' },
+  });
+  assert.equal(ekle.durum, 200, JSON.stringify(ekle.j));
+  const k = await bul('audit_logs', { action: 'course_update', targetId: 'c1' });
+  assert.equal(k.actor, 'Dr. Ali VELİ', 'aktör oturumdan damgalanır');
+  assert.equal(k.kaynak, 'istemci');
+  const degistir = await yaz(HOCA, {
+    collection: 'audit_logs',
+    type: 'set',
+    docId: String(k._id),
+    data: { action: 'silindi' },
+  });
+  assert.equal(degistir.durum, 403, 'denetim kaydı değiştirilemez');
+});
