@@ -360,3 +360,103 @@ test('yardım kılavuzu: herkes okur, yalnız üniversite yetkilisi yazar', asyn
   const j = await r.json();
   assert.match(JSON.stringify(j), /Kılavuz/);
 });
+
+test('performans: akademisyen yalnız kendi verisini okur, yetkili kendi bölümünü', async () => {
+  await db.collection('professors').insertMany([
+    {
+      _docId: 'p2',
+      id: 'p2',
+      name: 'Prof. Dr. Ayşe YETKİLİ',
+      departmentId: 'bilgisayar',
+      isDeptManager: true,
+    },
+    { _docId: 'p3', id: 'p3', name: 'Dr. Can KİMYA', departmentId: 'kimya' },
+  ]);
+  await db.collection('performance_data').insertMany([
+    {
+      _docId: 'Dr. Ali VELİ_2026_g1_Ocak',
+      akademisyenId: 'Dr. Ali VELİ',
+      departmentId: 'bilgisayar',
+      gostergeId: 'g1',
+      yil: '2026',
+      ay: 'Ocak',
+      value: '3',
+    },
+    {
+      _docId: 'Dr. Başka HOCA_2026_g1_Ocak',
+      akademisyenId: 'Dr. Başka HOCA',
+      departmentId: 'bilgisayar',
+      gostergeId: 'g1',
+      yil: '2026',
+      ay: 'Ocak',
+      value: '5',
+    },
+    {
+      _docId: 'Dr. Can KİMYA_2026_g1_Ocak',
+      akademisyenId: 'Dr. Can KİMYA',
+      departmentId: 'kimya',
+      gostergeId: 'g1',
+      yil: '2026',
+      ay: 'Ocak',
+      value: '7',
+    },
+  ]);
+  const oku = async (t, yol) => {
+    const r = await fetch(taban + '/api/db/' + yol, { headers: { authorization: 'Bearer ' + t } });
+    return { durum: r.status, j: await r.json() };
+  };
+  const hoca = await oku(HOCA, 'performance_data');
+  assert.deepEqual(
+    hoca.j.map((x) => x.akademisyenId),
+    ['Dr. Ali VELİ']
+  );
+
+  const YETKILI = jeton({ role: 'professor', identifier: 'Prof. Dr. Ayşe YETKİLİ' });
+  const yet = await oku(YETKILI, 'performance_data');
+  assert.deepEqual(yet.j.map((x) => x.akademisyenId).sort(), ['Dr. Ali VELİ', 'Dr. Başka HOCA']);
+
+  const tek = await oku(
+    HOCA,
+    'performance_data/' + encodeURIComponent('Dr. Başka HOCA_2026_g1_Ocak')
+  );
+  assert.equal(tek.durum, 403);
+});
+
+test('performans: akademisyen gönderimi kayda yazılır, bölüm yetkilisine bildirim gider', async () => {
+  const baskasi = await yaz(HOCA, {
+    collection: 'performance_akademisyen_gonderimleri',
+    type: 'set',
+    docId: 'Dr. Başka HOCA_2026',
+    data: { akademisyenId: 'Dr. Başka HOCA', departmentId: 'bilgisayar', yil: '2026' },
+  });
+  assert.equal(baskasi.durum, 403);
+
+  const kendi = await yaz(HOCA, {
+    collection: 'performance_akademisyen_gonderimleri',
+    type: 'set',
+    docId: 'Dr. Ali VELİ_2026',
+    data: {
+      akademisyenId: 'Dr. Ali VELİ',
+      departmentId: 'bilgisayar',
+      yil: '2026',
+      gonderimZamani: '2000-01-01',
+    },
+  });
+  assert.equal(kendi.durum, 200, JSON.stringify(kendi.j));
+  const k = await bul('performance_akademisyen_gonderimleri', { _docId: 'Dr. Ali VELİ_2026' });
+  assert.notEqual(k.gonderimZamani, '2000-01-01', 'zaman sunucuda damgalanır');
+  const bildirim = await bul('notifications', {
+    recipientId: 'Prof. Dr. Ayşe YETKİLİ',
+    module: 'performans',
+  });
+  assert.ok(bildirim, 'bölüm yetkilisine bildirim');
+  assert.match(bildirim.body, /Dr\. Ali VELİ/);
+
+  const esleme = await yaz(HOCA, {
+    collection: 'performance_uc_aylik_esleme',
+    type: 'set',
+    docId: 'satir',
+    data: { gostergeId: 'g1' },
+  });
+  assert.equal(esleme.durum, 403, 'eşlemeyi sade akademisyen yazamaz');
+});

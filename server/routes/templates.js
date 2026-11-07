@@ -708,7 +708,12 @@ router.get('/resolve', readLimiter, requireAuth, async (req, res) => {
     }
     const db = await getDbSafe();
     const harita = await bolumHaritasi(db);
-    const facultyId = departmentId ? harita.fakulte[departmentId] || '' : '';
+    // Bölüm verilmeyen çıktılar (fakülte özeti) fakülteyi doğrudan verir;
+    // eskiden yalnız bölümden türetiliyordu ve fakülte kapsamlı şablon hiç
+    // bulunamıyor, yalnız üniversite şablonuna düşülüyordu.
+    const facultyId = departmentId
+      ? harita.fakulte[departmentId] || ''
+      : asPlainString(req.query.facultyId) || '';
     // Şablon, YÜKLEYENİN profilindeki fakülte biçimiyle kaydedilmiş olabilir;
     // buradaki değer ise BÖLÜM DOKÜMANINDAN geliyor. Ham eşitlik aynı
     // fakültenin iki biçimini farklı fakülte sanar ve fakülte şablonu hiç

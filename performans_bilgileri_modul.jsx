@@ -1,5 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
+  satirAnahtari,
+  satirDegerleri,
+  yeniEslemeler,
+  eslemeHaritasi,
+  eslemeKimligi,
+} from './lib/performans-uc-aylik.js';
+import {
   VERI_GIRISI_GORUNUMU,
   bolumeGecerken,
   gezinmeDurumu,
@@ -116,14 +123,6 @@ const CEYREKLER = [
   { id: 'q3', label: '3. Çeyrek (Tem-Ağu-Eyl)', months: AYLAR.slice(6, 9) },
   { id: 'q4', label: '4. Çeyrek (Eki-Kas-Ara)', months: AYLAR.slice(9, 12) },
 ];
-// Gösterge adı normalize (xlsx satır adıyla eşleştirmek için — motorla aynı kural)
-const perfNorm = (s) =>
-  String(s || '')
-    .toLocaleLowerCase('tr-TR')
-    .replace(/\s+/g, ' ')
-    .replace(/[^\wçğıöşü ]/gi, '')
-    .trim();
-
 // Yıl seçici için sabit aralık: 2026–2031
 const YILLAR = ['2026', '2027', '2028', '2029', '2030', '2031'];
 
@@ -255,7 +254,12 @@ export default function PerformansBilgileri({
   const [savingQ, setSavingQ] = useState(false);
 
   const [toast, setToast] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  // Akademisyen → bölüm gönderimleri (performance_akademisyen_gonderimleri):
+  // kim, hangi yıl, ne zaman. Eskiden "Gönder" yalnız ekrandaki bir bayraktı;
+  // sayfa yenilenince kayboluyor, bölüm yetkilisi hiçbir şey görmüyordu.
+  const [akadGonderimleri, setAkadGonderimleri] = useState([]);
+  // Gönderimden SONRA kaydedilen değişiklik var mı (yeniden gönderilmeli).
+  const [gonderimSonrasiDegisti, setGonderimSonrasiDegisti] = useState(false);
   // ── BÖLÜM → FAKÜLTE GÖNDERİMLERİ ──
   // Bölüm yetkilisi "gönderdim" demeden bölümün değerleri fakülte toplamına
   // girmez (bkz. lib/performans-kapsam.js). Kayıt: performance_submissions.
@@ -274,29 +278,62 @@ export default function PerformansBilgileri({
   // localStorage yerine artık MongoDB'de saklanıyor. Bir akademisyenin girdiği
   // değeri bölüm/fakülte yetkilisi kendi tarayıcısında görebilsin diye
   // her kullanıcı tüm ilgili veriyi çeker.
+  // ── Performans değerleri: YALNIZ seçili yıl ──
+  // Eskiden açılışta bütün akademisyenlerin bütün yıllardaki değerleri
+  // indiriliyordu. Artık yıl değiştikçe o yılın kayıtları okunur (sunucu ayrıca
+  // okuyanın kapsamına daraltır: akademisyen kendi, yetkili kendi bölümleri).
+  // Başka yıllarda kaydedilmemiş düzenleme varsa korunur.
+  useEffect(() => {
+    let iptal = false;
+    const yil = String(selectedYil);
+    window
+      .apiRead('performance_data', { where: 'yil:eq:s:' + yil })
+      .catch(() => [])
+      .then((rows) => {
+        if (iptal) return;
+        const yeni = {};
+        (Array.isArray(rows) ? rows : []).forEach((r) => {
+          if (!r || !r.akademisyenId || !r.gostergeId || !r.yil || !r.ay) return;
+          if (String(r.yil) !== yil) return;
+          const k = `${r.yil}_${r.gostergeId}_${r.ay}`;
+          if (!yeni[r.akademisyenId]) yeni[r.akademisyenId] = {};
+          yeni[r.akademisyenId][k] = r.value == null ? '' : String(r.value);
+        });
+        // O yılın anahtarlarını yeniden yüklenenle değiştir, diğer yıllar kalsın.
+        const birlestir = (eski) => {
+          const out = {};
+          const kisiler = new Set([...Object.keys(eski || {}), ...Object.keys(yeni)]);
+          kisiler.forEach((id) => {
+            const kalan = {};
+            Object.entries((eski && eski[id]) || {}).forEach(([k, v]) => {
+              if (!k.startsWith(yil + '_')) kalan[k] = v;
+            });
+            out[id] = { ...kalan, ...(yeni[id] || {}) };
+          });
+          return out;
+        };
+        setAkademisyenData((onceki) => birlestir(onceki));
+        setBaselineData((onceki) => birlestir(onceki));
+      });
+    return () => {
+      iptal = true;
+    };
+  }, [selectedYil]);
+
   useEffect(() => {
     const load = async () => {
       try {
-        const [rows, rules, customQ, gonderimSatirlari] = await Promise.all([
-          window.apiRead('performance_data').catch(() => []),
+        const [rules, customQ, gonderimSatirlari, akadGonderim] = await Promise.all([
           window.apiRead('performance_agg_rules').catch(() => []),
           window.apiRead('performance_indicators').catch(() => []),
           window.apiRead('performance_submissions').catch(() => []),
+          window.apiRead('performance_akademisyen_gonderimleri').catch(() => []),
         ]);
         setGonderimler(Array.isArray(gonderimSatirlari) ? gonderimSatirlari : []);
+        setAkadGonderimleri(Array.isArray(akadGonderim) ? akadGonderim : []);
         setCustomGostergeler(
           (Array.isArray(customQ) ? customQ : []).filter((q) => q && q.id && q.ad)
         );
-        // Rows → akademisyenData şekline dönüştür
-        const nested = {};
-        (Array.isArray(rows) ? rows : []).forEach((r) => {
-          if (!r || !r.akademisyenId || !r.gostergeId || !r.yil || !r.ay) return;
-          const k = `${r.yil}_${r.gostergeId}_${r.ay}`;
-          if (!nested[r.akademisyenId]) nested[r.akademisyenId] = {};
-          nested[r.akademisyenId][k] = r.value == null ? '' : String(r.value);
-        });
-        setAkademisyenData(nested);
-        setBaselineData(nested);
 
         // Kurallar → aggOverrides (şu an kullanıcının aktif scope'una göre)
         // NOT: view değiştiğinde ayrıca override map yeniden hesaplanır.
@@ -482,6 +519,7 @@ export default function PerformansBilgileri({
       }));
       window.apiInvalidate && window.apiInvalidate('performance_data');
       if (!sessiz) flash(`${ops.length} değer kaydedildi`);
+      if (akadGonderimKaydi) setGonderimSonrasiDegisti(true);
       return true;
     } catch (e) {
       console.error('Kaydetme hatası:', e);
@@ -492,10 +530,34 @@ export default function PerformansBilgileri({
     }
   };
 
+  /**
+   * Akademisyen kendi değerlerini bölüm yetkilisine gönderir. KAYITTIR:
+   * performance_akademisyen_gonderimleri/{ad}_{yıl}. Sunucu gönderim zamanını
+   * damgalar ve bölüm yetkililerine zil bildirimi üretir. Yeniden gönderim
+   * kaydı günceller (yeni tarih, yeni bildirim).
+   */
   const handleSubmit = async () => {
+    if (!selectedAkademisyen) {
+      flash('Akademisyen kaydınız bulunamadı; gönderilemiyor.');
+      return;
+    }
     if (!(await handleSave({ sessiz: true }))) return;
-    setSubmitted(true);
-    flash('Gösterge verileri kaydedildi ve bölüm yetkilisine iletildi');
+    try {
+      const id = `${selectedAkademisyen}_${selectedYil}`;
+      const kayit = {
+        akademisyenId: selectedAkademisyen,
+        departmentId: matchedAkademisyen?.departmentId || '',
+        yil: String(selectedYil),
+      };
+      await window.DBWrite.set('performance_akademisyen_gonderimleri', id, kayit, true);
+      window.apiInvalidate && window.apiInvalidate('performance_akademisyen_gonderimleri');
+      const yeni = { ...kayit, id, gonderimZamani: new Date().toISOString() };
+      setAkadGonderimleri((once) => [...once.filter((x) => x.id !== id), yeni]);
+      setGonderimSonrasiDegisti(false);
+      flash('Verileriniz bölüm yetkilisine gönderildi.');
+    } catch (e) {
+      flash('Gönderilemedi: ' + ((e && e.message) || 'bilinmeyen hata'));
+    }
   };
 
   /**
@@ -701,6 +763,12 @@ export default function PerformansBilgileri({
     return null;
   }, [AKADEMISYENLER, currentUser?.name]);
   const selectedAkademisyen = matchedAkademisyen?.id || '';
+  // Bu akademisyenin seçili yıl için gönderim kaydı (yoksa null).
+  const akadGonderimBul = (akadId) =>
+    akadGonderimleri.find(
+      (g) => g && g.akademisyenId === akadId && String(g.yil) === String(selectedYil)
+    ) || null;
+  const akadGonderimKaydi = selectedAkademisyen ? akadGonderimBul(selectedAkademisyen) : null;
   const currentAkad = matchedAkademisyen;
 
   // ── YETKİLER ──
@@ -1125,7 +1193,12 @@ export default function PerformansBilgileri({
                     />
                   }
                 </ScrollWrap>
-                <SaveSubmitBar onSave={handleSave} onSubmit={handleSubmit} submitted={submitted} />
+                <SaveSubmitBar
+                  onSave={handleSave}
+                  onSubmit={handleSubmit}
+                  kayit={akadGonderimKaydi}
+                  degisti={gonderimSonrasiDegisti}
+                />
               </>
             )}
 
@@ -1192,6 +1265,16 @@ export default function PerformansBilgileri({
 
                 {/* Akademisyen bazlı detay */}
                 <ScrollWrap>
+                  <div
+                    data-akad-gonderim-ozeti
+                    style={{ fontSize: 12.5, color: C.textDim, margin: '4px 0 10px' }}
+                  >
+                    <b style={{ color: C.text }}>
+                      {bolumAkademisyenleri.filter((a) => akadGonderimBul(a.id)).length} /{' '}
+                      {bolumAkademisyenleri.length}
+                    </b>{' '}
+                    akademisyen {selectedYil} verisini gönderdi.
+                  </div>
                   {bolumAkademisyenleri.map((akad) => (
                     <div key={akad.id} style={{ marginBottom: 18 }}>
                       <div
@@ -1203,9 +1286,15 @@ export default function PerformansBilgileri({
                           background: C.accentGlow,
                           borderRadius: 8,
                           marginBottom: 4,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 8,
+                          flexWrap: 'wrap',
                         }}
                       >
-                        {akad.ad}
+                        <span>{akad.ad}</span>
+                        <AkadGonderimRozeti kayit={akadGonderimBul(akad.id)} />
                       </div>
                       {mergedGostergeler.map((kat, ki) => (
                         <GostergeTable
@@ -1385,6 +1474,7 @@ export default function PerformansBilgileri({
                     <UcAylikCiktiBar
                       scope="faculty"
                       deptId=""
+                      facultyId={isUniAdmin ? '' : kapsam.fakulteId || ''}
                       deptName={isUniAdmin ? 'Universite' : userFacultyName}
                       yil={selectedYil}
                       academicianIds={facultyAkademisyenIds}
@@ -1555,6 +1645,7 @@ export default function PerformansBilgileri({
               <StratejikPlanFakulteOzeti
                 yil={selectedYil}
                 facultyName={userFacultyName}
+                facultyId={isUniAdmin ? '' : kapsam.fakulteId || ''}
                 departments={AKADEMISYENLER}
                 isUniAdmin={isUniAdmin}
               />
@@ -1781,7 +1872,7 @@ function StratejikPlanIzleme({
       try {
         const [bag, pdata, custom] = await Promise.all([
           window.apiRead('strateji_baglama').catch(() => []),
-          window.apiRead('performance_data').catch(() => []),
+          window.apiRead('performance_data', { where: 'yil:eq:s:' + String(yil) }).catch(() => []),
           window.apiRead('performance_indicators').catch(() => []),
         ]);
         const bmap = {};
@@ -2236,7 +2327,11 @@ function StratejikPlanIzleme({
                         </div>
                         {bound ? (
                           <div
-                            title="Bölüm özeti toplamından otomatik"
+                            title={
+                              academicianOnly
+                                ? 'Bölüm toplamından otomatik dolar; toplamı bölüm yetkilisi görür'
+                                : 'Bölüm özeti toplamından otomatik'
+                            }
                             style={{
                               ...inpStyle,
                               textAlign: 'center',
@@ -2248,7 +2343,16 @@ function StratejikPlanIzleme({
                               justifyContent: 'center',
                             }}
                           >
-                            {autoVal || '—'}
+                            {/* Sade akademisyen yalnız KENDİ değerlerini okuyabilir
+                                (sunucu kapsamı); burada bölüm toplamı gösterilse
+                                yalnız kendi katkısı görünür, yanlış olurdu. */}
+                            {academicianOnly ? (
+                              <span style={{ fontSize: 10.5, fontWeight: 600 }}>
+                                Otomatik (bölüm toplamı)
+                              </span>
+                            ) : (
+                              autoVal || '—'
+                            )}
                           </div>
                         ) : (
                           <input
@@ -2323,7 +2427,7 @@ function StratejikPlanIzleme({
 // Fakültedeki tüm bölümlerin girdiği değerleri gösterge bazında toplar
 // (toplam / sabit) ve tek belge olarak çıktı alır. Yalnız fakülte/üni
 // yetkilisi görür.
-function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }) {
+function StratejikPlanFakulteOzeti({ yil, facultyName, facultyId, departments, isUniAdmin }) {
   const [loading, setLoading] = useState(true);
   const [noTemplate, setNoTemplate] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -2373,7 +2477,9 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
         const token = localStorage.getItem('caku_auth_token');
         const headers = token ? { Authorization: 'Bearer ' + token } : {};
         const rr = await fetch(
-          '/api/templates/resolve?module=performans&docType=strateji-izleme&departmentId=',
+          '/api/templates/resolve?module=performans&docType=strateji-izleme&departmentId=' +
+            '&facultyId=' +
+            encodeURIComponent(facultyId || ''),
           { headers, credentials: 'include' }
         );
         const rd = await rr.json().catch(() => ({}));
@@ -2401,7 +2507,7 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [facultyId]);
 
   // Tüm bölümlerin değerlerini yükle
   useEffect(() => {
@@ -2812,6 +2918,7 @@ function StratejikPlanFakulteOzeti({ yil, facultyName, departments, isUniAdmin }
 function UcAylikCiktiBar({
   scope,
   deptId,
+  facultyId,
   deptName,
   yil,
   academicianIds,
@@ -2827,13 +2934,57 @@ function UcAylikCiktiBar({
     setTimeout(() => setToast(''), 3500);
   };
   const months = period === 'custom' ? custom : CEYREKLER.find((q) => q.id === period).months;
+  // Kalıcı satır → gösterge eşlemesi (lib/performans-uc-aylik.js).
+  const [esleme, setEsleme] = useState({});
+  const [eslesmeyen, setEslesmeyen] = useState([]); // son çıktıda boş kalan satır adları
+  const [eslemeAcik, setEslemeAcik] = useState(false);
+  useEffect(() => {
+    let iptal = false;
+    window
+      .apiRead('performance_uc_aylik_esleme')
+      .catch(() => [])
+      .then((r) => !iptal && setEsleme(eslemeHaritasi(r)));
+    return () => {
+      iptal = true;
+    };
+  }, []);
+  const eslemeYaz = async (liste) => {
+    if (!liste.length) return;
+    await window.DBWrite.batch(
+      liste.map((e) => ({
+        collection: 'performance_uc_aylik_esleme',
+        type: e.gostergeId ? 'set' : 'delete',
+        docId: eslemeKimligi(e.anahtar),
+        ...(e.gostergeId
+          ? { data: { anahtar: e.anahtar, satir: e.satir, gostergeId: e.gostergeId } }
+          : {}),
+      }))
+    );
+    window.apiInvalidate && window.apiInvalidate('performance_uc_aylik_esleme');
+    setEsleme((once) => {
+      const y = { ...once };
+      liste.forEach((e) => {
+        if (e.gostergeId) y[e.anahtar] = e.gostergeId;
+        else delete y[e.anahtar];
+      });
+      return y;
+    });
+  };
+  const satirEsle = async (satir, gostergeId) => {
+    try {
+      await eslemeYaz([{ anahtar: satirAnahtari(satir), satir, gostergeId }]);
+      if (gostergeId) setEslesmeyen((l) => l.filter((x) => x !== satir));
+      flash(gostergeId ? 'Eşleme kaydedildi. Çıktıyı yeniden indirin.' : 'Eşleme kaldırıldı.');
+    } catch (e) {
+      flash('Eşleme kaydedilemedi: ' + e.message);
+    }
+  };
 
   const handleGen = async () => {
     setBusy(true);
     try {
       const ids = Array.isArray(academicianIds) ? academicianIds : [];
-      const valueByName = {};
-      (gostergeler || []).forEach((g) => {
+      const ucAylik = (g) => {
         const sums = months.map((mo) => {
           let s = 0;
           let any = false;
@@ -2847,12 +2998,16 @@ function UcAylikCiktiBar({
           });
           return any ? s : '';
         });
-        valueByName[perfNorm(g.ad)] = sums;
-      });
+        return sums;
+      };
+      // Önce göstergenin adı, sonra kalıcı eşleme (gösterge yeniden
+      // adlandırılsa da satır doğru göstergeye bağlı kalır).
+      const valueByName = satirDegerleri(gostergeler, esleme, ucAylik);
       const res = await window.TemplateEngine.produceQuarterXlsx({
         module: 'performans',
         docType: 'uc-aylik',
         departmentId: scope === 'dept' ? deptId || '' : '',
+        facultyId: scope === 'faculty' ? facultyId || '' : '',
         valueByName,
         monthLabels: months,
         filename:
@@ -2865,7 +3020,7 @@ function UcAylikCiktiBar({
       if (!res.ok) {
         if (res.reason === 'no-template')
           flash(
-            "Şablon bulunamadı. Şablonlar'a (Performans / Üç Aylık Gösterge) .xlsx'i GENEL (Üniversite) kapsamıyla yükleyin ki hem bölüm hem fakülte çıktısı erişebilsin."
+            "Şablon bulunamadı. Şablonlar'a (Performans / Üç Aylık Gösterge) .xlsx'i yükleyin: bölüm, fakülte ya da üniversite kapsamıyla — en yakın kapsamdaki kullanılır."
           );
         else if (res.reason === 'not-xlsx') flash('Atanmış şablon .xlsx değil.');
         else if (res.reason === 'no-yellow')
@@ -2899,11 +3054,19 @@ function UcAylikCiktiBar({
         } catch (e) {
           console.warn('Performans snapshot kaydedilemedi:', e && e.message);
         }
+        // Adıyla eşleşen satırlar kalıcı eşlemeye yazılır (sessiz).
+        try {
+          await eslemeYaz(yeniEslemeler(res.matched || [], gostergeler, esleme));
+        } catch (_) {
+          /* eşleme yazılamazsa çıktı yine geçerli */
+        }
         // İndirildi — kısmi doldurma raporu
         const un = res.unmatched || [];
+        setEslesmeyen([...new Set(un)]);
         if (un.length) {
+          setEslemeAcik(true);
           flash(
-            `İndirildi — ${res.matched?.length || 0} gösterge eşleşti. Performansta TANIMLI OLMAYAN (boş kalan) ${un.length} gösterge: ${un.slice(0, 4).join('; ')}${un.length > 4 ? '…' : ''} — bunları Verilerim'de "Soru Ekle" ile ekleyip veri girin.`
+            `İndirildi — ${res.matched?.length || 0} gösterge eşleşti, ${un.length} satır boş kaldı. Aşağıdan her satırı bir göstergeyle eşleyip çıktıyı yeniden indirin.`
           );
         } else {
           flash(
@@ -2976,11 +3139,122 @@ function UcAylikCiktiBar({
       >
         {busy ? 'Üretiliyor…' : `${scope === 'faculty' ? 'Fakülte' : 'Bölüm'} çıktısını indir`}
       </button>
+      <button
+        type="button"
+        onClick={() => setEslemeAcik((v) => !v)}
+        style={{ ...selStyle, cursor: 'pointer', fontWeight: 600, color: C.accent }}
+        title="Şablon satırlarını performans göstergelerine bağlayın"
+        data-uc-aylik-esleme
+      >
+        Satır eşlemeleri ({Object.keys(esleme).length})
+      </button>
       {toast && (
         <div style={{ flexBasis: '100%', fontSize: 11.5, color: C.textMuted, lineHeight: 1.4 }}>
           {toast}
         </div>
       )}
+      {eslemeAcik && (
+        <UcAylikEslemePaneli
+          esleme={esleme}
+          eslesmeyen={eslesmeyen}
+          gostergeler={gostergeler}
+          onEsle={satirEsle}
+          selStyle={selStyle}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Üç Aylık şablon satırlarının gösterge eşlemesi: son çıktıda boş kalan
+ * satırlar üstte (eşlenmeyi bekler), kayıtlı eşlemeler altta (değiştir/kaldır).
+ */
+function UcAylikEslemePaneli({ esleme, eslesmeyen, gostergeler, onEsle, selStyle }) {
+  const ad = (gid) => ((gostergeler || []).find((g) => g.id === gid) || {}).ad || gid;
+  const secenekler = (gostergeler || []).map((g) => (
+    <option key={g.id} value={g.id}>
+      {g.ad}
+    </option>
+  ));
+  const satirStil = {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) auto',
+    gap: 8,
+    alignItems: 'center',
+    padding: '6px 0',
+    borderTop: `1px solid ${C.borderLight}`,
+    fontSize: 12,
+  };
+  const kayitli = Object.entries(esleme || {});
+  return (
+    <div
+      data-uc-aylik-esleme-paneli
+      style={{
+        flexBasis: '100%',
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        padding: '10px 14px',
+        background: C.white,
+      }}
+    >
+      <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 6, lineHeight: 1.5 }}>
+        Şablondaki her sarı satır bir performans göstergesine bağlanır. Bağlantı kalıcıdır: gösterge
+        yeniden adlandırılsa da satır dolmaya devam eder.
+      </div>
+      {eslesmeyen.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.warning, margin: '6px 0' }}>
+            Son çıktıda boş kalan satırlar ({eslesmeyen.length})
+          </div>
+          {eslesmeyen.map((satir) => (
+            <div key={satir} style={satirStil}>
+              <span style={{ fontWeight: 600 }}>{satir}</span>
+              <select
+                defaultValue=""
+                onChange={(e) => e.target.value && onEsle(satir, e.target.value)}
+                style={selStyle}
+                aria-label={'Gösterge seç: ' + satir}
+              >
+                <option value="">— Gösterge seçin —</option>
+                {secenekler}
+              </select>
+              <span />
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.accent, margin: '6px 0' }}>
+        Kayıtlı eşlemeler ({kayitli.length})
+      </div>
+      {kayitli.length === 0 && (
+        <div style={{ fontSize: 12, color: C.textDim }}>
+          Henüz eşleme yok. İlk çıktıda adıyla eşleşen satırlar buraya kendiliğinden eklenir.
+        </div>
+      )}
+      {kayitli.map(([anahtar, gid]) => (
+        <div key={anahtar} style={satirStil}>
+          <span>{anahtar}</span>
+          <select
+            value={gid}
+            onChange={(e) => onEsle(anahtar, e.target.value)}
+            style={selStyle}
+            aria-label={'Gösterge: ' + anahtar}
+          >
+            {!(gostergeler || []).some((g) => g.id === gid) && (
+              <option value={gid}>{ad(gid)} (silinmiş gösterge)</option>
+            )}
+            {secenekler}
+          </select>
+          <button
+            type="button"
+            onClick={() => onEsle(anahtar, '')}
+            style={{ ...selStyle, cursor: 'pointer', color: C.danger }}
+          >
+            Kaldır
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -3787,7 +4061,46 @@ function YearSelector({ yil, setYil }) {
   );
 }
 
-function SaveSubmitBar({ onSave, onSubmit, submitted }) {
+/** Bölüm özetinde akademisyenin gönderim durumu. */
+function AkadGonderimRozeti({ kayit }) {
+  const tarih =
+    kayit && kayit.gonderimZamani
+      ? new Date(kayit.gonderimZamani).toLocaleDateString('tr-TR', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        })
+      : '';
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        padding: '2px 9px',
+        borderRadius: 999,
+        background: kayit ? C.successDim : C.surface,
+        color: kayit ? C.success : C.textDim,
+        border: `1px solid ${kayit ? C.success : C.border}`,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {kayit ? 'Gönderdi' + (tarih ? ' · ' + tarih : '') : 'Henüz göndermedi'}
+    </span>
+  );
+}
+
+function SaveSubmitBar({ onSave, onSubmit, kayit, degisti }) {
+  const submitted = !!kayit;
+  const tarih =
+    kayit && kayit.gonderimZamani
+      ? new Date(kayit.gonderimZamani).toLocaleString('tr-TR', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '';
   return (
     <div
       style={{
@@ -3800,8 +4113,18 @@ function SaveSubmitBar({ onSave, onSubmit, submitted }) {
       }}
     >
       {submitted && (
-        <span style={{ fontSize: 11.5, color: C.success, fontWeight: 600, marginRight: 'auto' }}>
-          Gönderildi
+        <span
+          data-akad-gonderim
+          style={{
+            fontSize: 11.5,
+            color: degisti ? C.warning : C.success,
+            fontWeight: 600,
+            marginRight: 'auto',
+          }}
+        >
+          {degisti
+            ? 'Gönderimden sonra değişiklik kaydedildi — bölüm yetkilisi yeni hâlini görsün diye yeniden gönderin.'
+            : 'Bölüm yetkilisine gönderildi' + (tarih ? ' · ' + tarih : '')}
         </span>
       )}
       <button
@@ -3827,9 +4150,10 @@ function SaveSubmitBar({ onSave, onSubmit, submitted }) {
           padding: '10px 24px',
           borderRadius: 8,
           border: 'none',
-          background: submitted
-            ? C.success
-            : `linear-gradient(135deg, ${C.accent}, ${C.accentDark})`,
+          background:
+            submitted && !degisti
+              ? C.success
+              : `linear-gradient(135deg, ${C.accent}, ${C.accentDark})`,
           color: '#fff',
           fontSize: 12.5,
           fontWeight: 600,
@@ -3838,7 +4162,7 @@ function SaveSubmitBar({ onSave, onSubmit, submitted }) {
           transition: 'all 0.15s',
         }}
       >
-        {submitted ? 'Gönderildi' : 'Gönder'}
+        {submitted ? 'Yeniden gönder' : 'Bölüm yetkilisine gönder'}
       </button>
     </div>
   );
