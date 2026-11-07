@@ -13,12 +13,10 @@
     <!-- Reklam betiği (Google AdSense) panelden kaldırıldı: öğrenci verisinin
          görüldüğü sayfada üçüncü taraf betik aynı kökende çalışıyordu (KVKK). -->
 
-    <!-- Quill.js 1.3.7 (öğrenci portalı editörü) — CDN yerine kendi sunucumuzdan.
-         Sürüm AYNI (davranış değişmez); dış bir alan adına bağımlılık ve
-         orada değiştirilecek bir dosyanın bütün oturumları ele geçirmesi
-         riski kalkar. Kaynak: npm quill@1.3.7 dist/. -->
-    <link href="/vendor/quill-1.3.7/quill.snow.css" rel="stylesheet" />
-    <script src="/vendor/quill-1.3.7/quill.min.js"></script>
+    <!-- Quill artık sayfa başında YÜKLENMEZ: giriş ekranı dahil her sayfayı
+         bekleten ayrı bir 1.3.7 betiği vardı, uygulama da paketten ayrıca
+         Quill indiriyordu. Editör açıldığında paketten tembel yüklenir
+         (shared-components.jsx → quillYukle). -->
 
     <!-- DOMPurify artık npm'den paketleniyor (main.jsx → window.DOMPurify). -->
 

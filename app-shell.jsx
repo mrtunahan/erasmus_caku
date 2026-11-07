@@ -815,7 +815,9 @@ const Sidebar = ({
     let alive = true;
     const hesapla = async () => {
       try {
+        // Öğrenci bu koleksiyonu okuyamaz (sunucu 403); boşuna istek atılmaz.
         if (!window.belgeGelenKutusu || !window.apiRead || currentUser?.aday) return;
+        if (currentUser?.role === 'student') return;
         const list = await window.apiRead('memur_outputs');
         if (!alive) return;
         const gelen =
@@ -826,13 +828,24 @@ const Sidebar = ({
       }
     };
     hesapla();
-    const t = setInterval(hesapla, 60000); // dakikada bir tazele
+    // ⚠ YÜK: koleksiyonun tamamı okunuyor. Eskiden dakikada bir VE her ekran
+    // değişiminde yeniden okunuyordu. Artık belge değişince (gerçek zamanlı
+    // olay, 2 sn birleştirilerek) ve yedek olarak 5 dakikada bir.
+    let bekle = null;
+    const degisti = () => {
+      clearTimeout(bekle);
+      bekle = setTimeout(hesapla, 2000);
+    };
+    window.addEventListener('realtime:memur_outputs', degisti);
+    const t = setInterval(hesapla, 5 * 60 * 1000);
     return () => {
       alive = false;
       clearInterval(t);
+      clearTimeout(bekle);
+      window.removeEventListener('realtime:memur_outputs', degisti);
     };
     // Aktif bölüm rozetin kapsamıdır: memur bölüm değiştirince sayı da değişir.
-  }, [currentUser, currentRoute, activeDepartment]);
+  }, [currentUser, activeDepartment]);
 
   const isStajYetkilisi = stajYetkilisiMi(currentUser);
   // Memur — yalnız atandığı modülleri görür; Ortak/Yönetim bölümleri gizli.

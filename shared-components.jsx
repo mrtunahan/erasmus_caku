@@ -16501,6 +16501,8 @@ window.ZenginMetinEditoru = ZenginMetinEditoru;
 // edebildiği biçimlerle sınırlıdır (yoksa verilen biçim sessizce düşerdi).
 // Quill yüklenemezse eski contentEditable editöre düşer.
 window.QuillEditoru = QuillEditoru;
+// Portal editörü de aynı tembel yükleyiciyi kullanır (tek Quill).
+window.quillYukle = quillYukle;
 window.zenginDuzMetin = zenginDuzMetin;
 window.zenginBosMu = zenginBosMu;
 window.duyuruKapsamCoz = duyuruKapsamCoz;
