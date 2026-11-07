@@ -765,59 +765,8 @@ function yoklamaBildirimi(oturum, no, durum, duzeltme) {
 // dönemin seçimi, eski liste yalnız o döneme yeni kaydı olmayan için ve
 // yalnız `students` kaydı olan öğrenci. Eskiden geçmiş dönemlerin seçimi de
 // sayılıyordu (dersi geçen yıl alan öğrenciye devamsızlık bildirimi gidiyordu).
-let secimSozu = null;
-async function dersListesi(db, dersId) {
-  const id = metin(dersId);
-  if (!id) return [];
-  if (!secimSozu) secimSozu = import('../../lib/ogrenci-ders-secimi.js');
-  if (!donemSozu) donemSozu = import('../../lib/ders-odasi.js');
-  const [S, D] = await Promise.all([secimSozu, donemSozu]);
-  const donem = D.donemAnahtari();
-  const secimler = await db
-    .collection('student_courses')
-    .find({ courseIds: id })
-    .toArray()
-    .catch(() => []);
-  const adaylar = secimler
-    .map((d) => metin(d.studentNumber) || metin(d._docId).split('__')[0])
-    .filter(Boolean);
-  const ogrenciler = await db
-    .collection('students')
-    .find(
-      { $or: [{ studentNumber: { $in: adaylar } }, { myCourseIds: id }] },
-      { projection: { studentNumber: 1, myCourseIds: 1 } }
-    )
-    .toArray()
-    .catch(() => []);
-  const eskiAdaylar = ogrenciler
-    .filter((o) => (o.myCourseIds || []).map(metin).includes(id))
-    .map((o) => metin(o.studentNumber))
-    .filter((n) => n && !adaylar.includes(n));
-  const ekSecimler = eskiAdaylar.length
-    ? await db
-        .collection('student_courses')
-        .find({
-          $or: [
-            { studentNumber: { $in: eskiAdaylar }, termKey: donem },
-            {
-              _docId: {
-                $in: eskiAdaylar.map((n) => n.replace(/[^A-Za-z0-9]/g, '') + '__' + donem),
-              },
-            },
-          ],
-        })
-        .toArray()
-        .catch(() => [])
-    : [];
-  return S.dersinOgrenciNolari({
-    dersIdleri: [id],
-    donem,
-    donemKayitlari: secimler.concat(ekSecimler),
-    ogrenciKayitlari: ogrenciler,
-    eskiListe: true,
-  });
-}
-let donemSozu = null;
+// Dersin kayıtlı öğrencileri: server/lib/ders-ogrencileri.js
+const { dersListesi } = require('../lib/ders-ogrencileri');
 
 async function bildirimleriYaz(req, db, liste) {
   if (!liste.length) return;

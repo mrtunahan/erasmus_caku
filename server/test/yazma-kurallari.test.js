@@ -460,3 +460,93 @@ test('performans: akademisyen gönderimi kayda yazılır, bölüm yetkilisine bi
   });
   assert.equal(esleme.durum, 403, 'eşlemeyi sade akademisyen yazamaz');
 });
+
+test('portal bildirimi: alıcıya bağlanır, başkası okuyamaz ve değiştiremez', async () => {
+  const ekle = await fetch(taban + '/api/db/write', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + OGR },
+    body: JSON.stringify({
+      operations: [
+        {
+          collection: 'portal_notifications',
+          type: 'add',
+          parentDocId: '2021002',
+          subCollection: 'items',
+          data: { type: 'mention', message: 'bahsetti', read: false },
+        },
+      ],
+    }),
+  });
+  assert.equal(ekle.status, 200);
+  const kayit = await bul('portal_notifications_items', { message: 'bahsetti' });
+  assert.equal(kayit._parentDocId, '2021002', 'alıcı kayda yazılır');
+
+  const oku = async (t) => {
+    const r = await fetch(taban + '/api/db/portal_notifications_items', {
+      headers: { authorization: 'Bearer ' + t },
+    });
+    return r.json();
+  };
+  assert.equal((await oku(OGR)).length, 0, 'gönderen alıcının bildirimini okuyamaz');
+  assert.equal((await oku(OGR2)).length, 1, 'alıcı kendi bildirimini okur');
+
+  const r = await fetch(taban + '/api/db/write', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + OGR },
+    body: JSON.stringify({
+      operations: [
+        {
+          collection: 'portal_notifications',
+          type: 'update',
+          docId: String(kayit._id),
+          parentDocId: '2021002',
+          subCollection: 'items',
+          data: { read: true },
+        },
+      ],
+    }),
+  });
+  assert.equal(r.status, 403, 'başkasının bildirimi okundu yapılamaz');
+});
+
+test('toplu bildirim: bölüm öğrencilerine sunucuda tek seferde, öğrenci gönderemez', async () => {
+  const app2 = require('express')();
+  app2.use(require('express').json());
+  app2.use(require('cookie-parser')());
+  app2.use('/api/bildirim', require('../routes/bildirim'));
+  const s2 = await new Promise((ok) => {
+    const s = app2.listen(0, '127.0.0.1', () => ok(s));
+  });
+  const t2 = 'http://127.0.0.1:' + s2.address().port;
+  const gonder = (t, govde) =>
+    fetch(t2 + '/api/bildirim/toplu', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + t },
+      body: JSON.stringify(govde),
+    });
+  try {
+    const ogr = await gonder(OGR, { hedef: 'bolum', departmentId: 'bilgisayar', title: 'x' });
+    assert.equal(ogr.status, 403);
+    const r = await gonder(HOCA, {
+      hedef: 'bolum',
+      departmentId: 'bilgisayar',
+      title: 'Duyuru',
+      message: 'Portalda yeni duyuru',
+      haric: '2021002',
+    });
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.ok(j.gonderilen >= 1);
+    assert.ok(await bul('student_notifications', { studentNumber: '2021001', title: 'Duyuru' }));
+    assert.equal(
+      await bul('student_notifications', { studentNumber: '2021002', title: 'Duyuru' }),
+      null
+    );
+    assert.ok(
+      await bul('notifications', { recipientId: '2021001', title: 'Duyuru' }),
+      'zile de düşer'
+    );
+  } finally {
+    s2.close();
+  }
+});
