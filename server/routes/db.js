@@ -950,6 +950,10 @@ const DOCID_SAHIPLI = new Set([
 
 // Öğrencilerin hiç okuyamayacağı koleksiyonlar (personel modülleri)
 const STUDENT_READ_DENY = new Set([
+  // Kaynak Kütüphanesi: ders notları ile birlikte SINAV SORULARI arşivi.
+  // Kütüphanenin kendi uçları yalnız dersin hocasına açıktı ama genel okuma
+  // ucundan öğrenci bütün arşivi (sınav soruları dahil) okuyabiliyordu.
+  'resources',
   // Fakülte sınav programı hazırlığı personelin işidir.
   'sinav_fakulte_ayarlari',
   'sinav_gonderimleri',
@@ -5070,6 +5074,19 @@ router.get('/:collection', async (req, res) => {
     // (istemcinin where'i ne derse desin sunucu daraltır). Çift numaralı ÇAP
     // öğrencisinde kapsam, BAĞLI numaraları da içerir — ikinci programın
     // kayıtları ayrı numaranın altındadır.
+    // Ders seçimleri: öğrenci YALNIZ kendi seçimlerini okur (eskiden bütün
+    // öğrencilerin seçimlerini ve danışmanlarını okuyabiliyordu). Eski
+    // kayıtlarda numara yalnız belge kimliğinde durur: `{no}__{dönem}`.
+    if (DB_AUTH_ENFORCED && user && user.role === 'student' && collection === 'student_courses') {
+      const kapsam = (await ogrenciKapsami(db, user.identifier)).map(String).filter(Boolean);
+      const kacis = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const desen = kapsam.length
+        ? '^(' + kapsam.map((n) => kacis(n.replace(/[^A-Za-z0-9]/g, ''))).join('|') + ')__'
+        : '^$a';
+      filter.$and = (filter.$and || []).concat([
+        { $or: [{ studentNumber: { $in: kapsam } }, { _docId: { $regex: desen } }] },
+      ]);
+    }
     if (DB_AUTH_ENFORCED && user && user.role === 'student') {
       const scopeField = STUDENT_READ_SCOPED[collection];
       if (scopeField) {
@@ -5153,6 +5170,14 @@ router.get('/:collection', async (req, res) => {
     cursor = cursor.limit(limitVal > 0 ? Math.min(limitVal, MAX_READ_LIMIT) : MAX_READ_LIMIT);
 
     let docs = await cursor.toArray();
+    // ── TAVANA TAKILAN OKUMA SESSİZ KALMAZ ──
+    // Limit istenmeden tavan dolduysa liste büyük ihtimalle kesilmiştir;
+    // ekran eksik veriyle doğru sanılan bir sonuç gösterirdi. İstemci bu
+    // başlığı görünce uyarır (shared-components.jsx → __apiReadRaw).
+    if (limitVal <= 0 && docs.length >= MAX_READ_LIMIT) {
+      res.set('X-Okuma-Kesildi', String(MAX_READ_LIMIT));
+      console.warn('[db] okuma tavana takıldı:', collection, MAX_READ_LIMIT);
+    }
     if (mezSuz) docs = docs.filter(mezSuz);
 
     // ── ÖĞRENCİ OKUMASI: BAŞKASININ KAYDI BURADA DÜŞER ──

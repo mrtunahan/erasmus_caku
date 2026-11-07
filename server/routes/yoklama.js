@@ -921,6 +921,69 @@ router.post('/duzelt', requireAuth, async (req, res) => {
 const KAYIT_PROJEKSIYONU = { _id: 0, cihazId: 0, cihazIz: 0 };
 
 // Akademisyen: kendi açtığı oturumlar + o oturumların kayıtları.
+// ── HOCANIN DERSLERİNİN ÖĞRENCİ LİSTESİ ──
+// GET /api/yoklama/ders-ogrencileri?dersler=id1,id2
+// Benim Sayfam bunu bulmak için BÜTÜN öğrencileri ve BÜTÜN dönemlerin ders
+// seçimlerini indiriyordu (okuma tavanı 20.000; veri büyüdükçe liste sessizce
+// kesilecekti). Liste artık sunucuda, Ders Odaları/yoklama ile aynı kuralla
+// (server/lib/ders-ogrencileri.js) ve YALNIZ hocanın kendi dersleri için.
+router.get('/ders-ogrencileri', requireAuth, async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user || user.role === 'student') {
+      return res.status(403).json({ error: 'Bu listeyi yalnız akademisyen görebilir.' });
+    }
+    const idler = [
+      ...new Set(metin(req.query.dersler).split(',').map(metin).filter(Boolean)),
+    ].slice(0, 60);
+    const db = await getDbSafe();
+    const sonuc = {};
+    const tumNolar = new Set();
+    for (const id of idler) {
+      const { yetki } = await dersVeYetki(db, id, user);
+      if (!yetki) continue;
+      const nolar = await dersListesi(db, id);
+      sonuc[id] = nolar;
+      nolar.forEach((n) => tumNolar.add(n));
+    }
+    const liste = [...tumNolar];
+    const kayitlar = liste.length
+      ? await db
+          .collection('students')
+          .find(
+            {
+              studentNumber: {
+                $in: liste.concat(liste.map(Number).filter((n) => !Number.isNaN(n))),
+              },
+            },
+            {
+              projection: {
+                _id: 0,
+                studentNumber: 1,
+                firstName: 1,
+                lastName: 1,
+                sinif: 1,
+                cinsiyet: 1,
+                gender: 1,
+                girisNumarasi: 1,
+                programYili: 1,
+                departmentId: 1,
+              },
+            }
+          )
+          .toArray()
+      : [];
+    const ogrenciler = {};
+    kayitlar.forEach((k) => {
+      ogrenciler[metin(k.studentNumber)] = { ...k, studentNumber: metin(k.studentNumber) };
+    });
+    return res.json({ dersler: sonuc, ogrenciler });
+  } catch (e) {
+    console.error('[yoklama/ders-ogrencileri]', e && e.message);
+    return res.status(500).json({ error: 'Ders öğrencileri okunamadı.' });
+  }
+});
+
 router.get('/akademisyen-veri', requireAuth, async (req, res) => {
   try {
     const user = req.user;

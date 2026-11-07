@@ -569,3 +569,74 @@ test('denetim kaydı: istemci yalnız ekler, kim/rol sunucuda damgalanır', asyn
   });
   assert.equal(degistir.durum, 403, 'denetim kaydı değiştirilemez');
 });
+
+test('ders öğrencileri: hoca yalnız kendi dersinin güncel dönem listesini alır', async () => {
+  const { donemAnahtari } = await import('../../lib/ders-odasi.js');
+  const donem = donemAnahtari();
+  await db.collection('sinav_dersler').insertMany([
+    {
+      _docId: 'dersA',
+      id: 'dersA',
+      code: 'BİL101',
+      professor: 'Dr. Ali VELİ',
+      departmentId: 'bilgisayar',
+    },
+    {
+      _docId: 'dersB',
+      id: 'dersB',
+      code: 'BİL102',
+      professor: 'Dr. Başka HOCA',
+      departmentId: 'bilgisayar',
+    },
+  ]);
+  await db.collection('student_courses').insertMany([
+    {
+      _docId: '2021001__' + donem,
+      studentNumber: '2021001',
+      termKey: donem,
+      courseIds: ['dersA', 'dersB'],
+    },
+    {
+      _docId: '2021002__2000-2001_guz',
+      studentNumber: '2021002',
+      termKey: '2000-2001_guz',
+      courseIds: ['dersA'],
+    },
+  ]);
+  const app3 = require('express')();
+  app3.use(require('express').json());
+  app3.use(require('cookie-parser')());
+  app3.use('/api/yoklama', require('../routes/yoklama'));
+  const s3 = await new Promise((ok) => {
+    const s = app3.listen(0, '127.0.0.1', () => ok(s));
+  });
+  try {
+    const r = await fetch(
+      'http://127.0.0.1:' + s3.address().port + '/api/yoklama/ders-ogrencileri?dersler=dersA,dersB',
+      { headers: { authorization: 'Bearer ' + HOCA } }
+    );
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.deepEqual(j.dersler, { dersA: ['2021001'] }, 'başkasının dersi ve eski dönem dışarıda');
+    assert.equal(j.ogrenciler['2021001'].firstName, 'AYŞE');
+  } finally {
+    s3.close();
+  }
+});
+
+test('ders seçimleri: öğrenci yalnız kendi seçimlerini okur (eski kimlik biçimi dahil)', async () => {
+  await db.collection('student_courses').insertOne({
+    _docId: '2021001__1999-2000_guz',
+    courseIds: ['eski'],
+  });
+  const r = await fetch(taban + '/api/db/student_courses', {
+    headers: { authorization: 'Bearer ' + OGR },
+  });
+  const j = await r.json();
+  assert.equal(r.status, 200);
+  assert.ok(j.length >= 2, 'kendi kayıtları (studentNumber ve eski kimlik)');
+  assert.ok(
+    j.every((x) => String(x.studentNumber || x.id).startsWith('2021001')),
+    'başkasının seçimi gelmez: ' + JSON.stringify(j.map((x) => x.id))
+  );
+});

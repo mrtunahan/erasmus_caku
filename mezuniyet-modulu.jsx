@@ -3598,6 +3598,7 @@ function PersonelListesi({ currentUser, activeDepartment, memur }) {
   const [secili, setSecili] = useState(null);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [mesaj, setMesaj] = useState({ tur: '', metin: '' });
+  const [taslakAcik, setTaslakAcik] = useState(false);
   const kimlik = metin(currentUser?.name || currentUser?.identifier);
 
   const yukle = useCallback(async () => {
@@ -3637,6 +3638,10 @@ function PersonelListesi({ currentUser, activeDepartment, memur }) {
     }
   };
 
+  const taslakMi = (b) => !metin(b.durum) || b.durum === 'taslak';
+  const gonderilenler = liste.filter((b) => !taslakMi(b));
+  const taslaklar = memur ? [] : liste.filter(taslakMi);
+
   if (yukleniyor) return <div style={{ padding: 24, color: R.soluk }}>Yükleniyor…</div>;
   if (secili) {
     return (
@@ -3649,12 +3654,39 @@ function PersonelListesi({ currentUser, activeDepartment, memur }) {
       <BilgiKutusu>
         {memur
           ? 'Danışmanların size ilettiği mezuniyet başvuruları. Belgeler Gelen Belgeler’de de görünür.'
-          : 'Bölümünüzdeki mezuniyet başvuruları (taslaklar yalnız öğrenciye görünür).'}
+          : 'Bölümünüzdeki, danışmana gönderilmiş mezuniyet başvuruları.'}
       </BilgiKutusu>
-      {liste.length === 0 ? (
+      {/* ⚠ TASLAK DANIŞMANA GİTMEMİŞTİR. Sunucu taslakları yalnız tam erişimli
+          kullanıcıya (sistem/üniversite yetkilisi) verir; eskiden gönderilmiş
+          başvurularla karışık listeleniyordu ve "bu hangi danışmana gitti"
+          sorusu doğuyordu. Ayrı ve kapalı durur. */}
+      {gonderilenler.length === 0 ? (
         <div style={{ ...KART, color: R.soluk, fontSize: 13 }}>Gösterilecek başvuru yok.</div>
       ) : (
-        <BasvuruListesi liste={liste} onSec={setSecili} />
+        <BasvuruListesi liste={gonderilenler} onSec={setSecili} />
+      )}
+      {taslaklar.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <button
+            type="button"
+            onClick={() => setTaslakAcik((v) => !v)}
+            style={{ ...dugme('ikincil'), width: '100%', justifyContent: 'space-between' }}
+            aria-expanded={taslakAcik}
+            data-taslaklar
+          >
+            <span>Danışmana henüz gönderilmemiş taslaklar ({taslaklar.length})</span>
+            <span>{taslakAcik ? '▴' : '▾'}</span>
+          </button>
+          {taslakAcik && (
+            <div style={{ marginTop: 10 }}>
+              <BilgiKutusu tur="uyari">
+                Bu öğrenciler transkriptini yüklemiş ama formu danışmana göndermemiş. Hiçbir
+                danışman bu başvuruları görmez.
+              </BilgiKutusu>
+              <BasvuruListesi liste={taslaklar} onSec={setSecili} />
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

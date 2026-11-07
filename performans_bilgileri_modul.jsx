@@ -731,6 +731,13 @@ export default function PerformansBilgileri({
       .replace(/ğ/g, 'g');
   };
   const matchedAkademisyen = useMemo(() => {
+    // 0) Oturum kimliği kayıttaki adla birebir aynıysa o kişidir (sunucu da
+    //    performans yazmalarını bu kimlikle denetler).
+    const kimlik = String(currentUser?.identifier || '').trim();
+    if (kimlik) {
+      const birebir = AKADEMISYENLER.find((a) => String(a.ad || '').trim() === kimlik);
+      if (birebir) return birebir;
+    }
     if (!currentUser?.name) return null;
     const bare = stripTitle(currentUser.name);
     if (!bare) return null;
@@ -754,14 +761,16 @@ export default function PerformansBilgileri({
       const surname = toAsciiSlug(parts[parts.length - 1]);
       const firstInitial = toAsciiSlug(parts[0]).charAt(0);
       if (surname.length >= 3) {
-        const partialMatch = AKADEMISYENLER.find(
+        // ⚠ Yalnız TEK aday varsa: aynı soyadlı iki akademisyende tahmin,
+        // değerleri yanlış kişinin hücresine yazdırırdı.
+        const adaylar = AKADEMISYENLER.filter(
           (a) => a.id.endsWith(surname) || (a.id.includes(surname) && a.id.startsWith(firstInitial))
         );
-        if (partialMatch) return partialMatch;
+        if (adaylar.length === 1) return adaylar[0];
       }
     }
     return null;
-  }, [AKADEMISYENLER, currentUser?.name]);
+  }, [AKADEMISYENLER, currentUser?.name, currentUser?.identifier]);
   const selectedAkademisyen = matchedAkademisyen?.id || '';
   // Bu akademisyenin seçili yıl için gönderim kaydı (yoksa null).
   const akadGonderimBul = (akadId) =>
