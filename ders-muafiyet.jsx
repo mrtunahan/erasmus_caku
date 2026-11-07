@@ -6118,10 +6118,17 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                               style={{
                                 fontSize: 11,
                                 marginTop: 3,
+                                // ⚠ Karşılaştırma tanımsız bir global'e
+                                // (window.notNormalize) bağlıydı; fark hiç
+                                // kırmızı görünmüyordu. Harf notu sade biçimde
+                                // karşılaştırılır (boşluk/büyük-küçük harf yok).
                                 color:
-                                  window.notNormalize &&
-                                  window.notNormalize(yenidenCevrim[a].cakuNot) !==
-                                    window.notNormalize(n.cakuNot)
+                                  String(yenidenCevrim[a].cakuNot || '')
+                                    .replace(/\s+/g, '')
+                                    .toLocaleUpperCase('tr-TR') !==
+                                  String(n.cakuNot || '')
+                                    .replace(/\s+/g, '')
+                                    .toLocaleUpperCase('tr-TR')
                                     ? DS.red
                                     : DS.green,
                               }}

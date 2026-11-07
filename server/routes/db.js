@@ -950,6 +950,10 @@ const DOCID_SAHIPLI = new Set([
 
 // Öğrencilerin hiç okuyamayacağı koleksiyonlar (personel modülleri)
 const STUDENT_READ_DENY = new Set([
+  // Kaynak Kütüphanesi: ders notları ile birlikte SINAV SORULARI arşivi.
+  // Kütüphanenin kendi uçları yalnız dersin hocasına açıktı ama genel okuma
+  // ucundan öğrenci bütün arşivi (sınav soruları dahil) okuyabiliyordu.
+  'resources',
   // Fakülte sınav programı hazırlığı personelin işidir.
   'sinav_fakulte_ayarlari',
   'sinav_gonderimleri',
