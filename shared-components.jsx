@@ -2920,6 +2920,22 @@ async function __apiReadRaw(collection, params = {}) {
     hata.status = response.status;
     throw hata;
   }
+  // Sunucu listeyi okuma tavanında kestiyse (X-Okuma-Kesildi) ekran eksik
+  // veriyle çalışıyor demektir: sessiz kalmaz.
+  const kesildi = response.headers && response.headers.get('X-Okuma-Kesildi');
+  if (kesildi) {
+    const uyari = new Error(
+      collection + ' listesi ' + kesildi + ' kayıtla sınırlandı; gösterilen veri eksik olabilir.'
+    );
+    console.warn('[api]', uyari.message);
+    try {
+      window.dispatchEvent(
+        new CustomEvent('api:kesildi', { detail: { collection, sinir: Number(kesildi) } })
+      );
+    } catch (_) {
+      /* olay yayınlanamazsa konsol uyarısı yeter (sunucu günlüğü de uyarır) */
+    }
+  }
   return response.json();
 }
 

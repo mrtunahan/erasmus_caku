@@ -733,7 +733,8 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   const [oturumlar, setOturumlar] = useState([]);
   const [katilimKayitlari, setKatilimKayitlari] = useState([]);
   // Öğrencilerin dönem bazlı ders seçimleri (student_courses).
-  const [dersSecimleri, setDersSecimleri] = useState([]);
+  // Ders kimliği → o dersin öğrenci numaraları (sunucudan).
+  const [dersListeleri, setDersListeleri] = useState({});
 
   const [seviye, setSeviye] = useState('hepsi');
   // Aktif sekme ('genel' | 'yoklama' | 'gorusme' | 'veri'). Kural ve yetki
@@ -787,12 +788,14 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
     if (!ilkYuklemeRef.current) setYukleniyor(true);
     setHata('');
     try {
-      const [profs, ders, prog, bol, ogr, rnd, ayar, yv, _bos, dersSecim] = await Promise.all([
+      const [profs, ders, prog, bol, , rnd, ayar, yv] = await Promise.all([
         window.apiRead('professors').catch(() => []),
         window.apiRead('sinav_dersler').catch(() => []),
         window.apiRead('course_schedules').catch(() => []),
         window.apiRead('departments').catch(() => []),
-        window.apiRead('students').catch(() => []),
+        // Öğrenci listesi artık ders başına SUNUCUDAN (aşağıda); bütün
+        // öğrenciler ve bütün dönemlerin ders seçimleri indirilmez.
+        Promise.resolve(null),
         window.apiRead('randevu_talepleri').catch(() => []),
         window.apiRead('yoklama_ayarlari').catch(() => []),
         // ⚠ Yoklama verisi genel okuma ucundan DEĞİL: o uç bütün koleksiyonu
@@ -810,7 +813,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
         // seçim yapıyor ve kayıt student_courses'a yazılıyor. Yoklama listesi
         // yalnız eski `students.myCourseIds` alanına bakıyordu; yeni yoldan
         // ders seçen öğrenci listede HİÇ görünmüyordu (lib/ogrenci-ders-secimi.js).
-        window.apiRead('student_courses').catch(() => []),
+        Promise.resolve(null),
       ]);
 
       const esit = (a, b) =>
@@ -820,16 +823,31 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
       setProfil((profs || []).find((p) => esit(p.name, benimAd)) || null);
       // Derslerim: eğitmen eşleşmesi lib/ders-egitmenleri.js'te (çok
       // eğitmenli ders ve unvan farkı orada çözülür).
-      setDersler(
-        (ders || []).filter((d) =>
-          window.dersEgitmeniMi ? window.dersEgitmeniMi(d, benimAd) : esit(d.instructor, benimAd)
-        )
+      const benimDerslerim = (ders || []).filter((d) =>
+        window.dersEgitmeniMi ? window.dersEgitmeniMi(d, benimAd) : esit(d.instructor, benimAd)
       );
+      setDersler(benimDerslerim);
+      // Derslerimin öğrenci listeleri — sunucu, Ders Odaları/yoklama ile aynı
+      // kuralla ve YALNIZ benim derslerim için çözer
+      // (server/routes/yoklama.js → /ders-ogrencileri).
+      const dersIdleri = benimDerslerim.map((d) => metin(d.id)).filter(Boolean);
+      const listeler = dersIdleri.length
+        ? await fetch(
+            '/api/yoklama/ders-ogrencileri?dersler=' + encodeURIComponent(dersIdleri.join(',')),
+            {
+              credentials: 'include',
+              headers: window.yoklamaBasliklari ? window.yoklamaBasliklari() : {},
+            }
+          )
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+        : null;
+      setDersListeleri((listeler && listeler.dersler) || {});
       setProgramDok(Array.isArray(prog) ? prog : []);
       const bolListe = Array.isArray(bol) ? bol.slice() : [];
       (window.DEPARTMENTS || []).forEach((d) => bolListe.push(d));
       setBolumler(bolListe);
-      setOgrenciler(Array.isArray(ogr) ? ogr : []);
+      setOgrenciler(Object.values((listeler && listeler.ogrenciler) || {}));
       setRandevular((rnd || []).filter((r) => esit(r.akademisyen, benimAd)));
 
       const ayarHarita = {};
@@ -846,7 +864,6 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
       const kyt = (yv && yv.kayitlar) || [];
       setOturumlar(otr.filter((o) => esit(o.akademisyen, benimAd)));
       setKatilimKayitlari(Array.isArray(kyt) ? kyt : []);
-      setDersSecimleri(Array.isArray(dersSecim) ? dersSecim : []);
 
       if (window.apiReadDoc && benimAnahtar) {
         const res = await window.apiReadDoc('gorusme_saatleri', benimAnahtar).catch(() => null);
@@ -1024,48 +1041,13 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
   const dersinOgrencileri = useCallback(
     (dersId) => {
       const k = metin(dersId);
-      // Öğrenci numarası → o öğrencinin seçtiği ders kimlikleri.
-      // İKİ KAYNAK: dönem bazlı `student_courses` (yeni yol) ve eski
-      // `students.myCourseIds`. Karar tek yerde: lib/ogrenci-ders-secimi.js.
-      const secimHarita = new Map();
-      (dersSecimleri || []).forEach((d) => {
-        const no = metin(d && (d.studentNumber || String(d.id || '').split('__')[0]));
-        if (!no) return;
-        if (!secimHarita.has(no)) secimHarita.set(no, []);
-        secimHarita.get(no).push(d);
-      });
-      const dersleri = (o) =>
-        window.secilenDersIdleri
-          ? window.secilenDersIdleri(secimHarita.get(metin(o.studentNumber)) || [], o)
-          : Array.isArray(o.myCourseIds)
-            ? o.myCourseIds.map(String)
-            : [];
-      // ⚠ Liste Ders Odaları ile AYNI kuraldan gelir (lib/ogrenci-ders-secimi.js →
-      // dersinOgrenciNolari): yalnız içinde bulunulan dönemin seçimi sayılır,
-      // dersin bütün kimlik biçimleri denenir. Önceki kural geçmiş dönemlerin
-      // seçimini de sayıyordu ve iki modül aynı ders için farklı sayı veriyordu.
-      const ders = (dersler || []).find((d) => metin(d.id) === k);
-      const dersIdleri = [k].concat(
-        ders ? [ders._docId, ders._id, ders.id].map((x) => metin(x)).filter(Boolean) : []
-      );
-      const donemAnahtari =
-        window.DersOdasi && window.DersOdasi.donemAnahtari ? window.DersOdasi.donemAnahtari() : '';
-      const uyeler = window.dersinOgrenciNolari
-        ? new Set(
-            window.dersinOgrenciNolari({
-              dersIdleri,
-              donem: donemAnahtari,
-              donemKayitlari: dersSecimleri || [],
-              ogrenciKayitlari: ogrenciler || [],
-              eskiListe: true,
-            })
-          )
-        : null;
+      // Liste sunucuda Ders Odaları/yoklama ile AYNI kuralla çözülür
+      // (yalnız içinde bulunulan dönemin seçimi; eski liste yalnız o döneme
+      // kaydı olmayan için). Bkz. server/lib/ders-ogrencileri.js.
+      const uyeler = new Set((dersListeleri[k] || []).map(metin));
       return (
         (ogrenciler || [])
-          .filter((o) =>
-            uyeler ? uyeler.has(metin(o.studentNumber)) : dersleri(o).map(String).includes(k)
-          )
+          .filter((o) => uyeler.has(metin(o.studentNumber)))
           // ⚠ Devam listesi künyesi ad/soyad/sınıf/cinsiyeti AYRI sütunlarda
           // istiyor (bkz. lib/yoklama-listesi.js); tek "adSoyad" alanı yetmez.
           // Sınıf öğrenci kaydında çoğu zaman boştur — numaradan türetilir.
@@ -1092,7 +1074,7 @@ function AkademisyenSayfamApp({ currentUser, activeDepartment, departmentInfo })
           )
       );
     },
-    [ogrenciler, dersSecimleri, dersler]
+    [ogrenciler, dersListeleri]
   );
 
   // ── Devamsızlık tablosu (ders başına) ──
