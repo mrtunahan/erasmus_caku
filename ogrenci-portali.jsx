@@ -2834,8 +2834,167 @@ const RichTextEditor = ({ value, onChange, placeholder, onImageUpload, allUsers 
   const editorRef = useRef(null);
   const quillRef = useRef(null);
 
-  // Quill yoksa fallback textarea
-  if (typeof Quill === 'undefined') {
+  // ── QUILL TEMBEL YÜKLENİR ──
+  // Eskiden index.html'de her sayfada (giriş ekranı dahil) sayfayı bekleten
+  // ayrı bir Quill 1.3.7 betiği yükleniyordu; uygulama ise kendi Quill'ini
+  // paketten ayrıca indiriyordu. Artık tek kaynak: shared-components.jsx →
+  // quillYukle (yalnız editör açılınca indirilir).
+  var qs = useState(function () {
+      return null;
+    }),
+    Q = qs[0],
+    setQ = qs[1];
+  var hs = useState(false),
+    yukHata = hs[0],
+    setYukHata = hs[1];
+  useEffect(
+    function () {
+      if (Q) return;
+      var iptal = false;
+      var yukle = window.quillYukle ? window.quillYukle() : Promise.reject(new Error('yok'));
+      yukle
+        .then(function (C) {
+          if (!iptal)
+            setQ(function () {
+              return C;
+            });
+        })
+        .catch(function () {
+          if (!iptal) setYukHata(true);
+        });
+      return function () {
+        iptal = true;
+      };
+    },
+    [Q]
+  );
+
+  useEffect(
+    function () {
+      if (!Q || !editorRef.current || quillRef.current) return;
+
+      var handleDirectImageUpload = function (file, quill) {
+        var validation = validateFile(file, true);
+        if (!validation.valid) {
+          alert(validation.errors.join('\n'));
+          return;
+        }
+        var range = quill.getSelection(true) || { index: quill.getLength() };
+        quill.insertText(range.index, 'Yükleniyor...', { italic: true, color: '#80858E' });
+        quill.setSelection(range.index + 13);
+
+        if (onImageUpload) {
+          onImageUpload(file)
+            .then(function (result) {
+              quill.deleteText(range.index, 13);
+              quill.insertEmbed(range.index, 'image', result.url);
+              quill.setSelection(range.index + 1);
+            })
+            .catch(function (err) {
+              quill.deleteText(range.index, 13);
+              alert('Görsel yüklenemedi: ' + err.message);
+            });
+        }
+      };
+
+      var imageHandler = function () {
+        var input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+        input.onchange = function () {
+          var file = input.files[0];
+          if (!file) return;
+          handleDirectImageUpload(file, quillRef.current);
+        };
+      };
+
+      var quill = new Q(editorRef.current, {
+        theme: 'snow',
+        placeholder: placeholder || 'İçerik yazın...',
+        modules: {
+          toolbar: {
+            container: [
+              [{ header: [2, 3, false] }],
+              ['bold', 'italic', 'underline', 'strike'],
+              [{ color: [] }, { background: [] }],
+              [{ list: 'ordered' }, { list: 'bullet' }],
+              ['blockquote', 'code-block'],
+              ['link', 'image'],
+              ['clean'],
+            ],
+            handlers: {
+              image: imageHandler,
+            },
+          },
+        },
+      });
+
+      if (value) {
+        // Quill 2: içerik panodan yapıştırarak yüklenir (innerHTML modeli güncellemez).
+        quill.clipboard.dangerouslyPasteHTML(sanitizeHtml(value), 'silent');
+      }
+
+      quill.on('text-change', function () {
+        var html = quill.root.innerHTML;
+        if (html === '<p><br></p>') html = '';
+        if (onChange) onChange(html);
+      });
+
+      // Sürükle-bırak görsel desteği
+      quill.root.addEventListener(
+        'drop',
+        function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var files = e.dataTransfer && e.dataTransfer.files;
+          if (files && files.length > 0) {
+            var file = files[0];
+            if (file.type.startsWith('image/')) {
+              handleDirectImageUpload(file, quill);
+            }
+          }
+        },
+        false
+      );
+
+      // Yapıştırma görsel desteği
+      quill.root.addEventListener(
+        'paste',
+        function (e) {
+          var items = e.clipboardData && e.clipboardData.items;
+          if (items) {
+            for (var i = 0; i < items.length; i++) {
+              if (items[i].type.indexOf('image') !== -1) {
+                e.preventDefault();
+                var file = items[i].getAsFile();
+                handleDirectImageUpload(file, quill);
+                break;
+              }
+            }
+          }
+        },
+        false
+      );
+
+      quillRef.current = quill;
+
+      return function () {
+        quillRef.current = null;
+      };
+    },
+    [Q]
+  );
+
+  // Editör yüklenemezse düz metin kutusu; yüklenirken kısa bir bekleme yazısı.
+  if (!Q) {
+    if (!yukHata) {
+      return (
+        <div style={{ padding: '14px 16px', fontSize: 13, color: PC.textMuted }}>
+          Editör yükleniyor…
+        </div>
+      );
+    }
     return (
       <textarea
         value={value || ''}
@@ -2858,119 +3017,6 @@ const RichTextEditor = ({ value, onChange, placeholder, onImageUpload, allUsers 
       />
     );
   }
-
-  useEffect(function () {
-    if (!editorRef.current || quillRef.current) return;
-
-    var handleDirectImageUpload = function (file, quill) {
-      var validation = validateFile(file, true);
-      if (!validation.valid) {
-        alert(validation.errors.join('\n'));
-        return;
-      }
-      var range = quill.getSelection(true) || { index: quill.getLength() };
-      quill.insertText(range.index, 'Yükleniyor...', { italic: true, color: '#80858E' });
-      quill.setSelection(range.index + 13);
-
-      if (onImageUpload) {
-        onImageUpload(file)
-          .then(function (result) {
-            quill.deleteText(range.index, 13);
-            quill.insertEmbed(range.index, 'image', result.url);
-            quill.setSelection(range.index + 1);
-          })
-          .catch(function (err) {
-            quill.deleteText(range.index, 13);
-            alert('Görsel yüklenemedi: ' + err.message);
-          });
-      }
-    };
-
-    var imageHandler = function () {
-      var input = document.createElement('input');
-      input.setAttribute('type', 'file');
-      input.setAttribute('accept', 'image/*');
-      input.click();
-      input.onchange = function () {
-        var file = input.files[0];
-        if (!file) return;
-        handleDirectImageUpload(file, quillRef.current);
-      };
-    };
-
-    var quill = new Quill(editorRef.current, {
-      theme: 'snow',
-      placeholder: placeholder || 'İçerik yazın...',
-      modules: {
-        toolbar: {
-          container: [
-            [{ header: [2, 3, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ color: [] }, { background: [] }],
-            [{ list: 'ordered' }, { list: 'bullet' }],
-            ['blockquote', 'code-block'],
-            ['link', 'image'],
-            ['clean'],
-          ],
-          handlers: {
-            image: imageHandler,
-          },
-        },
-      },
-    });
-
-    if (value) {
-      quill.root.innerHTML = sanitizeHtml(value);
-    }
-
-    quill.on('text-change', function () {
-      var html = quill.root.innerHTML;
-      if (html === '<p><br></p>') html = '';
-      if (onChange) onChange(html);
-    });
-
-    // Sürükle-bırak görsel desteği
-    quill.root.addEventListener(
-      'drop',
-      function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        var files = e.dataTransfer && e.dataTransfer.files;
-        if (files && files.length > 0) {
-          var file = files[0];
-          if (file.type.startsWith('image/')) {
-            handleDirectImageUpload(file, quill);
-          }
-        }
-      },
-      false
-    );
-
-    // Yapıştırma görsel desteği
-    quill.root.addEventListener(
-      'paste',
-      function (e) {
-        var items = e.clipboardData && e.clipboardData.items;
-        if (items) {
-          for (var i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf('image') !== -1) {
-              e.preventDefault();
-              var file = items[i].getAsFile();
-              handleDirectImageUpload(file, quill);
-              break;
-            }
-          }
-        }
-      },
-      false
-    );
-
-    quillRef.current = quill;
-
-    return function () {
-      quillRef.current = null;
-    };
-  }, []);
 
   return (
     <div
