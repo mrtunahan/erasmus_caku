@@ -4870,7 +4870,9 @@ const TemplateEngine = (() => {
       '&docType=' +
       encodeURIComponent(opts.docType || 'uc-aylik') +
       '&departmentId=' +
-      encodeURIComponent(dep || '');
+      encodeURIComponent(dep || '') +
+      // Bölümsüz (fakülte) çıktıda fakülte kapsamlı şablon da aransın.
+      (!dep && opts.facultyId ? '&facultyId=' + encodeURIComponent(opts.facultyId) : '');
     const tryResolve = async (dep) => {
       try {
         const r = await fetch(resolveUrl(dep), { headers, credentials: 'include' });

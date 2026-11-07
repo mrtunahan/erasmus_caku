@@ -547,6 +547,12 @@ const ALLOWED_COLLECTIONS = [
   // Bölüm → fakülte gönderim kaydı. Bölüm "gönderdim" demeden değerleri
   // fakülte toplamına girmez; gönderim bu koleksiyonda durur.
   'performance_submissions',
+  // Akademisyen → bölüm gönderim kaydı (kim, hangi yıl, ne zaman). Bölüm
+  // yetkilisi kimin verisini tamamladığını buradan görür.
+  'performance_akademisyen_gonderimleri',
+  // Üç Aylık Gösterge şablonundaki satır adı → performans göstergesi eşlemesi.
+  // Gösterge yeniden adlandırılsa da satır doğru göstergeye bağlı kalır.
+  'performance_uc_aylik_esleme',
   'strateji_izleme',
   'strateji_atama',
   'strateji_fac_ozet',
@@ -820,6 +826,8 @@ const BASVURU_TAMAMLANDI = {
 
 const DEPT_MANAGER_WRITE = new Set([
   'yol_haritalari',
+  // Üç Aylık Gösterge şablon satırı → gösterge eşlemesi (çıktıyı yetkili üretir).
+  'performance_uc_aylik_esleme',
   // Belge işleme few-shot örnekleri — prompt'un önbelleğe alınan sabit
   // bloğuna gömülür, yani kalitesi doğrudan çıkarım doğruluğunu etkiler.
   // Sade akademisyen/öğrenci değiştiremez.
@@ -982,6 +990,8 @@ const STUDENT_READ_DENY = new Set([
   'performance_reports',
   'performance_agg_rules',
   'performance_submissions',
+  'performance_akademisyen_gonderimleri',
+  'performance_uc_aylik_esleme',
   'strateji_izleme',
   'strateji_atama',
   'strateji_fac_ozet',
@@ -2848,6 +2858,34 @@ async function enforceWritePolicies(db, op, user) {
     }
   }
 
+  // a2a-7) AKADEMİSYEN GÖNDERİMİ: sade akademisyen yalnız KENDİ gönderimini
+  // yazar. Belge kimliği `{akademisyen adı}_{yıl}`. Gönderim zamanı istemciden
+  // gelmez: "ne zaman gönderdi" sorusunun cevabı sahteye açık olmamalı.
+  if (op.collection === 'performance_akademisyen_gonderimleri') {
+    if (user.role === 'student') {
+      return { allow: false, status: 403, error: 'Öğrenci performans gönderimi yapamaz.' };
+    }
+    const flags = await getActorFlags(db, user);
+    if (!flags.admin && !flags.uniAdmin && !flags.facManager && !flags.deptManager) {
+      const ben = String(user.identifier || '').trim();
+      const veri = op.data && typeof op.data === 'object' ? op.data : null;
+      const docIdBenim = !!op.docId && String(op.docId).startsWith(ben + '_');
+      const veriBenim = !veri || !('akademisyenId' in veri) || veri.akademisyenId === ben;
+      if (!ben || op.type === 'add' || !docIdBenim || !veriBenim) {
+        return {
+          allow: false,
+          status: 403,
+          error: 'Yalnız kendi performans verilerinizi gönderebilirsiniz.',
+        };
+      }
+      if (veri && op.type !== 'delete') veri.akademisyenId = ben;
+    }
+    if (op.data && typeof op.data === 'object' && op.type !== 'delete') {
+      op.data.gonderimZamani = new Date().toISOString();
+      op.data.gonderenAd = String(user.identifier || '').trim();
+    }
+  }
+
   // b0) SADE AKADEMİSYEN YALNIZ KENDİ KAYDINA DOKUNUR.
   //
   // ⚠ `professors` "personel yazabilir" kapısından geçiyordu: herhangi bir
@@ -3926,6 +3964,86 @@ async function muafiyetSayaclariTazele(db, colName, docId, data) {
 // Kim, ne zaman: lib/tto-talep.js → ttoBildirimPlani. Bildirim yazılamazsa
 // asıl işlem geri alınmaz; yalnız günlüğe düşer.
 // ══════════════════════════════════════════════════════════════
+// ── PERFORMANS: OKUMA KAPSAMI VE GÖNDERİM BİLDİRİMİ ──
+const PERFORMANS_KAPSAMLI_OKUMA = new Set([
+  'performance_data',
+  'performance_akademisyen_gonderimleri',
+]);
+
+/** Performans kayıtlarında okuyanın görebileceği satırlar (null = hepsi). */
+async function performansOkumaKosulu(db, user) {
+  if (!user || user.role === 'admin') return null;
+  const flags = await getActorFlags(db, user);
+  if (flags.admin || flags.uniAdmin) return null;
+  const ben = String(user.identifier || '').trim();
+  const yonetici = flags.facManager || flags.deptManager || user.role === 'bolum_yetkilisi';
+  if (yonetici) {
+    const alan = await kullaniciAlani(db, user, true);
+    if (alan && alan.tur === 'universite') return null;
+    const bolumler = alan ? [...alan.bolumler].filter(Boolean) : [];
+    return { $or: [{ akademisyenId: ben }, { departmentId: { $in: bolumler } }] };
+  }
+  return { akademisyenId: ben };
+}
+
+/** Tek kayıt performansOkumaKosulu'na uyuyor mu? */
+function performansKaydiGorunurMu(kosul, doc) {
+  if (!kosul) return true;
+  if (!doc) return false;
+  const kosullar = kosul.$or || [kosul];
+  return kosullar.some((k) => {
+    if ('akademisyenId' in k) return String(doc.akademisyenId || '') === String(k.akademisyenId);
+    if (k.departmentId && k.departmentId.$in) {
+      return k.departmentId.$in.map(String).includes(String(doc.departmentId || ''));
+    }
+    return false;
+  });
+}
+
+/**
+ * Akademisyen verisini gönderince bölümün yetkililerine zil bildirimi.
+ * Alıcılar: aynı bölümün (bütün kimlik biçimleriyle) bölüm yetkilileri.
+ */
+async function performansGonderimBildirimi(db, op, user, touched) {
+  if (!op || op.collection !== 'performance_akademisyen_gonderimleri') return;
+  if (op.type === 'delete' || !op.data) return;
+  try {
+    const d = op.data;
+    const bolum = String(d.departmentId || '').trim();
+    if (!bolum) return;
+    const depts = await db.collection('departments').find({}).toArray();
+    const dk = depts.find((x) => bolumKimlikleri(x).includes(bolum));
+    const kimlikler = dk ? bolumKimlikleri(dk) : [bolum];
+    const yetkililer = await db
+      .collection('professors')
+      .find({ isDeptManager: true, departmentId: { $in: kimlikler } }, { projection: { name: 1 } })
+      .toArray();
+    const gonderen = String(d.akademisyenId || (user && user.identifier) || '');
+    const alicilar = [...new Set(yetkililer.map((p) => String(p.name || '').trim()))].filter(
+      (ad) => ad && ad !== gonderen
+    );
+    if (alicilar.length === 0) return;
+    const simdi = new Date().toISOString();
+    await db.collection('notifications').insertMany(
+      alicilar.map((ad) => ({
+        recipientType: 'user',
+        recipientId: ad,
+        module: 'performans',
+        type: 'performans_gonderim',
+        title: 'Performans verisi gönderildi',
+        body: gonderen + ', ' + (d.yil || '') + ' yılı performans göstergelerini gönderdi.',
+        link: 'performans',
+        meta: { akademisyenId: gonderen, yil: String(d.yil || '') },
+        readBy: [],
+        createdAt: simdi,
+      }))
+    );
+    if (touched) touched.add('notifications');
+  } catch (e) {
+    console.warn('Performans gönderim bildirimi üretilemedi:', e && e.message);
+  }
+}
+
 async function ttoBildirimleriGonder(db, op, sonuc, user, touched) {
   if (!op || op.collection !== 'tto_talepleri' || !op._ttoOnce) return;
   try {
@@ -4524,6 +4642,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       const result = await executeSingleOp(db, operations[0]);
       addTouched(operations[0]);
       await ttoBildirimleriGonder(db, operations[0], result, req.user, touched);
+      await performansGonderimBildirimi(db, operations[0], req.user, touched);
       await patentBildirimleriGonder(db, operations[0], result, req.user, touched);
       await mezuniyetBildirimleriGonder(db, operations[0], touched);
       await kopruBildirimleriGonder(db, operations[0], result, touched, req.user);
@@ -4537,6 +4656,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       const result = await executeSingleOp(db, op);
       addTouched(op);
       await ttoBildirimleriGonder(db, op, result, req.user, touched);
+      await performansGonderimBildirimi(db, op, req.user, touched);
       await patentBildirimleriGonder(db, op, result, req.user, touched);
       await mezuniyetBildirimleriGonder(db, op, touched);
       await kopruBildirimleriGonder(db, op, result, touched, req.user);
@@ -4866,6 +4986,20 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
+    // Performans verisi ve akademisyen gönderimleri: sade akademisyen YALNIZ
+    // kendi kayıtlarını, bölüm/fakülte yetkilisi yetki alanındaki bölümlerin
+    // kayıtlarını okur; üniversite yetkilisi ve admin hepsini. Eskiden her
+    // akademisyen herkesin aylık değerlerini veri arayüzünden okuyabiliyordu.
+    if (
+      DB_AUTH_ENFORCED &&
+      user &&
+      user.role !== 'student' &&
+      PERFORMANS_KAPSAMLI_OKUMA.has(collection)
+    ) {
+      const kosul = await performansOkumaKosulu(db, user);
+      if (kosul) filter.$and = (filter.$and || []).concat([kosul]);
+    }
+
     // Mezuniyet başvuruları: personel yalnız kendisini ilgilendireni görür
     // (danışman, yetki alanı, iletilen memur). Öğrenci yukarıda kendi
     // numarasına daraltıldı.
@@ -5118,6 +5252,19 @@ router.get('/:collection/:docId', async (req, res) => {
       const gorunen = (await personelYanitSuzgeci(db, user, [doc]))(doc);
       if (!gorunen) return res.status(403).json({ error: 'Bu yanıta erişim yetkiniz yok.' });
       doc = gorunen;
+    }
+
+    // Performans kaydı: tek belgede de liste kuralı.
+    if (
+      DB_AUTH_ENFORCED &&
+      user &&
+      user.role !== 'student' &&
+      PERFORMANS_KAPSAMLI_OKUMA.has(collection)
+    ) {
+      const kosul = await performansOkumaKosulu(db, user);
+      if (!performansKaydiGorunurMu(kosul, doc)) {
+        return res.status(403).json({ error: 'Bu performans kaydına erişim yetkiniz yok.' });
+      }
     }
 
     // TTO talebi: başkasının talebi tek belge olarak da okunamaz.
