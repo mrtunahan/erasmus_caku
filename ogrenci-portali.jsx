@@ -942,7 +942,13 @@ var PortalDB = {
   },
 
   async fetchNotifications(userId, limit) {
-    var params = {};
+    // YALNIZ bu kullanıcının bildirimleri, en yenisi önce. Eskiden süzgeç ve
+    // sıralama yoktu: koleksiyonun (herkesin) ilk N kaydı geliyordu. Sunucu da
+    // okumayı alıcıya daraltır (`_parentDocId`).
+    var params = {
+      where: '_parentDocId:eq:s:' + String(userId),
+      orderBy: 'createdAt:desc',
+    };
     if (limit) params.limit = limit;
     var results = await window.apiRead('portal_notifications_items', params);
     results.sort(function (a, b) {
@@ -972,7 +978,10 @@ var PortalDB = {
   },
 
   async markAllNotificationsRead(userId) {
-    var allNotifs = await window.apiRead('portal_notifications_items', { where: 'read:eq:false' });
+    // Yalnız bu kullanıcının okunmamışları (eskiden HERKESİNKİ okundu yapılıyordu).
+    var allNotifs = await window.apiRead('portal_notifications_items', {
+      where: ['read:eq:false', '_parentDocId:eq:s:' + String(userId)],
+    });
     if (allNotifs.length === 0) return;
     var ops = allNotifs.map(function (doc) {
       return {

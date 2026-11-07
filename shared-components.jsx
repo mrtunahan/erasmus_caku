@@ -13156,31 +13156,6 @@ const ChangePasswordModal = ({ currentUser, onClose }) => {
 // hiçbiri tanımlı değildi ve hata try/catch'te yutulduğu için öğrenci
 // bildirimleri HİÇ yazılmıyordu. Güncel API: DB / DBWrite.
 const StudentNotifier = {
-  async _fetchStudents() {
-    try {
-      return await DB.fetchStudents();
-    } catch (e) {
-      console.warn('StudentNotifier: öğrenciler alınamadı', e);
-      return [];
-    }
-  },
-  async _fetchCoursesByCode(departmentId, code) {
-    try {
-      var snap = await window.apiFirestore.collection('sinav_dersler').get();
-      var all = snap.docs.map(function (d) {
-        return Object.assign({ id: d.id }, d.data());
-      });
-      var normalized = (code || '').toString().trim().toLowerCase();
-      return all.filter(function (c) {
-        if (!normalized) return false;
-        if (departmentId && c.departmentId !== departmentId) return false;
-        return (c.code || '').toString().trim().toLowerCase() === normalized;
-      });
-    } catch (e) {
-      console.warn('StudentNotifier: dersler alınamadı', e);
-      return [];
-    }
-  },
   async _addNotification(studentNumber, payload) {
     // Tekleştirilmiş bildirim: hem eski student_notifications (Benim Sayfam)
     // hem de merkezi notifications koleksiyonuna (Notify → çan menüsü) yazar.
@@ -13251,76 +13226,60 @@ const StudentNotifier = {
     if (!studentNumber) return;
     await StudentNotifier._addNotification(String(studentNumber), payload || {});
   },
-  async notifyCourseStudents(departmentId, courseCode, payload) {
+  // ── TOPLU BİLDİRİM SUNUCUDA ──
+  // Eskiden öğrenci başına TARAYICIDAN ayrı yazma isteği gidiyordu (yazma
+  // sınırına takılıp çoğu düşüyordu) ve ders öğrencilerini bulan kod tanımsız
+  // bir eski arayüze bağlı olduğu için ders bildirimi hiç gitmiyordu.
+  // Alıcılar artık sunucuda çözülür: server/routes/bildirim.js → /toplu.
+  async _topluGonder(govde) {
     try {
-      var courses = await this._fetchCoursesByCode(departmentId, courseCode);
-      if (courses.length === 0) return;
-      var courseIds = courses.map(function (c) {
-        return c.id;
+      var token = localStorage.getItem('caku_auth_token');
+      var r = await fetch('/api/bildirim/toplu', {
+        method: 'POST',
+        credentials: 'include',
+        headers: Object.assign(
+          { 'Content-Type': 'application/json' },
+          token ? { Authorization: 'Bearer ' + token } : {}
+        ),
+        body: JSON.stringify(govde),
       });
-      var students = await this._fetchStudents();
-      // ── SEÇİM İKİ YERDE OLABİLİR ──
-      // ⚠ BURASI YALNIZ `students.myCourseIds`e (eski tek-liste seçim)
-      // bakıyordu. Benim Sayfam seçimi artık DÖNEM bazlı `student_courses`a
-      // yazıyor; yeni yoldan ders seçen öğrenci bu süzgeçten hiç geçmiyor ve
-      // bildirim SESSİZCE gitmiyordu. Karar tek yerde:
-      // lib/ogrenci-ders-secimi.js → secilenDersIdleri.
-      var donemKayitlari = [];
-      try {
-        donemKayitlari = await apiRead('student_courses');
-      } catch {
-        /* okunamazsa eski alanla devam edilir — bildirim hiç gitmemesindense */
-      }
-      var donemHaritasi = {};
-      (donemKayitlari || []).forEach(function (d) {
-        if (!d) return;
-        // Belge kimliği `{öğrenciNo}__{dönem}`; `studentNumber` eski
-        // kayıtlarda olmayabilir.
-        var no = String(d.studentNumber || String(d.id || '').split('__')[0] || '').trim();
-        if (!no) return;
-        if (!donemHaritasi[no]) donemHaritasi[no] = [];
-        donemHaritasi[no].push(d);
+      var j = await r.json().catch(function () {
+        return {};
       });
-      var targets = students.filter(function (s) {
-        if (departmentId && s.departmentId !== departmentId) return false;
-        var no = String(s.studentNumber || '').trim();
-        var idler = window.secilenDersIdleri
-          ? window.secilenDersIdleri(donemHaritasi[no] || [], s)
-          : Array.isArray(s.myCourseIds)
-            ? s.myCourseIds
-            : [];
-        if (idler.length === 0) return false;
-        return idler.some(function (id) {
-          return courseIds.indexOf(id) !== -1;
-        });
-      });
-      await Promise.all(
-        targets.map(function (s) {
-          return StudentNotifier._addNotification(s.studentNumber, payload);
-        })
-      );
+      if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+      return j;
     } catch (e) {
-      console.warn('StudentNotifier: ders bildirimi gönderilemedi', e);
+      console.warn('StudentNotifier: toplu bildirim gönderilemedi', e);
+      return { ok: false, hata: e && e.message };
     }
   },
-  // Portal duyurusunda bölüm öğrencilerinin tümüne bildirim yolla
+  async notifyCourseStudents(departmentId, courseCode, payload) {
+    var p = payload || {};
+    return this._topluGonder({
+      hedef: 'ders',
+      departmentId: departmentId || '',
+      dersKodu: courseCode || '',
+      title: p.title,
+      message: p.message,
+      type: p.type,
+      link: p.link,
+      module: p.module,
+      meta: p.courseCode ? { courseCode: p.courseCode } : {},
+    });
+  },
   async notifyDepartmentStudents(departmentId, payload, excludeStudentNumber) {
-    try {
-      var students = await this._fetchStudents();
-      var targets = students.filter(function (s) {
-        if (departmentId && s.departmentId !== departmentId) return false;
-        if (excludeStudentNumber && String(s.studentNumber) === String(excludeStudentNumber))
-          return false;
-        return true;
-      });
-      await Promise.all(
-        targets.map(function (s) {
-          return StudentNotifier._addNotification(s.studentNumber, payload);
-        })
-      );
-    } catch (e) {
-      console.warn('StudentNotifier: bölüm bildirimi gönderilemedi', e);
-    }
+    var p = payload || {};
+    return this._topluGonder({
+      hedef: 'bolum',
+      departmentId: departmentId || '',
+      haric: excludeStudentNumber || '',
+      title: p.title,
+      message: p.message,
+      type: p.type,
+      link: p.link,
+      module: p.module,
+      meta: p.postId ? { postId: p.postId } : {},
+    });
   },
 };
 window.StudentNotifier = StudentNotifier;

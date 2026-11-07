@@ -67,6 +67,14 @@ function auditWrites(getDb) {
     const operations = Array.isArray(req.body?.operations) ? req.body.operations : [];
     const opsSummary = operations.slice(0, 100).map(summarizeOp);
 
+    // Yalnız istemci denetim kaydı (window.audit → audit_logs ekleme) taşıyan
+    // istek ayrıca 'api_write' olarak kaydedilmez: kayıt zaten kendisidir,
+    // ikinci satır günlüğü çift sayardı.
+    const yalnizDenetim =
+      operations.length > 0 &&
+      operations.every((o) => o && o.collection === 'audit_logs' && o.type === 'add');
+    if (yalnizDenetim) return next();
+
     res.on('finish', () => {
       // Sadece başarılı veya başarısız yazma denemelerini logla; sağlık kontrolü vb. dışarıda
       const actorInfo = actorFrom(req);

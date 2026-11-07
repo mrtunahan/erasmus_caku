@@ -246,5 +246,148 @@ router.post('/sil', requireAuth, async (req, res) => {
   }
 });
 
+// ══════════════════════════════════════════════════════════════
+// TOPLU BİLDİRİM — POST /api/bildirim/toplu
+//
+// "Bölümün öğrencileri" ve "dersin öğrencileri"ne giden bildirimler eskiden
+// TARAYICIDAN, öğrenci başına AYRI bir yazma isteğiyle gönderiliyordu:
+//   • 1000 öğrencili bölümde 1000 istek; kişi başı yazma sınırı dakikada
+//     120 olduğu için bildirimlerin çoğu sessizce düşüyor, gönderenin diğer
+//     işlemleri de bir dakika bloke oluyordu.
+//   • Ders öğrencilerini bulan kod tanımsız bir eski arayüze bağlıydı;
+//     "yeni proje grubu açıldı" bildirimi HİÇ gitmiyordu.
+// Alıcılar artık sunucuda çözülür, kayıtlar tek seferde yazılır:
+//   student_notifications (Benim Sayfam listesi) + notifications (zil).
+//
+// Gövde: { hedef: 'bolum' | 'ders', departmentId, dersKodu?, haric?,
+//          title, message, type?, link?, meta? }
+// Yetki: personel (öğrenci değil); 'bolum' hedefi için ayrıca portal
+// moderatörü öğrenci.
+// ══════════════════════════════════════════════════════════════
+const TOPLU_UST_SINIR = 20000;
+const { dersListesi } = require('../lib/ders-ogrencileri');
+
+async function portalModeratoruMu(db, user) {
+  const adaylar = [user.identifier, user.email, user.name].map(metin).filter(Boolean);
+  try {
+    if (user.role === 'student') {
+      const no = metin(user.identifier);
+      const s = await db
+        .collection('students')
+        .findOne({ studentNumber: { $in: [no, Number(no)] } });
+      if (s) {
+        adaylar.push(
+          metin(s.email),
+          metin(s.name),
+          metin([s.firstName, s.lastName].filter(Boolean).join(' '))
+        );
+      }
+    }
+    const kimlikler = [...new Set(adaylar.filter(Boolean))];
+    if (!kimlikler.length) return false;
+    const m = await db
+      .collection('portal_moderators')
+      .findOne({ $or: [{ _docId: { $in: kimlikler } }, { userId: { $in: kimlikler } }] });
+    return !!m;
+  } catch (_) {
+    return false;
+  }
+}
+
+router.post('/toplu', requireAuth, async (req, res) => {
+  try {
+    const user = req.user || {};
+    const b = req.body || {};
+    const hedef = metin(b.hedef);
+    const bolum = metin(b.departmentId);
+    if (hedef !== 'bolum' && hedef !== 'ders') {
+      return res.status(400).json({ error: 'Geçersiz hedef.' });
+    }
+    if (user.aday) return res.status(403).json({ error: 'Aday toplu bildirim gönderemez.' });
+    const db = await getDbSafe();
+    if (user.role === 'student') {
+      const izin = hedef === 'bolum' && (await portalModeratoruMu(db, user));
+      if (!izin) return res.status(403).json({ error: 'Toplu bildirimi öğrenci gönderemez.' });
+    }
+    const title = metin(b.title).slice(0, 200);
+    const message = metin(b.message).slice(0, 1000);
+    if (!title && !message) return res.status(400).json({ error: 'Bildirim metni boş.' });
+
+    // Bölümün bütün kimlik biçimleri (slug, ObjectId, kod, eski kimlik).
+    const depts = await db.collection('departments').find({}).toArray();
+    const harita = bolumKimlikHaritasi(depts);
+    const bolumler = bolum ? bolumVaryantlari(harita, bolum) : [];
+
+    let nolar = [];
+    if (hedef === 'bolum') {
+      if (!bolumler.length) return res.status(400).json({ error: 'Bölüm belirtilmedi.' });
+      const ogr = await db
+        .collection('students')
+        .find({ departmentId: { $in: bolumler } }, { projection: { studentNumber: 1 } })
+        .limit(TOPLU_UST_SINIR)
+        .toArray();
+      nolar = ogr.map((o) => metin(o.studentNumber));
+    } else {
+      const kod = metin(b.dersKodu).toLocaleUpperCase('tr-TR');
+      if (!kod) return res.status(400).json({ error: 'Ders kodu belirtilmedi.' });
+      const dersler = await db
+        .collection('sinav_dersler')
+        .find(bolumler.length ? { departmentId: { $in: bolumler } } : {})
+        .toArray();
+      const idler = dersler
+        .filter((d) => metin(d.code).toLocaleUpperCase('tr-TR') === kod)
+        .map((d) => metin(d._docId || (d._id && d._id.toString())))
+        .filter(Boolean);
+      const kume = new Set();
+      for (const id of idler) (await dersListesi(db, id)).forEach((n) => kume.add(n));
+      nolar = [...kume];
+    }
+    const haric = metin(b.haric);
+    nolar = [...new Set(nolar.filter((n) => n && n !== haric))];
+    if (!nolar.length) return res.json({ ok: true, gonderilen: 0 });
+
+    const simdi = new Date().toISOString();
+    const tur = metin(b.type).slice(0, 60) || 'bilgi';
+    const link = metin(b.link).slice(0, 60);
+    const meta = b.meta && typeof b.meta === 'object' ? b.meta : {};
+    const gonderen = metin(user.name || user.identifier);
+    await db.collection('student_notifications').insertMany(
+      nolar.map((no) => ({
+        studentNumber: no,
+        type: tur,
+        title,
+        message,
+        link,
+        ...meta,
+        gonderen,
+        read: false,
+        createdAt: simdi,
+      }))
+    );
+    await db.collection('notifications').insertMany(
+      nolar.map((no) => ({
+        recipientType: 'user',
+        recipientId: no,
+        module: metin(b.module).slice(0, 40) || 'sistem',
+        type: tur,
+        title: title || 'Bildirim',
+        body: message,
+        link,
+        meta: { kaynak: 'student_notifications', toplu: hedef },
+        readBy: [],
+        createdAt: simdi,
+      }))
+    );
+    const io = req.app && req.app.get && req.app.get('io');
+    if (io) {
+      io.emit('db:write', { collections: ['notifications', 'student_notifications'], at: simdi });
+    }
+    return res.json({ ok: true, gonderilen: nolar.length });
+  } catch (e) {
+    console.error('[bildirim/toplu]', e && e.message);
+    return res.status(500).json({ error: 'Toplu bildirim gönderilemedi.' });
+  }
+});
+
 module.exports = router;
 module.exports.idSorgusu = idSorgusu;

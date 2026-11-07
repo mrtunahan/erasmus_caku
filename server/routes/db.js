@@ -2858,6 +2858,33 @@ async function enforceWritePolicies(db, op, user) {
     }
   }
 
+  // a2a-8) PORTAL BİLDİRİMİ: başkasının bildirimini okundu yapmak ya da silmek
+  // yasak. (Ekleme serbest: bahsetme bildirimi BAŞKASINA yazılır.)
+  if (
+    op.collection === 'portal_notifications' &&
+    op.subCollection &&
+    (op.type === 'update' || op.type === 'delete' || op.type === 'set') &&
+    op.docId
+  ) {
+    let mevcut = null;
+    try {
+      mevcut = await findDocByAnyId(db, getCollectionName(op), op.docId);
+    } catch (_) {
+      mevcut = null;
+    }
+    if (mevcut) {
+      const kimlikler = await portalKimlikleri(db, user);
+      const sahip = String(mevcut._parentDocId || op.parentDocId || '');
+      if (!kimlikler.includes(sahip)) {
+        return {
+          allow: false,
+          status: 403,
+          error: 'Yalnız kendi bildirimlerinizi değiştirebilirsiniz.',
+        };
+      }
+    }
+  }
+
   // a2a-7) AKADEMİSYEN GÖNDERİMİ: sade akademisyen yalnız KENDİ gönderimini
   // yazar. Belge kimliği `{akademisyen adı}_{yıl}`. Gönderim zamanı istemciden
   // gelmez: "ne zaman gönderdi" sorusunun cevabı sahteye açık olmamalı.
@@ -3859,9 +3886,46 @@ async function readDecision(collection, user, getDb) {
 }
 
 // Yazma yetkisi kararı (tek işlem için)
+// ── İSTEMCİ DENETİM KAYDI (window.audit) ──
+// audit_logs API'den DEĞİŞTİRİLEMEZ ve SİLİNEMEZ; yalnız EKLENEBİLİR ve
+// kim / rol / zaman alanları oturumdan damgalanır (sahte kayıt olamaz).
+// Eskiden koleksiyon tümden yasaktı: istemcinin 53 yerdeki anlamlı kaydı
+// ("ders oluşturuldu" …) hiç yazılmıyor, her deneme günlüğe ayrıca bir 403
+// satırı düşürüyordu.
+function istemciDenetimKaydi(op, user) {
+  if (op.collection !== 'audit_logs' || op.type !== 'add') return false;
+  const d = op.data && typeof op.data === 'object' ? op.data : {};
+  const kisa = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const jsonKisa = (v) => {
+    if (v == null) return null;
+    try {
+      const t = JSON.stringify(v);
+      return t.length > 8000 ? { kesildi: true, ozet: t.slice(0, 8000) } : v;
+    } catch (_) {
+      return null;
+    }
+  };
+  op.data = {
+    action: kisa(d.action, 80),
+    target: kisa(d.target, 80),
+    targetId: kisa(d.targetId, 200),
+    departmentId: kisa(d.departmentId, 80),
+    before: jsonKisa(d.before),
+    after: jsonKisa(d.after),
+    meta: jsonKisa(d.meta) || {},
+    actor: kisa(user.identifier, 200),
+    actorRole: kisa(user.role, 40),
+    kaynak: 'istemci',
+    createdAt: new Date().toISOString(),
+    at: new Date(),
+  };
+  return !!op.data.action;
+}
+
 function writeDecision(op, user) {
   if (!DB_AUTH_ENFORCED) return { allow: true };
   if (!user) return { allow: false, status: 401, error: 'Yazma işlemi için giriş gereklidir.' };
+  if (istemciDenetimKaydi(op, user)) return { allow: true };
   if (WRITE_DENY.has(op.collection)) {
     return {
       allow: false,
@@ -3984,6 +4048,44 @@ async function performansOkumaKosulu(db, user) {
     return { $or: [{ akademisyenId: ben }, { departmentId: { $in: bolumler } }] };
   }
   return { akademisyenId: ben };
+}
+
+/**
+ * Öğrenci Portalı kullanıcı kimlikleri. Portal kişiyi `email || ad` ile
+ * tanır (ogrenci-portali.jsx → getUserId); oturum ise numara/ad taşır. Bu
+ * kişinin portalda kullanılabilecek bütün kimlikleri.
+ */
+async function portalKimlikleri(db, user) {
+  const out = new Set();
+  const ekle = (v) => {
+    const t = String(v == null ? '' : v).trim();
+    if (t) out.add(t);
+  };
+  ekle(user.identifier);
+  ekle(user.email);
+  ekle(user.name);
+  try {
+    if (user.role === 'student') {
+      const no = String(user.identifier || '');
+      const s = await db.collection('students').findOne({
+        studentNumber: { $in: [no, Number(no)].filter((x) => x !== '' && !Number.isNaN(x)) },
+      });
+      if (s) {
+        ekle(s.email);
+        ekle(s.name);
+        ekle([s.firstName, s.lastName].filter(Boolean).join(' '));
+      }
+    } else {
+      const p = await profilBul(db, user.identifier);
+      if (p) {
+        ekle(p.email);
+        ekle(p.name);
+      }
+    }
+  } catch (_) {
+    /* kimlik çözülemezse yalnız oturum kimliği */
+  }
+  return [...out];
 }
 
 /** Tek kayıt performansOkumaKosulu'na uyuyor mu? */
@@ -4361,6 +4463,20 @@ async function zilEsitle(db, op, sonuc, touched, user) {
 async function executeSingleOp(db, op) {
   const colName = getCollectionName(op);
   const col = db.collection(colName);
+  // ── ALT KOLEKSİYON KAYDININ SAHİBİ ──
+  // `{koleksiyon}_{alt}` düz bir koleksiyona yazılıyor; üst belge kimliği
+  // (ör. portal bildiriminin alıcısı) kayda HİÇ yazılmıyordu. Okuma tarafı
+  // kime ait olduğunu bilemiyor, herkes herkesin bildirimini görüyordu.
+  // Kimlik artık `_parentDocId` alanında saklanır ve okuma ona göre süzülür.
+  if (
+    op.parentDocId &&
+    op.subCollection &&
+    (op.type === 'add' || op.type === 'set') &&
+    op.data &&
+    typeof op.data === 'object'
+  ) {
+    op.data._parentDocId = String(op.parentDocId);
+  }
 
   switch (op.type) {
     case 'add': {
@@ -4986,6 +5102,14 @@ router.get('/:collection', async (req, res) => {
       }
     }
 
+    // Portal bildirimleri: herkes YALNIZ kendine gelenleri okur (alıcı
+    // `_parentDocId`; portal kimliği e-posta ya da ad olabilir — bkz.
+    // portalKimlikleri). Yönetici ayrıcalığı yok: bildirim kişiseldir.
+    if (DB_AUTH_ENFORCED && user && collection === 'portal_notifications_items') {
+      const kimlikler = await portalKimlikleri(db, user);
+      filter.$and = (filter.$and || []).concat([{ _parentDocId: { $in: kimlikler } }]);
+    }
+
     // Performans verisi ve akademisyen gönderimleri: sade akademisyen YALNIZ
     // kendi kayıtlarını, bölüm/fakülte yetkilisi yetki alanındaki bölümlerin
     // kayıtlarını okur; üniversite yetkilisi ve admin hepsini. Eskiden her
@@ -5252,6 +5376,14 @@ router.get('/:collection/:docId', async (req, res) => {
       const gorunen = (await personelYanitSuzgeci(db, user, [doc]))(doc);
       if (!gorunen) return res.status(403).json({ error: 'Bu yanıta erişim yetkiniz yok.' });
       doc = gorunen;
+    }
+
+    // Portal bildirimi: tek belgede de yalnız alıcısı.
+    if (DB_AUTH_ENFORCED && user && collection === 'portal_notifications_items') {
+      const kimlikler = await portalKimlikleri(db, user);
+      if (!kimlikler.includes(String(doc._parentDocId || ''))) {
+        return res.status(403).json({ error: 'Bu bildirime erişim yetkiniz yok.' });
+      }
     }
 
     // Performans kaydı: tek belgede de liste kuralı.
