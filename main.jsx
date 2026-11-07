@@ -128,10 +128,6 @@ window.__lazyModules = {
     loader: () => import('./kullanici-yonetimi.jsx'),
     component: 'KullaniciYonetimiApp',
   },
-  kaynaklar: {
-    loader: () => import('./kaynak-kutuphanesi.jsx'),
-    component: 'KaynakKutuphanesiApp',
-  },
   staj: { loader: () => import('./staj-modulu.jsx'), component: 'StajModuluApp' },
   mezuniyet: { loader: () => import('./mezuniyet-modulu.jsx'), component: 'MezuniyetApp' },
   dersprogrami: { loader: () => import('./ders-programi.jsx'), component: 'DersProgramiApp' },
