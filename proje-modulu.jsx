@@ -3861,6 +3861,8 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
             onClick={function () {
               setSelectedCourse(null);
               setSearchQuery('');
+              setShowCourseModal(false);
+              setEditingCourse(null);
             }}
             style={{
               background: '#FFFFFF',
@@ -4025,7 +4027,10 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                 )}
               </div>
 
-              {(isAdmin || (canManage && projects.length > 0)) && (
+              {(isAdmin ||
+                isDeptManager ||
+                (isProfessor && prjMatchesProfessor(selectedCourse.professor, userName)) ||
+                (canManage && projects.length > 0)) && (
                 <div
                   style={{
                     display: 'flex',
@@ -4034,12 +4039,17 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
                     justifyContent: 'flex-end',
                   }}
                 >
-                  {isAdmin && (
+                  {/* Süre uzatma / düzenleme: yönetici, bölüm yetkilisi ya da dersin
+                      kendi akademisyeni. */}
+                  {(isAdmin ||
+                    isDeptManager ||
+                    (isProfessor && prjMatchesProfessor(selectedCourse.professor, userName))) && (
                     <button
                       onClick={function () {
                         setEditingCourse(selectedCourse);
                         setShowCourseModal(true);
                       }}
+                      data-proje-ders-duzenle
                       style={glassBtn}
                     >
                       <PrjIcon path={PRJ_ICONS.edit} size={15} color="#15181D" /> Düzenle
@@ -4381,6 +4391,30 @@ function ProjeModuluApp({ currentUser, activeDepartment, departmentInfo }) {
           minGroupSize={selectedCourse ? selectedCourse.minGroupSize : undefined}
           maxGroupSize={selectedCourse ? selectedCourse.maxGroupSize : undefined}
           departmentId={activeDepartment}
+        />
+      )}
+
+      {/* Ders detayındaki "Düzenle" (son tarihi uzatma dahil). Pencere eskiden
+          yalnız ders listesi görünümünde çiziliyordu: detayda düğmeye basınca
+          açık işaretleniyor ama görünmüyor, "Derslere Dön"e basınca beliriyordu. */}
+      {showCourseModal && (
+        <AddCourseModal
+          onClose={function () {
+            setShowCourseModal(false);
+            setEditingCourse(null);
+          }}
+          onAdd={handleAddCourse}
+          editCourse={editingCourse}
+          categoryLabel={
+            (
+              PROJECT_CATEGORIES.find(function (c) {
+                return c.id === activeCategory;
+              }) || PROJECT_CATEGORIES[0]
+            ).label
+          }
+          availableCourses={deptCourses}
+          isProfessor={isProfessor}
+          currentUserName={userName}
         />
       )}
 
