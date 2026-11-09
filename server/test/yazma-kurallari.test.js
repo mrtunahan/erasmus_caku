@@ -640,3 +640,80 @@ test('ders seçimleri: öğrenci yalnız kendi seçimlerini okur (eski kimlik bi
     'başkasının seçimi gelmez: ' + JSON.stringify(j.map((x) => x.id))
   );
 });
+
+test('portal etkileşimi: öğrenci başkasının gönderisine tepki/oy verir, yalnız kendi adına', async () => {
+  await db.collection('portal_posts').insertOne({
+    _docId: 'post1',
+    authorId: '2021002',
+    _owner: '2021002',
+    studentNumber: '2021002',
+    title: 'Gönderi',
+    reactions: { like: [] },
+    upvotes: ['diger'],
+    downvotes: [],
+  });
+  const guncelle = (t, data, ek) =>
+    fetch(taban + '/api/db/write', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + t },
+      body: JSON.stringify({
+        operations: [{ collection: 'portal_posts', type: 'update', docId: 'post1', data, ...ek }],
+      }),
+    });
+  const tepki = await guncelle(OGR, { 'reactions.like': ['2021001'] });
+  assert.equal(tepki.status, 200, await tepki.text());
+  let p = await bul('portal_posts', { _docId: 'post1' });
+  assert.deepEqual(p.reactions.like, ['2021001']);
+
+  const sahte = await guncelle(OGR, { upvotes: ['diger', '2021001', 'baskasi'] });
+  assert.equal(sahte.status, 403, 'başkası adına oy verilemez');
+
+  const oy = await guncelle(OGR, { upvotes: ['diger', '2021001'], voteScore: 999 });
+  assert.equal(oy.status, 200);
+  p = await bul('portal_posts', { _docId: 'post1' });
+  assert.equal(p.voteScore, 2, 'oy puanı sunucuda hesaplanır');
+
+  const icerik = await guncelle(OGR, { title: 'Değişti' });
+  assert.equal(icerik.status, 403, 'içerik değiştirilemez');
+
+  // Yorum: gönderisine bağlanır, sayaç sunucuda
+  const yorum = await fetch(taban + '/api/db/write', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + OGR },
+    body: JSON.stringify({
+      operations: [
+        {
+          collection: 'portal_posts',
+          type: 'add',
+          parentDocId: 'post1',
+          subCollection: 'comments',
+          data: { text: 'yorum', authorId: '2021001', likes: [] },
+        },
+      ],
+    }),
+  });
+  assert.equal(yorum.status, 200, await yorum.text());
+  p = await bul('portal_posts', { _docId: 'post1' });
+  assert.equal(p.commentCount, 1);
+  const y = await bul('portal_posts_comments', { text: 'yorum' });
+  assert.equal(y._parentDocId, 'post1');
+
+  // Başkasının yorumunu beğenme
+  const begen = await fetch(taban + '/api/db/write', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + OGR2 },
+    body: JSON.stringify({
+      operations: [
+        {
+          collection: 'portal_posts',
+          type: 'update',
+          docId: String(y._id),
+          parentDocId: 'post1',
+          subCollection: 'comments',
+          data: { likes: ['2021002'] },
+        },
+      ],
+    }),
+  });
+  assert.equal(begen.status, 200, await begen.text());
+});

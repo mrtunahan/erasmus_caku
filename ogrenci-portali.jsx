@@ -762,18 +762,17 @@ var PortalDB = {
       likes: [],
     });
     var result = await window.DBWrite.add('portal_posts', commentData, String(postId), 'comments');
-    // ⚠ SAYAÇ SUNUCUDA ARTIRILIR. Eskiden sayı okunup +1 yazılıyordu; okuma
-    // önbellekli olduğu için (ve iki kişi aynı anda yorum yazabildiği için)
-    // sayı gerçek yorum sayısından sapıyordu. `__increment` sunucuda $inc'e
-    // çevrilir (server/routes/db.js → addTimestamps) ve yarışa dayanıklıdır.
-    await window.DBWrite.update('portal_posts', String(postId), {
-      commentCount: '__increment:1',
-    });
+    // Yorum sayısını SUNUCU yeniden sayar (server/routes/db.js → portalYorumSayaci).
     return Object.assign({}, comment, { id: result.id });
   },
 
-  async fetchComments(_postId) {
-    var results = await window.apiRead('portal_posts_comments');
+  async fetchComments(postId) {
+    // YALNIZ bu gönderinin yorumları. Eskiden süzgeç yoktu: her gönderinin
+    // altında BÜTÜN gönderilerin yorumları görünüyordu. Gönderi kimliği
+    // sunucuda `_parentDocId` alanına yazılır.
+    var results = await window.apiRead('portal_posts_comments', {
+      where: '_parentDocId:eq:s:' + String(postId),
+    });
     results.sort(function (a, b) {
       var ta = a.createdAt
         ? a.createdAt._seconds
@@ -827,10 +826,7 @@ var PortalDB = {
     for (var i = 0; i < ops.length; i += 20) {
       await window.DBWrite.batch(ops.slice(i, i + 20));
     }
-    // Sayaç sunucuda azaltılır (yukarıdaki nota bakın).
-    await window.DBWrite.update('portal_posts', String(postId), {
-      commentCount: '__increment:-' + deleteCount,
-    });
+    // Yorum sayısını sunucu yeniden sayar.
     return deleteCount;
   },
 
