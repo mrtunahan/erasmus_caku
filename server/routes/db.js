@@ -3565,6 +3565,13 @@ async function enforceWritePolicies(db, op, user) {
       }
     }
 
+    // Portal etkileşimi (tepki, oy, yorum beğenisi) başkasının kaydında.
+    // Eskiden hiç izin yoktu: öğrencinin her beğenisi ve oyu reddediliyordu.
+    if (op.collection === 'portal_posts' && op.type === 'update') {
+      const karar = await portalEtkilesimKarari(db, op, user);
+      if (karar) return karar;
+    }
+
     // Portal içeriği silme: sahip değilse moderatör olmalı
     if (op.type === 'delete' && STUDENT_DELETE_OWNED.has(op.collection)) {
       if (await isPortalModerator(db, ident)) return { allow: true };
@@ -4090,6 +4097,81 @@ async function portalKimlikleri(db, user) {
     /* kimlik çözülemezse yalnız oturum kimliği */
   }
   return [...out];
+}
+
+// ── PORTAL ETKİLEŞİMİ ──
+// Öğrenci başkasının gönderisinde yalnız tepki/oy listelerini, yorumda
+// yalnız beğeni listesini değiştirebilir ve listelerde YALNIZ kendi
+// kimliğini (portal kimliği: e-posta ya da ad) ekleyip çıkarabilir; kimse
+// başkası adına oy veremez. Oy puanı sunucuda hesaplanır.
+const PORTAL_LISTE_ALANI = /^(reactions\.[A-Za-z0-9_]{1,30}|upvotes|downvotes|likes)$/;
+async function portalEtkilesimKarari(db, op, user) {
+  const d = op.data && typeof op.data === 'object' ? op.data : null;
+  if (!d || !op.docId) return null;
+  const yorum = !!op.subCollection;
+  const alanlar = Object.keys(d).filter((a) => a !== 'voteScore' && a !== 'updatedAt');
+  if (!alanlar.length) return null;
+  const izinli = alanlar.every(
+    (a) => PORTAL_LISTE_ALANI.test(a) && (yorum ? a === 'likes' : a !== 'likes')
+  );
+  if (!izinli) return null;
+  const mevcut = await findDocByAnyId(
+    db,
+    yorum ? 'portal_posts_comments' : 'portal_posts',
+    op.docId
+  ).catch(() => null);
+  if (!mevcut) return null;
+  const kimlikler = new Set(await portalKimlikleri(db, user));
+  const oku = (o, yol) => yol.split('.').reduce((x, k) => (x == null ? x : x[k]), o);
+  for (const a of alanlar) {
+    if (!Array.isArray(d[a])) return { allow: false, status: 400, error: 'Geçersiz liste.' };
+    const once = new Set((oku(mevcut, a) || []).map(String));
+    const sonra = new Set(d[a].map(String));
+    const degisen = [...once]
+      .filter((x) => !sonra.has(x))
+      .concat([...sonra].filter((x) => !once.has(x)));
+    if (degisen.some((x) => !kimlikler.has(x))) {
+      return {
+        allow: false,
+        status: 403,
+        error: 'Yalnız kendi tepkinizi/oyunuzu değiştirebilirsiniz.',
+      };
+    }
+    d[a] = [...sonra];
+  }
+  if (!yorum && ('upvotes' in d || 'downvotes' in d)) {
+    const up = d.upvotes || mevcut.upvotes || [];
+    const down = d.downvotes || mevcut.downvotes || [];
+    d.voteScore = up.length - down.length;
+  } else {
+    delete d.voteScore;
+  }
+  return { allow: true };
+}
+
+/**
+ * Yorum eklenince/silinince gönderinin yorum sayısı SUNUCUDA, kayıttan
+ * yeniden sayılır (öğrenci başkasının gönderisine sayaç yazamıyordu; sayı
+ * hiç artmıyordu).
+ */
+async function portalYorumSayaci(db, op, touched) {
+  if (!op || op.collection !== 'portal_posts' || op.subCollection !== 'comments') return;
+  if (op.type !== 'add' && op.type !== 'delete') return;
+  const postId = String(op.parentDocId || '');
+  if (!postId) return;
+  try {
+    const sayi = await db
+      .collection('portal_posts_comments')
+      .countDocuments({ _parentDocId: postId });
+    const post = await findDocByAnyId(db, 'portal_posts', postId);
+    if (!post) return;
+    await db
+      .collection('portal_posts')
+      .updateOne({ _id: post._id }, { $set: { commentCount: sayi } });
+    if (touched) touched.add('portal_posts');
+  } catch (e) {
+    console.warn('[portal] yorum sayacı:', e && e.message);
+  }
 }
 
 /** Tek kayıt performansOkumaKosulu'na uyuyor mu? */
@@ -4763,6 +4845,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       addTouched(operations[0]);
       await ttoBildirimleriGonder(db, operations[0], result, req.user, touched);
       await performansGonderimBildirimi(db, operations[0], req.user, touched);
+      await portalYorumSayaci(db, operations[0], touched);
       await patentBildirimleriGonder(db, operations[0], result, req.user, touched);
       await mezuniyetBildirimleriGonder(db, operations[0], touched);
       await kopruBildirimleriGonder(db, operations[0], result, touched, req.user);
@@ -4777,6 +4860,7 @@ router.post('/write', softAuthMiddleware, auditMiddleware, async (req, res) => {
       addTouched(op);
       await ttoBildirimleriGonder(db, op, result, req.user, touched);
       await performansGonderimBildirimi(db, op, req.user, touched);
+      await portalYorumSayaci(db, op, touched);
       await patentBildirimleriGonder(db, op, result, req.user, touched);
       await mezuniyetBildirimleriGonder(db, op, touched);
       await kopruBildirimleriGonder(db, op, result, touched, req.user);
