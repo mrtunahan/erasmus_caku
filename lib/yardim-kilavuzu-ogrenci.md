@@ -180,26 +180,28 @@ Erasmus modülünü kullanabilmek için bölüm Erasmus koordinatörünüzün si
 
 Mezuniyet başvurusu beş adımda ilerler; her adımda ekranın üstündeki **Sıradaki adım** kutusu sizden ne beklendiğini söyler.
 
-| Adım                  | Kim          | Ne olur                                                                      |
-| --------------------- | ------------ | ---------------------------------------------------------------------------- |
-| 1. Transkript ve form | Siz          | Transkripti yüklersiniz, formu kontrol edip danışmana gönderirsiniz          |
-| 2. Danışman onayı     | Danışman     | Silinecek dersleri ve eksik stajları işaretler; onaylar ya da düzeltme ister |
-| 3. Dilekçe ve imza    | Siz          | Dilekçeyi indirir, imzalar, imzalı hâlini yüklersiniz                        |
-| 4. Danışman kontrolü  | Danışman     | İmzalı dilekçeyi kontrol edip memura iletir                                  |
-| 5. Memur              | Bölüm memuru | İşlemi tamamlar                                                              |
+| Adım                  | Kim          | Ne olur                                                                                                            |
+| --------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------ |
+| 1. Transkript ve form | Siz          | Transkripti yüklersiniz, formu kontrol edip danışmana gönderirsiniz                                                |
+| 2. Danışman onayı     | Danışman     | Eşleştirme önerilerinize karar verir, silinecek dersleri ve eksik stajları işaretler; onaylar ya da düzeltme ister |
+| 3. Dilekçe ve imza    | Siz          | Dilekçeyi indirir, imzalar, imzalı hâlini yükleyip danışmana gönderirsiniz                                         |
+| 4. Danışman kontrolü  | Danışman     | İmzalı dilekçeyi kontrol eder; uygunsa transkript ve dilekçeyi memura iletir, değilse size geri çevirir            |
+| 5. Memur              | Bölüm memuru | İşlemi tamamlar                                                                                                    |
 
-Danışman düzeltme isterse form size geri döner: notunu okuyun, gerekiyorsa transkripti yeniden yükleyip tekrar gönderin.
+Her adım değiştiğinde zil simgesine bildirim gelir. Danışman düzeltme isterse form size geri döner: **Danışman notları**'ndaki açıklamayı okuyun, gerekiyorsa transkripti yeniden yükleyip formu tekrar gönderin.
 
 ### Adım 1: Transkript ve form
 
 1. **Müfredatım:** Bölümünüzde birden çok müfredat varsa (örneğin 8+0 ve 7+1) kayıtlı olduğunuz müfredatı seçin. Hesap yalnız o müfredatın dersleriyle yapılır. Müfredat seçilmeden form gönderilemez.
-2. **Transkript:** e-Devlet'ten aldığınız karekodlu transkript PDF'ini seçip **Yükle ve tara**'ya basın. Dersler forma olduğu gibi aktarılır; elle değiştirilemez.
+2. **Transkript:** e-Devlet'ten aldığınız karekodlu transkript PDF'ini **Transkript seç (PDF)** ile seçip **Yükle ve tara**'ya basın. Dersler forma olduğu gibi aktarılır; elle değiştirilemez. Hatalı okunan bir satır varsa danışmanınız transkriptle karşılaştırıp düzeltme ister. Sistemde daha önce taranmış bir transkriptiniz varsa ilk seferde **Daha önce taranan transkriptimi kullan** düğmesi de görünür.
 3. **Mezuniyet formu**nu kontrol edin. AKTS, AGNO, zorunlu dersler ve staj durumu üstte özetlenir. Altında yalnız karar gerektiren dersler listelenir:
-   - **Silinmesi önerilen dersler:** Başarısız olup sonradan geçilmemiş seçmeli dersler ve yerine adı/kodu değişmiş benzer bir dersi geçtiğiniz dersler.
-   - **Mezuniyete engel — zorunlu dersler:** Zorunlu dersler silinemez, geçilmesi gerekir.
-   - **Kontrol gerekir:** Notu ya da zorunlu/seçmeli olduğu okunamayan dersler.
-4. Bütün dersler için **Tam transkripti göster**'i açın.
-5. **Akademik danışmanınızı** seçip **Danışmana gönder**'e basın.
+   - **Silinmesi önerilen dersler:** Başarısız olup sonradan geçilmemiş seçmeli dersler ve yerine adı/kodu değişmiş benzer bir dersi geçtiğiniz dersler. Hangilerinin silineceğine danışmanınız karar verir.
+   - **Mezuniyete engel — zorunlu dersler:** Kalınmış ya da hiç alınmamış zorunlu dersler. Zorunlu dersler silinemez, geçilmesi gerekir.
+   - **Kontrol gerekir:** Notu tanınmayan ya da zorunlu/seçmeli olduğu bilinmeyen başarısız dersler.
+4. Bütün dersleri görmek için **Tam transkripti göster**'i açın.
+5. **Akademik danışmanınızı** seçip **Danışmana gönder**'e basın. Ders seçiminde seçtiğiniz son danışman hazır gelir.
+
+Form danışmandayken üzerinde değişiklik yapamazsınız; danışmanınızın kararını beklersiniz.
 
 ### Yanlış görünen ders: Eşleştir
 
@@ -209,19 +211,24 @@ Bir ders müfredatta farklı kod ya da adla yer alıyorsa sistem onu silinmeli y
 2. Transkriptteki bir ders için müfredattaki karşılığını; eksik görünen bir müfredat dersi için transkriptteki karşılığını seçin.
 3. İsterseniz kısa bir açıklama yazın ("dersin kodu 2022'de değişti") ve **Danışmana öner**'e basın.
 
-Önerileriniz **Eşleştirme önerilerim** tablosunda durumuyla görünür: bekliyor, kabul edildi, reddedildi. Hesaba yalnız danışmanın kabul ettiği eşleştirmeler girer. Form danışmana gidene kadar bir öneriyi **Geri al**abilirsiniz.
+Önerileriniz **Eşleştirme önerilerim** tablosunda durumuyla görünür: danışman kararı bekleniyor, kabul edildi, reddedildi. Danışmanınız öneriye formu gönderdikten sonra karar verir; hesaba yalnız kabul ettiği eşleştirmeler girer. Bir öneriyi formu göndermeden önce **Geri al**abilir ya da **Değiştir** ile yenileyebilirsiniz; form size düzeltme için geri dönerse bunu yeniden yapabilirsiniz.
 
 ### Adım 3: Dilekçe ve imza
 
-Danışmanınız onaylayınca dilekçe adımı açılır.
+Danışmanınız formu onaylayınca dilekçe adımı açılır. Danışmanın işaretledikleri (silinecek dersler, eksik stajlar, notu) ekranın üstünde özetlenir ve dilekçeye basılır. Danışmanınız bu adımda işaretleri güncellerse bildirim alırsınız; dilekçeyi yeniden indirin.
 
-1. Kimlik ve iletişim bilgilerinizi tamamlayın; sistemden gelmeyenleri siz yazın.
-2. Mezuniyet dönemini (öğretim yılı ve dönem) seçin.
-3. **Beyan:** "silinecek seçmeli dersim yok" ya da "aşağıdaki derslerin silinmesini istiyorum" kutusundan birini işaretleyin. Danışmanınız silinecek ders işaretlediyse ikinci kutu işaretlenmelidir.
+1. **Kimlik bilgileri:** Sistemden gelir; eksik olanları (telefon, adres vb.) tamamlayın. Hepsi dolmadan dilekçe inmez.
+2. **Mezuniyet dönemi:** Öğretim yılını (örneğin 2025-2026) yazın ve dönemi (Güz, Bahar, Yaz) seçin.
+3. **Beyan:** "silinmesi gereken seçmeli başarısız dersim bulunmamaktadır" ya da "aşağıda bildirdiğim seçmeli derslerin silinmesini istiyorum" kutusundan birini işaretleyin. Danışmanınız silinecek ders işaretlediyse ikinci kutuyu işaretlemelisiniz; aksi hâlde dilekçe gönderilemez. İkinci kutuda dilekçedeki ders tablosu görünür; transkriptte okunamayan yıl, yarıyıl ya da statü varsa siz tamamlayın.
 4. **Dilekçeyi önizle ve indir**'e basın; dilekçe kurumun formundan, salt okunur PDF olarak iner.
-5. Dilekçeyi imzalayın, tarayıp PDF olarak yükleyin ve **İmzalı dilekçeyi danışmana gönder**'e basın.
+5. Dilekçeyi imzalayın, tarayıp **İmzalı PDF'i yükle** ile PDF olarak yükleyin ve **İmzalı dilekçeyi danışmana gönder**'e basın.
 
-Sonrasında danışmanınız belgeleri memura iletir; işlem tamamlanınca bildirim alırsınız. Başvurunun her adımı **Başvuru geçmişi**'nde tarihiyle durur.
+Danışmanınız imzalı dilekçeyi uygun bulmazsa size geri çevirir: dilekçe adımına dönersiniz, düzeltip yeniden yüklersiniz. Uygunsa transkriptinizi ve dilekçenizi bölüm memuruna iletir; memur işlemi tamamlayınca bildirim alırsınız. Başvurunun her adımı **Başvuru geçmişi**'nde tarihiyle durur.
+
+### Danışmanla yazışma ve başvurunun silinmesi
+
+- **Danışman notları** kutusunda danışmanınızın notlarını görürsünüz. Form size geri döndüğünde ve dilekçe adımında siz de danışmanınıza not yazabilirsiniz.
+- Danışmanınız gerekirse başvurunuzu silebilir; bu durumda bildirim alırsınız ve başvuruya transkript yüklemekten baştan başlarsınız.
 
 Bu hesap bilgilendirme amaçlıdır; resmî karar öğrenci bilgi sistemindedir.
 
