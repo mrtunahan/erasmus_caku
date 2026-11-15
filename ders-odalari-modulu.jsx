@@ -7533,8 +7533,9 @@ function NotAyariPaneli({ oda, kalemler, sinavlar, kapat, kaydedildi }) {
       </div>
       <div style={{ fontSize: 11, color: DO.soft }}>
         Toplam %100 değilse ortalama, ağırlık toplamına göre ölçeklenir. Henüz kimseye not
-        verilmemiş sütun ortalamaya girmez; notlanmış sütunda eksik not 0 sayılır. Harf notu 100'lük
-        ölçeğe göredir (AA ≥ 90, BA ≥ 85, BB ≥ 80, CB ≥ 75, CC ≥ 70, DC ≥ 65, DD ≥ 60, FD ≥ 50).
+        verilmemiş sütun ortalamaya girmez; notlanmış sütunda eksik not 0 sayılır. Harf notu, Ders
+        Muafiyet → Not Ölçekleri’ndeki ÇAKÜ ders notu tablosundan verilir (ortalama tam sayıya
+        yuvarlanır).
       </div>
     </section>
   );
@@ -7593,10 +7594,18 @@ function NotlarSekmesi({ oda, rol, ac }) {
   // Henüz kimseye notu girilmemiş sütun (yapılmamış final gibi) ortalamaya
   // girmez; notlanmış sütunda öğrencinin eksik notu 0 sayılır.
   const etkinKalemler = kalemler.filter((k) => kalemPuanlari(k).length > 0);
+  // Harf: ÇAKÜ ders notu tablosu (Ders Muafiyet → Not Ölçekleri; bölümün
+  // mezuniyet kurallarında). Sunucu gönderir; yoksa varsayılan ÇAKÜ tablosu.
+  const olcek = veri.notOlcegi || [];
+  const gecenHarfler = new Set(
+    (olcek.length ? olcek : D.CAKU_NOT_OLCEGI)
+      .filter((r) => r && r.gecer)
+      .map((r) => metin(r.harf).toLocaleUpperCase('tr-TR'))
+  );
   const sonuc = new Map();
   veri.ogrenciler.forEach((s) => {
     const r = D.agirlikliOrtalama(etkinKalemler, (k) => puanAl(k, s.no));
-    sonuc.set(s.no, { ...r, harf: D.harfNotu(r.ort) });
+    sonuc.set(s.no, { ...r, harf: D.harfNotu(r.ort, olcek) });
   });
 
   // Süzme ve sıralama. Öğrencinin kendi satırı her zaman başta durur.
@@ -7932,14 +7941,8 @@ function NotlarSekmesi({ oda, rol, ac }) {
           padding: '2px 7px',
           borderRadius: 6,
           fontFamily: monoYazi,
-          background:
-            h === 'FF' || h === 'FD'
-              ? DO.redLight
-              : h === 'DD' || h === 'DC'
-                ? DO.amberLight
-                : '#DCE7FF',
-          color:
-            h === 'FF' || h === 'FD' ? DO.red : h === 'DD' || h === 'DC' ? DO.amber : DO.accent,
+          background: gecenHarfler.has(h) ? '#DCE7FF' : DO.redLight,
+          color: gecenHarfler.has(h) ? DO.accent : DO.red,
         }}
       >
         {h}
@@ -8440,7 +8443,7 @@ function NotlarSekmesi({ oda, rol, ac }) {
                             fontWeight: 700,
                           }}
                         >
-                          {s.maskeli ? '•' : ogrenciBasHarf(s)}
+                          {s.maskeli ? '**' : ogrenciBasHarf(s)}
                         </span>
                         <div style={{ minWidth: 0 }}>
                           <div
@@ -8548,7 +8551,7 @@ function NotlarSekmesi({ oda, rol, ac }) {
                     </td>
                   ))}
                   <td style={{ ...td, fontWeight: 700, color: DO.accent }}>
-                    {genelOrt === '' ? '–' : D.harfNotu(genelOrt)}
+                    {genelOrt === '' ? '–' : D.harfNotu(genelOrt, olcek)}
                   </td>
                 </tr>
                 <tr>
@@ -8590,7 +8593,9 @@ function NotlarSekmesi({ oda, rol, ac }) {
                   })}
                   <td style={{ ...td, fontFamily: monoYazi, fontSize: 11, color: DO.muted }}>
                     {tumOrt.length
-                      ? D.harfNotu(Math.min(...tumOrt)) + ' / ' + D.harfNotu(Math.max(...tumOrt))
+                      ? D.harfNotu(Math.min(...tumOrt), olcek) +
+                        ' / ' +
+                        D.harfNotu(Math.max(...tumOrt), olcek)
                       : '–'}
                   </td>
                 </tr>
