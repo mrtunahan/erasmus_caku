@@ -31,6 +31,7 @@ import {
   agirlikToplami,
   agirlikliOrtalama,
   harfNotu,
+  harfBilgisi,
   notAyariDogrula,
   adMaskele,
   noMaskele,
@@ -427,19 +428,30 @@ describe('not defteri: kalemler, ağırlık, harf, maske', () => {
     const ks = notKalemleri(odevler, { agirliklar: { 'odev:a': 10, 'odev:b': 10 } });
     expect(agirlikliOrtalama(ks, (k) => (k.id === 'odev:a' ? 20 : 50)).ort).toBe(75);
   });
-  it('harf notu', () => {
-    expect([95, 87, 80, 76, 70, 65, 62, 55, 10].map(harfNotu)).toEqual([
-      'AA',
-      'BA',
-      'BB',
-      'CB',
-      'CC',
-      'DC',
-      'DD',
-      'FD',
-      'FF',
+  it('harf notu ÇAKÜ ders notu tablosundan', () => {
+    // Bölüm tablosu yoksa varsayılan ÇAKÜ tablosu (A, B1 … F2).
+    expect([95, 87, 80, 76, 70, 65, 62, 55, 10].map((p) => harfNotu(p))).toEqual([
+      'A',
+      'B1',
+      'B2',
+      'B3',
+      'C1',
+      'C2',
+      'C3',
+      'F1',
+      'F2',
     ]);
+    // Ortalama tam sayıya yuvarlanır: 89,5 → 90 → A; 89,4 → B1.
+    expect(harfNotu(89.5)).toBe('A');
+    expect(harfNotu(89.4)).toBe('B1');
     expect(harfNotu('')).toBe('');
+    // Bölümün yüklediği tablo esas alınır.
+    const olcek = [
+      { min: 60, max: 100, harf: 'G', gecer: true },
+      { min: 0, max: 59, harf: 'K', gecer: false },
+    ];
+    expect(harfNotu(61, olcek)).toBe('G');
+    expect(harfBilgisi(40, olcek)).toEqual({ harf: 'K', gecer: false });
   });
   it('not ayarı doğrulama', () => {
     const r = notAyariDogrula(
@@ -460,7 +472,8 @@ describe('not defteri: kalemler, ağırlık, harf, maske', () => {
     expect(notAyariDogrula({ agirliklar: { 'odev:a': 150 } }, ['a'], () => 'x').hata).toBeTruthy();
   });
   it('öğrenci kimliği maskelenir', () => {
-    expect(adMaskele('Ayşe Nur Yılmaz')).toBe('A*** N** Y*****');
+    // İlk harf de gizlenir (baş harfler ele vermesin).
+    expect(adMaskele('Ayşe Nur Yılmaz')).toBe('***** ***** *****');
     expect(noMaskele('260905044')).toBe('*********');
   });
 });

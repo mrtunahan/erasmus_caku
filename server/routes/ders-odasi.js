@@ -1573,11 +1573,52 @@ router.get(
       notAyari: oda.notAyari || {},
       sinavlar: await odaSinavlariOku(db, oda),
       kunye,
+      notOlcegi: await odaNotOlcegi(db, oda),
     });
   })
 );
 
 const ekNotGorunumu = (n) => ({ kalemId: n.kalemId, ogrenciNo: n.ogrenciNo, puan: n.puan });
+
+// Harf notunun tablosu: ÇAKÜ ders notu tablosu — Ders Muafiyet → Not
+// Ölçekleri kartında düzenlenen, bölümün mezuniyet kurallarındaki
+// `notOlcegi` (tek kaynak). Odanın bölümü farklı kimlikle yazılmış olabilir
+// (kod / _id / _docId); bölümün bütün kimlikleri denenir. Tablo yoksa boş
+// döner ve istemci varsayılan ÇAKÜ tablosunu kullanır (lib/ders-odasi.js).
+async function odaNotOlcegi(db, oda) {
+  try {
+    const bolumId = metin(oda && oda.departmentId);
+    if (!bolumId) return [];
+    let kimlikler = [bolumId];
+    try {
+      const H = require('../lib/bolum-kimlik');
+      const bolumler = await db.collection('departments').find({}).toArray();
+      const harita = H.bolumKimlikHaritasi(bolumler);
+      const bolum = bolumler.find((d) =>
+        H.kimlikler(d).some((k) => H.ayniBolum(k, bolumId, harita))
+      );
+      if (bolum) kimlikler = Array.from(new Set(kimlikler.concat(H.kimlikler(bolum).map(String))));
+    } catch (_) {
+      /* yalnız odadaki kimlikle aranır */
+    }
+    const kayitlar = await db
+      .collection('mezuniyet_kurallari')
+      .find({ $or: [{ _docId: { $in: kimlikler } }, { id: { $in: kimlikler } }] })
+      .toArray();
+    const k = kayitlar.find((x) => Array.isArray(x.notOlcegi) && x.notOlcegi.length);
+    return k
+      ? k.notOlcegi.map((r) => ({
+          min: r.min,
+          max: r.max,
+          harf: r.harf,
+          katsayi: r.katsayi,
+          gecer: !!r.gecer,
+        }))
+      : [];
+  } catch (_) {
+    return [];
+  }
+}
 
 // Öğrencinin gördüğü not çizelgesi: bütün sınıfın notları var ama YALNIZ
 // kendi satırında ad ve numara açıktır. Diğer öğrencilerin kimliği burada,
@@ -1641,6 +1682,7 @@ async function ogrenciNotCizelgesi(db, oda, user) {
     },
     sinavlar: await odaSinavlariOku(db, oda),
     kunye: { bolumAd: '', fakulteAd: '' },
+    notOlcegi: await odaNotOlcegi(db, oda),
   };
 }
 
