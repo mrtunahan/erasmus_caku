@@ -2247,6 +2247,10 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
       await basvuruYaz(ogrNo, {
         iletisim,
         silmeBeyani,
+        // Önizlemeden sonra değiştirilmiş olabilir; memura giden kayıt
+        // dilekçeyle aynı bilgileri taşısın.
+        mezuniyetDonemi: donemBilgisi,
+        silinecekEk,
         durum: 'imzali',
         imzaTarihi: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -3477,8 +3481,6 @@ function DanismanDetay({ no, kimlik, onGeri }) {
         )}
       </div>
 
-      {/* Danışman isterse başvuruyu siler; öğrenci baştan başlar. Memura
-          iletildikten sonra silinmez (sunucu da reddeder). */}
       {/* İŞLEM ÇUBUĞU — aşamanın kararı her zaman görünür (ekranın altında). */}
       {['danismanda', 'dilekce', 'imzali'].indexOf(durum) >= 0 && (
         <div

@@ -161,6 +161,9 @@ describe('öğrenci yazma kararı', () => {
     expect(imzaEksikleri({ ...b, imzaliDilekce: null })).toHaveLength(1);
     // Beyan kutularından biri işaretlenmeden gönderilemez.
     expect(imzaEksikleri({ ...b, silmeBeyani: '' })).toHaveLength(1);
+    // Danışman ders işaretlediyse "silinecek dersim yok" beyanı kabul edilmez.
+    expect(imzaEksikleri({ ...b, silmeBeyani: 'yok' })).toHaveLength(1);
+    expect(imzaEksikleri({ ...b, silmeBeyani: 'yok', silinecekDersler: [] })).toHaveLength(0);
   });
 
   it('gönderilmiş başvuruyu silemez; taslağı silebilir', () => {
