@@ -2311,8 +2311,9 @@ function OgrenciMezuniyet({ currentUser, activeDepartment, departmentInfo }) {
 
       {durum === 'iade' && (
         <BilgiKutusu tur="uyari">
-          <b>Danışmanınız düzeltme istedi.</b> {metin(basvuru.danismanNotu)} Gerekirse güncel
-          transkriptinizi yeniden yükleyin ve formu tekrar gönderin.
+          <b>Danışmanınız düzeltme istedi.</b>{' '}
+          {metin(basvuru.iadeNotu) || metin(basvuru.danismanNotu)} Gerekirse güncel transkriptinizi
+          yeniden yükleyin ve formu tekrar gönderin.
         </BilgiKutusu>
       )}
 
@@ -3147,6 +3148,10 @@ function DanismanDetay({ no, kimlik, onGeri }) {
     await yaz(
       {
         ...isaretler(),
+        // Düzeltme isteği dilekçeye basılmasın: ayrı alanda durur, dilekçe
+        // notu boşalır (form geri gelince danışman yeniden yazar).
+        iadeNotu: not.trim(),
+        danismanNotu: '',
         durum: 'iade',
         danismanKarariTarihi: new Date().toISOString(),
         mesajlar: (b.mesajlar || []).concat([
@@ -3428,7 +3433,9 @@ function DanismanDetay({ no, kimlik, onGeri }) {
             </span>
           )}
         </div>
-        <label style={ETIKET}>Öğrenciye not (dilekçeye ve bildirime gider)</label>
+        <label style={ETIKET}>
+          Öğrenciye not (onaylarsanız dilekçeye basılır; “Düzeltme iste”de yalnız öğrenciye gider)
+        </label>
         <textarea
           value={not}
           disabled={!isaretAcik}
@@ -3441,7 +3448,7 @@ function DanismanDetay({ no, kimlik, onGeri }) {
       <div style={KART}>
         <h3 style={BASLIK}>Notlar</h3>
         <Notlar basvuru={b} />
-        {['danismanda', 'dilekce', 'imzali'].indexOf(durum) >= 0 && (
+        {['danismanda', 'iade', 'dilekce', 'imzali'].indexOf(durum) >= 0 && (
           <NotYaz onGonder={notGonder} yer="Öğrenciye not gönderin…" />
         )}
       </div>

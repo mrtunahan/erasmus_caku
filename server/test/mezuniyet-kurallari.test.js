@@ -239,3 +239,136 @@ test('danışman başvuruyu silebilir; başka hoca silemez; öğrenciye zil dü�
     ['mezuniyet__2021009_dilekce']
   );
 });
+
+// "Düzeltme iste": danışman formu öğrenciye geri çevirir; öğrenci yeni
+// transkript yükleyip (ekranın gönderdiği alanların AYNISI) yeniden gönderir.
+test('düzeltme iste → öğrenci transkripti yeniden yükler, not yazar, tekrar gönderir', async () => {
+  const no = '2021002';
+  const k = () => db.collection('mezuniyet_basvurulari').findOne({ _docId: no });
+  const temel = {
+    ogrenciNo: no,
+    ogrenciAd: 'Can Ak',
+    departmentId: 'bilgisayar',
+    facultyId: '',
+    bolumAdi: 'Bilgisayar',
+    fakulteAdi: '',
+  };
+  const g = (olay, rol, onceki) =>
+    (onceki || []).concat([{ tarih: new Date().toISOString(), olay, yapan: 'x', rol }]);
+  // Öğrenci formu açar ve gönderir.
+  assert.equal(
+    (
+      await yaz(OGR2, no, {
+        ...temel,
+        createdAt: new Date().toISOString(),
+        durum: 'taslak',
+        transkriptUrl: '/api/files/download/transkriptler/eski.pdf',
+        dersler: [{ kod: 'BLM101', ad: 'Programlama', akts: '6', not: 'FF' }],
+        gecmis: g('Transkript yüklendi ve tarandı', 'ogrenci'),
+      })
+    ).durum,
+    200
+  );
+  let b = await k();
+  assert.equal(
+    (
+      await yaz(OGR2, no, {
+        ...temel,
+        danisman: 'Dr. Öğr. Üyesi Mehmet KAYA',
+        durum: 'danismanda',
+        gonderimTarihi: new Date().toISOString(),
+        ozet: { gecilenAkts: 0 },
+        gecmis: g('Form danışmana gönderildi', 'ogrenci', b.gecmis),
+      })
+    ).durum,
+    200
+  );
+
+  // Danışman "Düzeltme iste" — ekranın gönderdiği alanlar.
+  b = await k();
+  const iade = await yaz(DANISMAN, no, {
+    silinecekDersler: [],
+    eksikStajlar: [],
+    iadeNotu: 'Transkriptin son sayfası eksik, güncelini yükleyin.',
+    danismanNotu: '',
+    durum: 'iade',
+    danismanKarariTarihi: new Date().toISOString(),
+    mesajlar: [
+      { rol: 'danisman', yazan: 'x', metin: 'Transkriptin son sayfası eksik.', tarih: 't' },
+    ],
+    updatedAt: new Date().toISOString(),
+    gecmis: g('Danışman düzeltme istedi', 'danisman', b.gecmis),
+  });
+  assert.equal(iade.durum, 200, JSON.stringify(iade.j));
+  assert.equal((await k()).durum, 'iade');
+  const iadeZili = (await zil(no)).find((n) => n.type === 'mezuniyet_iade');
+  assert.ok(iadeZili && /son sayfası eksik/.test(iadeZili.body || iadeZili.message || ''));
+
+  // Form öğrencideyken danışman not yazabilir, işaret değiştiremez.
+  b = await k();
+  assert.equal(
+    (
+      await yaz(DANISMAN, no, {
+        mesajlar: b.mesajlar.concat([
+          { rol: 'danisman', yazan: 'x', metin: 'Bekliyorum.', tarih: 't' },
+        ]),
+        updatedAt: new Date().toISOString(),
+      })
+    ).durum,
+    200
+  );
+  assert.equal((await yaz(DANISMAN, no, { silinecekDersler: [{ kod: 'X' }] })).durum, 403);
+  assert.equal((await yaz(DANISMAN, no, { durum: 'dilekce' })).durum, 403);
+
+  // Öğrenci yeni transkripti yükleyip taratır (formuKaydet'in yazdığı alanlar).
+  b = await k();
+  const yeniden = await yaz(OGR2, no, {
+    ...temel,
+    dersler: [{ kod: 'BLM101', ad: 'Programlama', akts: '6', not: 'B1' }],
+    agno: '3,10',
+    transkriptAkts: '240',
+    sinif: '4',
+    transkriptUrl: '/api/files/download/transkriptler/yeni.pdf',
+    transkriptAdi: 'yeni.pdf',
+    transkriptTarihi: new Date().toISOString(),
+    ozet: { gecilenAkts: 6 },
+    updatedAt: new Date().toISOString(),
+    gecmis: g('Transkript yüklendi ve tarandı', 'ogrenci', b.gecmis),
+  });
+  assert.equal(yeniden.durum, 200, JSON.stringify(yeniden.j));
+  b = await k();
+  assert.equal(b.durum, 'iade');
+  assert.equal(b.transkriptUrl, '/api/files/download/transkriptler/yeni.pdf');
+  assert.equal(b.dersler[0].not, 'B1');
+
+  // Öğrenci danışmana not yazar, sonra yeniden gönderir.
+  assert.equal(
+    (
+      await yaz(OGR2, no, {
+        mesajlar: b.mesajlar.concat([
+          { rol: 'ogrenci', yazan: 'Can Ak', metin: 'Yeniledim.', tarih: 't2' },
+        ]),
+        updatedAt: new Date().toISOString(),
+      })
+    ).durum,
+    200
+  );
+  b = await k();
+  const tekrar = await yaz(OGR2, no, {
+    ...temel,
+    danisman: 'Dr. Öğr. Üyesi Mehmet KAYA',
+    durum: 'danismanda',
+    gonderimTarihi: new Date().toISOString(),
+    ozet: { gecilenAkts: 6 },
+    gecmis: g('Form danışmana gönderildi', 'ogrenci', b.gecmis),
+  });
+  assert.equal(tekrar.durum, 200, JSON.stringify(tekrar.j));
+  b = await k();
+  assert.equal(b.durum, 'danismanda');
+  // Düzeltme notu dilekçe notuna karışmadı.
+  assert.equal(b.danismanNotu, '');
+  const onaylar = (await zil('Dr. Öğr. Üyesi Mehmet KAYA')).filter(
+    (n) => n.type === 'mezuniyet_onay' && n.meta && n.meta.basvuruId === no
+  );
+  assert.equal(onaylar.length, 2);
+});
