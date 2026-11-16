@@ -12315,6 +12315,7 @@ const GradeConverter = () => {
         { val: 0.0, letter: 'FD', eq: 'F2', color: '#DC2626' },
         { text: '-', letter: 'Sınava girmedi', eq: 'FF1', color: '#991B1B' },
         { text: '-', letter: 'Devamsızlıktan kaldı', eq: 'FF2', color: '#7F1D1D' },
+        { text: '-', letter: 'Uygulamadan kaldı', eq: 'FF3', color: '#7F1D1D' },
       ],
     },
     ects_conv: {
