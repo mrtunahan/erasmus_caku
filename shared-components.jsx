@@ -17,6 +17,9 @@ import {
   mezPuandanHarf,
   mezHarfKatsayisi,
   mezOlcekDogrula,
+  cakuTablosuSatirlari,
+  cakuTablosuSorunlari,
+  cakuTablosuKaydi,
 } from './lib/mezuniyet.js';
 import { MEZ_DILEKCE_ALANLARI, MEZ_DILEKCE_SATIRLARI } from './lib/mezuniyet-basvuru.js';
 import { satirlariAyir, satirlariYerlestir, veriSatiriSec } from './lib/xlsx-satir.js';
@@ -13728,6 +13731,9 @@ window.mezKuralNormalize = mezKuralNormalize;
 window.mezModelEtiketi = mezModelEtiketi;
 window.NOT_OLCEGI_VARSAYILAN = NOT_OLCEGI_VARSAYILAN;
 window.EK_HARFLER_VARSAYILAN = EK_HARFLER_VARSAYILAN;
+window.cakuTablosuSatirlari = cakuTablosuSatirlari;
+window.cakuTablosuSorunlari = cakuTablosuSorunlari;
+window.cakuTablosuKaydi = cakuTablosuKaydi;
 window.mezPuandanHarf = mezPuandanHarf;
 window.mezHarfKatsayisi = mezHarfKatsayisi;
 window.mezOlcekDogrula = mezOlcekDogrula;

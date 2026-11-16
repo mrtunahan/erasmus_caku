@@ -7597,10 +7597,13 @@ function NotlarSekmesi({ oda, rol, ac }) {
   // Harf: ÇAKÜ ders notu tablosu (Ders Muafiyet → Not Ölçekleri; bölümün
   // mezuniyet kurallarında). Sunucu gönderir; yoksa varsayılan ÇAKÜ tablosu.
   const olcek = veri.notOlcegi || [];
+  // Geçer bilgisi harfBilgisi'nden (bayrağı olmayan eski kayıtta tahmin eder).
   const gecenHarfler = new Set(
     (olcek.length ? olcek : D.CAKU_NOT_OLCEGI)
-      .filter((r) => r && r.gecer)
-      .map((r) => metin(r.harf).toLocaleUpperCase('tr-TR'))
+      .filter((r) => r && metin(r.min) !== '')
+      .map((r) => D.harfBilgisi(r.min, olcek))
+      .filter((b) => b.gecer)
+      .map((b) => b.harf)
   );
   const sonuc = new Map();
   veri.ogrenciler.forEach((s) => {
