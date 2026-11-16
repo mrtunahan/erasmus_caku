@@ -9436,6 +9436,9 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
 function NotOlcekleriPanel({ currentUser, isStudent }) {
   const bolum = currentUser?.departmentId || '';
   const [cakuOlcek, setCakuOlcek] = useState([]);
+  // Mezuniyet kuralı kaydının kendisi: tablo kaydedilirken satırların geçer
+  // bayrakları ve kartta görünmeyen ek harfler (M, G, K) korunur.
+  const [cakuKaydi, setCakuKaydi] = useState({});
   const [kayitlar, setKayitlar] = useState([]);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [duzenlenen, setDuzenlenen] = useState(null); // {id?, kurum, satirlar}
@@ -9455,7 +9458,15 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
         window.apiRead.fresh(OLCEK_KOLEKSIYON).catch(() => []),
       ]);
       const d = (kural && kural.exists && kural.data) || {};
-      setCakuOlcek(Array.isArray(d.notOlcegi) ? d.notOlcegi : []);
+      setCakuKaydi(d);
+      // A … F2 ile birlikte FF1/FF2/FF3 (aralıksız, F2 sayılır) da görünür.
+      setCakuOlcek(
+        Array.isArray(d.notOlcegi) && d.notOlcegi.length
+          ? window.cakuTablosuSatirlari
+            ? window.cakuTablosuSatirlari(d)
+            : d.notOlcegi
+          : []
+      );
       // ── HAVUZ ÜNİVERSİTE GENELİ ──
       // Liste ARTIK SÜZÜLMÜYOR. Eskiden yalnız kendi bölümünün kayıtları
       // görünüyordu; oysa çeviri sırasındaki arama zaten tüm kayıtlara
@@ -9511,8 +9522,24 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
     }));
   };
 
-  const sorunlar =
-    duzenlenen && window.olcekSorunlari ? window.olcekSorunlari(duzenlenen.satirlar) : [];
+  // ÇAKÜ tablosunda puan aralığı olmayan satır (FF1, FF2, FF3) ek harftir:
+  // katsayısı F2 ile aynı olabilir; "aynı katsayı" denetimi yalnız aralıklı
+  // satırlara uygulanır, aralıksızlar ayrıca denetlenir.
+  const araliksiz = (x) =>
+    String(x.min == null ? '' : x.min).trim() === '' &&
+    String(x.max == null ? '' : x.max).trim() === '';
+  const sorunlar = !duzenlenen
+    ? []
+    : duzenlenen.kendi
+      ? (window.olcekSorunlari
+          ? window.olcekSorunlari((duzenlenen.satirlar || []).filter((x) => !araliksiz(x)))
+          : []
+        ).concat(
+          window.cakuTablosuSorunlari ? window.cakuTablosuSorunlari(duzenlenen.satirlar) : []
+        )
+      : window.olcekSorunlari
+        ? window.olcekSorunlari(duzenlenen.satirlar)
+        : [];
 
   const kaydet = async () => {
     const d = duzenlenen || {};
@@ -9533,7 +9560,9 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
         await window.DBWrite.set(
           'mezuniyet_kurallari',
           String(bolum),
-          { notOlcegi: d.satirlar },
+          window.cakuTablosuKaydi
+            ? window.cakuTablosuKaydi(d.satirlar, cakuKaydi)
+            : { notOlcegi: d.satirlar },
           true
         );
       } else {
@@ -10086,6 +10115,14 @@ function NotOlcekleriPanel({ currentUser, isStudent }) {
           >
             + Satır
           </button>
+          {duzenlenen.kendi && (
+            <div style={{ fontSize: 11.5, color: DS.textMuted, marginTop: 8, lineHeight: 1.5 }}>
+              <b>FF1, FF2, FF3</b> gibi puan aralığı olmayan notlar için Alt/Üst’ü boş bırakın ve
+              katsayıya, işleme alınacağı harfin katsayısını yazın (F2 için 0). Bu notlar mezuniyet
+              hesabında o harf olarak sayılır; yazmasanız da yönetmelikteki FF1, FF2, FF3 kalır (F2)
+              olarak tanınır.
+            </div>
+          )}
 
           {sorunlar.length > 0 && (
             <ul

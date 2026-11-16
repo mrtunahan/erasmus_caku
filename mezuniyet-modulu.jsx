@@ -35,7 +35,6 @@ import {
   dersGrupAnahtari,
 } from './lib/mezuniyet-basvuru.js';
 import {
-  mezuniyetHesapla,
   mezKuralNormalize,
   mezGecerliNotlar,
   mezNotDuzelt,
@@ -46,13 +45,8 @@ import {
   mezNorm,
 } from './lib/mezuniyet.js';
 import { mezuniyetFormunuDoldur, bolumBasligi } from './lib/mezuniyet-form-doldur.js';
-import {
-  onerileriNormalize,
-  oneriKarari,
-  oneriKimligi,
-  kabulEdilenOneriler,
-  eslesmeleriUygula,
-} from './lib/mezuniyet-eslestirme.js';
+import { basvuruHesapla, basvuruOzeti } from './lib/mezuniyet-hesap.js';
+import { onerileriNormalize, oneriKarari, oneriKimligi } from './lib/mezuniyet-eslestirme.js';
 import { R, dugme, GIRDI, BilgiNotu, GeriDon, BolumKarti } from './mezuniyet-ui.jsx';
 import MezuniyetKurallari from './mezuniyet-kurallari.jsx';
 
@@ -169,38 +163,9 @@ function silinecekDers(r) {
   };
 }
 
-function hesapla(basvuru, mufredat, kural) {
-  const ham = (basvuru && Array.isArray(basvuru.dersler) ? basvuru.dersler : []).map((d) => ({
-    kod: d.kod,
-    ad: d.ad,
-    akts: d.akts,
-    not: mezNotDuzelt(d.not, d.puan, kural).not,
-    yil: d.yil,
-    yariyil: d.yariyil,
-    statu: d.statu,
-    esdeger: d.esdeger,
-  }));
-  // Danışmanın kabul ettiği eşleştirme önerileri (kodu/adı farklı dersler).
-  const dersler = eslesmeleriUygula(ham, kabulEdilenOneriler(basvuru));
-  if (dersler.length === 0) return null;
-  return mezuniyetHesapla(mufredat, dersler, kural, {
-    agno: basvuru.agno,
-    transkriptAkts: basvuru.transkriptAkts,
-    // Öğrencinin müfredatı: yalnız o müfredatın dersleri aranır.
-    program: basvuru.program,
-  });
-}
-
-function ozetCikar(sonuc) {
-  if (!sonuc) return null;
-  return {
-    gecilenAkts: sonuc.gecilenAkts,
-    toplamAkts: sonuc.kural.toplamAkts,
-    ihlalSayisi: sonuc.ihlalSayisi,
-    kalanZorunlu: sonuc.kalanZorunlu.length,
-    mezunOlabilir: sonuc.mezunOlabilir,
-  };
-}
+// Hesap ve özet ortak dosyada (sunucudaki yeniden hesap betiği de kullanır).
+const hesapla = basvuruHesapla;
+const ozetCikar = basvuruOzeti;
 
 // ── Dilekçe üretimi: kurum şablonu → (PDF'e çevir) ; yoksa yerleşik PDF ──
 function blobIndir(blob, ad) {

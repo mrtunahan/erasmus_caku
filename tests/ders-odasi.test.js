@@ -614,3 +614,16 @@ describe('dersin öğrenci listesi (ders odası + yoklama ortak kural)', () => {
     expect(nolar(true)).toEqual(['1', '2']);
   });
 });
+
+describe('Ders Odaları harf: bayraksız ve FF1 satırlı ÇAKÜ tablosu', () => {
+  it('FF1 satırı F2 ile çakışmaz; bayraksız C3 geçer sayılır', async () => {
+    const { harfBilgisi } = await import('../lib/ders-odasi.js');
+    const olcek = [
+      { harf: 'C3', katsayi: 2, min: 60, max: 64 },
+      { harf: 'F2', katsayi: 0, min: 0, max: 59 },
+      { harf: 'FF1', katsayi: 0, min: '', max: '' },
+    ];
+    expect(harfBilgisi(30, olcek)).toEqual({ harf: 'F2', gecer: false });
+    expect(harfBilgisi(62, olcek)).toEqual({ harf: 'C3', gecer: true });
+  });
+});

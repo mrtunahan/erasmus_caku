@@ -17,6 +17,9 @@ import {
   mezPuandanHarf,
   mezHarfKatsayisi,
   mezOlcekDogrula,
+  cakuTablosuSatirlari,
+  cakuTablosuSorunlari,
+  cakuTablosuKaydi,
 } from './lib/mezuniyet.js';
 import { MEZ_DILEKCE_ALANLARI, MEZ_DILEKCE_SATIRLARI } from './lib/mezuniyet-basvuru.js';
 import { satirlariAyir, satirlariYerlestir, veriSatiriSec } from './lib/xlsx-satir.js';
@@ -12312,6 +12315,7 @@ const GradeConverter = () => {
         { val: 0.0, letter: 'FD', eq: 'F2', color: '#DC2626' },
         { text: '-', letter: 'Sınava girmedi', eq: 'FF1', color: '#991B1B' },
         { text: '-', letter: 'Devamsızlıktan kaldı', eq: 'FF2', color: '#7F1D1D' },
+        { text: '-', letter: 'Uygulamadan kaldı', eq: 'FF3', color: '#7F1D1D' },
       ],
     },
     ects_conv: {
@@ -13728,6 +13732,9 @@ window.mezKuralNormalize = mezKuralNormalize;
 window.mezModelEtiketi = mezModelEtiketi;
 window.NOT_OLCEGI_VARSAYILAN = NOT_OLCEGI_VARSAYILAN;
 window.EK_HARFLER_VARSAYILAN = EK_HARFLER_VARSAYILAN;
+window.cakuTablosuSatirlari = cakuTablosuSatirlari;
+window.cakuTablosuSorunlari = cakuTablosuSorunlari;
+window.cakuTablosuKaydi = cakuTablosuKaydi;
 window.mezPuandanHarf = mezPuandanHarf;
 window.mezHarfKatsayisi = mezHarfKatsayisi;
 window.mezOlcekDogrula = mezOlcekDogrula;

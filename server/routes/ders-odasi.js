@@ -1612,7 +1612,7 @@ async function odaNotOlcegi(db, oda) {
           max: r.max,
           harf: r.harf,
           katsayi: r.katsayi,
-          gecer: !!r.gecer,
+          gecer: typeof r.gecer === 'boolean' ? r.gecer : undefined,
         }))
       : [];
   } catch (_) {
