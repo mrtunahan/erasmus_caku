@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   dersNotunuCevir,
   eksikEslesmeSayisi,
+  harfTutarlilikUyarisi,
   notEslemeTaslagi,
 } from '../lib/muafiyet-not-eslesme.js';
 
@@ -178,5 +179,35 @@ describe('notEslemeTaslagi', () => {
 
   it('kayıt yoksa boş liste', () => {
     expect(notEslemeTaslagi(null, KARSI, CAKU)).toEqual([]);
+  });
+});
+
+describe('okunan harfin tutarlılığı', () => {
+  // ÇAKÜ biçimli bir karşı kurum tablosu (A, B1 … F2).
+  const tablo = [
+    { harf: 'A', katsayi: 4, min: 90, max: 100 },
+    { harf: 'B1', katsayi: 3.5, min: 85, max: 89 },
+    { harf: 'B2', katsayi: 3.25, min: 80, max: 84 },
+    { harf: 'B3', katsayi: 3, min: 75, max: 79 },
+    { harf: 'C3', katsayi: 2, min: 60, max: 64 },
+    { harf: 'F2', katsayi: 0, min: 0, max: 49 },
+  ];
+  it('kısaltılmış harf (B1 → B) yakalanır', () => {
+    expect(harfTutarlilikUyarisi('B', '', tablo)).toMatch(/B1, B2, B3/);
+  });
+  it('harf puanla uyuşmazsa uyarır, uyuşursa susar', () => {
+    expect(harfTutarlilikUyarisi('A', '62', tablo)).toMatch(/uyuşmuyor/);
+    expect(harfTutarlilikUyarisi('C3', '62', tablo)).toBe('');
+    expect(harfTutarlilikUyarisi('B1', '89,5', tablo)).toMatch(/uyuşmuyor/); // 90'a yuvarlanır
+  });
+  it('tablo yoksa ya da harf geçerliyse uyarı yok', () => {
+    expect(harfTutarlilikUyarisi('B', '', [])).toBe('');
+    expect(harfTutarlilikUyarisi('B2', '', tablo)).toBe('');
+  });
+  it('çeviri uyarıyı taşır; taslakta görünür', () => {
+    const c = dersNotunuCevir({ gradeHarf: 'A', gradePuan: '62' }, tablo, {});
+    expect(c.uyari).toMatch(/uyuşmuyor/);
+    const t = notEslemeTaslagi([{ sourceCourse: { gradeHarf: 'B', grade: 'B' } }], tablo, {});
+    expect(t[0].uyari).toMatch(/eksik okunmuş/);
   });
 });

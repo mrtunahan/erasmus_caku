@@ -5106,6 +5106,12 @@ const INTIBAK_STAGES = [
   { id: 'belge_teslim', label: 'Belge' },
   { id: 'tamamlandi', label: 'Tamamlandı' },
 ];
+// Harf notu karşılaştırması: boşluk ve büyük/küçük harf farkı yok sayılır.
+const harfSade = (h) =>
+  String(h == null ? '' : h)
+    .replace(/\s+/g, '')
+    .toLocaleUpperCase('tr-TR');
+
 const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) => {
   const [busy, setBusy] = useState(false);
   const stage = record.stage || 'on_inceleme';
@@ -5288,16 +5294,26 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
       const a = notAnahtari(m, i);
       const kayit = (record.ogrenciNotlari || {})[a] || {};
       const kaynakNot = kayit.kaynakNot || '';
+      // Belgede hem puan hem harf okunduysa ikisi karşı kurumun tablosuyla
+      // tutarlı mı? (harf kısaltılmış ya da başka satırdan okunmuş olabilir)
+      const uyari =
+        window.harfTutarlilikUyarisi && kayit.kaynakHarf
+          ? window.harfTutarlilikUyarisi(
+              kayit.kaynakHarf,
+              kaynakNot,
+              (karsiOlcek && karsiOlcek.satirlar) || []
+            )
+          : '';
       if (kaynakNot) {
         const c = puandanHarf(kaynakNot);
-        out[a] = { cakuNot: c.harf, sebep: c.sebep };
+        out[a] = { cakuNot: c.harf, sebep: c.sebep, uyari };
         return;
       }
       // Yalnız harf gelen satır da bu tarafta yeniden çevrilir: öğrencinin
       // tarayıcısında çıkan sonuç kanıt sayılmaz, kural burada tekrar işler.
       if (kayit.kaynakHarf) {
         const c = harftenCevir(kayit.kaynakHarf);
-        out[a] = { cakuNot: c.harf, sebep: c.sebep };
+        out[a] = { cakuNot: c.harf, sebep: c.sebep, uyari };
       }
     });
     return out;
@@ -5452,7 +5468,11 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
             // yoksa öğrenci "puan okunamadı" duvarına çarpıp duruyordu.
             id: 'harf',
             label: 'Harf Notu',
-            hint: 'dersin harf notu (ör. AA, BA, BB, CC, DD, FF ya da A, B, C). Yoksa boş bırak.',
+            hint:
+              'dersin harf notunu belgede YAZDIĞI GİBİ, karakteri karakterine aktar: rakam, artı/eksi ' +
+              've harf sayısı dahil (ör. B1, C3, FF1, BA, B+, A-). Kısaltma, sadeleştirme, başka ölçeğe ' +
+              'çevirme YAPMA: "B1" → "B" YANLIŞTIR. Harfi puandan ya da ortalamadan TÜRETME; ' +
+              'harf sütunu yoksa ya da okunamıyorsa boş bırak.',
           },
         ],
         satirTanimi: 'belgede yer alan her ders satırı',
@@ -6123,20 +6143,15 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                                 // kırmızı görünmüyordu. Harf notu sade biçimde
                                 // karşılaştırılır (boşluk/büyük-küçük harf yok).
                                 color:
-                                  String(yenidenCevrim[a].cakuNot || '')
-                                    .replace(/\s+/g, '')
-                                    .toLocaleUpperCase('tr-TR') !==
-                                  String(n.cakuNot || '')
-                                    .replace(/\s+/g, '')
-                                    .toLocaleUpperCase('tr-TR')
+                                  harfSade(yenidenCevrim[a].cakuNot) !== harfSade(n.cakuNot)
                                     ? DS.red
                                     : DS.green,
                               }}
                             >
                               Onaylı tabloya göre: <b>{yenidenCevrim[a].cakuNot}</b>
-                              {window.notNormalize &&
-                              window.notNormalize(yenidenCevrim[a].cakuNot) !==
-                                window.notNormalize(n.cakuNot)
+                              {/* Metin de tanımsız window.notNormalize'a bağlıydı;
+                                  "UYUŞMUYOR" hiç yazılmıyordu. */}
+                              {harfSade(yenidenCevrim[a].cakuNot) !== harfSade(n.cakuNot)
                                 ? ' — kayıttaki değerle UYUŞMUYOR'
                                 : ''}
                             </div>
@@ -6145,6 +6160,18 @@ const IntibakStagePanel = ({ record, isStudent, currentUser, onStageChange }) =>
                               {yenidenCevrim[a].sebep}
                             </div>
                           ) : null}
+                          {yenidenCevrim[a] && yenidenCevrim[a].uyari && (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: '#B45309',
+                                fontWeight: 700,
+                                marginTop: 3,
+                              }}
+                            >
+                              ⚠ {yenidenCevrim[a].uyari}
+                            </div>
+                          )}
                         </div>
                         <label style={{ fontSize: 11.5, color: DS.textSecondary }}>
                           Karşı notu
@@ -9155,6 +9182,8 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
   const cakuOlcekVar = ((cakuKural && cakuKural.notOlcegi) || []).length > 0;
   // Harf notu olup çevrilemeyen ders varsa karşı kurumun tablosu eksik demektir.
   const harfliCevrilemeyen = liste.filter((r) => r.karsiNot && !r.cakuNot).length;
+  // Okunan harfi kurumun tablosuyla/puanla tutmayan dersler.
+  const tutarsiz = liste.filter((r) => r.uyari).length;
 
   const guncelle = (anahtar, deger) =>
     setSatirlar((p) =>
@@ -9198,6 +9227,7 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
           cakuNot: cevrim.harf || '',
           onerilen: cevrim.harf || '',
           elleGirilmis: false,
+          uyari: (yeniNot && cevrim.uyari) || '',
           sebep: yeniNot ? cevrim.sebep : 'Karşı kurum notu girilmedi.',
         };
       })
@@ -9311,6 +9341,24 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
             </div>
           )}
 
+          {!yukleniyor && tutarsiz > 0 && (
+            <div
+              style={{
+                padding: '10px 12px',
+                borderRadius: 10,
+                background: '#FFF7E6',
+                border: '1px solid #FCD34D',
+                color: '#92400E',
+                fontSize: 12.5,
+                marginBottom: 12,
+              }}
+            >
+              <b>{tutarsiz} derste okunan harf notu şüpheli</b> (kurumun tablosunda yok ya da puanla
+              uyuşmuyor). Transkripte bakıp “Karşı not” sütununu düzeltin; ÇAKÜ karşılığı yeniden
+              hesaplanır.
+            </div>
+          )}
+
           {yukleniyor ? (
             <div style={{ fontSize: 12.5, color: DS.textMuted }}>Ölçekler yükleniyor…</div>
           ) : liste.length === 0 ? (
@@ -9330,7 +9378,16 @@ function NotEslemeOnayi({ record, currentUser, activeDepartment, onIptal, onOnay
                   <div style={{ ...hucre, flex: 3 }}>
                     <b style={{ color: DS.navy }}>{r.karsiKod || '—'}</b> {r.karsiAd}
                     {r.sebep && (
-                      <div style={{ fontSize: 11, color: DS.textMuted, marginTop: 3 }}>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          // Okunan harf tutarsızsa (eksik okunmuş, puanla
+                          // uyuşmuyor) gerekçe göze çarpsın.
+                          color: r.uyari ? '#B45309' : DS.textMuted,
+                          fontWeight: r.uyari ? 700 : 400,
+                          marginTop: 3,
+                        }}
+                      >
                         {r.sebep}
                       </div>
                     )}
@@ -11911,8 +11968,16 @@ function DersMuafiyetApp({ currentUser, activeDepartment, departmentInfo, sabitT
                 const src = Object.assign({}, m.sourceCourse || m.source || {}, { grade: not });
                 // Sayı ise puan, değilse harf alanına da yazılır: sonraki
                 // hesaplar (yeniden açıldığında) aynı yoldan geçsin.
-                if (/^\d/.test(not)) src.gradePuan = not;
-                else src.gradeHarf = not;
+                // Öteki alan TEMİZLENİR: yanlış okunmuş harf kayıtta kalırsa
+                // çeviri harfi öne aldığı için akademisyenin girdiği puan
+                // sonraki hesapta yok sayılıyordu (ve tersi).
+                if (/^\d/.test(not)) {
+                  src.gradePuan = not;
+                  src.gradeHarf = '';
+                } else {
+                  src.gradeHarf = not;
+                  src.gradePuan = '';
+                }
                 yeni.sourceCourse = src;
               }
               // Değişmeyen satır yamaya girmez: dokunulmamış satırı yazmak da
@@ -11998,7 +12063,14 @@ const AI_TRANSKRIPT_SUTUNLARI = [
   {
     id: 'harf',
     label: 'Harf Notu',
-    hint: 'dersin harf notu (AA, BA, BB, CC … ya da A, B, C). Yoksa boş bırak.',
+    // ⚠ Örnek listesi modeli yönlendiriyordu: "A, B, C" görünce B1/C3 gibi
+    // rakamlı harfleri tek harfe kısaltıyordu (ÇAKÜ ve birçok kurum A, B1…F2
+    // kullanıyor). Talimat artık "birebir aktar" der.
+    hint:
+      'dersin harf notunu belgede YAZDIĞI GİBİ, karakteri karakterine aktar: rakam, artı/eksi ' +
+      've harf sayısı dahil (ör. B1, C3, FF1, BA, B+, A-). Kısaltma, sadeleştirme, başka ölçeğe ' +
+      'çevirme YAPMA: "B1" → "B" YANLIŞTIR. Harfi puandan ya da ortalamadan TÜRETME; ' +
+      'harf sütunu yoksa ya da okunamıyorsa boş bırak.',
   },
   {
     id: 'puan',

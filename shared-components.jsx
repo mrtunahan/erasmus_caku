@@ -77,6 +77,7 @@ import {
   dersNotunuCevir,
   eksikEslesmeSayisi,
   notEslemeTaslagi,
+  harfTutarlilikUyarisi,
 } from './lib/muafiyet-not-eslesme.js';
 import { tablolariSayfayaSigdir } from './lib/docx-tablo-sigdir.js';
 import {
@@ -15071,6 +15072,7 @@ window.hazirOlcekBul = hazirOlcekBul;
 // Hesaplanan değer ÖNERİDİR; kaydedilen, akademisyenin onayladığıdır.
 window.dersNotunuCevir = dersNotunuCevir;
 window.notEslemeTaslagi = notEslemeTaslagi;
+window.harfTutarlilikUyarisi = harfTutarlilikUyarisi;
 window.eksikEslesmeSayisi = eksikEslesmeSayisi;
 // Öğrencinin seçtiği dersler İKİ kaynakta olabiliyor (student_courses +
 // eski students.myCourseIds); karar tek yerde (lib/ogrenci-ders-secimi.js).

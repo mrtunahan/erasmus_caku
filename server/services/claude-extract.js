@@ -778,7 +778,10 @@ Ek kurallar:
 - "guven" satırın tamamı içindir: 1.0 = satır net okundu, 0.5 = bazı hücreler
   yorum gerektirdi, 0.3 ve altı = satır şüpheli.
 - Bir satır birden çok mantıksal kaydı içeriyorsa (birleşik hücre) bölme;
-  belgede nasıl duruyorsa öyle ver.`;
+  belgede nasıl duruyorsa öyle ver.
+- Not, harf notu ve kod gibi kısa değerleri karakteri karakterine aktar
+  (rakam, artı/eksi dahil: "B1", "C3", "FF1", "B+"). Bildiğin bir ölçeğe
+  benzetip kısaltma ya da düzeltme yapma; hücreyi okuyamıyorsan boş bırak.`;
 
 /**
  * @param {object} opt
